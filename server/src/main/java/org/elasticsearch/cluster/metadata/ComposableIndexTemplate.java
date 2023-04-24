@@ -210,8 +210,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (ignoreMissingComponentTemplates == null) {
             return componentTemplates;
         }
-        return componentTemplates
-            .stream()
+        return componentTemplates.stream()
             .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
             .toList();
     }

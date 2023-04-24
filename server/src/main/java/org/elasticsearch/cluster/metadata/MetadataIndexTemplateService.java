@@ -456,8 +456,10 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream().filter(e -> {
-            Set<String> intersecting = Sets.intersection(new HashSet<>(e.getValue().getRequiredComponentTemplates()),
-                matchingComponentTemplates);
+            Set<String> intersecting = Sets.intersection(
+                new HashSet<>(e.getValue().getRequiredComponentTemplates()),
+                matchingComponentTemplates
+            );
             if (intersecting.size() > 0) {
                 componentsBeingUsed.addAll(intersecting);
                 return true;

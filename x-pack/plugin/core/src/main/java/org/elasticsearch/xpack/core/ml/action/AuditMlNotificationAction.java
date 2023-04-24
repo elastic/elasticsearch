@@ -47,10 +47,10 @@ public class AuditMlNotificationAction extends ActionType<AcknowledgedResponse> 
         private final Level level;
 
         public Request(AuditType auditType, String id, String message, Level level) {
-            this.auditType = auditType;
-            this.id = id;
-            this.message = message;
-            this.level = level;
+            this.auditType = Objects.requireNonNull(auditType);
+            this.id = Objects.requireNonNull(id);
+            this.message = Objects.requireNonNull(message);
+            this.level = Objects.requireNonNull(level);
         }
 
         public Request(StreamInput in) throws IOException {

@@ -183,8 +183,9 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     private void writeNotification(String modelId, String message, Level level) {
         client.execute(
             AuditMlNotificationAction.INSTANCE,
-            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level)
-        ).actionGet();
+            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level),
+            ActionListener.noop()
+        );
     }
 
     @Override

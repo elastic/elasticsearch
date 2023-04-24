@@ -20,8 +20,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
 import java.io.IOException;
@@ -45,7 +47,8 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         NamedWriteableRegistry namedWriteableRegistry,
         BigArrays bigArrays,
         XPackLicenseState licenseState,
-        SearchApplicationTemplateService templateService
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry
     ) {
         super(
             QuerySearchApplicationAction.NAME,
@@ -59,7 +62,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
             licenseState
         );
         this.client = client;
-        this.templateService = templateService;
+        this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
     }
 
     @Override

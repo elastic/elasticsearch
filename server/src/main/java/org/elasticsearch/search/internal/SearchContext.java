@@ -373,12 +373,12 @@ public abstract class SearchContext implements Releasable {
     /**
      * Registers the collector to be run for the aggregations phase
      */
-    public abstract void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager);
+    public abstract void registerAggsCollectorManager(CollectorManager<? extends Collector, Void> collectorManager);
 
     /**
      * Returns the collector to be run for the aggregations phase
      */
-    public abstract CollectorManager<Collector, Void> getAggsCollectorManager();
+    public abstract CollectorManager<? extends Collector, Void> getAggsCollectorManager();
 
     public abstract SearchExecutionContext getSearchExecutionContext();
 

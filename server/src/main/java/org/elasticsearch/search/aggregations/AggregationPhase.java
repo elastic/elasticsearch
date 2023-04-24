@@ -8,13 +8,12 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.SingleThreadCollectorManager;
@@ -28,8 +27,7 @@ import java.util.List;
  */
 public class AggregationPhase {
 
-    @Inject
-    public AggregationPhase() {}
+    private AggregationPhase() {}
 
     public static void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
@@ -43,7 +41,7 @@ public class AggregationPhase {
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
-        final CollectorManager<Collector, Void> collectorManager;
+        final Collector collector;
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
@@ -53,14 +51,15 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            collectorManager = new SingleThreadCollectorManager(BucketCollector.NO_OP_COLLECTOR);
+            collector = BucketCollector.NO_OP_COLLECTOR;
         } else {
-            collectorManager = new SingleThreadCollectorManager(bucketCollector.asCollector());
+            collector = bucketCollector.asCollector();
         }
         if (context.getProfilers() != null) {
-            context.registerAggsCollectorManager(new InternalProfileCollectorManager(collectorManager, CollectorResult.REASON_AGGREGATION));
+            InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
+            context.registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
         } else {
-            context.registerAggsCollectorManager(collectorManager);
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager<>(collector));
         }
     }
 

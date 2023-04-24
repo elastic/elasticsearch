@@ -127,7 +127,7 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private CollectorManager<Collector, Void> aggCollectorManager;
+    private CollectorManager<? extends Collector, Void> aggCollectorManager;
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
@@ -752,12 +752,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+    public CollectorManager<? extends Collector, Void> getAggsCollectorManager() {
         return aggCollectorManager;
     }
 
     @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
+    public void registerAggsCollectorManager(CollectorManager<? extends Collector, Void> collectorManager) {
         this.aggCollectorManager = collectorManager;
     }
 

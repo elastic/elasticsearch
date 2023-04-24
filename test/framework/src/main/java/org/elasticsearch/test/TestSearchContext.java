@@ -71,7 +71,7 @@ public class TestSearchContext extends SearchContext {
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-    CollectorManager<Collector, Void> aggCollectorManager;
+    CollectorManager<? extends Collector, Void> aggCollectorManager;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -525,12 +525,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+    public CollectorManager<? extends Collector, Void> getAggsCollectorManager() {
         return aggCollectorManager;
     }
 
     @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collector) {
+    public void registerAggsCollectorManager(CollectorManager<? extends Collector, Void> collector) {
         this.aggCollectorManager = collector;
     }
 

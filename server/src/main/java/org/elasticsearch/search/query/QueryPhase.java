@@ -41,6 +41,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -138,9 +139,9 @@ public class QueryPhase {
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
 
-            CollectorManager<Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
+            CollectorManager<? extends Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                 searchContext.getProfilers(),
-                new SingleThreadCollectorManager(topDocsFactory.collector()),
+                topDocsFactory.collector(),
                 topDocsFactory.profilerName
             );
 
@@ -152,11 +153,12 @@ public class QueryPhase {
                     searchContext.terminateAfter(),
                     true
                 );
+                final Collector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collectorManager.newCollector())),
+                    MultiCollector.wrap(earlyTerminatingCollector, collector),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
-                    collectorManager
+                    collector
                 );
             }
             if (searchContext.parsedPostFilter() != null) {
@@ -167,33 +169,33 @@ public class QueryPhase {
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
+                final Collector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(new FilteredCollector(collectorManager.newCollector(), filterWeight)),
+                    new FilteredCollector(collector, filterWeight),
                     REASON_SEARCH_POST_FILTER,
-                    collectorManager
+                    collector
                 );
             }
             if (searchContext.getAggsCollectorManager() != null) {
+                final Collector collector = collectorManager.newCollector();
+                final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(
-                        MultiCollector.wrap(collectorManager.newCollector(), searchContext.getAggsCollectorManager().newCollector())
-                    ),
+                    MultiCollector.wrap(collector, aggsCollector),
                     REASON_SEARCH_MULTI,
-                    collectorManager,
-                    searchContext.getAggsCollectorManager()
+                    collector,
+                    aggsCollector
                 );
             }
             if (searchContext.minimumScore() != null) {
+                final Collector collector = collectorManager.newCollector();
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(
-                        new MinimumScoreCollector(collectorManager.newCollector(), searchContext.minimumScore())
-                    ),
+                    new MinimumScoreCollector(collector, searchContext.minimumScore()),
                     REASON_SEARCH_MIN_SCORE,
-                    collectorManager
+                    collector
                 );
             }
 
@@ -239,21 +241,23 @@ public class QueryPhase {
         }
     }
 
-    @SafeVarargs
-    private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
+    private static CollectorManager<? extends Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
-        CollectorManager<Collector, Void> collector,
+        Collector collector,
         String profilerName,
-        CollectorManager<Collector, Void>... children
+        Collector... children
     ) {
-        return profilers == null ? collector : new InternalProfileCollectorManager(collector, profilerName, children);
+        if (profilers == null) {
+            return new SingleThreadCollectorManager<>(collector);
+        }
+        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, children));
     }
 
     private static void searchWithCollectorManager(
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
-        CollectorManager<Collector, Void> collectorManager,
+        CollectorManager<? extends Collector, Void> collectorManager,
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {

@@ -430,12 +430,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+    public CollectorManager<? extends Collector, Void> getAggsCollectorManager() {
         return in.getAggsCollectorManager();
     }
 
     @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
+    public void registerAggsCollectorManager(CollectorManager<? extends Collector, Void> collectorManager) {
         in.registerAggsCollectorManager(collectorManager);
     }
 

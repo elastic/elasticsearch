@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
@@ -26,7 +27,7 @@ import java.util.List;
  *
  * InternalProfiler facilitates the linking of the Collector graph
  */
-class InternalProfileCollector implements Collector {
+public class InternalProfileCollector implements Collector {
 
     /**
      * A more friendly representation of the Collector's class name
@@ -44,13 +45,17 @@ class InternalProfileCollector implements Collector {
     /**
      * An array of "embedded" children collectors
      */
-    private final InternalProfileCollectorManager[] children;
+    private final InternalProfileCollector[] children;
 
-    InternalProfileCollector(Collector collector, String reason, InternalProfileCollectorManager[] children) {
+    public InternalProfileCollector(Collector collector, String reason, Collector... children) {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
-        this.children = children;
+        Objects.requireNonNull(children, "children collectors cannot be null");
+        this.children = new InternalProfileCollector[children.length];
+        for (int i = 0; i < children.length; i++) {
+            this.children[i] = (InternalProfileCollector) Objects.requireNonNull(children[i], "child collector cannot be null");
+        }
     }
 
     /**
@@ -116,8 +121,8 @@ class InternalProfileCollector implements Collector {
 
     private static CollectorResult doGetCollectorTree(InternalProfileCollector collector) {
         List<CollectorResult> childResults = new ArrayList<>(collector.children.length);
-        for (InternalProfileCollectorManager child : collector.children) {
-            CollectorResult result = child.getCollectorTree();
+        for (InternalProfileCollector child : collector.children) {
+            CollectorResult result = doGetCollectorTree(child);
             childResults.add(result);
         }
         return new CollectorResult(collector.getName(), collector.getReason(), collector.getTime(), childResults);

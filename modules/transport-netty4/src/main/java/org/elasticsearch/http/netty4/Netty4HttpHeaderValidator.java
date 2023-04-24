@@ -110,7 +110,9 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
         } else {
             assert threadContext.isDefaultContext();
-            // validator should not change the thread context for the code that forwards the requests through the netty pipeline
+            // this prevents thread-context changes to propagate to the validation listener
+            // atm the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
+            // so this is just a defensive play, in case the code inside the listener changes to not use the event loop executor
             ContextPreservingActionListener<Void> contextPreservingListener = new ContextPreservingActionListener<>(
                 threadContext.wrapRestorable(threadContext.newStoredContext()),
                 ActionListener.wrap(aVoid ->
@@ -119,7 +121,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
                 ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e)))
             );
-            // validator should not change the thread context of netty worker threads
+            // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
                 validator.apply(httpRequest, ctx.channel(), contextPreservingListener);
             }

@@ -6,12 +6,12 @@ issues: []
 highlight:
   title: Add support for Reciprocal Rank Fusion (RRF) to the search API
   body: |-
-    This change at a high level adds global ranking on the coordinating
-    node at the end of query reduction prior to the fetch phase. The
-    singular ranking model added in this change is reciprocal rank fusion
-    (RRF) which follows the basic formula for merging `1...n` sets of
-    results sets together with `sum(1/(k+d))` where `k` is a ranking constant
-    and `d` is a document's scored position within a result set from a query.
+    This change adds reciprocal rank fusion (RRF) which follows the basic formula
+    for merging `1...n` sets of results sets together with `sum(1/(k+d))` where `k`
+    is a ranking constant and `d` is a document's scored position within a result set
+    from a query. The main advantage of ranking this way is the scores for the sets
+    of results do not have to be normalized relative to each other because RRF only
+    relies upon positions within each result set.
 
     The API for this change adds a `rank` top-level element to the search
     endpoint. An example:
@@ -41,7 +41,7 @@ highlight:
     }
     ----
 
-    The above example will execute the search query and the knn search separately for
+    The above example will execute the search query and the knn search separately.
     It will preserve separate result sets up to the point where the queries are
     ranked on the coordinating node using RRF.
 

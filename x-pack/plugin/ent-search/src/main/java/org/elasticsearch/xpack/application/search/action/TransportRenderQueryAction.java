@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.application.search.SearchApplicationTemplateServi
 
 import java.util.Map;
 
-public class TransportRenderQueryAction extends SearchApplicationTransportAction<SearchApplicationSearchRequest, RenderQueryAction.Response> {
+public class TransportRenderQueryAction extends SearchApplicationTransportAction<
+    SearchApplicationSearchRequest,
+    RenderQueryAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportRenderQueryAction.class);
 
@@ -60,7 +62,7 @@ public class TransportRenderQueryAction extends SearchApplicationTransportAction
     @Override
     protected void doExecute(SearchApplicationSearchRequest request, ActionListener<RenderQueryAction.Response> listener) {
         systemIndexService.getSearchApplication(request.name(), ActionListener.wrap(searchApplication -> {
-            final Map<String,Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
+            final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
             final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
             listener.onResponse(new RenderQueryAction.Response(sourceBuilder));
         }, listener::onFailure));

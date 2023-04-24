@@ -38,7 +38,7 @@ public class SearchApplicationTemplateService {
     }
 
     public SearchSourceBuilder renderQuery(SearchApplication searchApplication, Map<String, Object> templateParams) throws IOException {
-        final Map<String,Object> renderedTemplateParams = renderTemplate(searchApplication, templateParams);
+        final Map<String, Object> renderedTemplateParams = renderTemplate(searchApplication, templateParams);
         final Script script = searchApplication.searchApplicationTemplate().script();
         TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(renderedTemplateParams);
         String requestSource = compiledTemplate.execute();
@@ -59,7 +59,7 @@ public class SearchApplicationTemplateService {
      * @return Map of all template parameters including template defaults for non-specified parameters
      * @throws ValidationException on invalid template parameters
      */
-    public Map<String, Object> renderTemplate(SearchApplication searchApplication, Map<String,Object> queryParams)
+    public Map<String, Object> renderTemplate(SearchApplication searchApplication, Map<String, Object> queryParams)
         throws ValidationException {
 
         final SearchApplicationTemplate template = searchApplication.searchApplicationTemplate();

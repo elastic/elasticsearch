@@ -69,22 +69,8 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
         .setting("remote_cluster_server.enabled", "true")
         .setting("remote_cluster.port", "0")
         .setting("xpack.security.remote_cluster_server.ssl.enabled", "false")
-        .setting("logger.org.elasticsearch.xpack.security.transport", "trace")
-        .setting("logger.org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService", "trace")
         .user(USER, PASS.toString())
         .build();
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        initClient();
-        API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessCcrApiKey());
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return testCluster.getHttpAddresses();
-    }
 
     // Create an API Key specifically for CCR access
     private static Map<String, Object> createCrossClusterAccessCcrApiKey() {
@@ -109,6 +95,18 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
     }
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        initClient();
+        API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessCcrApiKey());
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return testCluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

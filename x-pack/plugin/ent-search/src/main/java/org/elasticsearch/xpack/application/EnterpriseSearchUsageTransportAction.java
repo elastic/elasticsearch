@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.application;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,10 +35,12 @@ import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
+
 public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTransportAction {
     private static final Logger logger = LogManager.getLogger(EnterpriseSearchUsageTransportAction.class);
     private final XPackLicenseState licenseState;
-    private final Client client;
+    private final OriginSettingClient clientWithOrigin;
 
     private final boolean enabled;
 
@@ -61,7 +64,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             indexNameExpressionResolver
         );
         this.licenseState = licenseState;
-        this.client = client;
+        this.clientWithOrigin = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }
 
@@ -83,7 +86,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         }
 
         try {
-            ListSearchApplicationAction.Response resp = client.execute(
+            ListSearchApplicationAction.Response resp = clientWithOrigin.execute(
                 ListSearchApplicationAction.INSTANCE,
                 new ListSearchApplicationAction.Request(null, new PageParams(0, 0))
             ).get();

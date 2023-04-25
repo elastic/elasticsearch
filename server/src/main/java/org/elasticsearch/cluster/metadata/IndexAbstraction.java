@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -369,7 +368,7 @@ public interface IndexAbstraction {
             } else {
                 timestamp = getTimestampFromParser(request.source(), request.getContentType());
             }
-            timestamp = timestamp.truncatedTo(ChronoUnit.SECONDS);
+            timestamp = org.elasticsearch.cluster.metadata.DataStream.getCanonicalTimestampBound(timestamp);
             Index result = dataStream.selectTimeSeriesWriteIndex(timestamp, metadata);
             if (result == null) {
                 String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);

@@ -1055,7 +1055,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
     }
 
-    public static Instant getCanonicalTimestampBound(Instant i) {
-        return i.truncatedTo(ChronoUnit.SECONDS);
+    /**
+     * Modifies the passed Instant object to be used as a bound for a timestamp field in TimeSeries. It needs to be called in both backing
+     * index construction (rollover) and index selection for doc insertion. Failure to do so may lead to errors due to document timestamps
+     * exceeding the end time of the selected backing index for insertion.
+     * @param time The initial Instant object that's used to generate the canonical time
+     * @return A canonical Instant object to be used as a timestamp bound
+     */
+    public static Instant getCanonicalTimestampBound(Instant time) {
+        return time.truncatedTo(ChronoUnit.SECONDS);
     }
 }

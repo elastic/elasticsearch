@@ -188,12 +188,15 @@ public abstract class RetryableAction<Response> {
                     int range = Math.toIntExact((delayMillisBound + 1) / 2);
                     long delayMillis = Randomness.get().nextInt(range) + delayMillisBound - range + 1L;
 
-                    // Adjust the actual delay to not exceed 20% beyond the timeout
                     long millisExceedingTimeout = delayMillis - remainingMillis;
                     if (millisExceedingTimeout > 0) {
                         long twentyPercent = (long) (timeoutMillis * .2);
-                        delayMillis = remainingMillis + Math.min(twentyPercent, millisExceedingTimeout);
-
+                        if (millisExceedingTimeout > twentyPercent) {
+                            // Adjust the actual delay to only exceed the timeout by 10-20%
+                            int tenPercent = Math.toIntExact((long) (timeoutMillis * .1));
+                            int delayBeyondTimeout = Randomness.get().nextInt(tenPercent) + tenPercent;
+                            delayMillis = remainingMillis + delayBeyondTimeout;
+                        }
                     }
                     assert delayMillis > 0;
                     if (isDone.get() == false) {

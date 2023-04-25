@@ -315,7 +315,7 @@ public class QueryPhase {
         // hence its newCollector always returns the same collector instance
         InternalProfileCollector[] childProfileCollectors = new InternalProfileCollector[children.length];
         for (int i = 0; i < children.length; i++) {
-            childProfileCollectors[i] = ((InternalProfileCollectorManager)children[i]).newCollector();
+            childProfileCollectors[i] = (InternalProfileCollector) children[i].newCollector();
         }
         return new InternalProfileCollectorManager(
             new InternalProfileCollector(collectorManager.newCollector(), profilerName, childProfileCollectors)

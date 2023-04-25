@@ -47,6 +47,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -768,6 +769,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
                 if (shard != null) {
                     shard.fieldData().onCache(shardId, fieldName, ramUsage);
+                }
+            }
+        }
+
+        @Override
+        public void onCache(ShardId shardId, String fieldName, GlobalOrdinalsAccounting info) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
+                if (shard != null) {
+                    shard.fieldData().onCache(shardId, fieldName, info);
                 }
             }
         }

@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -329,7 +330,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         // Indices
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        indicesCommonStats.getFieldData()
+            .add(new FieldDataStats(++iota, ++iota, null, new FieldDataStats.GlobalOrdinalsStats(0L, Map.of())));
         indicesCommonStats.getStore().add(new StoreStats(++iota, no, no));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(

@@ -18,13 +18,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RenderQueryAction extends ActionType<RenderQueryAction.Response> {
+public class RenderSearchApplicationQueryAction extends ActionType<RenderSearchApplicationQueryAction.Response> {
 
-    public static final RenderQueryAction INSTANCE = new RenderQueryAction();
+    public static final RenderSearchApplicationQueryAction INSTANCE = new RenderSearchApplicationQueryAction();
     public static final String NAME = "cluster:admin/xpack/application/search_application/render_query";
 
-    public RenderQueryAction() {
-        super(NAME, RenderQueryAction.Response::new);
+    public RenderSearchApplicationQueryAction() {
+        super(NAME, RenderSearchApplicationQueryAction.Response::new);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

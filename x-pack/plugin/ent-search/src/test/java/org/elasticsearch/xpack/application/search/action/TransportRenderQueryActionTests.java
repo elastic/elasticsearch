@@ -42,7 +42,7 @@ public class TransportRenderQueryActionTests extends ESTestCase {
         when(licenseState.isActive()).thenReturn(false);
         when(licenseState.statusDescription()).thenReturn("invalid license");
 
-        TransportRenderQueryAction transportAction = new TransportRenderQueryAction(
+        TransportRenderSearchApplicationQueryAction transportAction = new TransportRenderSearchApplicationQueryAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
             mock(Client.class),
@@ -64,11 +64,11 @@ public class TransportRenderQueryActionTests extends ESTestCase {
         SearchApplicationSearchRequest request = new SearchApplicationSearchRequest("my-search-app", Map.of("field1", "value1"));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<RenderQueryAction.Response> responseRef = new AtomicReference<>();
+        final AtomicReference<RenderSearchApplicationQueryAction.Response> responseRef = new AtomicReference<>();
 
         transportAction.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(RenderQueryAction.Response response) {
+            public void onResponse(RenderSearchApplicationQueryAction.Response response) {
                 responseRef.set(response);
             }
 

@@ -16,15 +16,15 @@ import java.util.Collections;
 
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
 
-public class RenderQueryResponseSerializingTests extends AbstractWireSerializingTestCase<RenderQueryAction.Response> {
+public class RenderQueryResponseSerializingTests extends AbstractWireSerializingTestCase<RenderSearchApplicationQueryAction.Response> {
 
     @Override
-    protected Writeable.Reader<RenderQueryAction.Response> instanceReader() {
-        return RenderQueryAction.Response::new;
+    protected Writeable.Reader<RenderSearchApplicationQueryAction.Response> instanceReader() {
+        return RenderSearchApplicationQueryAction.Response::new;
     }
 
     @Override
-    protected RenderQueryAction.Response createTestInstance() {
+    protected RenderSearchApplicationQueryAction.Response createTestInstance() {
         SearchSourceBuilder searchSourceBuilder = randomSearchSourceBuilder(
             () -> null,
             () -> null,
@@ -33,11 +33,12 @@ public class RenderQueryResponseSerializingTests extends AbstractWireSerializing
             () -> null,
             () -> null
         );
-        return new RenderQueryAction.Response(searchSourceBuilder);
+        return new RenderSearchApplicationQueryAction.Response(searchSourceBuilder);
     }
 
     @Override
-    protected RenderQueryAction.Response mutateInstance(RenderQueryAction.Response instance) throws IOException {
+    protected RenderSearchApplicationQueryAction.Response mutateInstance(RenderSearchApplicationQueryAction.Response instance)
+        throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

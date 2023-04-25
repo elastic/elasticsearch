@@ -25,16 +25,16 @@ import org.elasticsearch.xpack.application.search.SearchApplicationTemplateServi
 
 import java.util.Map;
 
-public class TransportRenderQueryAction extends SearchApplicationTransportAction<
+public class TransportRenderSearchApplicationQueryAction extends SearchApplicationTransportAction<
     SearchApplicationSearchRequest,
-    RenderQueryAction.Response> {
+    RenderSearchApplicationQueryAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportRenderQueryAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportRenderSearchApplicationQueryAction.class);
 
     private final SearchApplicationTemplateService templateService;
 
     @Inject
-    public TransportRenderQueryAction(
+    public TransportRenderSearchApplicationQueryAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -46,7 +46,7 @@ public class TransportRenderQueryAction extends SearchApplicationTransportAction
         NamedXContentRegistry xContentRegistry
     ) {
         super(
-            RenderQueryAction.NAME,
+            RenderSearchApplicationQueryAction.NAME,
             transportService,
             actionFilters,
             SearchApplicationSearchRequest::new,
@@ -60,11 +60,11 @@ public class TransportRenderQueryAction extends SearchApplicationTransportAction
     }
 
     @Override
-    protected void doExecute(SearchApplicationSearchRequest request, ActionListener<RenderQueryAction.Response> listener) {
+    protected void doExecute(SearchApplicationSearchRequest request, ActionListener<RenderSearchApplicationQueryAction.Response> listener) {
         systemIndexService.getSearchApplication(request.name(), ActionListener.wrap(searchApplication -> {
             final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
             final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
-            listener.onResponse(new RenderQueryAction.Response(sourceBuilder));
+            listener.onResponse(new RenderSearchApplicationQueryAction.Response(sourceBuilder));
         }, listener::onFailure));
     }
 

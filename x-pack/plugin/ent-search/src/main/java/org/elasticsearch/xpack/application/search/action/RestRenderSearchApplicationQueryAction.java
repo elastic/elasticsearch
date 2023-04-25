@@ -18,7 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestRenderQueryAction extends BaseRestHandler {
+public class RestRenderSearchApplicationQueryAction extends BaseRestHandler {
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_render_query";
 
@@ -42,6 +42,6 @@ public class RestRenderQueryAction extends BaseRestHandler {
             request = new SearchApplicationSearchRequest(searchAppName);
         }
         final SearchApplicationSearchRequest finalRequest = request;
-        return channel -> client.execute(RenderQueryAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(RenderSearchApplicationQueryAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
     }
 }

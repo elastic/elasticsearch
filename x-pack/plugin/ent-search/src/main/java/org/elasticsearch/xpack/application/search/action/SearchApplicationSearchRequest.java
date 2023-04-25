@@ -56,10 +56,8 @@ public class SearchApplicationSearchRequest extends ActionRequest {
     }
 
     public SearchApplicationSearchRequest(String name, @Nullable Map<String, Object> queryParams) {
-        Objects.requireNonNull(name, "Application name must be specified");
-        this.name = name;
-
-        this.queryParams = queryParams != null ? queryParams : Map.of();
+        this.name = Objects.requireNonNull(name, "Application name must be specified");
+        this.queryParams = Objects.requireNonNullElse(queryParams, Map.of());
     }
 
     public static SearchApplicationSearchRequest fromXContent(String name, XContentParser contentParser) {

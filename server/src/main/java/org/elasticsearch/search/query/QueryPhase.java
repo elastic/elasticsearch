@@ -52,7 +52,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -218,7 +217,7 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
-                    collectorManager
+                    (InternalProfileCollector) collector
                 );
             }
             if (searchContext.parsedPostFilter() != null) {
@@ -234,7 +233,7 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(new FilteredCollector(collector, filterWeight)),
                     REASON_SEARCH_POST_FILTER,
-                    collectorManager
+                    (InternalProfileCollector) collector
                 );
             }
             if (searchContext.getAggsCollectorManager() != null) {
@@ -244,8 +243,8 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
                     REASON_SEARCH_MULTI,
-                    collectorManager,
-                    searchContext.getAggsCollectorManager()
+                    (InternalProfileCollector) collector,
+                    (InternalProfileCollector) aggsCollector
                 );
             }
             if (searchContext.minimumScore() != null) {
@@ -255,7 +254,7 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(new MinimumScoreCollector(collector, searchContext.minimumScore())),
                     REASON_SEARCH_MIN_SCORE,
-                    collectorManager
+                    (InternalProfileCollector) collector
                 );
             }
 
@@ -301,24 +300,17 @@ public class QueryPhase {
         }
     }
 
-    @SafeVarargs
     private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
         CollectorManager<Collector, Void> collectorManager,
         String profilerName,
-        CollectorManager<Collector, Void>... children
+        InternalProfileCollector... children
     ) throws IOException {
         if (profilers == null) {
             return collectorManager;
         }
-        // to keep it simple, we rely on the fact that profile collector manager is single-threaded
-        // hence its newCollector always returns the same collector instance
-        InternalProfileCollector[] childProfileCollectors = new InternalProfileCollector[children.length];
-        for (int i = 0; i < children.length; i++) {
-            childProfileCollectors[i] = (InternalProfileCollector) children[i].newCollector();
-        }
         return new InternalProfileCollectorManager(
-            new InternalProfileCollector(collectorManager.newCollector(), profilerName, childProfileCollectors)
+            new InternalProfileCollector(collectorManager.newCollector(), profilerName, children)
         );
     }
 

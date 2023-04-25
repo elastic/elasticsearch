@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
@@ -44,6 +47,9 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
             request = new Request(searchAppName);
         }
         final Request finalRequest = request;
-        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
+            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+        };
     }
 }

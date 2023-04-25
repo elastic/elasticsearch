@@ -43,14 +43,19 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
+import org.elasticsearch.search.rank.RankSearchContext;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
@@ -67,6 +72,59 @@ public class QueryPhase {
     private QueryPhase() {}
 
     public static void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        if (searchContext.rankShardContext() == null) {
+            executeQuery(searchContext);
+        } else {
+            executeRank(searchContext);
+        }
+    }
+
+    static void executeRank(SearchContext searchContext) throws QueryPhaseExecutionException {
+        RankShardContext rankShardContext = searchContext.rankShardContext();
+        QuerySearchResult querySearchResult = searchContext.queryResult();
+
+        // run the combined boolean query total hits or aggregations
+        // otherwise mark top docs as empty
+        if (searchContext.trackTotalHitsUpTo() != TRACK_TOTAL_HITS_DISABLED || searchContext.aggregations() != null) {
+            searchContext.size(0);
+            QueryPhase.executeQuery(searchContext);
+        } else {
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
+        }
+
+        List<TopDocs> rrfRankResults = new ArrayList<>();
+        boolean searchTimedOut = querySearchResult.searchTimedOut();
+        long serviceTimeEWMA = querySearchResult.serviceTimeEWMA();
+        int nodeQueueSize = querySearchResult.nodeQueueSize();
+
+        // run each of the rrf queries
+        for (Query rankQuery : rankShardContext.queries()) {
+            // if a search timeout occurs, exit with partial results
+            if (searchTimedOut) {
+                break;
+            }
+            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize());
+            QueryPhase.addCollectorsAndSearch(rankSearchContext);
+            QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+            rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+            serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+            nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+            searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+        }
+
+        querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));
+
+        // record values relevant to all queries
+        querySearchResult.searchTimedOut(searchTimedOut);
+        querySearchResult.serviceTimeEWMA(serviceTimeEWMA);
+        querySearchResult.nodeQueueSize(nodeQueueSize);
+    }
+
+    static void executeQuery(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             SuggestPhase.execute(searchContext);
             searchContext.queryResult()
@@ -85,7 +143,8 @@ public class QueryPhase {
         // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
-        executeInternal(searchContext);
+
+        addCollectorsAndSearch(searchContext);
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
@@ -100,7 +159,7 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void executeInternal(SearchContext searchContext) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();

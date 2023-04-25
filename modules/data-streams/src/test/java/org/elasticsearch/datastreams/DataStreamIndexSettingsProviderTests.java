@@ -429,6 +429,48 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
     }
 
+    public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntries() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
+        String mapping = """
+            {
+                "_doc": {
+                    "dynamic_templates": [
+                        {
+                            "labels": {
+                                "path_match": ["xprometheus.labels.*", "yprometheus.labels.*"],
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        }
+                    ],
+                    "properties": {
+                        "host": {
+                            "properties": {
+                                "id": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
+                                }
+                            }
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "xprometheus.labels.*"));
+        List<String> routingPathList = IndexMetadata.INDEX_ROUTING_PATH.get(result);
+        assertEquals(2, routingPathList.size());
+    }
+
     public void testGenerateRoutingPathFromDynamicTemplate_templateWithNoPathMatch() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default

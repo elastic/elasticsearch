@@ -178,10 +178,12 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 }
 
                 MappingParserContext parserContext = mapperService.parserContext();
-                var mapper = parserContext.typeParser(mappingSnippetType)
-                    .parse(template.pathMatch(), mappingSnippet, parserContext)
-                    .build(MapperBuilderContext.root(false));
-                extractPath(routingPaths, mapper);
+                for (String pathMatch : template.pathMatch()) {
+                    var mapper = parserContext.typeParser(mappingSnippetType)
+                        .parse(pathMatch, mappingSnippet, parserContext)
+                        .build(MapperBuilderContext.root(false));
+                    extractPath(routingPaths, mapper);
+                }
             }
             return routingPaths;
         } catch (IOException e) {

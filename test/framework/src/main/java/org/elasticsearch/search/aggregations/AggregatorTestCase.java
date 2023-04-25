@@ -669,7 +669,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * For aggregations supporting the dense format, use the dense reduction path and then render the final
      * results as {@link InternalAggregation}s
      */
-    /*
+    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceDense(
         IndexSearcher searcher,
         AggTestConfig aggTestConfig
@@ -678,7 +678,31 @@ public abstract class AggregatorTestCase extends ESTestCase {
         final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
 
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        List<C> aggregators = doCollection(indexSettings, searcher, breakerService, aggTestConfig);
+        List<Releasable> aggContexts = new ArrayList<>();
+        List<C> aggregators = doCollection(indexSettings, searcher, breakerService,
+            (
+                IndexSearcher indexSearcher,
+                IndexSettings settings,
+                Query query,
+                CircuitBreakerService cbkr,
+                long bytesToPreallocate,
+                int maxBucket,
+                boolean isInSortOrderExecutionRequired,
+                MappedFieldType... fieldTypes) -> {
+                AggregationContext ctx = createAggregationContext(
+                    indexSearcher,
+                    settings,
+                    query,
+                    cbkr,
+                    bytesToPreallocate,
+                    maxBucket,
+                    isInSortOrderExecutionRequired,
+                    fieldTypes
+                );
+                aggContexts.add(ctx);
+                return ctx;
+            },
+            aggTestConfig);
 
         List<CollectedAggregator> collectedAggregators = new ArrayList<>();
         for (C agg : aggregators) {
@@ -705,7 +729,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 pipelines
             );
 
-            @SuppressWarnings("unchecked")
             A internalAgg = (A) collectedAggregators.get(0).reduce(collectedAggregators, reduceContext).convertToLegacy(0);
             assertRoundTrip(internalAgg);
 
@@ -724,10 +747,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
             return internalAgg;
         } finally {
-            Releasables.close(breakerService);
+            // NOCOMMIT - TODO: We should really clean up the collect time contexts much earlier than this
+            aggContexts.add(breakerService);
+            Releasables.close(aggContexts);
         }
     }
-     */
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
@@ -759,15 +783,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 verify.accept(agg);
                 verifyOutputFieldNames(aggTestConfig.builder(), agg);
 
-                /*
                 if (aggTestConfig.builder().supportsDenseAggregations()) {
                     agg = searchAndReduceDense(indexSearcher, aggTestConfig);
                     verify.accept(agg);
                     verifyOutputFieldNames(aggTestConfig.builder(), agg);
                 }
-
-                 */
-
             }
         }
     }

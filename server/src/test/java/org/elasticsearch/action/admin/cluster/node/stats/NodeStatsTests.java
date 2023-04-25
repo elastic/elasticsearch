@@ -617,7 +617,13 @@ public class NodeStatsTests extends ESTestCase {
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = new HashMap<>();
+        fieldOrdinalStats.put(
+            randomAlphaOfLength(4),
+            new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        var ordinalStats = new FieldDataStats.GlobalOrdinalsStats(randomNonNegativeLong(), fieldOrdinalStats);
+        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, ordinalStats));
         indicesCommonStats.getStore().add(new StoreStats(++iota, ++iota, ++iota));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(

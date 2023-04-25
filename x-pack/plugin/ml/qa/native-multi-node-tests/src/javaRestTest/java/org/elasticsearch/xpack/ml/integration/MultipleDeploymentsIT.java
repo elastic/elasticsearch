@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
 import java.io.IOException;
@@ -28,13 +30,13 @@ public class MultipleDeploymentsIT extends PyTorchModelRestTestCase {
         putAllModelParts(baseModelId);
 
         String forSearch = "for-search";
-        startWithDeploymentId(baseModelId, forSearch);
+        startDeployment(baseModelId, forSearch, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
 
         Response inference = infer("my words", forSearch);
         assertOK(inference);
 
         String forIngest = "for-ingest";
-        startWithDeploymentId(baseModelId, forIngest);
+        startDeployment(baseModelId, forIngest, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
 
         inference = infer("my words", forIngest);
         assertOK(inference);
@@ -71,12 +73,13 @@ public class MultipleDeploymentsIT extends PyTorchModelRestTestCase {
         String modelWith2Deployments = "model-with-2-deployments";
         putAllModelParts(modelWith2Deployments);
         String forSearchDeployment = "for-search";
-        startWithDeploymentId(modelWith2Deployments, forSearchDeployment);
+        startDeployment(modelWith2Deployments, forSearchDeployment, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
+
         String forIngestDeployment = "for-ingest";
-        startWithDeploymentId(modelWith2Deployments, forIngestDeployment);
+        startDeployment(modelWith2Deployments, forIngestDeployment, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
 
         // deployment Id is the same as model
-        startDeployment(modelWith1Deployment);
+        startDeployment(modelWith1Deployment, modelWith1Deployment, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
 
         {
             Map<String, Object> stats = entityAsMap(getTrainedModelStats("_all"));

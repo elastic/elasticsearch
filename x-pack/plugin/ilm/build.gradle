@@ -17,6 +17,14 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')
+  testImplementation project(':modules:dlm')
 }
 
 addQaCheckDependencies(project)
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
+  }
+}
+

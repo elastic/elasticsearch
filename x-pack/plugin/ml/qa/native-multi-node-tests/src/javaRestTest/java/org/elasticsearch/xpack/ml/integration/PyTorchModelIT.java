@@ -190,7 +190,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelStarted);
 
         CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
-            startDeployment(modelId, state.toString());
+            startDeployment(modelId, state);
             Response response = getTrainedModelStats(modelId);
             var responseMap = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
@@ -246,7 +246,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(modelId);
         putVocabulary(List.of("once", "twice"), modelId);
         putModelDefinition(modelId);
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
         {
             Response noInferenceCallsStatsResponse = getTrainedModelStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
@@ -315,7 +315,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
         client().performRequest(request);
-        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        startDeployment(badModel, AllocationStatus.State.STARTING);
         assertBusy(() -> {
             Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
@@ -340,8 +340,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED);
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED);
         infer("once", modelFoo);
         infer("once", modelBar);
         {
@@ -372,8 +372,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED);
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED);
         infer("once", modelFoo);
         infer("once", modelBar);
 
@@ -447,7 +447,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             client().performRequest(clusterSettings);
         }
 
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
 
         List<String> inputs = List.of(
             "my words",
@@ -614,7 +614,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         putVocabulary(List.of("once", "twice", "thrice"), modelId);
         putModelDefinition(modelId);
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
 
         String input = "once twice thrice";
         var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
@@ -846,8 +846,8 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
-        startDeployment(modelId2, modelId2, AllocationStatus.State.STARTING.toString(), 1, 1, Priority.NORMAL);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL);
+        startDeployment(modelId2, modelId2, AllocationStatus.State.STARTING, 1, 1, Priority.NORMAL);
 
         // Check second model did not get any allocations
         assertAllocationCount(modelId2, 0);
@@ -888,7 +888,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL)
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL)
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         assertThat(
@@ -924,7 +924,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED.toString(), 100, 1, Priority.NORMAL);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL);
 
         {
             Request request = new Request(
@@ -1033,7 +1033,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
-        startDeployment(modelId, modelId, "started", 2, 1, Priority.NORMAL);
+        startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 2, 1, Priority.NORMAL);
 
         assertBusy(() -> assertAllocationCount(modelId, 2));
 
@@ -1051,7 +1051,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
             createPassThroughModel(modelId);
             putModelDefinition(modelId);
             putVocabulary(List.of("these", "are", "my", "words"), modelId);
-            startDeployment(modelId, modelId, "started", 1, 1, Priority.LOW);
+            startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
             assertAllocationCount(modelId, 1);
         }
     }

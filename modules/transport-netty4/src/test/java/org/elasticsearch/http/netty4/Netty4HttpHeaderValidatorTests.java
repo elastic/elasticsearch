@@ -24,6 +24,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -59,7 +61,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
             header.set(httpRequest);
             listener.set(validationCompleteListener);
         };
-        netty4HttpHeaderValidator = new Netty4HttpHeaderValidator(validator);
+        netty4HttpHeaderValidator = new Netty4HttpHeaderValidator(validator, new ThreadContext(Settings.EMPTY));
         channel.pipeline().addLast(netty4HttpHeaderValidator);
     }
 

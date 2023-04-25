@@ -339,7 +339,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (headerValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
-                ch.pipeline().addLast("header_validator", new Netty4HttpHeaderValidator(headerValidator));
+                ch.pipeline()
+                    .addLast(
+                        "header_validator",
+                        new Netty4HttpHeaderValidator(headerValidator, transport.getThreadPool().getThreadContext())
+                    );
             }
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());

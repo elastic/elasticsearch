@@ -33,7 +33,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
  * There are no changes to the behavior, just some renames.
  */
-class KnnScoreDocQuery extends Query {
+public class KnnScoreDocQuery extends Query {
     private final int[] docs;
     private final float[] scores;
     private final int[] segmentStarts;

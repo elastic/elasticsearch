@@ -164,6 +164,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.NodeTerminationHandlerPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -242,7 +243,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -1569,6 +1569,11 @@ public class Node implements Closeable {
     // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
+        logger.info("Invoking termination handler plugins...");
+        pluginsService.filterPlugins(NodeTerminationHandlerPlugin.class).forEach(plugin -> {
+            plugin.handleTerminationSignal(client, nodeEnvironment);
+        });
+
         synchronized (lifecycle) {
             if (lifecycle.started()) {
                 stop();

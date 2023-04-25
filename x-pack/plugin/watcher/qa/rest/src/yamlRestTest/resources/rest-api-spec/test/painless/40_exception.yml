@@ -37,10 +37,6 @@
 
 ---
 "Test painless exceptions are returned when logging a broken response":
-  - skip:
-      version: " - 8.6.99"
-      reason:  "self-referencing objects were fixed to be in Painless instead of Mustache in 8.7"
-
   - do:
       cluster.health:
           wait_for_status: green

@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -59,8 +60,13 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
+import static org.elasticsearch.dlm.DataLifecycleService.DLM_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_BEGIN_MARKER;
+import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_COMPLETE_MARKER;
+import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_METADATA_KEY;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -343,15 +349,29 @@ public class DataLifecycleServiceTests extends ESTestCase {
 
         // There are 3 backing indices. One gets rolled over. The other two get force merged:
         assertBusy(() -> {
-            assertThat(clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData("dlm"), notNullValue());
-            assertThat(clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData("dlm"), notNullValue());
             assertThat(
-                clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData("dlm").get("forcemerge"),
-                equalTo("complete")
+                clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                notNullValue()
             );
             assertThat(
-                clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData("dlm").get("forcemerge"),
-                equalTo("complete")
+                clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                notNullValue()
+            );
+            assertThat(
+                clusterService.state()
+                    .metadata()
+                    .index(dataStream.getIndices().get(0))
+                    .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                    .get(FORCE_MERGE_METADATA_KEY),
+                equalTo(FORCE_MERGE_COMPLETE_MARKER)
+            );
+            assertThat(
+                clusterService.state()
+                    .metadata()
+                    .index(dataStream.getIndices().get(1))
+                    .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                    .get(FORCE_MERGE_METADATA_KEY),
+                equalTo(FORCE_MERGE_COMPLETE_MARKER)
             );
         });
         assertBusy(() -> { assertThat(clientSeenRequests.size(), is(3)); }, 30, TimeUnit.SECONDS);
@@ -387,12 +407,204 @@ public class DataLifecycleServiceTests extends ESTestCase {
         assertBusy(() -> { assertThat(clientSeenRequests.size(), is(4)); });
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
         assertBusy(() -> {
-            assertThat(clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData("dlm"), notNullValue());
             assertThat(
-                clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData("dlm").get("forcemerge"),
-                equalTo("complete")
+                clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                notNullValue()
+            );
+            assertThat(
+                clusterService.state()
+                    .metadata()
+                    .index(dataStream2.getIndices().get(2))
+                    .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                    .get(FORCE_MERGE_METADATA_KEY),
+                equalTo(FORCE_MERGE_COMPLETE_MARKER)
             );
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testForceMergeRetries() throws Exception {
+        /*
+         * This test makes sure that DLM correctly retries (or doesn't) forcemerge requests on failure.
+         * First, we set up a datastream with 3 backing indices. On the first run of DLM we'll expect one to get rolled over and two to
+         * be forcemerged.
+         */
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(Version.CURRENT),
+            new DataLifecycle(TimeValue.MAX_VALUE),
+            now
+        );
+        builder.put(dataStream);
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        // we are the master node
+        nodesBuilder.masterNodeId(nodeId);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
+        setState(clusterService, state);
+
+        {
+            /*
+             * For the first DLM run we're intentionally making forcemerge fail with a retryable failure:
+             */
+            AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
+            clientDelegate = (action, request, listener) -> {
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onFailure(new SnapshotInProgressException("Retryable failure"));
+                    forceMergeFailedCount.incrementAndGet();
+                }
+            };
+            dataLifecycleService.run(clusterService.state());
+            /*
+             * Since forcemerge failed with a retryable failure, we expect that the marker will get removed so that DLM will try to pick it
+             * up next time.
+             */
+            assertBusy(() -> {
+                assertThat(forceMergeFailedCount.get(), equalTo(2));
+                assertThat(
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    nullValue()
+                );
+                assertThat(
+                    clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    nullValue()
+                );
+            });
+        }
+
+        {
+            // For the 2nd DLM run, we let forcemerge run normally
+            clientDelegate = (action, request, listener) -> {
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
+                }
+            };
+            dataLifecycleService.run(clusterService.state());
+            /*
+             * And this time we expect that it will actually run the forcemerge, and update the marker to complete:
+             */
+            assertBusy(() -> {
+                assertThat(
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    notNullValue()
+                );
+                assertThat(
+                    clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    notNullValue()
+                );
+                assertThat(
+                    clusterService.state()
+                        .metadata()
+                        .index(dataStream.getIndices().get(0))
+                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                        .get(FORCE_MERGE_METADATA_KEY),
+                    equalTo(FORCE_MERGE_COMPLETE_MARKER)
+                );
+                assertThat(
+                    clusterService.state()
+                        .metadata()
+                        .index(dataStream.getIndices().get(1))
+                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                        .get(FORCE_MERGE_METADATA_KEY),
+                    equalTo(FORCE_MERGE_COMPLETE_MARKER)
+                );
+            });
+            assertBusy(() -> { assertThat(clientSeenRequests.size(), is(5)); });
+            assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+            assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
+            // There will be two more forcemerge requests total now: the two failed ones from before, and now the two successful ones
+            List<ForceMergeRequest> forceMergeRequests = clientSeenRequests.subList(1, 5)
+                .stream()
+                .map(transportRequest -> (ForceMergeRequest) transportRequest)
+                .toList();
+            assertThat(forceMergeRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
+            assertThat(forceMergeRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
+            assertThat(forceMergeRequests.get(2).indices()[0], is(dataStream.getIndices().get(0).getName()));
+            assertThat(forceMergeRequests.get(3).indices()[0], is(dataStream.getIndices().get(1).getName()));
+        }
+
+        IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices + 1)
+        ).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).creationDate(now - 3000L);
+        MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
+        indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+        IndexMetadata newIndexMetadata = indexMetaBuilder.build();
+        builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
+        state = ClusterState.builder(clusterService.state()).metadata(builder).build();
+        setState(clusterService, state);
+        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        builder = Metadata.builder(clusterService.state().metadata());
+        builder.put(dataStream2);
+        state = ClusterState.builder(clusterService.state()).metadata(builder).build();
+        setState(clusterService, state);
+        {
+            /*
+             * For the 3rd DLM run, we have added another backing index. When we run DLM it will attempt to forcemerge this index. We'll
+             * make the forcemerge fail with a non-retryable error though. This means that DLM won't clean up after itself. So the marker
+             * saying that forcemerge began will remain.
+             */
+            AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
+            clientDelegate = (action, request, listener) -> {
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onFailure(new RuntimeException("Non re=etryable failure"));
+                    forceMergeFailedCount.incrementAndGet();
+                }
+            };
+            dataLifecycleService.run(clusterService.state());
+            assertBusy(() -> {
+                assertThat(forceMergeFailedCount.get(), equalTo(1));
+                assertThat(clientSeenRequests.size(), is(6));
+            });
+            assertThat(((ForceMergeRequest) clientSeenRequests.get(5)).indices().length, is(1));
+            assertBusy(() -> {
+                assertThat(
+                    clusterService.state().metadata().index(dataStream2.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    notNullValue()
+                );
+                assertThat(
+                    clusterService.state()
+                        .metadata()
+                        .index(dataStream2.getIndices().get(0))
+                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                        .get(FORCE_MERGE_METADATA_KEY),
+                    equalTo(FORCE_MERGE_BEGIN_MARKER)
+                );
+            });
+        }
+
+        {
+            /*
+             * For the final DLM run, we'll let forcemerge run normally, but we expect it to never be called because of the
+             * non-retryable exception:
+             */
+            clientDelegate = (action, request, listener) -> {
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
+                }
+            };
+            dataLifecycleService.run(clusterService.state());
+            assertBusy(() -> { assertThat(clientSeenRequests.size(), is(6)); }); // No additional requests
+            assertBusy(() -> {
+                assertThat(
+                    clusterService.state().metadata().index(dataStream2.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    notNullValue()
+                );
+                assertThat(
+                    clusterService.state()
+                        .metadata()
+                        .index(dataStream2.getIndices().get(0))
+                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
+                        .get(FORCE_MERGE_METADATA_KEY),
+                    equalTo(FORCE_MERGE_BEGIN_MARKER)
+                );
+            });
+        }
     }
 
     public void testDefaultRolloverRequest() {

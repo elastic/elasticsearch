@@ -78,10 +78,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * Name constant for the job DLM schedules
      */
     private static final String DATA_LIFECYCLE_JOB_NAME = "dlm";
-    private static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
-    private static final String FORCE_MERGE_METADATA_KEY = "force_merge";
-    private static final String FORCE_MERGE_BEGIN_MARKER = "begin";
-    private static final String FORCE_MERGE_COMPLETE_MARKER = "complete";
+    static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
+    static final String FORCE_MERGE_METADATA_KEY = "force_merge";
+    static final String FORCE_MERGE_BEGIN_MARKER = "begin";
+    static final String FORCE_MERGE_COMPLETE_MARKER = "complete";
 
     private final Settings settings;
     private final Client client;
@@ -330,8 +330,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 IndexMetadata backingIndex = metadata.index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
                 String indexName = index.getName();
-                Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
-                boolean alreadyForceMerged = customMetadata != null && customMetadata.containsKey(FORCE_MERGE_METADATA_KEY);
+                boolean alreadyForceMerged = isForceMergeMarkerSet(backingIndex);
                 logger.trace("Already force merged {}: {}", indexName, alreadyForceMerged);
                 if (alreadyForceMerged == false) {
                     ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
@@ -441,7 +440,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     @Override
                     public void onResponse(ForceMergeResponse forceMergeResponse) {
                         logger.info("DLM successfully force merged index [{}]", targetIndex);
-                        setForceMergeMarker(targetIndex, listener, FORCE_MERGE_COMPLETE_MARKER);
+                        setForceMergeMarkerComplete(targetIndex);
                     }
 
                     @Override
@@ -474,9 +473,33 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             }
         };
 
-        setForceMergeMarker(targetIndex, forceMergeRunningListener, FORCE_MERGE_BEGIN_MARKER);
+        setForceMergeMarkerBegin(targetIndex, forceMergeRunningListener);
     }
 
+    private void setForceMergeMarkerComplete(String targetIndex) {
+        // Nothing actually waits for the result of this unsetting, so the listener is just used for logging:
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.trace("Successfully set the force merge marker to complete on {}", targetIndex);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> Strings.format("Could not set the force merge marker to complete on {}", targetIndex), e);
+            }
+        };
+        setForceMergeMarker(targetIndex, listener, FORCE_MERGE_COMPLETE_MARKER);
+    }
+
+    private void setForceMergeMarkerBegin(String targetIndex, ActionListener<Void> listener) {
+        setForceMergeMarker(targetIndex, listener, FORCE_MERGE_BEGIN_MARKER);
+    }
+
+    /*
+     * This method sets the value of the custom index metadata field "force_merge" within the field "dlm" to value. The method returns
+     * immediately, but the update happens asynchronously and listener is notified on success or failure.
+     */
     private void setForceMergeMarker(String targetIndex, ActionListener<Void> listener, String value) {
         clusterStateUpdateTaskQueue.submitTask(
             Strings.format("Adding force merge %s marker to cluster state for [%s]", value, targetIndex),
@@ -503,7 +526,12 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         );
     }
 
+    /*
+     * This method unsets the the custom index metadata field "force_merge" within the field "dlm". The method returns immediately, but
+     * the actual update happens asynchronously.
+     */
     private void unsetForceMergeMarker(String targetIndex) {
+        // Nothing actually waits for the result of this unsetting, so the listener is just used for logging:
         ActionListener<Void> listener = new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -536,6 +564,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             },
             null
         );
+    }
+
+    private boolean isForceMergeMarkerSet(IndexMetadata backingIndex) {
+        Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+        return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_METADATA_KEY);
     }
 
     @Nullable

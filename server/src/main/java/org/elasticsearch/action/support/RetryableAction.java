@@ -61,7 +61,7 @@ public abstract class RetryableAction<Response> {
         ActionListener<Response> listener,
         String executor
     ) {
-        this(logger, threadPool, initialDelay, TimeValue.timeValueMillis(Integer.MAX_VALUE), timeoutValue, listener, executor);
+        this(logger, threadPool, initialDelay, TimeValue.MAX_VALUE, timeoutValue, listener, executor);
     }
 
     public RetryableAction(
@@ -189,7 +189,7 @@ public abstract class RetryableAction<Response> {
                     long delayMillis = Randomness.get().nextInt(range) + delayMillisBound - range + 1L;
 
                     // Adjust the actual delay to not exceed 20% beyond the timeout
-                    long millisExceedingTimeout = delayMillis + elapsedMillis - timeoutMillis;
+                    long millisExceedingTimeout = delayMillis - remainingMillis;
                     if (millisExceedingTimeout > 0) {
                         long twentyPercent = (long) (timeoutMillis * .2);
                         delayMillis = remainingMillis + Math.min(twentyPercent, millisExceedingTimeout);

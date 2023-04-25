@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -22,6 +24,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class BertTokenizerTests extends ESTestCase {
 
@@ -645,6 +648,27 @@ public class BertTokenizerTests extends ESTestCase {
             assertEquals(BertTokenizer.UNKNOWN_TOKEN, TEST_CASED_VOCAB.get(tokenization.tokenIds()[0]));
             assertEquals("fun", TEST_CASED_VOCAB.get(tokenization.tokenIds()[1]));
             assertArrayEquals(new int[] { 0, 1 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testCreateAnalyzer() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            WordPieceAnalyzer analyzer = tokenizer.createWordPieceAnalyzer(
+                TEST_CASED_VOCAB,
+                Collections.emptyList(),
+                false,
+                false,
+                false,
+                BertTokenizer.UNKNOWN_TOKEN
+            );
+            assertThat(analyzer, instanceOf(WordPieceAnalyzer.class));
+            Tokenizer preTokenizer = analyzer.createTokenizer();
+            assertThat(preTokenizer, instanceOf(WhitespaceTokenizer.class));
         }
     }
 }

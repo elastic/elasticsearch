@@ -98,7 +98,7 @@ public class BertTokenizer extends NlpTokenizer {
         String maskToken,
         String unknownToken
     ) {
-        wordPieceAnalyzer = new WordPieceAnalyzer(
+        wordPieceAnalyzer = createWordPieceAnalyzer(
             originalVocab,
             new ArrayList<>(neverSplit),
             doLowerCase,
@@ -133,6 +133,24 @@ public class BertTokenizer extends NlpTokenizer {
         this.maskTokenId = vocab.containsKey(maskToken) ? OptionalInt.of(vocab.get(maskToken)) : OptionalInt.empty();
 
         this.unknownToken = unknownToken;
+    }
+
+    protected WordPieceAnalyzer createWordPieceAnalyzer(
+        List<String> vocabulary,
+        List<String> neverSplit,
+        boolean doLowerCase,
+        boolean doTokenizeCjKChars,
+        boolean doStripAccents,
+        String unknownToken
+    ) {
+        return new WordPieceAnalyzer(
+            vocabulary,
+            new ArrayList<>(neverSplit),
+            doLowerCase,
+            doTokenizeCjKChars,
+            doStripAccents,
+            unknownToken
+        );
     }
 
     @Override

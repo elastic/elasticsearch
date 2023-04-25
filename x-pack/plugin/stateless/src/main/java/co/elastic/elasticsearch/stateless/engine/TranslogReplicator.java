@@ -56,7 +56,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TranslogReplicator extends AbstractLifecycleComponent {
 
@@ -68,12 +67,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         "stateless.translog.flush.retry.initial_delay",
         timeValueMillis(50),
         timeValueMillis(10),
-        Setting.Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> FLUSH_RETRY_TIMEOUT_SETTING = Setting.timeSetting(
-        "stateless.translog.flush.retry.timeout",
-        timeValueSeconds(60),
         Setting.Property.NodeScope
     );
 
@@ -102,7 +95,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final AtomicLong lastFlushTime;
 
     private final TimeValue flushRetryInitialDelay;
-    private final TimeValue flushRetryTimeout;
     private final TimeValue flushInterval;
     private final ByteSizeValue flushSize;
 
@@ -110,7 +102,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
         this.objectStoreService = objectStoreService;
         this.flushRetryInitialDelay = FLUSH_RETRY_INITIAL_DELAY_SETTING.get(settings);
-        this.flushRetryTimeout = FLUSH_RETRY_TIMEOUT_SETTING.get(settings);
         this.flushInterval = FLUSH_INTERVAL_SETTING.get(settings);
         this.flushSize = FLUSH_SIZE_SETTING.get(settings);
         this.lastFlushTime = new AtomicLong(getCurrentTimeMillis());
@@ -263,7 +254,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             org.apache.logging.log4j.LogManager.getLogger(TranslogReplicator.class),
             threadPool,
             flushRetryInitialDelay,
-            flushRetryTimeout,
+            TimeValue.timeValueMillis(Long.MAX_VALUE),
+            TimeValue.timeValueSeconds(5),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {

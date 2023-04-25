@@ -61,7 +61,7 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MULTI;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_POST_FILTER;
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT;
-import static org.elasticsearch.search.query.TopDocsCollectorFactory.createTopDocsCollectorFactory;
+import static org.elasticsearch.search.query.TopDocsCollectorManagerFactory.createTopDocsCollectorFactory;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -194,14 +194,14 @@ public class QueryPhase {
             }
 
             // create the top docs collector last when the other collectors are known
-            final TopDocsCollectorFactory topDocsFactory = createTopDocsCollectorFactory(
+            final TopDocsCollectorManagerFactory topDocsFactory = createTopDocsCollectorFactory(
                 searchContext,
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
 
             CollectorManager<Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                 searchContext.getProfilers(),
-                topDocsFactory.collector(),
+                topDocsFactory.collectorManager(),
                 topDocsFactory.profilerName
             );
 
@@ -216,7 +216,7 @@ public class QueryPhase {
                 final Collector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    MultiCollector.wrap(earlyTerminatingCollector, collector),
+                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
                     collector
                 );
@@ -232,7 +232,7 @@ public class QueryPhase {
                 final Collector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new FilteredCollector(collector, filterWeight),
+                    new SingleThreadCollectorManager(new FilteredCollector(collector, filterWeight)),
                     REASON_SEARCH_POST_FILTER,
                     collector
                 );
@@ -242,7 +242,7 @@ public class QueryPhase {
                 final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    MultiCollector.wrap(collector, aggsCollector),
+                    new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
                     REASON_SEARCH_MULTI,
                     collector,
                     aggsCollector
@@ -253,7 +253,7 @@ public class QueryPhase {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new MinimumScoreCollector(collector, searchContext.minimumScore()),
+                    new SingleThreadCollectorManager(new MinimumScoreCollector(collector, searchContext.minimumScore())),
                     REASON_SEARCH_MIN_SCORE,
                     collector
                 );
@@ -303,17 +303,19 @@ public class QueryPhase {
 
     private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
-        Collector collector,
+        CollectorManager<Collector, Void> collectorManager,
         String profilerName,
         Collector... children
-    ) {
+    ) throws IOException {
         if (profilers == null) {
-            return new SingleThreadCollectorManager(collector);
+            return collectorManager;
         }
         InternalProfileCollector[] childProfileCollectors = Arrays.stream(children)
             .map(c -> (InternalProfileCollector) c)
             .toArray(InternalProfileCollector[]::new);
-        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, childProfileCollectors));
+        return new InternalProfileCollectorManager(
+            new InternalProfileCollector(collectorManager.newCollector(), profilerName, childProfileCollectors)
+        );
     }
 
     private static void searchWithCollectorManager(

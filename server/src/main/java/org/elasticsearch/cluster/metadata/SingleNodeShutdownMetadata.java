@@ -34,7 +34,7 @@ import static org.elasticsearch.core.Strings.format;
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersion.V_7_16_0;
-    public static final TransportVersion SIGTERM_TYPE_ADDED_VERSION = TransportVersion.V_8_8_0;
+    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersion.V_8_8_0; // TODO(stu): wait until after v8.8.0 freeze
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -164,7 +164,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         } else {
             this.targetNodeName = null;
         }
-        if (in.getTransportVersion().onOrAfter(SIGTERM_TYPE_ADDED_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
             this.gracefulShutdown = in.readOptionalTimeValue();
         } else {
             this.gracefulShutdown = null;
@@ -238,7 +238,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+        if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
+            || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
         } else {
             out.writeEnum(type);
@@ -250,7 +251,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
             out.writeOptionalString(targetNodeName);
         }
-        if (out.getTransportVersion().onOrAfter(SIGTERM_TYPE_ADDED_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
             out.writeOptionalTimeValue(gracefulShutdown);
         }
     }
@@ -451,7 +452,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         REMOVE,
         RESTART,
         REPLACE,
-        SIGTERM; // local version of REMOVE
+        SIGTERM; // locally-initiated version of REMOVE
 
         public static Type parse(String type) {
             if ("remove".equals(type.toLowerCase(Locale.ROOT))) {

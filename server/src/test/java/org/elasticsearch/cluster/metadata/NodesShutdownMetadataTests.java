@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -100,6 +102,23 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "this_node"), equalTo(true));
             assertThat(NodesShutdownMetadata.isNodeShuttingDown(state, "_node_1"), equalTo(false));
         }
+    }
+
+    public void testSigtermIsRemoveInOlderVersions() throws IOException {
+        SingleNodeShutdownMetadata metadata = SingleNodeShutdownMetadata.builder()
+            .setNodeId("myid")
+            .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+            .setReason("myReason")
+            .setStartedAtMillis(0L)
+            .build();
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(TransportVersion.V_8_7_1);
+        metadata.writeTo(out);
+        assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.REMOVE));
+
+        out = new BytesStreamOutput();
+        metadata.writeTo(out);
+        assertThat(new SingleNodeShutdownMetadata(out.bytes().streamInput()).getType(), equalTo(SingleNodeShutdownMetadata.Type.SIGTERM));
     }
 
     @Override

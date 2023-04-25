@@ -78,6 +78,6 @@
   - match: { watch_record.watch_id: "_inlined_" }
   - match: { watch_record.trigger_event.type: "manual" }
   - match: { watch_record.state: "executed" }
-  - match: { watch_record.result.actions.0.status: "failure" }
-  - match: { watch_record.result.actions.0.error.caused_by.caused_by.type: "illegal_argument_exception" }
-  - match: { watch_record.result.actions.0.error.caused_by.caused_by.reason: "Iterable object is self-referencing itself (CustomReflectionObjectHandler stringify)" }
+  - match: { watch_record.result.actions.0.transform.status: "failure" }
+  - match: { watch_record.result.actions.0.transform.error.type: "illegal_argument_exception" }
+  - match: { watch_record.result.actions.0.transform.error.reason: "Iterable object is self-referencing itself (watcher action payload)" }

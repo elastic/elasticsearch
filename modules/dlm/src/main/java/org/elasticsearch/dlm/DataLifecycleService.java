@@ -78,6 +78,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * Name constant for the job DLM schedules
      */
     private static final String DATA_LIFECYCLE_JOB_NAME = "dlm";
+    private static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
+    private static final String FORCE_MERGE_METADATA_KEY = "force_merge";
+    private static final String FORCE_MERGE_BEGIN_MARKER = "begin";
+    private static final String FORCE_MERGE_COMPLETE_MARKER = "complete";
 
     private final Settings settings;
     private final Client client;
@@ -103,7 +107,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void taskSucceeded(ForceMergeClusterStateUpdateTask task, Void unused) {
-                logger.info("Updated cluster state for force merge");
+                logger.trace("Updated cluster state for force merge");
                 task.listener.onResponse(null);
             }
         };
@@ -127,7 +131,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
-        this.taskQueue = clusterService.createTaskQueue("forcemerge-clusterstate", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
+        this.taskQueue = clusterService.createTaskQueue("forcemerge-clusterstate", Priority.NORMAL, STATE_UPDATE_TASK_EXECUTOR);
     }
 
     /**
@@ -223,12 +227,21 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             }
 
             try {
-                maybeExecuteForceMerge(state, dataStream, originalWriteIndex, indicesBeingRemoved);
+                /*
+                 * When considering indices for force merge, we want to exclude several indices: (1) We exclude the current write index
+                 * because obviously it is still likely to get writes, (2) we exclude the most recent previous write index because since
+                 * we just switched over it might still be getting some writes, and (3) we exclude any indices that we're in the process
+                 * of deleting because they'll be gone soon anyway.
+                 */
+                Set<Index> indicesToExclude = new HashSet<>();
+                Index currentWriteIndex = dataStream.getWriteIndex();
+                indicesToExclude.add(currentWriteIndex);
+                indicesToExclude.add(originalWriteIndex);
+                indicesToExclude.addAll(indicesBeingRemoved);
+                maybeExecuteForceMerge(state, dataStream, indicesToExclude);
             } catch (Exception e) {
-                // individual index errors would be reported via the API action listener for every delete call
-                // we could potentially record errors at a data stream level and expose it via the _data_stream API?
                 logger.error(
-                    () -> String.format(Locale.ROOT, "DLM failed to execute retention for data stream [%s]", dataStream.getName()),
+                    () -> String.format(Locale.ROOT, "DLM failed to execute force merge for data stream [%s]", dataStream.getName()),
                     e
                 );
             }
@@ -267,6 +280,13 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
+    /**
+     * This method sends requests to delete any indices in the datastream that exceed its retention policy. It returns the set of indices
+     * it has sent delete requests for.
+     * @param state The cluster state from which to get index metadata
+     * @param dataStream The datastream
+     * @return The set of indices that delete requests have been sent for
+     */
     private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream) {
         TimeValue retention = getRetentionConfiguration(dataStream);
         Set<Index> indicesToBeRemoved = new HashSet<>();
@@ -295,17 +315,12 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         return indicesToBeRemoved;
     }
 
-    private void maybeExecuteForceMerge(
-        ClusterState state,
-        DataStream dataStream,
-        Index originalWriteIndex,
-        Set<Index> indicesBeingRemoved
-    ) {
-        Index currentWriteIndex = dataStream.getWriteIndex();
-        Set<Index> indicesToExclude = new HashSet<>();
-        indicesToExclude.add(currentWriteIndex);
-        indicesToExclude.add(originalWriteIndex);
-        indicesToExclude.addAll(indicesBeingRemoved);
+    /*
+     * This method force merges any indices in the datastream that are not in the indicesToExclude set and that have not be force merged
+     * previously. Before force merging, it writes custom metadata as a marker in the cluster state so that we know a force merge is in
+     * process. And it writes another marker in the cluster state upon completion of the force merge.
+     */
+    private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, Set<Index> indicesToExclude) {
         List<Index> readOnlyIndices = dataStream.getIndices().stream().filter(index -> indicesToExclude.contains(index) == false).toList();
         Metadata metadata = state.metadata();
         for (Index index : readOnlyIndices) {
@@ -313,8 +328,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 IndexMetadata backingIndex = metadata.index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
                 String indexName = index.getName();
-                Map<String, String> customMetadata = backingIndex.getCustomData("dlm");
-                boolean alreadyForceMerged = customMetadata != null && customMetadata.containsKey("forcemerge");
+                Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+                boolean alreadyForceMerged = customMetadata != null && customMetadata.containsKey(FORCE_MERGE_METADATA_KEY);
                 logger.trace("Already force merged {}: {}", indexName, alreadyForceMerged);
                 if (alreadyForceMerged == false) {
                     ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
@@ -427,14 +442,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                                 public ClusterState execute(ClusterState currentState) {
                                     logger.trace("Updating cluster state with forcemerge complete result for {}", targetIndex);
                                     IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-                                    Map<String, String> customMetadata = indexMetadata.getCustomData("dlm");
+                                    Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
                                     Map<String, String> newCustomMetadata = new HashMap<>();
                                     if (customMetadata != null) {
                                         newCustomMetadata.putAll(customMetadata);
                                     }
-                                    newCustomMetadata.put("forcemerge", "complete");
+                                    newCustomMetadata.put(FORCE_MERGE_METADATA_KEY, FORCE_MERGE_COMPLETE_MARKER);
                                     IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
-                                        "dlm",
+                                        DLM_CUSTOM_INDEX_METADATA_KEY,
                                         newCustomMetadata
                                     ).build();
                                     Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
@@ -474,14 +489,16 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 public ClusterState execute(ClusterState currentState) {
                     logger.trace("Updating cluster state with forcemerge began result for {}", targetIndex);
                     IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-                    Map<String, String> customMetadata = indexMetadata.getCustomData("dlm");
+                    Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
                     Map<String, String> newCustomMetadata = new HashMap<>();
                     if (customMetadata != null) {
                         newCustomMetadata.putAll(customMetadata);
                     }
-                    newCustomMetadata.put("forcemerge", "begin");
-                    IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom("dlm", newCustomMetadata)
-                        .build();
+                    newCustomMetadata.put(FORCE_MERGE_METADATA_KEY, FORCE_MERGE_BEGIN_MARKER);
+                    IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
+                        DLM_CUSTOM_INDEX_METADATA_KEY,
+                        newCustomMetadata
+                    ).build();
                     Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
                     return ClusterState.builder(currentState).metadata(metadata).build();
                 }

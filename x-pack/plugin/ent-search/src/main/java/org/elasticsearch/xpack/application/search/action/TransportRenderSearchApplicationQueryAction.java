@@ -64,7 +64,7 @@ public class TransportRenderSearchApplicationQueryAction extends SearchApplicati
         systemIndexService.getSearchApplication(request.name(), ActionListener.wrap(searchApplication -> {
             final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
             final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
-            listener.onResponse(new RenderSearchApplicationQueryAction.Response(sourceBuilder));
+            listener.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
         }, listener::onFailure));
     }
 

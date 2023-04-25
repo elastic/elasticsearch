@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -27,7 +28,7 @@ public class RenderSearchApplicationQueryAction extends ActionType<RenderSearchA
         super(NAME, RenderSearchApplicationQueryAction.Response::new);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject, NamedWriteable {
 
         private final SearchSourceBuilder searchSourceBuilder;
 
@@ -36,7 +37,7 @@ public class RenderSearchApplicationQueryAction extends ActionType<RenderSearchA
             this.searchSourceBuilder = new SearchSourceBuilder(in);
         }
 
-        public Response(SearchSourceBuilder searchSourceBuilder) {
+        public Response(String name, SearchSourceBuilder searchSourceBuilder) {
             this.searchSourceBuilder = searchSourceBuilder;
         }
 
@@ -61,6 +62,11 @@ public class RenderSearchApplicationQueryAction extends ActionType<RenderSearchA
         @Override
         public int hashCode() {
             return Objects.hash(searchSourceBuilder);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 }

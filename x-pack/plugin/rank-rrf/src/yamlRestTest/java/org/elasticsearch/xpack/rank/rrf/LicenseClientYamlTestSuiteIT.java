@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 /** Runs yaml rest tests. */
@@ -20,6 +21,11 @@ public class LicenseClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().nodes(1).plugin("rank-rrf").build();
+
+    @BeforeClass
+    public static void init() {
+        assumeFalse("Cannot run in FIPS mode since it uses trial license", inFipsJvm());
+    }
 
     public LicenseClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

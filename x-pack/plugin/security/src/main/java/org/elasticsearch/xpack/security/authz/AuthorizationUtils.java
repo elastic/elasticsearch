@@ -121,6 +121,7 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
+            case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
                 break;
             case SECURITY_PROFILE_ORIGIN:
@@ -138,7 +139,6 @@ public final class AuthorizationUtils {
             case ENRICH_ORIGIN:
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
-            case POST_WRITE_REFRESH_ORIGIN:
             case STACK_ORIGIN:
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:

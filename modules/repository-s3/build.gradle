@@ -68,6 +68,8 @@ esplugin.bundleSpec.from('config/repository-s3') {
 def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named('check').configure {

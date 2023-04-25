@@ -2,7 +2,7 @@
 [[get-search-application]]
 === Get Search Application
 
-beta::[]
+preview::[]
 
 ++++
 <titleabbrev>Get Search Application</titleabbrev>

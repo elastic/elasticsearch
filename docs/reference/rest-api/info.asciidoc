@@ -160,6 +160,10 @@ Example response:
       "data_tiers" : {
          "available" : true,
          "enabled" : true
+      },
+      "enterprise_search": {
+         "available": true,
+         "enabled": true
       }
    },
    "tagline" : "You know, for X"

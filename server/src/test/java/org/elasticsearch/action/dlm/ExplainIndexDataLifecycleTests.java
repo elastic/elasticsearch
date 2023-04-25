@@ -21,23 +21,33 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestCase<ExplainIndexDataLifecycle> {
 
-    public void testGetAge() {
+    public void testGetGenerationTime() {
         long now = System.currentTimeMillis();
         {
-            ExplainIndexDataLifecycle randomIndexDLMExplanation = createManagedIndexDLMExplanation(now, new DataLifecycle());
-            if (randomIndexDLMExplanation.getRolloverDate() == null) {
-                // generation time is null for non-rolled indices
-                assertThat(randomIndexDLMExplanation.getGenerationTime(() -> now + 50L), is(nullValue()));
-            } else {
-                assertThat(
-                    randomIndexDLMExplanation.getGenerationTime(() -> randomIndexDLMExplanation.getRolloverDate() + 75L),
-                    is(TimeValue.timeValueMillis(75))
-                );
-            }
+            ExplainIndexDataLifecycle explainIndexDataLifecycle = new ExplainIndexDataLifecycle(
+                randomAlphaOfLengthBetween(10, 30),
+                true,
+                now,
+                randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
+                null,
+                new DataLifecycle(),
+                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+            );
+            assertThat(explainIndexDataLifecycle.getGenerationTime(() -> now + 50L), is(nullValue()));
+            explainIndexDataLifecycle = new ExplainIndexDataLifecycle(
+                randomAlphaOfLengthBetween(10, 30),
+                true,
+                now,
+                randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
+                TimeValue.timeValueMillis(now + 100),
+                new DataLifecycle(),
+                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+            );
+            assertThat(explainIndexDataLifecycle.getGenerationTime(() -> now + 500L), is(TimeValue.timeValueMillis(400)));
         }
         {
             // null for unmanaged index
-            ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null);
+            ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null, null);
             assertThat(indexDataLifecycle.getGenerationTime(() -> now), is(nullValue()));
         }
 
@@ -48,6 +58,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
                 true,
                 now,
                 now + 80L, // rolled over in the future (clocks are funny that way)
+                TimeValue.timeValueMillis(now + 100L),
                 new DataLifecycle(),
                 null
             );
@@ -63,7 +74,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
         }
         {
             // null for unmanaged index
-            ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null);
+            ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null, null);
             assertThat(indexDataLifecycle.getTimeSinceIndexCreation(() -> now), is(nullValue()));
         }
 
@@ -73,6 +84,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
                 "my-index",
                 true,
                 now + 80L, // created in the future (clocks are funny that way)
+                null,
                 null,
                 new DataLifecycle(),
                 null
@@ -97,7 +109,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
         }
         {
             // null for unmanaged index
-            ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null);
+            ExplainIndexDataLifecycle indexDataLifecycle = new ExplainIndexDataLifecycle("my-index", false, null, null, null, null, null);
             assertThat(indexDataLifecycle.getTimeSinceRollover(() -> now), is(nullValue()));
         }
 
@@ -108,6 +120,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
                 true,
                 now - 50L,
                 now + 100L, // rolled over in the future
+                TimeValue.timeValueMillis(now),
                 new DataLifecycle(),
                 null
             );
@@ -136,6 +149,7 @@ public class ExplainIndexDataLifecycleTests extends AbstractWireSerializingTestC
             true,
             now,
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
+            TimeValue.timeValueMillis(now),
             lifecycle,
             randomBoolean() ? new NullPointerException("bad times").getMessage() : null
         );

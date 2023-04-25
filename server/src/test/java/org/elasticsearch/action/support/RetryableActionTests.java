@@ -152,7 +152,7 @@ public class RetryableActionTests extends ESTestCase {
 
         long end = taskQueue.getCurrentTimeMillis();
         // max 20% greater than the timeout.
-        assertThat(end - begin, lessThanOrEqualTo(1199L));
+        assertThat(end - begin, lessThanOrEqualTo(1200L));
     }
 
     public void testTimeoutOfZeroMeansNoRetry() {

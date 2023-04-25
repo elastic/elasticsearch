@@ -135,8 +135,6 @@ public abstract class RetryableAction<Response> {
             @Override
             public void onRejection(Exception e) {
                 retryTask = null;
-                // TODO: The only implementations of this class use SAME which means the execution will not be
-                // rejected. Future implementations can adjust this functionality as needed.
                 onFailure(e);
             }
         };
@@ -194,7 +192,7 @@ public abstract class RetryableAction<Response> {
                     long millisExceedingTimeout = delayMillis + elapsedMillis - timeoutMillis;
                     if (millisExceedingTimeout > 0) {
                         long twentyPercent = (long) (timeoutMillis * .2);
-                        delayMillis = Math.min(twentyPercent, millisExceedingTimeout);
+                        delayMillis = remainingMillis + Math.min(twentyPercent, millisExceedingTimeout);
 
                     }
                     assert delayMillis > 0;

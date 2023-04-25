@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -55,7 +54,7 @@ public class StatelessCommitService {
         ShardId shardId,
         long generation,
         long primaryTerm,
-        Collection<StoreFileMetadata> commitFiles
+        Map<String, Long> commitFiles
     ) {
         Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
         StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
@@ -65,14 +64,14 @@ public class StatelessCommitService {
             nodeEphemeralIdSupplier.get()
         );
         synchronized (fileMap) {
-            for (StoreFileMetadata commitFile : commitFiles) {
-                String fileName = commitFile.name();
+            for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {
+                String fileName = commitFile.getKey();
                 if (fileName.startsWith(IndexFileNames.SEGMENTS) == false) {
                     BlobFile blobFile = fileMap.get(fileName);
                     assert blobFile.isUploaded();
                     writer.addReferencedBlobFile(fileName, blobFile.location());
                 } else {
-                    writer.addInternalFile(commitFile);
+                    writer.addInternalFile(fileName, commitFile.getValue());
                 }
             }
         }

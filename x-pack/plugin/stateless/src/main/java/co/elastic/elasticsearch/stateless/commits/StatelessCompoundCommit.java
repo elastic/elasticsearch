@@ -24,7 +24,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 
@@ -102,8 +101,8 @@ public record StatelessCompoundCommit(
             referencedBlobFiles.put(name, location);
         }
 
-        public void addInternalFile(StoreFileMetadata fileMetadata) {
-            internalFiles.add(new InternalFile(fileMetadata.name(), fileMetadata.length()));
+        public void addInternalFile(String fileName, long fileLength) {
+            internalFiles.add(new InternalFile(fileName, fileLength));
         }
 
         public List<String> getInternalFiles() {

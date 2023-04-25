@@ -182,7 +182,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             try (var indexReader = DirectoryReader.open(indexWriter)) {
 
                 final var indexCommit = indexReader.getIndexCommit();
-                final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap();
+                final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap().keySet();
 
                 final var permittedBlobs = between(0, commitFiles.size() - 2);
                 permits.release(permittedBlobs);
@@ -193,7 +193,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             testHarness.shardId,
                             new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),
                             commitFiles,
-                            commitFiles.keySet(),
+                            commitFiles,
                             primaryTerm
                         )
                     ),
@@ -259,9 +259,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     indexWriter.commit();
                     final var indexReader = closeables.add(DirectoryReader.open(indexWriter));
                     final var indexCommit = indexReader.getIndexCommit();
-                    final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap();
-                    final var additionalFiles = Sets.difference(commitFiles.keySet(), previousCommitFiles);
-                    previousCommitFiles = commitFiles.keySet();
+                    final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap().keySet();
+                    ;
+                    final var additionalFiles = Sets.difference(commitFiles, previousCommitFiles);
+                    previousCommitFiles = commitFiles;
                     if (commit == 0 || mergesEnabled == false) {
                         final var segmentCommitInfos = SegmentInfos.readCommit(
                             testHarness.indexingDirectory,
@@ -276,7 +277,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     permittedFiles.clear();
                     permittedFiles.addAll(indexCommit.getFileNames());
 
-                    testHarness.commitService.markNewCommit(testHarness.shardId, commitFiles.keySet(), additionalFiles);
+                    testHarness.commitService.markNewCommit(testHarness.shardId, commitFiles, additionalFiles);
 
                     PlainActionFuture.<Void, IOException>get(
                         future -> testHarness.objectStoreService.onCommitCreation(

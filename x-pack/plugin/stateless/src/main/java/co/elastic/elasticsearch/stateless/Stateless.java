@@ -84,7 +84,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.logging.LogManager;
@@ -436,22 +435,17 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 Set<String> additionalFiles
             ) {
                 store.incRef();
-                Map<String, StoreFileMetadata> commitFiles;
                 final IndexCommit indexCommit = indexCommitRef.getIndexCommit();
-                final Collection<String> commitFileNames;
+                final Collection<String> commitFiles;
                 try {
-                    // TODO: Eventually we will probably not need to reading the metadata here. The input streams will check the checksum
-                    // and we can get the file length from the directory. We just need to propagate a blob location to the search shard
-                    Store.MetadataSnapshot metadata = store.getMetadata(indexCommit);
-                    commitFiles = metadata.fileMetadataMap();
-                    commitFileNames = indexCommit.getFileNames();
+                    commitFiles = indexCommit.getFileNames();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 } finally {
                     store.decRef();
                 }
 
-                statelessCommitService.markNewCommit(shardId, commitFileNames, additionalFiles);
+                statelessCommitService.markNewCommit(shardId, commitFiles, additionalFiles);
                 service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef, commitFiles, additionalFiles, primaryTerm));
             }
 

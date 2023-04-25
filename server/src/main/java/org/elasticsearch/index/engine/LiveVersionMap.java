@@ -271,8 +271,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     }
 
-    public void afterFlush(long generation) {
-        archiver.afterFlush(generation);
+    public void afterUnpromotablesRefreshed(long generation) {
+        archiver.afterUnpromotablesRefreshed(generation);
     }
 
     /**

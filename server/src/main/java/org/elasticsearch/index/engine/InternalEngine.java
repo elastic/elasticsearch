@@ -86,7 +86,6 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -216,7 +215,7 @@ public class InternalEngine extends Engine {
         this.maxDocs = maxDocs;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
-        this.versionMap = new LiveVersionMap(createArchiver(engineConfig.getUnpromotableRefresher()));
+        this.versionMap = createLiveVersionMap();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -2067,7 +2066,6 @@ public class InternalEngine extends Engine {
                     }
                     refreshLastCommittedSegmentInfos();
                     flushListener.afterFlush(lastCommittedSegmentInfos.getGeneration(), commitLocation);
-                    versionMap.afterFlush(lastCommittedSegmentInfos.getGeneration());
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
@@ -3133,8 +3131,8 @@ public class InternalEngine extends Engine {
         this.flushListener.addOrNotify(location, listener);
     }
 
-    protected LiveVersionMapArchiver createArchiver(UnpromotableRefreshService.Refresher unpromotableRefresher) {
-        return LiveVersionMapArchiver.NOOP_ARCHIVER;
+    protected LiveVersionMap createLiveVersionMap() {
+        return new LiveVersionMap();
     }
 
     // Visible for testing purposes only

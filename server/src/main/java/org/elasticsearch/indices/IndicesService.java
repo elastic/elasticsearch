@@ -115,7 +115,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -849,22 +848,15 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final UnpromotableRefreshService unpromotableRefreshService,
         final DiscoveryNode targetNode,
         final DiscoveryNode sourceNode
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
-        Objects.requireNonNull(unpromotableRefreshService);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(
-            shardRouting,
-            globalCheckpointSyncer,
-            retentionLeaseSyncer,
-            unpromotableRefreshService
-        );
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, (mapping, listener) -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS

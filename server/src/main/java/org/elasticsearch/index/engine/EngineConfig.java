@@ -26,7 +26,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
@@ -86,7 +85,6 @@ public final class EngineConfig {
     }
 
     private final LongSupplier primaryTermSupplier;
-    private final UnpromotableRefreshService.Refresher unpromotableRefresher;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -163,66 +161,6 @@ public final class EngineConfig {
         Engine.IndexCommitListener indexCommitListener,
         boolean promotableToPrimary
     ) {
-        this(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecService,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            snapshotCommitSupplier,
-            leafSorter,
-            relativeTimeInNanosSupplier,
-            indexCommitListener,
-            promotableToPrimary,
-            (generation, listener) -> {}
-        );
-    }
-
-    public EngineConfig(
-        ShardId shardId,
-        ThreadPool threadPool,
-        IndexSettings indexSettings,
-        Engine.Warmer warmer,
-        Store store,
-        MergePolicy mergePolicy,
-        Analyzer analyzer,
-        Similarity similarity,
-        CodecService codecService,
-        Engine.EventListener eventListener,
-        QueryCache queryCache,
-        QueryCachingPolicy queryCachingPolicy,
-        TranslogConfig translogConfig,
-        TimeValue flushMergesAfter,
-        List<ReferenceManager.RefreshListener> externalRefreshListener,
-        List<ReferenceManager.RefreshListener> internalRefreshListener,
-        Sort indexSort,
-        CircuitBreakerService circuitBreakerService,
-        LongSupplier globalCheckpointSupplier,
-        Supplier<RetentionLeases> retentionLeasesSupplier,
-        LongSupplier primaryTermSupplier,
-        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Comparator<LeafReader> leafSorter,
-        LongSupplier relativeTimeInNanosSupplier,
-        Engine.IndexCommitListener indexCommitListener,
-        boolean promotableToPrimary,
-        UnpromotableRefreshService.Refresher unpromotableRefresher
-    ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -264,7 +202,6 @@ public final class EngineConfig {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.promotableToPrimary = promotableToPrimary;
-        this.unpromotableRefresher = unpromotableRefresher;
     }
 
     /**
@@ -485,9 +422,5 @@ public final class EngineConfig {
      */
     public boolean isPromotableToPrimary() {
         return promotableToPrimary;
-    }
-
-    public UnpromotableRefreshService.Refresher getUnpromotableRefresher() {
-        return unpromotableRefresher;
     }
 }

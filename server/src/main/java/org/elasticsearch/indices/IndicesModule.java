@@ -67,7 +67,6 @@ import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -339,7 +338,6 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
-        bind(UnpromotableRefreshService.class).asEagerSingleton();
     }
 
     /**

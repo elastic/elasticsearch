@@ -501,7 +501,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 Arrays.asList(listeners),
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
-                UnpromotableRefreshService.EMPTY,
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,

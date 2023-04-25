@@ -26,7 +26,7 @@ public interface LiveVersionMapArchiver {
      *
      * @param generation the generation of the commit caused by the flush
      */
-    void afterFlush(long generation);
+    void afterUnpromotablesRefreshed(long generation);
 
     /**
      * Look up the given uid in the archive
@@ -38,7 +38,7 @@ public interface LiveVersionMapArchiver {
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}
 
         @Override
-        public void afterFlush(long generation) {}
+        public void afterUnpromotablesRefreshed(long generation) {}
 
         @Override
         public VersionValue get(BytesRef uid) {

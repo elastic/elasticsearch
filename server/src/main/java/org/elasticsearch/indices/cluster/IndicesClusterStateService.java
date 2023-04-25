@@ -61,7 +61,6 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -124,7 +123,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final List<IndexEventListener> buildInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
-    private final UnpromotableRefreshService unpromotableRefreshService;
     private final NodeClient client;
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
@@ -143,7 +141,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final UnpromotableRefreshService unpromotableRefreshService,
         final NodeClient client
     ) {
         this(
@@ -159,7 +156,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             snapshotShardsService,
             primaryReplicaSyncer,
             retentionLeaseSyncer,
-            unpromotableRefreshService,
             client
         );
     }
@@ -178,7 +174,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final UnpromotableRefreshService unpromotableRefreshService,
         final NodeClient client
     ) {
         this.settings = settings;
@@ -191,7 +186,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
         this.retentionLeaseSyncer = retentionLeaseSyncer;
-        this.unpromotableRefreshService = unpromotableRefreshService;
         this.client = client;
         this.shardLockRetryInterval = SHARD_LOCK_RETRY_INTERVAL_SETTING.get(settings);
         this.shardLockRetryTimeout = SHARD_LOCK_RETRY_TIMEOUT_SETTING.get(settings);
@@ -648,7 +642,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
                 retentionLeaseSyncer,
-                unpromotableRefreshService,
                 originalState.nodes().getLocalNode(),
                 sourceNode
             );
@@ -1106,7 +1099,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             Consumer<IndexShard.ShardFailure> onShardFailure,
             Consumer<ShardId> globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
-            UnpromotableRefreshService unpromotableRefreshService,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode
         ) throws IOException;

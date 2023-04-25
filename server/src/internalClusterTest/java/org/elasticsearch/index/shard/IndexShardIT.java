@@ -657,7 +657,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             Arrays.asList(listeners),
             () -> {},
             RetentionLeaseSyncer.EMPTY,
-            UnpromotableRefreshService.EMPTY,
             cbs,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,

@@ -290,8 +290,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
 
-    private UnpromotableRefreshService unpromotableRefreshService;
-
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -311,7 +309,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<IndexingOperationListener> listeners,
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final UnpromotableRefreshService unpromotableRefreshService,
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
@@ -341,7 +338,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.bulkOperationListener = new ShardBulkStats();
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
-        this.unpromotableRefreshService = Objects.requireNonNull(unpromotableRefreshService);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(
             CollectionUtils.appendToCopy(searchOperationListener, searchStats),
             logger
@@ -3296,8 +3292,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             isTimeBasedIndex ? TIMESERIES_LEAF_READERS_SORTER : null,
             relativeTimeInNanosSupplier,
             indexCommitListener,
-            routingEntry().isPromotableToPrimary(),
-            unpromotableRefreshService.getShardUnpromotableRefresher(this)
+            routingEntry().isPromotableToPrimary()
         );
     }
 

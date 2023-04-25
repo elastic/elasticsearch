@@ -146,7 +146,6 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -1889,7 +1888,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    UnpromotableRefreshService.EMPTY,
                     client
                 );
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);

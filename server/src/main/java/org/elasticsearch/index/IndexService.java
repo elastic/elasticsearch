@@ -64,7 +64,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.shard.UnpromotableRefreshService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -418,11 +417,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer,
-        final UnpromotableRefreshService unpromotableRefreshService
+        final RetentionLeaseSyncer retentionLeaseSyncer
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
-        Objects.requireNonNull(unpromotableRefreshService);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -529,7 +526,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexingOperationListeners,
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
-                unpromotableRefreshService,
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,

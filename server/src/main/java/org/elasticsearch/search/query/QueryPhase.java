@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -309,7 +310,10 @@ public class QueryPhase {
         if (profilers == null) {
             return new SingleThreadCollectorManager(collector);
         }
-        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, children));
+        InternalProfileCollector[] childProfileCollectors = Arrays.stream(children)
+            .map(c -> (InternalProfileCollector) c)
+            .toArray(InternalProfileCollector[]::new);
+        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, childProfileCollectors));
     }
 
     private static void searchWithCollectorManager(

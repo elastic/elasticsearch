@@ -74,6 +74,7 @@ teardown:
   - do:
       transform.put_transform:
         transform_id: "transform-unattended"
+        defer_validation: true
         body: >
           {
             "source": { "index": "airline-data*" },

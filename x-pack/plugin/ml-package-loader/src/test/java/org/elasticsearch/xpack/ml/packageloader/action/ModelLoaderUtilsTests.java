@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -56,5 +59,28 @@ public class ModelLoaderUtilsTests extends ESTestCase {
             () -> ModelLoaderUtils.resolvePackageLocation("/home/ml/", "package.ext")
         );
         assertEquals("Repository must contain a scheme", e.getMessage());
+    }
+
+    public void testSha256() throws IOException {
+        byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 1_000_000));
+        String expectedDigest = MessageDigests.toHexString(MessageDigests.sha256().digest(bytes));
+        assertEquals(64, expectedDigest.length());
+
+        int chunkSize = randomIntBetween(100, 10_000);
+
+        ModelLoaderUtils.InputStreamChunker inputStreamChunker = new ModelLoaderUtils.InputStreamChunker(
+            new ByteArrayInputStream(bytes),
+            chunkSize
+        );
+
+        int totalParts = (bytes.length + chunkSize - 1) / chunkSize;
+
+        for (int part = 0; part < totalParts - 1; ++part) {
+            assertEquals(chunkSize, inputStreamChunker.next().length());
+        }
+
+        assertEquals(bytes.length - (chunkSize * (totalParts - 1)), inputStreamChunker.next().length());
+
+        assertEquals(expectedDigest, inputStreamChunker.getSha256());
     }
 }

@@ -87,7 +87,10 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
         assertThat(getEndTime(result, dataStreamName, 1), not(equalTo(previousEndTime2)));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(
+            getEndTime(result, dataStreamName, 1),
+            equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
     }
 
     public void testUpdateTimeSeriesTemporalRange_customLookAHeadTime() {
@@ -120,7 +123,10 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getStartTime(result, dataStreamName, 0), equalTo(previousStartTime1));
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval)));
+        assertThat(
+            getEndTime(result, dataStreamName, 1),
+            equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval).truncatedTo(ChronoUnit.SECONDS))
+        );
     }
 
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseReplicated() {
@@ -186,8 +192,14 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(mbBuilder).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
-        assertThat(getEndTime(result, dataStreamName1, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
-        assertThat(getEndTime(result, dataStreamName2, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(
+            getEndTime(result, dataStreamName1, 0),
+            equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
+        assertThat(
+            getEndTime(result, dataStreamName2, 0),
+            equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
         assertThat(getEndTime(result, dataStreamName3, 0), equalTo(start));
     }
 

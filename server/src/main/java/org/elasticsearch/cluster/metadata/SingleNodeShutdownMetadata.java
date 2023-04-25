@@ -44,7 +44,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
     public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
-    public static final ParseField GRACEFUL_SHUTDOWN_TIMEOUT_FIELD = new ParseField("graceful_shutdown_timeout");
+    public static final ParseField GRACE_PERIOD_FIELD = new ParseField("grace_period");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -75,8 +75,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TARGET_NODE_NAME_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), GRACEFUL_SHUTDOWN_TIMEOUT_FIELD.getPreferredName()),
-            GRACEFUL_SHUTDOWN_TIMEOUT_FIELD,
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), GRACE_PERIOD_FIELD.getPreferredName()),
+            GRACE_PERIOD_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
     }
@@ -97,7 +97,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Nullable
     private final String targetNodeName;
     @Nullable
-    private final TimeValue gracefulShutdown;
+    private final TimeValue gracePeriod;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
@@ -113,7 +113,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         boolean nodeSeen,
         @Nullable TimeValue allocationDelay,
         @Nullable String targetNodeName,
-        @Nullable TimeValue gracefulShutdown
+        @Nullable TimeValue gracePeriod
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
@@ -137,19 +137,19 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         }
         this.targetNodeName = targetNodeName;
         if (Type.SIGTERM.equals(type)) {
-            if (gracefulShutdown == null) {
-                throw new IllegalArgumentException("graceful shutdown is required for SIGTERM shutdowns");
+            if (gracePeriod == null) {
+                throw new IllegalArgumentException("grace period is required for SIGTERM shutdowns");
             }
-        } else if (gracefulShutdown != null) {
+        } else if (gracePeriod != null) {
             throw new IllegalArgumentException(
                 format(
-                    "graceful shutdown is only valid for SIGTERM type shutdowns, but was given type [%s] and target node name [%s]",
+                    "grace period is only valid for SIGTERM type shutdowns, but was given type [%s] and target node name [%s]",
                     type,
                     targetNodeName
                 )
             );
         }
-        this.gracefulShutdown = gracefulShutdown;
+        this.gracePeriod = gracePeriod;
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
@@ -165,9 +165,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             this.targetNodeName = null;
         }
         if (in.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
-            this.gracefulShutdown = in.readOptionalTimeValue();
+            this.gracePeriod = in.readOptionalTimeValue();
         } else {
-            this.gracefulShutdown = null;
+            this.gracePeriod = null;
         }
     }
 
@@ -231,8 +231,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      * @return the timeout for a graceful shutdown for a SIGTERM type.
      */
     @Nullable
-    public TimeValue getGracefulShutdown() {
-        return gracefulShutdown;
+    public TimeValue getGracePeriod() {
+        return gracePeriod;
     }
 
     @Override
@@ -252,7 +252,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             out.writeOptionalString(targetNodeName);
         }
         if (out.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
-            out.writeOptionalTimeValue(gracefulShutdown);
+            out.writeOptionalTimeValue(gracePeriod);
         }
     }
 
@@ -289,7 +289,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             && getReason().equals(that.getReason())
             && Objects.equals(getAllocationDelay(), that.getAllocationDelay())
             && Objects.equals(getTargetNodeName(), that.getTargetNodeName())
-            && Objects.equals(getGracefulShutdown(), that.getGracefulShutdown());
+            && Objects.equals(getGracePeriod(), that.getGracePeriod());
     }
 
     @Override
@@ -302,7 +302,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             getNodeSeen(),
             getAllocationDelay(),
             getTargetNodeName(),
-            getGracefulShutdown()
+            getGracePeriod()
         );
     }
 
@@ -324,8 +324,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         if (targetNodeName != null) {
             stringBuilder.append(", targetNodeName=[").append(targetNodeName).append("]");
         }
-        if (gracefulShutdown != null) {
-            stringBuilder.append(", gracefulShutdownTimeout=[").append(gracefulShutdown).append("]");
+        if (gracePeriod != null) {
+            stringBuilder.append(", gracePeriod=[").append(gracePeriod).append("]");
         }
         stringBuilder.append("}");
         return stringBuilder.toString();

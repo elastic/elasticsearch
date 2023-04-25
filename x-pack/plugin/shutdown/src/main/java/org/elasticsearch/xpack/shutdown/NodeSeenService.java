@@ -120,8 +120,8 @@ public class NodeSeenService implements ClusterStateListener {
      * The {@link SingleNodeShutdownMetadata} should be kept if an external node is responsible for the shutdown, or the target node still
      * exists, or the shutdown has been running for less time than the grace period (plus safety factor).
      */
-    private boolean keepShutdownMetadata(SingleNodeShutdownMetadata shutdown, long nowMillis, ClusterState state) {
-        TimeValue grace = shutdown.getGracefulShutdown();
+    static boolean keepShutdownMetadata(SingleNodeShutdownMetadata shutdown, long nowMillis, ClusterState state) {
+        TimeValue grace = shutdown.getGracePeriod();
         if (grace == null) {
             return true;
         }

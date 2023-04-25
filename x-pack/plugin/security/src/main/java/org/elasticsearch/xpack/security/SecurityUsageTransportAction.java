@@ -50,7 +50,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_CLIENT_S
 import static org.elasticsearch.xpack.core.XPackSettings.REMOTE_CLUSTER_SERVER_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE;
+import static org.elasticsearch.xpack.security.Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE;
 
 public class SecurityUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -191,7 +191,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         if (TcpTransport.isUntrustedRemoteClusterEnabled() && XPackSettings.SECURITY_ENABLED.get(settings)) {
             return Map.of(
                 "available",
-                CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.checkWithoutTracking(licenseState),
+                ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.checkWithoutTracking(licenseState),
                 "enabled",
                 RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
             );

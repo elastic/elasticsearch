@@ -35,6 +35,14 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
         );
     }
 
+    public static TextExpansionConfig mutateForVersion(TextExpansionConfig instance, TransportVersion version) {
+        return new TextExpansionConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected Writeable.Reader<TextExpansionConfig> instanceReader() {
         return TextExpansionConfig::new;

@@ -21,6 +21,7 @@
       cluster.health:
         index: test_index1
         # ensure that all shards are ready before indexing/refresh as we will verify segments.
+        wait_for_events: languid
         wait_for_no_initializing_shards: true
   # 1st segment
   - do:
@@ -49,7 +50,7 @@
 ---
 "Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added":
   - skip:
-      version: " - " # Tracked at https://github.com/elastic/elasticsearch/issues/94357
+      version: " - 7.99.99"
       reason: "sorting segments was added in 7.16"
       features: allowed_warnings
 
@@ -65,6 +66,7 @@
       cluster.health:
         index: test_index2
         # ensure that all shards are ready before indexing/refresh as we will verify segments.
+        wait_for_events: languid
         wait_for_no_initializing_shards: true
   # 1st segment
   - do:
@@ -110,7 +112,7 @@
 ---
 "Test if segments are missing @timestamp field we don't get errors":
   - skip:
-      version: " - " # Tracked at https://github.com/elastic/elasticsearch/issues/94357
+      version: "- 7.99.99"
       reason: "sorting segments was added in 7.16"
       features: allowed_warnings
 
@@ -130,6 +132,7 @@
       cluster.health:
         index: test_index3
         # ensure that all shards are ready before indexing/refresh as we will verify segments.
+        wait_for_events: languid
         wait_for_no_initializing_shards: true
   # 1st segment missing @timestamp field
   - do:

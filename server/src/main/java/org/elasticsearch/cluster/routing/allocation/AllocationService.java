@@ -202,7 +202,7 @@ public class AllocationService {
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.routingEntry();
-            IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardToFail.shardId().getIndex());
+            assert allocation.metadata().hasIndex(shardToFail.shardId().getIndex());
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
             ShardRouting failedShard = allocation.routingNodes()
@@ -242,7 +242,7 @@ public class AllocationService {
                     allocation.removeAllocationId(failedShard);
                 }
                 logger.warn(() -> "failing shard [" + failedShardEntry + "]", failedShardEntry.failure());
-                allocation.routingNodes().failShard(logger, failedShard, unassignedInfo, indexMetadata, allocation.changes());
+                allocation.routingNodes().failShard(logger, failedShard, unassignedInfo, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
             }
@@ -590,7 +590,7 @@ public class AllocationService {
                     Collections.emptySet(),
                     shardRouting.currentNodeId()
                 );
-                allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, indexMetadata, allocation.changes());
+                allocation.routingNodes().failShard(logger, shardRouting, unassignedInfo, allocation.changes());
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes

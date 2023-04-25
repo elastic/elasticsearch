@@ -17,7 +17,6 @@ import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
-import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
+import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -246,9 +246,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
 
         // TODO split these settings up
         settings.addAll(XPackSettings.getAllSettings());
-
-        settings.add(LicenseSettings.SELF_GENERATED_LICENSE_TYPE);
-        settings.add(LicenseSettings.ALLOWED_LICENSE_TYPES_SETTING);
 
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
@@ -557,7 +554,13 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // Health API usage
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new),
             // Remote cluster usage
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.REMOTE_CLUSTERS, RemoteClusterFeatureSetUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.REMOTE_CLUSTERS, RemoteClusterFeatureSetUsage::new),
+            // Enterprise Search
+            new NamedWriteableRegistry.Entry(
+                XPackFeatureSet.Usage.class,
+                XPackField.ENTERPRISE_SEARCH,
+                EnterpriseSearchFeatureSetUsage::new
+            )
         );
     }
 

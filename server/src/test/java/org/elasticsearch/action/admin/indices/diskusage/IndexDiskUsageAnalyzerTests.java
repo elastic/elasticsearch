@@ -24,7 +24,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -67,6 +66,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.mapper.vectors.XKnnFloatVectorField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
@@ -252,12 +252,12 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (Directory dir = createNewDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             VectorSimilarityFunction similarity = randomFrom(VectorSimilarityFunction.values());
-            int numDocs = between(100, 1000);
+            int numDocs = between(1000, 5000);
             int dimension = between(10, 200);
 
             indexRandomly(dir, codec, numDocs, doc -> {
                 float[] vector = randomVector(dimension);
-                doc.add(new KnnFloatVectorField("vector", vector, similarity));
+                doc.add(new XKnnFloatVectorField("vector", vector, similarity));
             });
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
@@ -520,7 +520,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     static void addRandomKnnVectors(Document doc) {
         int numFields = randomFrom(1, 3);
         for (int f = 0; f < numFields; f++) {
-            doc.add(new KnnFloatVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
+            doc.add(new XKnnFloatVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
         }
     }
 

@@ -1,0 +1,6 @@
+pr: 95318
+summary: Report validation failure if there are no aggregations in the test search
+  query
+area: Transform
+type: bug
+issues: []

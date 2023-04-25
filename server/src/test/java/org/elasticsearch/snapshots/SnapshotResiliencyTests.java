@@ -1313,7 +1313,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .forEach(
                         n -> n.transportService.connectToNode(
                             node.node,
-                            null,
                             ActionTestUtils.assertNoFailureListener(c -> logger.info("--> Connected [{}] to [{}]", n.node, node.node))
                         )
                     )
@@ -1934,7 +1933,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             scriptService,
                             new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
                             Collections.emptyList(),
-                            client
+                            client,
+                            null
                         ),
                         client,
                         actionFilters,

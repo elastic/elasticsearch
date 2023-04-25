@@ -51,3 +51,10 @@ also configure the path that JNA uses with the <<set-jvm-options,JVM flag>>
 temporary files by setting the `LIBFFI_TMPDIR` environment variable. Future
 versions of {es} may need additional configuration, so you should prefer to set
 `ES_TMPDIR` wherever possible.
+
+NOTE: {es} does not clear out the `/tmp` directory, as this could be an
+unwelcome behavior in the event of a power outage or an Out of Memory error.
+Instead, it's expected that temporary directories are cleaned out automatically
+by the system on events such as a reboot. This is the behavior with the Linux
+link:https://www.kernel.org/doc/html/latest/filesystems/tmpfs.html[tmpfs]
+file system, for example.

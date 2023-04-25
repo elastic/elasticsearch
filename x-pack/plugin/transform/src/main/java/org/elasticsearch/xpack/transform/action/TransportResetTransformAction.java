@@ -123,6 +123,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
                     settings,
                     client,
                     transformConfigManager,
+                    auditor,
                     transformConfigAndVersion.v1(),
                     TransformConfigUpdate.EMPTY,
                     transformConfigAndVersion.v2(),

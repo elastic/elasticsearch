@@ -45,6 +45,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -443,7 +444,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -463,7 +464,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
-            RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),

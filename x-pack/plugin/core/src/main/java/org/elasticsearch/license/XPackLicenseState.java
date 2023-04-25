@@ -33,8 +33,6 @@ import java.util.stream.Collectors;
  */
 public class XPackLicenseState {
 
-    // TODO do I need to add a `messages` entry for the new feature? I'm not sure.
-
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
@@ -83,6 +81,7 @@ public class XPackLicenseState {
                 "The CCR monitoring endpoint will be blocked",
                 "Existing follower indices will continue to replicate data" }
         );
+        messages.put(XPackField.REDACT_PROCESSOR, new String[] { "Executing a redact processor in an ingest pipeline will fail." });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -103,6 +102,7 @@ public class XPackLicenseState {
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
         messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
+        messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -302,6 +302,22 @@ public class XPackLicenseState {
                         // so CCR will be disabled
                         return new String[] { "Cross-Cluster Replication will be disabled" };
                 }
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] redactProcessorAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+            case STANDARD:
+            case GOLD:
+                switch (currentMode) {
+                    case TRIAL:
+                    case PLATINUM:
+                    case ENTERPRISE:
+                        return new String[] { "Redact ingest pipeline processors will be disabled" };
+                }
+                break;
         }
         return Strings.EMPTY_ARRAY;
     }

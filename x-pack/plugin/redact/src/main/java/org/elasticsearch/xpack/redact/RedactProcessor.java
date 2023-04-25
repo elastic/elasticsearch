@@ -22,6 +22,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.XPackField;
 import org.joni.Matcher;
 import org.joni.Option;
 import org.joni.Region;
@@ -43,7 +44,7 @@ public class RedactProcessor extends AbstractProcessor {
 
     public static final LicensedFeature.Momentary REDACT_PROCESSOR_FEATURE = LicensedFeature.momentary(
         null,
-        "redact_processor",
+        XPackField.REDACT_PROCESSOR,
         License.OperationMode.PLATINUM
     );
 

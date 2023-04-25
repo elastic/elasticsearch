@@ -49,6 +49,7 @@ import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEARCH_MIN_SCORE;
@@ -250,7 +251,10 @@ public class QueryPhase {
         if (profilers == null) {
             return new SingleThreadCollectorManager(collector);
         }
-        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, children));
+        InternalProfileCollector[] childProfileCollectors = Arrays.stream(children)
+            .map(c -> (InternalProfileCollector) c)
+            .toArray(InternalProfileCollector[]::new);
+        return new InternalProfileCollectorManager(new InternalProfileCollector(collector, profilerName, childProfileCollectors));
     }
 
     private static void searchWithCollectorManager(

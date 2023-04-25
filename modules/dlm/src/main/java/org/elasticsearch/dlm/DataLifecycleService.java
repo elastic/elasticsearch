@@ -95,22 +95,20 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
-    private final MasterServiceTaskQueue<ForceMergeClusterStateUpdateTask> taskQueue;
+    private final MasterServiceTaskQueue<ClusterStateUpdateTask> clusterStateUpdateTaskQueue;
 
-    private static final SimpleBatchedExecutor<ForceMergeClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Void> executeTask(ForceMergeClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
+    private static final SimpleBatchedExecutor<ClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(ClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return Tuple.tuple(task.execute(clusterState), null);
+        }
 
-            @Override
-            public void taskSucceeded(ForceMergeClusterStateUpdateTask task, Void unused) {
-                logger.trace("Updated cluster state for force merge");
-                task.listener.onResponse(null);
-            }
-        };
+        @Override
+        public void taskSucceeded(ClusterStateUpdateTask task, Void unused) {
+            logger.trace("Updated cluster state for force merge");
+            task.listener.onResponse(null);
+        }
+    };
 
     public DataLifecycleService(
         Settings settings,
@@ -131,7 +129,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
-        this.taskQueue = clusterService.createTaskQueue("forcemerge-clusterstate", Priority.NORMAL, STATE_UPDATE_TASK_EXECUTOR);
+        this.clusterStateUpdateTaskQueue = clusterService.createTaskQueue(
+            "dlm-clusterstate-update",
+            Priority.NORMAL,
+            STATE_UPDATE_TASK_EXECUTOR
+        );
     }
 
     /**
@@ -423,10 +425,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         });
     }
 
+    /*
+     * This method executes the given force merge request. Before executing the request, it writes a piece of custom metadata in the
+     * cluster state indicating that force merge has begun. And once the request has completed successfully it writes a piece of custom
+     * metadata in the cluster state indicating that the force merge has completed.
+     */
     private void forceMergeIndex(ForceMergeRequest forceMergeRequest, ActionListener<Void> listener) {
         assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
-        // "saving" the index name here so we don't capture the entire request
-        String targetIndex = forceMergeRequest.indices()[0];
+        final String targetIndex = forceMergeRequest.indices()[0];
         ActionListener<Void> forceMergeRunningListener = new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
@@ -435,29 +441,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     @Override
                     public void onResponse(ForceMergeResponse forceMergeResponse) {
                         logger.info("DLM successfully force merged index [{}]", targetIndex);
-                        taskQueue.submitTask(
-                            "Adding force merge marker to cluster state for [" + targetIndex + "]",
-                            new ForceMergeClusterStateUpdateTask(listener) {
-                                @Override
-                                public ClusterState execute(ClusterState currentState) {
-                                    logger.trace("Updating cluster state with forcemerge complete result for {}", targetIndex);
-                                    IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-                                    Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
-                                    Map<String, String> newCustomMetadata = new HashMap<>();
-                                    if (customMetadata != null) {
-                                        newCustomMetadata.putAll(customMetadata);
-                                    }
-                                    newCustomMetadata.put(FORCE_MERGE_METADATA_KEY, FORCE_MERGE_COMPLETE_MARKER);
-                                    IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
-                                        DLM_CUSTOM_INDEX_METADATA_KEY,
-                                        newCustomMetadata
-                                    ).build();
-                                    Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
-                                    return ClusterState.builder(currentState).metadata(metadata).build();
-                                }
-                            },
-                            null
-                        );
+                        setForceMergeMarker(targetIndex, listener, FORCE_MERGE_COMPLETE_MARKER);
                     }
 
                     @Override
@@ -468,8 +452,16 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                                     + "Retrying on the next DLM run",
                                 targetIndex
                             );
+                            // We need to unset the force merge marker in the cluster state so that DLM will try force merging again
+                            unsetForceMergeMarker(targetIndex);
                         } else {
-                            logger.error(() -> Strings.format("DLM encountered an error trying to force merge index [%s]", targetIndex), e);
+                            logger.error(
+                                () -> Strings.format(
+                                    "DLM encountered an error trying to force merge index [%s], and will not retry",
+                                    targetIndex
+                                ),
+                                e
+                            );
                         }
                         listener.onFailure(e);
                     }
@@ -482,25 +474,64 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             }
         };
 
-        taskQueue.submitTask(
-            "Adding force merge marker to cluster state for [" + targetIndex + "]",
-            new ForceMergeClusterStateUpdateTask(forceMergeRunningListener) {
+        setForceMergeMarker(targetIndex, forceMergeRunningListener, FORCE_MERGE_BEGIN_MARKER);
+    }
+
+    private void setForceMergeMarker(String targetIndex, ActionListener<Void> listener, String value) {
+        clusterStateUpdateTaskQueue.submitTask(
+            Strings.format("Adding force merge %s marker to cluster state for [%s]", value, targetIndex),
+            new ClusterStateUpdateTask(listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    logger.trace("Updating cluster state with forcemerge began result for {}", targetIndex);
+                    logger.trace("Updating cluster state with force merge {}} marker for {}", value, targetIndex);
                     IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
                     Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
                     Map<String, String> newCustomMetadata = new HashMap<>();
                     if (customMetadata != null) {
                         newCustomMetadata.putAll(customMetadata);
                     }
-                    newCustomMetadata.put(FORCE_MERGE_METADATA_KEY, FORCE_MERGE_BEGIN_MARKER);
+                    newCustomMetadata.put(FORCE_MERGE_METADATA_KEY, value);
                     IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
                         DLM_CUSTOM_INDEX_METADATA_KEY,
                         newCustomMetadata
                     ).build();
                     Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
                     return ClusterState.builder(currentState).metadata(metadata).build();
+                }
+            },
+            null
+        );
+    }
+
+    private void unsetForceMergeMarker(String targetIndex) {
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.trace("Successfully unset the force merge marker on {}", targetIndex);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> Strings.format("Could not unset the force merge marker on {}", targetIndex), e);
+            }
+        };
+        clusterStateUpdateTaskQueue.submitTask(
+            Strings.format("Adding force merge complete marker to cluster state for [%s]", targetIndex),
+            new ClusterStateUpdateTask(listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    logger.trace("Updating cluster state to remove force merge marker for {}", targetIndex);
+                    IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
+                    Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+                    if (customMetadata != null) {
+                        IndexMetadata.Builder builder = new IndexMetadata.Builder(indexMetadata);
+                        builder.removeCustom(DLM_CUSTOM_INDEX_METADATA_KEY);
+                        IndexMetadata updatededIndexMetadata = builder.build();
+                        Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
+                        return ClusterState.builder(currentState).metadata(metadata).build();
+                    } else {
+                        return currentState;
+                    }
                 }
             },
             null
@@ -597,10 +628,13 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         return errorStore;
     }
 
-    private abstract static class ForceMergeClusterStateUpdateTask implements ClusterStateTaskListener {
+    /**
+     * This is an abstract class meant to be extended by classes that update the cluster state, run in STATE_UPDATE_TASK_EXECUTOR.
+     */
+    private abstract static class ClusterStateUpdateTask implements ClusterStateTaskListener {
         final ActionListener<Void> listener;
 
-        ForceMergeClusterStateUpdateTask(ActionListener<Void> listener) {
+        ClusterStateUpdateTask(ActionListener<Void> listener) {
             this.listener = listener;
         }
 

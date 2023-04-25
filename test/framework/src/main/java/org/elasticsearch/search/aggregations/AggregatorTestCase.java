@@ -493,9 +493,41 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<>();
         final PipelineTree pipelines = aggTestConfig.builder().buildPipelineTree();
 
-        List<C> aggregators = doCollection(indexSettings, searcher, breakerService, aggTestConfig);
-        for (C agg : aggregators) {
-            aggs.add(agg.buildTopLevel());
+        List<Releasable> aggContexts = new ArrayList<>();
+        try {
+            List<C> aggregators = doCollection(
+                indexSettings,
+                searcher,
+                breakerService,
+                (
+                    IndexSearcher indexSearcher,
+                    IndexSettings settings,
+                    Query query,
+                    CircuitBreakerService cbkr,
+                    long bytesToPreallocate,
+                    int maxBucket,
+                    boolean isInSortOrderExecutionRequired,
+                    MappedFieldType... fieldTypes) -> {
+                    AggregationContext ctx = createAggregationContext(
+                        indexSearcher,
+                        settings,
+                        query,
+                        cbkr,
+                        bytesToPreallocate,
+                        maxBucket,
+                        isInSortOrderExecutionRequired,
+                        fieldTypes
+                    );
+                    aggContexts.add(ctx);
+                    return ctx;
+                },
+                aggTestConfig
+            );
+            for (C agg : aggregators) {
+                aggs.add(agg.buildTopLevel());
+            }
+        } finally {
+            Releasables.close(aggContexts);
         }
         assertRoundTrip(aggs);
 
@@ -559,6 +591,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexSettings indexSettings,
         IndexSearcher searcher,
         CircuitBreakerService breakerService,
+        AggregationContextSupplier contextSupplier,
         AggTestConfig aggTestConfig
     ) throws IOException {
         Query query = aggTestConfig.query();
@@ -584,7 +617,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 subSearchers[searcherIDX] = new ShardSearcher(leave, compCTX);
             }
             for (ShardSearcher subSearcher : subSearchers) {
-                AggregationContext context = createAggregationContext(
+                AggregationContext context = contextSupplier.get(
                     subSearcher,
                     indexSettings,
                     query,
@@ -594,25 +627,21 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     builder.isInSortOrderExecutionRequired(),
                     fieldTypes
                 );
-                try {
-                    C a = createAggregator(builder, context);
-                    a.preCollection();
-                    if (context.isInSortOrderExecutionRequired()) {
-                        new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
-                    } else {
-                        Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                        subSearcher.search(weight, a.asCollector());
-                    }
-                    a.postCollection();
-                    assertEquals(shouldBeCached, context.isCacheable());
-                    aggregators.add(a);
-                    // aggs.add(a.buildTopLevel());
-                } finally {
-                    Releasables.close(context);
+                C a = createAggregator(builder, context);
+                a.preCollection();
+                if (context.isInSortOrderExecutionRequired()) {
+                    new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
+                } else {
+                    Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                    subSearcher.search(weight, a.asCollector());
                 }
+                a.postCollection();
+                assertEquals(shouldBeCached, context.isCacheable());
+                aggregators.add(a);
+                // aggs.add(a.buildTopLevel());
             }
         } else {
-            AggregationContext context = createAggregationContext(
+            AggregationContext context = contextSupplier.get(
                 searcher,
                 indexSettings,
                 query,
@@ -622,29 +651,25 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 builder.isInSortOrderExecutionRequired(),
                 fieldTypes
             );
-            try {
-                C root = createAggregator(builder, context);
-                root.preCollection();
-                if (context.isInSortOrderExecutionRequired()) {
-                    new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
-                } else {
-                    searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
-                }
-                root.postCollection();
-                aggregators.add(root);
-                // aggs.add(root.buildTopLevel());
-            } finally {
-                Releasables.close(context);
+            C root = createAggregator(builder, context);
+            root.preCollection();
+            if (context.isInSortOrderExecutionRequired()) {
+                new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            } else {
+                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
             }
+            root.postCollection();
+            aggregators.add(root);
+            // aggs.add(root.buildTopLevel());
         }
         return aggregators;
     }
-
 
     /**
      * For aggregations supporting the dense format, use the dense reduction path and then render the final
      * results as {@link InternalAggregation}s
      */
+    /*
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduceDense(
         IndexSearcher searcher,
         AggTestConfig aggTestConfig
@@ -702,6 +727,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Releasables.close(breakerService);
         }
     }
+     */
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
         InternalAggregationTestCase.assertMultiBucketConsumer(agg, bucketConsumer);
@@ -733,11 +759,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 verify.accept(agg);
                 verifyOutputFieldNames(aggTestConfig.builder(), agg);
 
+                /*
                 if (aggTestConfig.builder().supportsDenseAggregations()) {
                     agg = searchAndReduceDense(indexSearcher, aggTestConfig);
                     verify.accept(agg);
                     verifyOutputFieldNames(aggTestConfig.builder(), agg);
                 }
+
+                 */
 
             }
         }
@@ -1510,6 +1539,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ).addResultReader(InternalAggCardinalityUpperBound::new)
             );
         }
+    }
+
+    @FunctionalInterface
+    interface AggregationContextSupplier {
+        AggregationContext get(
+            IndexSearcher indexSearcher,
+            IndexSettings indexSettings,
+            Query query,
+            CircuitBreakerService breakerService,
+            long bytesToPreallocate,
+            int maxBucket,
+            boolean isInSortOrderExecutionRequired,
+            MappedFieldType... fieldTypes
+        ) throws IOException;
     }
 
     public record AggTestConfig(

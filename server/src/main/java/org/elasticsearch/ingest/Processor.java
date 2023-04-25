@@ -79,6 +79,18 @@ public interface Processor {
     }
 
     /**
+     * Validate a processor after it has been constructed by a factory.
+     *
+     * Override this method to perform additional post-construction validation that should be performed at the rest/transport level.
+     *
+     * An example of where this would be needed is a processor that interacts with external state like the license state -- it may
+     * be okay to create that processor on day 1 with license state A, but later illegal to create a similar processor on day 2 with
+     * state B. We want to reject put requests on day 2 (at the rest/transport level), but still allow for restarting nodes in the
+     * cluster (so we can't throw exceptions from {@link Factory#create(Map, String, String, Map)}).
+     */
+    default void extraValidation() throws Exception {}
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory {

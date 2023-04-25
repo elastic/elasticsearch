@@ -97,6 +97,15 @@ public class RedactProcessor extends AbstractProcessor {
     }
 
     @Override
+    public void extraValidation() throws Exception {
+        // post-creation license check, this is exercised at rest/transport time
+        if (skipIfUnlicensed == false && REDACT_PROCESSOR_FEATURE.check(licenseState) == false) {
+            String message = LicenseUtils.newComplianceException(REDACT_PROCESSOR_FEATURE.getName()).getMessage();
+            throw newConfigurationException(TYPE, tag, "skip_if_unlicensed", message);
+        }
+    }
+
+    @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         // runtime license check, this runs for every document processed
         if (REDACT_PROCESSOR_FEATURE.check(licenseState) == false) {
@@ -384,12 +393,6 @@ public class RedactProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-
-            // on-creation license check, this is exercised at processor creation time
-            if (skipIfUnlicensed == false && REDACT_PROCESSOR_FEATURE.check(licenseState) == false) {
-                String message = LicenseUtils.newComplianceException(REDACT_PROCESSOR_FEATURE.getName()).getMessage();
-                throw newConfigurationException(TYPE, processorTag, "skip_if_unlicensed", message);
-            }
 
             try {
                 return new RedactProcessor(

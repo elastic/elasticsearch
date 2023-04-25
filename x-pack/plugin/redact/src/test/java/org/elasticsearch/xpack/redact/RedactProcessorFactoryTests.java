@@ -86,6 +86,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             XPackLicenseState licenseState = randomBoolean() ? mockLicenseState() : mockNotAllowedLicenseState();
             RedactProcessor.Factory factory = new RedactProcessor.Factory(licenseState, MatcherWatchdog.noop());
             RedactProcessor processor = factory.create(null, null, null, config);
+            processor.extraValidation();
             assertThat(processor.getSkipIfUnlicensed(), equalTo(true));
         }
 
@@ -99,6 +100,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             config.put("skip_if_unlicensed", false);
             RedactProcessor.Factory factory = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop());
             RedactProcessor processor = factory.create(null, null, null, config);
+            processor.extraValidation();
             assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
         }
 
@@ -108,10 +110,11 @@ public class RedactProcessorFactoryTests extends ESTestCase {
             config.put("patterns", List.of("%{MY_PATTERN:name}!"));
             config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
 
-            // if skip_if_unlicensed is false, then the license must allow for redact to be used in order to construct a processor
+            // if skip_if_unlicensed is false, then the license must allow for redact to be used in order to pass the extra validation
             config.put("skip_if_unlicensed", false);
             RedactProcessor.Factory factory = new RedactProcessor.Factory(mockNotAllowedLicenseState(), MatcherWatchdog.noop());
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, null, null, config));
+            RedactProcessor processor = factory.create(null, null, null, config);
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> processor.extraValidation());
             assertThat(e.getMessage(), containsString("[skip_if_unlicensed] current license is non-compliant for [redact_processor]"));
         }
     }

@@ -44,10 +44,9 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
         } else {
             request = new Request(searchAppName);
         }
-        final Request finalRequest = request;
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
-            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestToXContentListener<>(channel));
         };
     }
 }

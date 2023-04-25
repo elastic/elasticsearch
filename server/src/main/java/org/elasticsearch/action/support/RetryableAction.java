@@ -72,7 +72,7 @@ public abstract class RetryableAction<Response> {
         TimeValue timeoutValue,
         ActionListener<Response> listener
     ) {
-        this(logger, threadPool, initialDelay, timeoutValue, listener);
+        this(logger, threadPool, initialDelay, maxDelayBound, timeoutValue, listener, ThreadPool.Names.SAME);
     }
 
     public RetryableAction(

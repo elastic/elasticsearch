@@ -20,6 +20,11 @@ public final class InternalProfileCollectorManager extends SingleThreadCollector
         super(collector);
     }
 
+    @Override
+    public InternalProfileCollector newCollector() {
+        return (InternalProfileCollector) super.newCollector();
+    }
+
     public CollectorResult getCollectorTree() {
         return ((InternalProfileCollector) collector).getCollectorTree();
     }

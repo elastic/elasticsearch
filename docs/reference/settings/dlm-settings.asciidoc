@@ -33,6 +33,13 @@ data stream will rollover if any of the following conditions are met:
 ==== Index level settings
 The following index-level {dlm-init} settings are typically configured on the backing indices of a data stream.
 
+[[index-dlm-prefer-ilm]]
+`index.lifecycle.prefer_ilm`::
+(<<indices-update-settings,Dynamic>>, boolean)
+This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index
+has an <<index-lifecycle-management,{ilm}>> ({ilm-init}) policy and the data stream has a {dlm-init} lifecycle. When
+`true` this index is managed by {ilm-init}, when `false` the backing index is managed by {dlm-init}. Defaults to `true`.
+
 [[index-dlm-origination-date]]
 `index.lifecycle.origination_date`::
 (<<indices-update-settings,Dynamic>>, long)

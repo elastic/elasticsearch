@@ -42,6 +42,7 @@ public class InternalProfileCollector extends ProfilerCollector {
      * @param c The Collector to derive a name from
      * @return  A (hopefully) prettier name
      */
+    @Override
     protected String deriveCollectorName(Collector c) {
         String s = c.getClass().getSimpleName();
 

@@ -20,11 +20,10 @@ package co.elastic.elasticsearch.stateless.lucene;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Map;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,7 +32,7 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     private final ShardId shardId;
     private final Engine.IndexCommitRef indexCommitRef;
-    private final Map<String, StoreFileMetadata> commitFiles;
+    private final Collection<String> commitFiles;
     private final Set<String> additionalFiles;
     private final AtomicBoolean released;
     private final long primaryTerm;
@@ -41,7 +40,7 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     public StatelessCommitRef(
         ShardId shardId,
         Engine.IndexCommitRef indexCommitRef,
-        Map<String, StoreFileMetadata> commitFiles,
+        Collection<String> commitFiles,
         Set<String> additionalFiles,
         long primaryTerm
     ) {
@@ -58,7 +57,7 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         return primaryTerm;
     }
 
-    public Map<String, StoreFileMetadata> getCommitFiles() {
+    public Collection<String> getCommitFiles() {
         return commitFiles;
     }
 

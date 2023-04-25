@@ -65,6 +65,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -462,6 +464,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 logger.trace("{} uploading commit [{}] with [{}] additional files", shardId, generation, additionalFiles.size());
                 assert additionalFiles.stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).count() == 1L : additionalFiles;
 
+                final Map<String, Long> commitFilesToLength;
+                final Collection<String> commitFileNames = reference.getCommitFiles();
+                Map<String, Long> mutableCommitFiles = new HashMap<>(commitFileNames.size());
+                for (String fileName : commitFileNames) {
+                    mutableCommitFiles.put(fileName, reference.getDirectory().fileLength(fileName));
+                }
+                commitFilesToLength = Collections.unmodifiableMap(mutableCommitFiles);
+
                 // this listener releases the reference on the index commit and a permit once all commit files are uploaded
                 final AtomicLong successCount = new AtomicLong();
                 final AtomicLong successSize = new AtomicLong();
@@ -507,7 +517,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         shardId,
                         generation,
                         reference.getPrimaryTerm(),
-                        reference.getCommitFiles().values()
+                        commitFilesToLength
                     );
 
                     uploadTaskRunner.enqueueTask(
@@ -528,7 +538,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 }));
 
                 final ActionListener<Void> additionalFilesListener = ActionListener.wrap(allCommitFilesListener.delegateFailure((l, v) -> {
-                    List<String> missingFiles = commitService.resolveMissingFiles(shardId, reference.getCommitFiles().keySet());
+                    List<String> missingFiles = commitService.resolveMissingFiles(shardId, reference.getCommitFiles());
                     if (missingFiles.isEmpty()) {
                         l.onResponse(null);
                     } else {

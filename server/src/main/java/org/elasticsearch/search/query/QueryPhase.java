@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -217,7 +218,7 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
-                    (InternalProfileCollector) collector
+                    collector
                 );
             }
             if (searchContext.parsedPostFilter() != null) {
@@ -233,7 +234,7 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(new FilteredCollector(collector, filterWeight)),
                     REASON_SEARCH_POST_FILTER,
-                    (InternalProfileCollector) collector
+                    collector
                 );
             }
             if (searchContext.getAggsCollectorManager() != null) {
@@ -243,8 +244,8 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
                     REASON_SEARCH_MULTI,
-                    (InternalProfileCollector) collector,
-                    (InternalProfileCollector) aggsCollector
+                    collector,
+                    aggsCollector
                 );
             }
             if (searchContext.minimumScore() != null) {
@@ -254,7 +255,7 @@ public class QueryPhase {
                     searchContext.getProfilers(),
                     new SingleThreadCollectorManager(new MinimumScoreCollector(collector, searchContext.minimumScore())),
                     REASON_SEARCH_MIN_SCORE,
-                    (InternalProfileCollector) collector
+                    collector
                 );
             }
 
@@ -304,13 +305,16 @@ public class QueryPhase {
         Profilers profilers,
         CollectorManager<Collector, Void> collectorManager,
         String profilerName,
-        InternalProfileCollector... children
+        Collector... children
     ) throws IOException {
         if (profilers == null) {
             return collectorManager;
         }
+        InternalProfileCollector[] childProfileCollectors = Arrays.stream(children)
+            .map(c -> (InternalProfileCollector) c)
+            .toArray(InternalProfileCollector[]::new);
         return new InternalProfileCollectorManager(
-            new InternalProfileCollector(collectorManager.newCollector(), profilerName, children)
+            new InternalProfileCollector(collectorManager.newCollector(), profilerName, childProfileCollectors)
         );
     }
 

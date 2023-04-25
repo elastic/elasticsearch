@@ -313,9 +313,10 @@ public class QueryPhase {
         }
         // to keep it simple, we rely on the fact that profile collector manager is single-threaded
         // hence its newCollector always returns the same collector instance
-        InternalProfileCollector[] childProfileCollectors = Arrays.stream(children)
-            .map(manager -> ((InternalProfileCollectorManager) manager).newCollector())
-            .toArray(InternalProfileCollector[]::new);
+        InternalProfileCollector[] childProfileCollectors = new InternalProfileCollector[children.length];
+        for (int i = 0; i < children.length; i++) {
+            childProfileCollectors[i] = ((InternalProfileCollectorManager)children[i]).newCollector();
+        }
         return new InternalProfileCollectorManager(
             new InternalProfileCollector(collectorManager.newCollector(), profilerName, childProfileCollectors)
         );

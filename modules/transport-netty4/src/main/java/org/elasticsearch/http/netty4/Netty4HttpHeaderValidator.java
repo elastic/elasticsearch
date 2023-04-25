@@ -112,19 +112,19 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
         } else {
             Transports.assertDefaultThreadContext(threadContext);
             // this prevents thread-context changes to propagate to the validation listener
-            // atm the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
+            // atm, the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
             // so this is just a defensive play, in case the code inside the listener changes to not use the event loop executor
-            ContextPreservingActionListener<Void> contextPreservingListener = new ContextPreservingActionListener<>(
+            ContextPreservingActionListener<Void> contextPreservingActionListener = new ContextPreservingActionListener<>(
                 threadContext.wrapRestorable(threadContext.newStoredContext()),
                 ActionListener.wrap(aVoid ->
                 // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx)), e ->
-                // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e)))
+                ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx)),
+                    e -> ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e))
+                )
             );
             // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                validator.apply(httpRequest, ctx.channel(), contextPreservingListener);
+                validator.apply(httpRequest, ctx.channel(), contextPreservingActionListener);
             }
         }
     }

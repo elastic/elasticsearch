@@ -391,6 +391,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         this,
                         handlingSettings,
                         TLSConfig.noTLS(),
+                        threadPool.getThreadContext(),
                         null,
                         randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
                     ) {

@@ -5,8 +5,7 @@
       "description": "Creates a behavioral analytics event for existing collection."
     },
     "stability": "experimental",
-    "visibility": "feature_flag",
-    "feature_flag": "xpack.ent-search.enabled",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"

@@ -868,6 +868,8 @@ public class MachineLearning extends Plugin
             return List.of(new JobManagerHolder());
         }
 
+        machineLearningExtension.get().configure(environment.settings());
+
         this.mlUpgradeModeActionFilter.set(new MlUpgradeModeActionFilter(clusterService));
 
         MlIndexTemplateRegistry registry = new MlIndexTemplateRegistry(

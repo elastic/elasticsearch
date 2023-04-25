@@ -32,6 +32,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -46,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1664,6 +1666,42 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             e.getMessage(),
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]")
         );
+    }
+
+    public void testRemoveRequiredAndNonRequiredComponents() throws Exception {
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("pattern"),
+            null,
+            List.of("required1", "non-required", "required2"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.singletonList("non-required")
+        );
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState clusterState = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "required1", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "required2", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "non-required", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "composable-index-template", composableIndexTemplate);
+
+        final ClusterState cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "required*"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "component templates [required1, required2] cannot be removed as they are still in use by index templates "
+                    + "[composable-index-template]"
+            )
+        );
+
+        TestUtils.assetNoException((Callable<Void>) () -> {
+            innerRemoveComponentTemplate(cs, "non-required*");
+            return null;
+        }, "component templates specified as 'ignore_missing_component_templates' can be removed");
     }
 
     /**

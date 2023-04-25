@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionResolver;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
@@ -43,17 +44,25 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
     private final AnalyticsEventFactory eventFactory;
 
+    private final AnalyticsCollectionResolver collectionResolver;
+
     private final AtomicBoolean dropEvent = new AtomicBoolean(false);
 
     @Inject
-    public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory) {
-        this(client, bulkProcessorFactory, AnalyticsEventFactory.INSTANCE);
+    public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsCollectionResolver collectionResolver) {
+        this(client, bulkProcessorFactory.create(client), collectionResolver, AnalyticsEventFactory.INSTANCE);
     }
 
-    AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsEventFactory eventFactory) {
+    AnalyticsEventEmitter(
+        Client client,
+        BulkProcessor2 bulkProcessor,
+        AnalyticsCollectionResolver collectionResolver,
+        AnalyticsEventFactory eventFactory
+    ) {
         this.client = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-        this.bulkProcessor = bulkProcessorFactory.create(client);
+        this.bulkProcessor = bulkProcessor;
         this.eventFactory = eventFactory;
+        this.collectionResolver = collectionResolver;
     }
 
     /**
@@ -95,7 +104,8 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
     }
 
     private IndexRequest createIndexRequest(AnalyticsEvent event) throws IOException {
-        AnalyticsCollection collection = event.context().analyticsCollection();
+        AnalyticsCollection collection = this.collectionResolver.collection(event.eventCollectionName());
+
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             return client.prepareIndex(collection.getEventDataStream())
                 .setCreate(true)

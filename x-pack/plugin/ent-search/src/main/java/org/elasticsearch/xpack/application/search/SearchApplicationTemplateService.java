@@ -30,7 +30,7 @@ public class SearchApplicationTemplateService {
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
 
-    private final Logger logger = LogManager.getLogger("SearchApplicationTemplateService");
+    private final Logger logger = LogManager.getLogger(SearchApplicationTemplateService.class);
 
     public SearchApplicationTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         this.scriptService = scriptService;

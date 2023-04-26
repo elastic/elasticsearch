@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.model.ObjectFactory;
@@ -35,12 +36,7 @@ class GitInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File rootDir;
-        if(project.getName() == "elasticsearch") {
-            rootDir = project.getRootDir();
-        } else {
-            rootDir = project.getRootDir().getParentFile();
-        }
+        File rootDir = Util.locateElasticsearchWorkspace(project);
         gitInfo = objectFactory.property(GitInfo.class).value(factory.provider(() ->
             GitInfo.gitInfo(rootDir)
         ));

@@ -627,6 +627,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
+
+            // run post-construction extra validation (if any, the default implementation from the Processor interface is a no-op)
+            try {
+                processor.extraValidation();
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 String type = processor.getType();
                 if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {

@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -251,24 +250,22 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     }
 
-    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws InterruptedException {
+    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"));
     }
 
-    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request)
-        throws InterruptedException {
+    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request) throws Exception {
         PlainActionFuture<NodesResponse> future = newFuture();
         startBlockingTestNodesAction(checkLatch, request, future);
         return future;
     }
 
-    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, ActionListener<NodesResponse> listener)
-        throws InterruptedException {
+    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, ActionListener<NodesResponse> listener) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"), listener);
     }
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
-        throws InterruptedException {
+        throws Exception {
         CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
@@ -295,7 +292,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         // Make sure no tasks are running
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
         Task task = testNodes[0].transportService.getTaskManager()
             .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
@@ -305,7 +302,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         return task;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95425")
     public void testRunningTasksCount() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
@@ -408,7 +404,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that we don't have any lingering tasks
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
     }
 
@@ -607,7 +603,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         return taskDescriptions;
     }
 
-    public void testActionParentCancellationPropagates() throws ExecutionException, InterruptedException {
+    public void testActionParentCancellationPropagates() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -681,7 +677,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, responses.failureCount());
     }
 
-    public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException {
+    public void testTaskLevelActionFailures() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -749,7 +745,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      * it executes a tasks action that targets these blocked node actions. The test verifies that task actions are only
      * getting executed on nodes that are not listed in the node filter.
      */
-    public void testTaskNodeFiltering() throws ExecutionException, InterruptedException {
+    public void testTaskNodeFiltering() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);

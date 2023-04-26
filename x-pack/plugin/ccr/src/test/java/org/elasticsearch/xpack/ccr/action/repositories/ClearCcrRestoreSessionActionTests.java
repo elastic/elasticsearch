@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -53,6 +52,22 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
         );
     }
 
+    public void testActionNames() {
+        final ActionFilters actionFilters = mock(ActionFilters.class);
+        final TransportService transportService = mock(TransportService.class);
+        final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
+
+        final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
+        assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.NAME));
+
+        final var internalAction = new ClearCcrRestoreSessionAction.InternalTransportAction(
+            actionFilters,
+            transportService,
+            ccrRestoreSourceService
+        );
+        assertThat(internalAction.actionName, equalTo(ClearCcrRestoreSessionAction.INTERNAL_NAME));
+    }
+
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final TransportService transportService = mock(TransportService.class);
@@ -70,16 +85,9 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
             } else {
                 return null;
             }
-        }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any(ShardId.class));
+        }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
-        final ClearCcrRestoreSessionAction.TransportDeleteCcrRestoreSessionAction action;
-        if (randomBoolean()) {
-            action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
-            assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.NAME));
-        } else {
-            action = new ClearCcrRestoreSessionAction.InternalTransportAction(actionFilters, transportService, ccrRestoreSourceService);
-            assertThat(action.actionName, equalTo(ClearCcrRestoreSessionAction.INTERNAL_NAME));
-        }
+        final var action = new ClearCcrRestoreSessionAction.TransportAction(actionFilters, transportService, ccrRestoreSourceService);
 
         final String sessionUUID = UUIDs.randomBase64UUID();
 
@@ -90,14 +98,7 @@ public class ClearCcrRestoreSessionActionTests extends ESTestCase {
         action.doExecute(mock(Task.class), request1, future1);
         assertThat(future1.actionGet(), is(ActionResponse.Empty.INSTANCE));
 
-        // 2. Requested ShardId is null (BWC)
-        final var request2 = new ClearCcrRestoreSessionRequest(sessionUUID, mock(DiscoveryNode.class), null);
-        assertThat(request2.indices(), nullValue());
-        final PlainActionFuture<ActionResponse.Empty> future2 = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), request2, future2);
-        assertThat(future2.actionGet(), is(ActionResponse.Empty.INSTANCE));
-
-        // 3. Inconsistent requested ShardId
+        // 2. Inconsistent requested ShardId
         final var request3 = new ClearCcrRestoreSessionRequest(sessionUUID, mock(DiscoveryNode.class), mock(ShardId.class));
         assertThat(
             expectThrows(IllegalArgumentException.class, () -> action.doExecute(mock(Task.class), request3, new PlainActionFuture<>())),

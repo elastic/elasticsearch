@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
@@ -47,7 +48,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         GetCcrRestoreFileChunkRequest,
         GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
-        private final CcrRestoreSourceService restoreSourceService;
+        protected final CcrRestoreSourceService restoreSourceService;
         private final BigArrays bigArrays;
 
         private TransportGetCcrRestoreFileChunkAction(
@@ -69,11 +70,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             GetCcrRestoreFileChunkRequest request,
             ActionListener<GetCcrRestoreFileChunkResponse> listener
         ) {
-            final ShardId shardId = request.getShardId();
-            // It can be null if the request is sent from an old node with the internal action
-            if (shardId != null) {
-                restoreSourceService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
-            }
+            validate(request);
             int bytesRequested = request.getSize();
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
@@ -89,6 +86,8 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
                 listener.onFailure(e);
             }
         }
+
+        protected void validate(GetCcrRestoreFileChunkRequest request) {}
     }
 
     public static class InternalTransportAction extends TransportGetCcrRestoreFileChunkAction {
@@ -113,6 +112,17 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             CcrRestoreSourceService restoreSourceService
         ) {
             super(NAME, bigArrays, transportService, actionFilters, restoreSourceService);
+        }
+
+        @Override
+        protected void validate(GetCcrRestoreFileChunkRequest request) {
+            final ShardId shardId = request.getShardId();
+            restoreSourceService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
+            try {
+                restoreSourceService.ensureFileNameIsKnownToSession(request.getSessionUUID(), request.getFileName());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 

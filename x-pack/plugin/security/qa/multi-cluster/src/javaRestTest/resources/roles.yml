@@ -32,9 +32,9 @@ ml_jobs_shared_airline_data:
 ccr_user_role:
   cluster: [ 'manage_ccr', 'monitor' ]
   indices:
-    - names: [ 'follower*', 'metrics-*' ]
+    - names: [ 'follower*', 'shared-*', 'metrics-*' ]
       privileges: [ 'monitor', 'read', 'write', 'manage_follow_index' ]
   remote_indices:
-    - names: [ 'leader-index', 'metrics-*' ]
+    - names: [ 'leader-index', 'shared-*', 'metrics-*' ]
       privileges: [ 'monitor', 'read' ]
       clusters: [ "*" ]

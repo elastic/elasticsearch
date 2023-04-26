@@ -31,12 +31,9 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +58,29 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         );
     }
 
+    public void testActionNames() {
+        final ActionFilters actionFilters = mock(ActionFilters.class);
+        final BigArrays bigArrays = mock(BigArrays.class);
+        final TransportService transportService = mock(TransportService.class);
+        final CcrRestoreSourceService ccrRestoreSourceService = mock(CcrRestoreSourceService.class);
+
+        final var action = new GetCcrRestoreFileChunkAction.TransportAction(
+            bigArrays,
+            transportService,
+            actionFilters,
+            ccrRestoreSourceService
+        );
+        assertThat(action.actionName, equalTo(GetCcrRestoreFileChunkAction.NAME));
+
+        final var internalAction = new GetCcrRestoreFileChunkAction.InternalTransportAction(
+            bigArrays,
+            transportService,
+            actionFilters,
+            ccrRestoreSourceService
+        );
+        assertThat(internalAction.actionName, equalTo(GetCcrRestoreFileChunkAction.INTERNAL_NAME));
+    }
+
     public void testRequestedShardIdMustBeConsistentWithSessionShardId() throws IOException {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofBytes(1024));
@@ -83,61 +103,65 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
             } else {
                 return null;
             }
-        }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any(ShardId.class));
+        }).when(ccrRestoreSourceService).ensureSessionShardIdConsistency(anyString(), any());
 
-        final GetCcrRestoreFileChunkAction.TransportGetCcrRestoreFileChunkAction action;
-        if (randomBoolean()) {
-            action = new GetCcrRestoreFileChunkAction.TransportAction(bigArrays, transportService, actionFilters, ccrRestoreSourceService);
-            assertThat(action.actionName, equalTo(GetCcrRestoreFileChunkAction.NAME));
-        } else {
-            action = new GetCcrRestoreFileChunkAction.InternalTransportAction(
-                bigArrays,
-                transportService,
-                actionFilters,
-                ccrRestoreSourceService
-            );
-            assertThat(action.actionName, equalTo(GetCcrRestoreFileChunkAction.INTERNAL_NAME));
-        }
+        final var action = new GetCcrRestoreFileChunkAction.TransportAction(
+            bigArrays,
+            transportService,
+            actionFilters,
+            ccrRestoreSourceService
+        );
 
-        final String fileName = randomAlphaOfLengthBetween(3, 12);
+        final String expectedFileName = randomAlphaOfLengthBetween(3, 12);
         final int size = randomIntBetween(1, 42);
 
-        // // 1. Requested ShardId is consistent
-        final var request1 = new GetCcrRestoreFileChunkRequest(mock(DiscoveryNode.class), sessionUUID, fileName, size, expectedShardId);
+        // 1. Requested ShardId is consistent
+        final var request1 = new GetCcrRestoreFileChunkRequest(
+            mock(DiscoveryNode.class),
+            sessionUUID,
+            expectedFileName,
+            size,
+            expectedShardId
+        );
         assertThat(request1.indices(), arrayContaining(indexName));
         final PlainActionFuture<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> future1 = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request1, future1);
         // The actual response content does not matter as long as the future executes without any error
         future1.actionGet().decRef();
 
-        // 2. Requested ShardId is null (BWC)
-        final var request2 = new GetCcrRestoreFileChunkRequest(mock(DiscoveryNode.class), sessionUUID, fileName, size, null);
-        assertThat(request2.indices(), nullValue());
-        final PlainActionFuture<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> future2 = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), request2, future2);
-        // The actual response content does not matter as long as the future executes without any error
-        future2.actionGet().decRef();
-
-        // 3. Inconsistent requested ShardId
-        final var request3 = new GetCcrRestoreFileChunkRequest(mock(DiscoveryNode.class), sessionUUID, fileName, size, mock(ShardId.class));
+        // 2. Inconsistent requested ShardId
+        final var request2 = new GetCcrRestoreFileChunkRequest(
+            mock(DiscoveryNode.class),
+            sessionUUID,
+            expectedFileName,
+            size,
+            mock(ShardId.class)
+        );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> action.doExecute(mock(Task.class), request3, new PlainActionFuture<>())),
+            expectThrows(IllegalArgumentException.class, () -> action.doExecute(mock(Task.class), request2, new PlainActionFuture<>())),
             is(e)
         );
 
-        // 4. Cascading error if underlying sessionReader errors
-        final IllegalArgumentException e4 = new IllegalArgumentException("invalid fileName");
-        doThrow(e4).when(sessionReader).readFileBytes(eq(fileName), any());
-        final var request4 = new GetCcrRestoreFileChunkRequest(
+        // 3. Unknown file name
+        final IllegalArgumentException e3 = new IllegalArgumentException("invalid fileName");
+        doAnswer(invocation -> {
+            final String requestedFileName = invocation.getArgument(1);
+            if (false == expectedFileName.equals(requestedFileName)) {
+                throw e3;
+            } else {
+                return null;
+            }
+        }).when(ccrRestoreSourceService).ensureFileNameIsKnownToSession(anyString(), anyString());
+        final var request3 = new GetCcrRestoreFileChunkRequest(
             mock(DiscoveryNode.class),
             sessionUUID,
-            fileName,
+            randomValueOtherThan(expectedFileName, () -> randomAlphaOfLengthBetween(3, 12)),
             size,
-            randomFrom(expectedShardId, null)
+            expectedShardId
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> action.doExecute(mock(Task.class), request4, new PlainActionFuture<>())),
-            is(e4)
+            expectThrows(IllegalArgumentException.class, () -> action.doExecute(mock(Task.class), request3, new PlainActionFuture<>())),
+            is(e3)
         );
     }
 }

@@ -85,7 +85,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                   ],
                   "index": [
                     {
-                       "names": ["leader-index", "metrics-*"],
+                       "names": ["leader-index", "leader-alias", "metrics-*"],
                        "privileges": ["manage", "read",
                          "indices:internal/admin/ccr/restore/*",
                          "internal:transport/proxy/indices:internal/admin/ccr/restore/*"]
@@ -126,6 +126,16 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 { "name": "doc-5" }
                 """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+
+            final Request putIndexRequest = new Request("PUT", "/shared-index");
+            putIndexRequest.setJsonEntity("""
+                {
+                  "aliases": {
+                    "shared-alias": {}
+                  }
+                }
+                """);
+            assertOK(performRequestAgainstFulfillingCluster(putIndexRequest));
         }
 
         // query cluster
@@ -172,8 +182,9 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
 
-        // query cluster error cases
+        // query cluster error cases - no privileges
         {
+
             final Request putCcrRequest = new Request("PUT", "/follower-index-2/_ccr/follow?wait_for_active_shards=1");
             putCcrRequest.setJsonEntity("""
                 {
@@ -183,6 +194,19 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             final ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithCcrUser(putCcrRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [private-index]"));
+        }
+
+        // query cluster error cases - aliases not supported
+        {
+            final Request putCcrRequest = new Request("PUT", "/follower-index-3/_ccr/follow?wait_for_active_shards=1");
+            putCcrRequest.setJsonEntity("""
+                {
+                  "remote_cluster": "my_remote_cluster",
+                  "leader_index": "shared-alias"
+                }""");
+            final ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithCcrUser(putCcrRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("cannot follow [shared-alias], because it is a ALIAS"));
         }
     }
 

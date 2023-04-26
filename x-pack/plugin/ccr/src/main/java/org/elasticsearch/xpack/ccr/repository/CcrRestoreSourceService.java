@@ -122,7 +122,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
     }
 
     public void ensureSessionShardIdConsistency(String sessionUUID, ShardId shardId) {
-        RestoreSession restore = onGoingRestores.get(sessionUUID);
+        final RestoreSession restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.debug("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
@@ -132,6 +132,18 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             throw new IllegalArgumentException(
                 "session [" + sessionUUID + "] shardId [" + sessionShardId + "] does not match requested shardId [" + shardId + "]"
             );
+        }
+    }
+
+    public void ensureFileNameIsKnownToSession(String sessionUUID, String fileName) throws IOException {
+        final RestoreSession restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        // Ensure no file system traversal is possible by only allow file names known to the restore session
+        if (false == restore.getMetadata().contains(fileName)) {
+            throw new IllegalArgumentException("invalid file name [" + fileName + "]");
         }
     }
 
@@ -226,10 +238,6 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
 
         private long readFileBytes(String fileName, BytesReference reference) throws IOException {
-            // Ensure no file system traversal is possible
-            if (false == getMetadata().contains(fileName)) {
-                throw new IllegalArgumentException("invalid file name [" + fileName + "]");
-            }
             try (Releasable ignored = keyedLock.acquire(fileName)) {
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {

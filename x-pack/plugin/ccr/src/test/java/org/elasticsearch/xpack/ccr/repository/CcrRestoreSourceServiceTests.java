@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsString;
-
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
     private CcrRestoreSourceService restoreSourceService;
@@ -182,18 +180,8 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             long offset = sessionReader.readFileBytes(fileName, byteArray);
             assertEquals(offset, fileMetadata.length());
         }
+
         assertArrayEquals(expectedBytes, actualBytes);
-
-        // Unknown filename will be rejected
-        final String unknownFileName = randomValueOtherThan(fileName, () -> randomAlphaOfLengthBetween(3, 20));
-        try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID1)) {
-            final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> sessionReader.readFileBytes(unknownFileName, new BytesArray(actualBytes))
-            );
-            assertThat(e.getMessage(), containsString("invalid file name [" + unknownFileName + "]"));
-        }
-
         restoreSourceService.closeSession(sessionUUID1);
         closeShards(indexShard1);
     }

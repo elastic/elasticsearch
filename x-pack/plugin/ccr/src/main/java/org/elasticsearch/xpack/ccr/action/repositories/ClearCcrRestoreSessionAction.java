@@ -39,7 +39,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         ClearCcrRestoreSessionRequest,
         ActionResponse.Empty> {
 
-        private final CcrRestoreSourceService ccrRestoreService;
+        protected final CcrRestoreSourceService ccrRestoreService;
 
         private TransportDeleteCcrRestoreSessionAction(
             String actionName,
@@ -54,14 +54,13 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
 
         @Override
         protected void doExecute(Task task, ClearCcrRestoreSessionRequest request, ActionListener<ActionResponse.Empty> listener) {
-            final ShardId shardId = request.getShardId();
-            // It can be null if the request is sent from an old node with the internal action
-            if (shardId != null) {
-                ccrRestoreService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
-            }
+            validate(request);
             ccrRestoreService.closeSession(request.getSessionUUID());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
+
+        // We don't enforce any validation for by default so that the internal action stays the same for BWC reasons
+        protected void validate(ClearCcrRestoreSessionRequest request) {}
     }
 
     public static class InternalTransportAction extends TransportDeleteCcrRestoreSessionAction {
@@ -79,6 +78,13 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         @Inject
         public TransportAction(ActionFilters actionFilters, TransportService transportService, CcrRestoreSourceService ccrRestoreService) {
             super(NAME, actionFilters, transportService, ccrRestoreService);
+        }
+
+        @Override
+        protected void validate(ClearCcrRestoreSessionRequest request) {
+            final ShardId shardId = request.getShardId();
+            assert shardId != null : "shardId must be specified for the request";
+            ccrRestoreService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
         }
     }
 }

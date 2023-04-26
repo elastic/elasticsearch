@@ -46,7 +46,7 @@ Presently, this is used for informational purposes only. For more information se
 
 `template`::
 (Optional, object)
-The <<search-template>> associated with this search application. The search application's template is only stored and accessible through the search application.
+The <<search-template,search template>> associated with this search application. The search application's template is only stored and accessible through the search application.
 
 - This search template must be a Mustache template.
 - The template must contain a Mustache script and script source.

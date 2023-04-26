@@ -22,16 +22,16 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.gradle.jvm.toolchain.JavaToolchainDownload.fromUri;
 
 public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
     // package protected for better testing
-    final Map<AdoptiumVersionRequest, Optional<AdoptiumVersionInfo>> CACHED_SEMVERS = new HashMap<>();
+    final Map<AdoptiumVersionRequest, Optional<AdoptiumVersionInfo>> CACHED_SEMVERS = new ConcurrentHashMap<>();
 
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {

@@ -226,7 +226,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
             }
             WriteRequest.RefreshPolicy policy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
-            postWriteRefresh.refreshShard(policy, primary, null, f);
+            postWriteRefresh.refreshShard(policy, primary, null, f, postWriteRefreshTimeout);
             f.actionGet();
         } finally {
             closeShards(primary, primary);

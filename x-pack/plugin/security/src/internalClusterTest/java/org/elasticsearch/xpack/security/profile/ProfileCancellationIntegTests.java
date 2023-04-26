@@ -389,7 +389,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     AuthorizationInfo authorizationInfo,
                     ActionListener<AuthorizationResult> listener
                 ) {
-                    listener.onFailure(AuthorizationResult.granted());
+                    listener.onResponse(AuthorizationResult.granted());
                 }
 
                 @Override

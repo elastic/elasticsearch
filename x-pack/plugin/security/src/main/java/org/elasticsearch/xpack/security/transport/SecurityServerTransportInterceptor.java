@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
@@ -372,7 +371,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     // they will be checked for index privileges against the index specified in the requests
                     final String effectiveAction = RCS_INTERNAL_ACTIONS_REPLACEMENTS.getOrDefault(action, action);
                     if (false == effectiveAction.equals(action)) {
-                        assert request instanceof IndicesRequest;
                         logger.trace("switching internal action from [{}] to [{}]", action, effectiveAction);
                     }
                     sendWithCrossClusterAccessHeaders(crossClusterAccessHeaders, connection, effectiveAction, request, options, handler);

@@ -206,7 +206,8 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
             assertOK(performRequestWithRemoteTransformUser(new Request("DELETE", "/_transform/simple-remote-transform")));
 
             // Create a transform targeting an index without permission
-            String invalidTransformConfig = """
+            final var putTransformRequest2 = new Request("PUT", "/_transform/invalid");
+            putTransformRequest2.setJsonEntity("""
                 {
                   "source": { "index": "my_remote_cluster:private-transform-index" },
                   "dest": { "index": "simple-remote-transform" },
@@ -215,26 +216,15 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
                     "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
                   }
                 }
-                """;
-            final var putInvalidTransformRequest = new Request("PUT", "/_transform/invalid");
-            putInvalidTransformRequest.setJsonEntity(invalidTransformConfig);
-            // It errors when trying to execute the PUT request
+                """);
+            assertOK(performRequestWithRemoteTransformUser(putTransformRequest2));
+            // It errors when trying to preview it
             final ResponseException e = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithRemoteTransformUser(putInvalidTransformRequest)
+                () -> performRequestWithRemoteTransformUser(new Request("GET", "/_transform/invalid/_preview"))
             );
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(e.getMessage(), containsString("Source indices have been deleted or closed"));
-
-            final var previewInvalidTransformRequest = new Request("GET", "/_transform/_preview");
-            previewInvalidTransformRequest.setJsonEntity(invalidTransformConfig);
-            // It also errors when trying to execute _preview request
-            final ResponseException e2 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteTransformUser(previewInvalidTransformRequest)
-            );
-            assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(e2.getMessage(), containsString("Source indices have been deleted or closed"));
         }
     }
 

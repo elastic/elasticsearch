@@ -274,15 +274,12 @@ class ClientTransformIndexer extends TransformIndexer {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
     }
 
-    @Override
     void validate(ActionListener<Void> listener) {
-        assert Boolean.TRUE.equals(transformConfig.getSettings().getUnattended());
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
-            // Since the transform is unattended, we defer the deferrable validations.
-            new ValidateTransformAction.Request(transformConfig, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
+            new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
             ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
         );
     }

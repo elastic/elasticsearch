@@ -115,14 +115,18 @@ node_3    445           43      271.5gb   289.4gb
 ----
 // TEST[skip:illustrative response only]
 
-Here we see two significantly unique situations. `node_1` has 
-recently restarted, so it has a much lower number of shards than all other nodes. 
-This also relates to `disk.indices` being much smaller than `disk.used` 
-while shards are recovering as seen via <<cat-recovery,cat recovery>>. The 
-second situation is that `node_3` has a higher `disk.percent` than `node_1`, 
-even though they hold roughly the same number of shards. This 
-occurs when either shards are not evenly sized (refer to 
-<<shard-size-recommendation>>) or when there are a lot of empty indices.
+Here we see two significantly unique situations. `node_2` has recently
+restarted, so it has a much lower number of shards than all other nodes. This
+also relates to `disk.indices` being much smaller than `disk.used` while shards
+are recovering as seen via <<cat-recovery,cat recovery>>. While `node_2`'s shard
+count is low, it may become a write hot spot due to ongoing <<ilm-rollover,ILM
+rollovers>>. This is a common root cause of write hot spots covered in the next
+section.
+
+The second situation is that `node_3` has a higher `disk.percent` than `node_1`,
+even though they hold roughly the same number of shards. This occurs when either
+shards are not evenly sized (refer to <<shard-size-recommendation>>) or when
+there are a lot of empty indices.
 
 Cluster rebalancing based on desired balance does much of the heavy lifting 
 of keeping nodes from hot spotting. It can be limited by either nodes hitting 
@@ -166,14 +170,19 @@ write  node_3   1 5 0 8714
 ----
 // TEST[skip:illustrative response only]
 
-Here you can see two significantly unique situations. Firstly, `node_1` has a severely 
-backed up write queue compared to other nodes. Secondly, `node_3` shows historically 
-completed writes that are double any other node. These are both probably due 
-to either poorly distributed write-heavy indices, or to multiple write-heavy 
-indices allocated to the same node. Since primary and replica writes 
-are majorly the same amount of cluster work, we usually recommend setting 
-<<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> 
-to force index spreading after lining up index shard counts to total nodes. 
+Here you can see two significantly unique situations. Firstly, `node_1` has a
+severely backed up write queue compared to other nodes. Secondly, `node_3` shows
+historically completed writes that are double any other node. These are both
+probably due to either poorly distributed write-heavy indices, or to multiple
+write-heavy indices allocated to the same node. Since primary and replica writes
+are majorly the same amount of cluster work, we usually recommend setting
+<<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> to
+force index spreading after lining up index shard counts to total nodes. 
+
+We normally recommend heavy-write indices have sufficient primary
+`number_of_shards` and replica `number_of_replicas` to evenly spread across
+indexing nodes. Alternatively, you can <<cluster-reroute,reroute>> shards to
+more quiet nodes to alleviate the nodes with write hot spotting. 
 
 If it's non-obvious what indices are problematic, you can introspect further via 
 <<indices-stats,the index stats API>> by running:

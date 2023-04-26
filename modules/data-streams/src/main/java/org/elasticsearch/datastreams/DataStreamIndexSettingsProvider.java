@@ -167,7 +167,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 extractPath(routingPaths, fieldMapper);
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
-                if (template.pathMatch() == null) {
+                if (template.pathMatch().isEmpty()) {
                     continue;
                 }
 

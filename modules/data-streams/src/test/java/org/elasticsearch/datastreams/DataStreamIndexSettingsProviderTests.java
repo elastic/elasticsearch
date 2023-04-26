@@ -466,7 +466,10 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(3));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*"));
+        assertThat(
+            IndexMetadata.INDEX_ROUTING_PATH.get(result),
+            containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
+        );
         List<String> routingPathList = IndexMetadata.INDEX_ROUTING_PATH.get(result);
         assertEquals(3, routingPathList.size());
     }

@@ -16,12 +16,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DynamicTemplate implements ToXContentObject {
 
@@ -143,10 +144,10 @@ public class DynamicTemplate implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
-        List<String> match = null;
-        List<String> pathMatch = null;
-        List<String> unmatch = null;
-        List<String> pathUnmatch = null;
+        List<String> match = new ArrayList<>(4); // these pattern lists will typically be very small
+        List<String> pathMatch = new ArrayList<>(4);
+        List<String> unmatch = new ArrayList<>(4);
+        List<String> pathUnmatch = new ArrayList<>(4);
         Map<String, Object> mapping = null;
         boolean runtime = false;
         String matchMappingType = null;
@@ -155,16 +156,12 @@ public class DynamicTemplate implements ToXContentObject {
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
             String propName = entry.getKey();
             if ("match".equals(propName)) {
-                match = new ArrayList<>();
                 addEntriesToPatternList(match, propName, entry);
             } else if ("path_match".equals(propName)) {
-                pathMatch = new ArrayList<>();
                 addEntriesToPatternList(pathMatch, propName, entry);
             } else if ("unmatch".equals(propName)) {
-                unmatch = new ArrayList<>();
                 addEntriesToPatternList(unmatch, propName, entry);
             } else if ("path_unmatch".equals(propName)) {
-                pathUnmatch = new ArrayList<>();
                 addEntriesToPatternList(pathUnmatch, propName, entry);
             } else if ("match_mapping_type".equals(propName)) {
                 matchMappingType = entry.getValue().toString();
@@ -198,7 +195,7 @@ public class DynamicTemplate implements ToXContentObject {
         }
 
         final XContentFieldType[] xContentFieldTypes;
-        if ("*".equals(matchMappingType) || (matchMappingType == null && (match != null || pathMatch != null))) {
+        if ("*".equals(matchMappingType) || (matchMappingType == null && matchPatternsAreDefined(match, pathMatch))) {
             if (runtime) {
                 xContentFieldTypes = Arrays.stream(XContentFieldType.values())
                     .filter(XContentFieldType::supportsRuntimeField)
@@ -223,18 +220,22 @@ public class DynamicTemplate implements ToXContentObject {
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
-        validatePatterns(
-            name,
-            matchType,
-            List.of(
-                match != null ? match : Collections.emptyList(),
-                unmatch != null ? unmatch : Collections.emptyList(),
-                pathMatch != null ? pathMatch : Collections.emptyList(),
-                pathUnmatch != null ? pathUnmatch : Collections.emptyList()
-            )
-        );
+        List<String> allPatterns = Stream.concat(
+            Stream.concat(match.stream(), unmatch.stream()),
+            Stream.concat(pathMatch.stream(), pathUnmatch.stream())
+        ).collect(Collectors.toList());
+        validatePatterns(name, matchType, allPatterns);
 
         return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xContentFieldTypes, matchType, mapping, runtime);
+    }
+
+    /**
+     * @param match list of match patterns (can be empty but not null)
+     * @param pathMatch list of pathMatch patterns (can be empty but not null)
+     * @return return true if there is at least 1 match or pathMatch pattern defined
+     */
+    private static boolean matchPatternsAreDefined(List<String> match, List<String> pathMatch) {
+        return match.size() + pathMatch.size() > 0;
     }
 
     private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, Object> entry) {
@@ -257,22 +258,20 @@ public class DynamicTemplate implements ToXContentObject {
         }
     }
 
-    private static void validatePatterns(String templateName, MatchType matchType, List<List<String>> patterns) {
-        for (List<String> patternList : patterns) {
-            for (String regex : patternList) {
-                try {
-                    matchType.matches(regex, "");
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
-                            regex,
-                            matchType,
-                            templateName
-                        ),
-                        e
-                    );
-                }
+    private static void validatePatterns(String templateName, MatchType matchType, List<String> patterns) {
+        for (String regex : patterns) {
+            try {
+                matchType.matches(regex, "");
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
+                        regex,
+                        matchType,
+                        templateName
+                    ),
+                    e
+                );
             }
         }
     }
@@ -326,40 +325,24 @@ public class DynamicTemplate implements ToXContentObject {
         if (templateName != null) {
             return templateName.equals(name);
         }
-        if (pathMatch != null) {
-            boolean anyMatch = false;
-            for (String m : pathMatch) {
-                if (matchType.matches(m, path)) {
-                    anyMatch = true;
-                }
-            }
-            if (anyMatch == false) {
-                return false;  // if none match, this template does not apply to the path
+        if (pathMatch.isEmpty() == false) {
+            if (pathMatch.stream().anyMatch(m -> matchType.matches(m, path)) == false) {
+                return false;
             }
         }
-        if (match != null) {
-            boolean anyMatch = false;
-            for (String m : match) {
-                if (matchType.matches(m, fieldName)) {
-                    anyMatch = true;
-                }
-            }
-            if (anyMatch == false) {
-                return false;  // if none match, this template does not apply to the fieldName
+        if (match.isEmpty() == false) {
+            if (match.stream().anyMatch(m -> matchType.matches(m, fieldName)) == false) {
+                return false;
             }
         }
-        if (pathUnmatch != null) {
-            for (String um : pathUnmatch) {
-                if (matchType.matches(um, path)) {
-                    return false;
-                }
+        for (String um : pathUnmatch) {
+            if (matchType.matches(um, path)) {
+                return false;
             }
         }
-        if (unmatch != null) {
-            for (String um : unmatch) {
-                if (matchType.matches(um, fieldName)) {
-                    return false;
-                }
+        for (String um : unmatch) {
+            if (matchType.matches(um, fieldName)) {
+                return false;
             }
         }
         if (Arrays.stream(xContentFieldTypes).noneMatch(xcontentFieldType::equals)) {
@@ -452,28 +435,28 @@ public class DynamicTemplate implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (match != null && match.isEmpty() == false) {
+        if (match.isEmpty() == false) {
             if (match.size() == 1) {
                 builder.field("match", match.get(0));
             } else {
                 builder.field("match", match);
             }
         }
-        if (pathMatch != null && pathMatch.isEmpty() == false) {
+        if (pathMatch.isEmpty() == false) {
             if (pathMatch.size() == 1) {
                 builder.field("path_match", pathMatch.get(0));
             } else {
                 builder.field("path_match", pathMatch);
             }
         }
-        if (unmatch != null && unmatch.isEmpty() == false) {
+        if (unmatch.isEmpty() == false) {
             if (unmatch.size() == 1) {
                 builder.field("unmatch", unmatch.get(0));
             } else {
                 builder.field("unmatch", unmatch);
             }
         }
-        if (pathUnmatch != null && pathUnmatch.isEmpty() == false) {
+        if (pathUnmatch.isEmpty() == false) {
             if (pathUnmatch.size() == 1) {
                 builder.field("path_unmatch", pathUnmatch.get(0));
             } else {
@@ -483,7 +466,7 @@ public class DynamicTemplate implements ToXContentObject {
         // We have more than one types when (1) `match_mapping_type` is "*", and (2) match and/or path_match are defined but
         // not `match_mapping_type`. In the latter the template implicitly accepts all types and we don't need to serialize
         // the `match_mapping_type` values.
-        if (xContentFieldTypes.length > 1 && match == null && pathMatch == null) {
+        if (xContentFieldTypes.length > 1 && match.isEmpty() && pathMatch.isEmpty()) {
             builder.field("match_mapping_type", "*");
         } else if (xContentFieldTypes.length == 1) {
             builder.field("match_mapping_type", xContentFieldTypes[0]);

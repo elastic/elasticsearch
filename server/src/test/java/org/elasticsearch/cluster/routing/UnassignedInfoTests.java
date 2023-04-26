@@ -646,17 +646,22 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that delay calculation is not impacted when the node the shard was last assigned to was registered for removal.
      */
     public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() throws Exception {
-        String lastNodeId = "bogusNodeId";
-        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
-        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
-            .setNodeId(lastNodeId)
-            .setReason(this.getTestName())
-            .setStartedAtMillis(randomNonNegativeLong())
-            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
-            .build();
-        shutdowns.put(shutdown.getNodeId(), shutdown);
+        for (SingleNodeShutdownMetadata.Type type : List.of(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+        )) {
+            String lastNodeId = "bogusNodeId";
+            Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+            SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+                .setNodeId(lastNodeId)
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setType(type)
+                .build();
+            shutdowns.put(shutdown.getNodeId(), shutdown);
 
-        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+            checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+        }
     }
 
     /**

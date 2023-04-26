@@ -17,11 +17,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
  */
 public class ZeroBytesReference extends AbstractBytesReference {
 
-    private final int length;
-
     public ZeroBytesReference(int length) {
+        super(length);
         assert 0 <= length : length;
-        this.length = length;
     }
 
     @Override
@@ -38,11 +36,6 @@ public class ZeroBytesReference extends AbstractBytesReference {
     public byte get(int index) {
         assert 0 <= index && index < length : index + " vs " + length;
         return 0;
-    }
-
-    @Override
-    public int length() {
-        return length;
     }
 
     @Override

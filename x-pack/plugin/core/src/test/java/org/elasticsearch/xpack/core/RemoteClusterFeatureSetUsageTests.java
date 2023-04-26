@@ -29,12 +29,12 @@ public class RemoteClusterFeatureSetUsageTests extends ESTestCase {
     public void testToXContent() throws IOException {
         final int numberOfRemoteClusters = randomIntBetween(0, 10);
         int numberOfSniffModes = 0;
-        int numberOfConfigurableModels = 0;
+        int numberOfApiKeySecured = 0;
         final List<RemoteConnectionInfo> infos = new ArrayList<>();
         for (int i = 0; i < numberOfRemoteClusters; i++) {
             final boolean hasCredentials = randomBoolean();
             if (hasCredentials) {
-                numberOfConfigurableModels += 1;
+                numberOfApiKeySecured += 1;
             }
             final RemoteConnectionInfo.ModeInfo modeInfo;
             if (randomBoolean()) {
@@ -68,15 +68,15 @@ public class RemoteClusterFeatureSetUsageTests extends ESTestCase {
                                     "sniff": %s
                                   },
                                   "security": {
-                                     "basic": %s,
-                                     "configurable": %s
+                                     "cert": %s,
+                                     "api_key": %s
                                   }
                                 }""",
                             numberOfRemoteClusters,
                             numberOfRemoteClusters - numberOfSniffModes,
                             numberOfSniffModes,
-                            numberOfRemoteClusters - numberOfConfigurableModels,
-                            numberOfConfigurableModels
+                            numberOfRemoteClusters - numberOfApiKeySecured,
+                            numberOfApiKeySecured
                         )
                     )
                 )

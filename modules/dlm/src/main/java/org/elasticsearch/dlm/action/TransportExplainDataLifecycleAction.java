@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dlm.DataLifecycleErrorStore;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -87,16 +88,18 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
             }
             DataStream parentDataStream = indexAbstraction.getParentDataStream();
             if (parentDataStream == null || parentDataStream.isIndexManagedByDLM(idxMetadata.getIndex(), metadata::index) == false) {
-                explainIndices.add(new ExplainIndexDataLifecycle(index, false, null, null, null, null));
+                explainIndices.add(new ExplainIndexDataLifecycle(index, false, null, null, null, null, null));
                 continue;
             }
 
             RolloverInfo rolloverInfo = idxMetadata.getRolloverInfos().get(parentDataStream.getName());
+            TimeValue generationDate = parentDataStream.getGenerationLifecycleDate(idxMetadata);
             ExplainIndexDataLifecycle explainIndexDataLifecycle = new ExplainIndexDataLifecycle(
                 index,
                 true,
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
+                generationDate,
                 parentDataStream.getLifecycle(),
                 errorStore.getError(index)
             );

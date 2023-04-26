@@ -46,6 +46,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -589,70 +590,77 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     public void testTasksNotAssignedToShuttingDownNodes() {
-        ClusterState clusterState = initialState();
-        ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
-        );
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        addTestNodes(nodes, randomIntBetween(2, 10));
-        int numberOfTasks = randomIntBetween(20, 40);
-        for (int i = 0; i < numberOfTasks; i++) {
-            addTask(
-                tasks,
-                randomFrom("assign_me", "assign_one", "assign_based_on_non_cluster_state_condition"),
-                randomBoolean() ? null : "no_longer_exists"
+        for (SingleNodeShutdownMetadata.Type type : List.of(
+            SingleNodeShutdownMetadata.Type.RESTART,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+        )) {
+            ClusterState clusterState = initialState();
+            ClusterState.Builder builder = ClusterState.builder(clusterState);
+            PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder(
+                clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
             );
-        }
+            DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
+            addTestNodes(nodes, randomIntBetween(2, 10));
+            int numberOfTasks = randomIntBetween(20, 40);
+            for (int i = 0; i < numberOfTasks; i++) {
+                addTask(
+                    tasks,
+                    randomFrom("assign_me", "assign_one", "assign_based_on_non_cluster_state_condition"),
+                    randomBoolean() ? null : "no_longer_exists"
+                );
+            }
 
-        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
-        clusterState = builder.metadata(metadata).nodes(nodes).build();
+            Metadata.Builder metadata = Metadata.builder(clusterState.metadata())
+                .putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+            clusterState = builder.metadata(metadata).nodes(nodes).build();
 
-        // Now that we have a bunch of tasks that need to be assigned, let's
-        // mark half the nodes as shut down and make sure they do not have any
-        // tasks assigned
-        Collection<DiscoveryNode> allNodes = clusterState.nodes();
-        Map<String, SingleNodeShutdownMetadata> shutdownMetadataMap = new HashMap<>();
-        allNodes.stream()
-            .limit(Math.floorDiv(allNodes.size(), 2))
-            .forEach(
-                node -> shutdownMetadataMap.put(
-                    node.getId(),
-                    SingleNodeShutdownMetadata.builder()
-                        .setNodeId(node.getId())
-                        .setReason("shutdown for a unit test")
-                        .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
-                        .setStartedAtMillis(randomNonNegativeLong())
+            // Now that we have a bunch of tasks that need to be assigned, let's
+            // mark half the nodes as shut down and make sure they do not have any
+            // tasks assigned
+            Collection<DiscoveryNode> allNodes = clusterState.nodes();
+            Map<String, SingleNodeShutdownMetadata> shutdownMetadataMap = new HashMap<>();
+            allNodes.stream()
+                .limit(Math.floorDiv(allNodes.size(), 2))
+                .forEach(
+                    node -> shutdownMetadataMap.put(
+                        node.getId(),
+                        SingleNodeShutdownMetadata.builder()
+                            .setNodeId(node.getId())
+                            .setReason("shutdown for a unit test")
+                            .setType(type)
+                            .setStartedAtMillis(randomNonNegativeLong())
+                            .build()
+                    )
+                );
+            logger.info("--> nodes marked as shutting down: {}", shutdownMetadataMap.keySet());
+
+            ClusterState shutdownState = ClusterState.builder(clusterState)
+                .metadata(
+                    Metadata.builder(clusterState.metadata())
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadataMap))
                         .build()
                 )
+                .build();
+
+            logger.info("--> assigning after marking nodes as shutting down");
+            nonClusterStateCondition = randomBoolean();
+            clusterState = reassign(shutdownState);
+            PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            assertThat(tasksInProgress, notNullValue());
+            Set<String> nodesWithTasks = tasksInProgress.tasks()
+                .stream()
+                .map(PersistentTask::getAssignment)
+                .map(Assignment::getExecutorNode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+            Set<String> shutdownNodes = shutdownMetadataMap.keySet();
+
+            assertTrue(
+                "expected shut down nodes: " + shutdownNodes + " to have no nodes in common with nodes assigned tasks: " + nodesWithTasks,
+                Sets.haveEmptyIntersection(shutdownNodes, nodesWithTasks)
             );
-        logger.info("--> nodes marked as shutting down: {}", shutdownMetadataMap.keySet());
-
-        ClusterState shutdownState = ClusterState.builder(clusterState)
-            .metadata(
-                Metadata.builder(clusterState.metadata())
-                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadataMap))
-                    .build()
-            )
-            .build();
-
-        logger.info("--> assigning after marking nodes as shutting down");
-        nonClusterStateCondition = randomBoolean();
-        clusterState = reassign(shutdownState);
-        PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        assertThat(tasksInProgress, notNullValue());
-        Set<String> nodesWithTasks = tasksInProgress.tasks()
-            .stream()
-            .map(PersistentTask::getAssignment)
-            .map(Assignment::getExecutorNode)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Set<String> shutdownNodes = shutdownMetadataMap.keySet();
-
-        assertTrue(
-            "expected shut down nodes: " + shutdownNodes + " to have no nodes in common with nodes assigned tasks: " + nodesWithTasks,
-            Sets.haveEmptyIntersection(shutdownNodes, nodesWithTasks)
-        );
+        }
     }
 
     public void testReassignOnlyOnce() throws Exception {

@@ -88,6 +88,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -298,7 +299,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this.countingPageCacheRecycler = new CountingPageCacheRecycler();
             this.recycler = new BytesRefRecycler(countingPageCacheRecycler);
             deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-            this.coordinatorStrategy = getCoordinatorStrategy();
+            this.coordinatorStrategy = createCoordinatorStrategy();
 
             assertThat(initialNodeCount, greaterThan(0));
 
@@ -873,6 +874,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             blackholedConnections.clear();
         }
 
+        CoordinatorStrategy getCoordinatorStrategy() {
+            return coordinatorStrategy;
+        }
+
         @Override
         public void close() {
             // noinspection ReplaceInefficientStreamCount using .count() to run the filter on every node
@@ -888,6 +893,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
 
             countingPageCacheRecycler.assertAllPagesReleased();
+
+            coordinatorStrategy.close();
         }
 
         protected List<NamedWriteableRegistry.Entry> extraNamedWriteables() {
@@ -1083,7 +1090,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     threadPool,
                     settings,
                     clusterSettings,
-                    persistedState
+                    persistedState,
+                    () -> disconnectedNodes.contains(localNode.getId())
+                        || blackholedNodes.contains(localNode.getId())
+                        || nodeHealthService.getHealth().getStatus() != HEALTHY
+                        || (disruptStorage && rarely())
                 );
                 coordinator = new Coordinator(
                     "test_node",
@@ -1472,12 +1483,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return NOOP_TRANSPORT_INTERCEPTOR;
     }
 
-    protected interface CoordinatorStrategy {
+    protected interface CoordinatorStrategy extends Closeable {
         CoordinationServices getCoordinationServices(
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            BooleanSupplier isDisruptedSupplier
         );
 
         CoordinationState.PersistedState createFreshPersistedState(
@@ -1496,6 +1508,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             BooleanSupplier disruptStorage,
             ThreadPool threadPool
         );
+
+        default void close() {};
     }
 
     protected interface CoordinationServices {
@@ -1524,7 +1538,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ThreadPool threadPool,
             Settings settings,
             ClusterSettings clusterSettings,
-            CoordinationState.PersistedState persistedState
+            CoordinationState.PersistedState persistedState,
+            BooleanSupplier isDisruptedSupplier
         ) {
             return new CoordinationServices() {
                 @Override
@@ -1582,7 +1597,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
     }
 
-    protected CoordinatorStrategy getCoordinatorStrategy() {
+    protected CoordinatorStrategy createCoordinatorStrategy() {
         return new DefaultCoordinatorStrategy();
     }
 

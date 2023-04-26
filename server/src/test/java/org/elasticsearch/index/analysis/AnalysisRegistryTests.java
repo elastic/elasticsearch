@@ -118,6 +118,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
+            false,
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default", analyzerProvider("default")),
             emptyMap(),
@@ -155,6 +156,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         MapperException ex = expectThrows(
             MapperException.class,
             () -> AnalysisRegistry.build(
+                false,
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default", new PreBuiltAnalyzerProvider("default", AnalyzerScope.INDEX, analyzer)),
                 emptyMap(),
@@ -193,6 +195,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> AnalysisRegistry.build(
+                false,
                 IndexSettingsModule.newIndexSettings("index", settings),
                 singletonMap("default_index", defaultIndex),
                 emptyMap(),
@@ -208,6 +211,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexAnalyzers indexAnalyzers = AnalysisRegistry.build(
+            false,
             IndexSettingsModule.newIndexSettings("index", settings),
             singletonMap("default_search", analyzerProvider("default_search")),
             emptyMap(),

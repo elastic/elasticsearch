@@ -440,6 +440,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             mapperService = new MapperService(
                 clusterService,
                 idxSettings,
+                analysisModule.getAnalysisRegistry(),
                 indexAnalyzers,
                 parserConfiguration,
                 similarityService,

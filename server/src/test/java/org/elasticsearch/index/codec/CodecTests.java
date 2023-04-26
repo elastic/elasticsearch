@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -78,7 +79,8 @@ public class CodecTests extends ESTestCase {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
-        IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
+        AnalysisRegistry analysisRegistry = getAnalysisRegistry(nodeSettings);
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(analysisRegistry, settings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(
             Collections.emptyMap(),
             Collections.emptyMap(),
@@ -88,6 +90,7 @@ public class CodecTests extends ESTestCase {
         MapperService service = new MapperService(
             () -> TransportVersion.CURRENT,
             settings,
+            analysisRegistry,
             indexAnalyzers,
             parserConfig(),
             similarityService,

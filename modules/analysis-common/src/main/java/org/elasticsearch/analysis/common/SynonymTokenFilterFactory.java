@@ -74,13 +74,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getChainAwareTokenFilterFactory(
+        boolean forValidation,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(forValidation, environment);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
         return new TokenFilterFactory() {
@@ -137,7 +138,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    protected ReaderWithOrigin getRulesFromSettings(Environment env) {
+    protected ReaderWithOrigin getRulesFromSettings(boolean forValidation, Environment env) {
         if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
@@ -145,9 +146,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 sb.append(line).append(System.lineSeparator());
             }
             return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
+
         } else if (settings.get("synonyms_path") != null) {
             String synonyms_path = settings.get("synonyms_path", null);
-            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
+            if (forValidation) {
+                // for validation only, we don't check rules from a file
+                return new ReaderWithOrigin(new StringReader("fake, fake rule"), synonyms_path);
+            } else {
+                return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
+            }
         } else {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }

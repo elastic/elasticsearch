@@ -38,6 +38,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -124,7 +125,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -154,7 +154,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
-        IndexAnalyzers indexAnalyzers,
+        AnalysisRegistry analysisRegistry,
         EngineFactory engineFactory,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -179,7 +179,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener
-    ) {
+    ) throws IOException {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -190,72 +190,84 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
-        this.indexAnalyzers = indexAnalyzers;
-        if (needsMapperService(indexSettings, indexCreationContext)) {
-            assert indexAnalyzers != null;
-            this.mapperService = new MapperService(
-                clusterService,
-                indexSettings,
-                indexAnalyzers,
-                parserConfiguration,
-                similarityService,
-                mapperRegistry,
-                // we parse all percolator queries as they would be parsed on shard 0
-                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
-                idFieldMapper,
-                scriptService
-            );
-            this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
-            if (indexSettings.getIndexSortConfig().hasIndexSort()) {
-                // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
-                // The sort order is validated right after the merge of the mapping later in the process.
-                this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
-                    .buildIndexSort(
-                        mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
-                    );
+        boolean success = false;
+        IndexAnalyzers indexAnalyzers = null;
+        try {
+            if (needsMapperService(indexSettings, indexCreationContext)) {
+                indexAnalyzers = analysisRegistry.buildForValidation(indexSettings);
+                assert indexAnalyzers != null;
+                this.mapperService = new MapperService(
+                    clusterService,
+                    indexSettings,
+                    analysisRegistry,
+                    indexAnalyzers,
+                    parserConfiguration,
+                    similarityService,
+                    mapperRegistry,
+                    // we parse all percolator queries as they would be parsed on shard 0
+                    () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+                    idFieldMapper,
+                    scriptService
+                );
+                this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
+                if (indexSettings.getIndexSortConfig().hasIndexSort()) {
+                    // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
+                    // The sort order is validated right after the merge of the mapping later in the process.
+                    this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
+                        .buildIndexSort(
+                            mapperService::fieldType,
+                            (fieldType, searchLookup) -> indexFieldData.getForField(
+                                fieldType,
+                                FieldDataContext.noRuntimeFields("index sort")
+                            )
+                        );
+                } else {
+                    this.indexSortSupplier = () -> null;
+                }
+                indexFieldData.setListener(new FieldDataCacheListener(this));
+                this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
+                this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+                this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
             } else {
+                this.mapperService = null;
+                this.indexFieldData = null;
                 this.indexSortSupplier = () -> null;
+                this.bitsetFilterCache = null;
+                this.warmer = null;
+                this.indexCache = null;
             }
-            indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
-            this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
-        } else {
-            assert indexAnalyzers == null;
-            this.mapperService = null;
-            this.indexFieldData = null;
-            this.indexSortSupplier = () -> null;
-            this.bitsetFilterCache = null;
-            this.warmer = null;
-            this.indexCache = null;
-        }
 
-        this.shardStoreDeleter = shardStoreDeleter;
-        this.indexFoldersDeletionListener = indexFoldersDeletionListener;
-        this.bigArrays = bigArrays;
-        this.threadPool = threadPool;
-        this.scriptService = scriptService;
-        this.clusterService = clusterService;
-        this.client = client;
-        this.eventListener = eventListener;
-        this.nodeEnv = nodeEnv;
-        this.directoryFactory = directoryFactory;
-        this.recoveryStateFactory = recoveryStateFactory;
-        this.engineFactory = Objects.requireNonNull(engineFactory);
-        // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
-        this.readerWrapper = wrapperFactory.apply(this);
-        this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
-        this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
-        this.indexCommitListener = indexCommitListener;
-        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-            // kick off async ops for the first shard in this index
-            this.refreshTask = new AsyncRefreshTask(this);
-            this.trimTranslogTask = new AsyncTrimTranslogTask(this);
-            this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
-            this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+            this.shardStoreDeleter = shardStoreDeleter;
+            this.indexFoldersDeletionListener = indexFoldersDeletionListener;
+            this.bigArrays = bigArrays;
+            this.threadPool = threadPool;
+            this.scriptService = scriptService;
+            this.clusterService = clusterService;
+            this.client = client;
+            this.eventListener = eventListener;
+            this.nodeEnv = nodeEnv;
+            this.directoryFactory = directoryFactory;
+            this.recoveryStateFactory = recoveryStateFactory;
+            this.engineFactory = Objects.requireNonNull(engineFactory);
+            // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
+            this.readerWrapper = wrapperFactory.apply(this);
+            this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
+            this.indexingOperationListeners = Collections.unmodifiableList(indexingOperationListeners);
+            this.indexCommitListener = indexCommitListener;
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                // kick off async ops for the first shard in this index
+                this.refreshTask = new AsyncRefreshTask(this);
+                this.trimTranslogTask = new AsyncTrimTranslogTask(this);
+                this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+                this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+            }
+            updateFsyncTaskIfNecessary();
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(indexAnalyzers);
+            }
         }
-        updateFsyncTaskIfNecessary();
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
@@ -356,7 +368,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     bitsetFilterCache,
                     indexCache,
                     indexFieldData,
-                    indexAnalyzers,
+                    mapperService,
                     refreshTask,
                     fsyncTask,
                     trimTranslogTask,

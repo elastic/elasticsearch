@@ -113,7 +113,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         final Map<String, CharFilterFactory> charFilters,
         final Map<String, TokenFilterFactory> tokenFilters
     ) {
-        AnalyzerComponents components = AnalyzerComponents.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
+        AnalyzerComponents components = AnalyzerComponents.createComponents(false, name, settings, tokenizers, charFilters, tokenFilters);
         this.components = components;
     }
 

@@ -41,16 +41,19 @@ public interface TokenFilterFactory {
     /**
      * Rewrite the TokenFilterFactory to take into account the preceding analysis chain, or refer
      * to other TokenFilterFactories
+     * @param forValidation         whether we need token filters for validation only
      * @param tokenizer             the TokenizerFactory for the preceding chain
      * @param charFilters           any CharFilterFactories for the preceding chain
      * @param previousTokenFilters  a list of TokenFilterFactories in the preceding chain
      * @param allFilters            access to previously defined TokenFilterFactories
      */
     default TokenFilterFactory getChainAwareTokenFilterFactory(
+        boolean forValidation,
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
+
     ) {
         return this;
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -34,6 +35,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -169,11 +171,24 @@ public class IndexMetadataVerifier {
                     throw new UnsupportedOperationException("shouldn't be here");
                 }
             });
+            final AnalysisRegistry fakeAnalysisRegisty = new AnalysisRegistry(
+                null,
+                emptyMap(),
+                emptyMap(),
+                emptyMap(),
+                emptyMap(),
+                emptyMap(),
+                emptyMap(),
+                emptyMap(),
+                emptyMap(),
+                emptyMap()
+            );
 
             try (
                 MapperService mapperService = new MapperService(
                     clusterService,
                     indexSettings,
+                    fakeAnalysisRegisty,
                     (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                     parserConfiguration,
                     similarityService,

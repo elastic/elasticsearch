@@ -1718,9 +1718,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings, AnalysisPlugin... analysisPlugins)
         throws IOException {
-        Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
-        AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
+        AnalysisRegistry analysisRegistry = getAnalysisRegistry(nodeSettings, analysisPlugins);
         return new TestAnalysis(
             analysisRegistry.build(indexSettings),
             analysisRegistry.buildTokenFilterFactories(indexSettings),
@@ -1728,6 +1726,24 @@ public abstract class ESTestCase extends LuceneTestCase {
             analysisRegistry.buildCharFilterFactories(indexSettings)
         );
     }
+
+    /**
+     * Creates an TestAnalysis with the provided AnalysisRegistry.
+     */
+    public static TestAnalysis createTestAnalysis(AnalysisRegistry analysisRegistry, IndexSettings indexSettings) throws IOException {
+        return new TestAnalysis(
+            analysisRegistry.build(indexSettings),
+            analysisRegistry.buildTokenFilterFactories(indexSettings),
+            analysisRegistry.buildTokenizerFactories(indexSettings),
+            analysisRegistry.buildCharFilterFactories(indexSettings)
+        );
+    }
+
+    public static AnalysisRegistry getAnalysisRegistry(Settings nodeSettings, AnalysisPlugin... analysisPlugins) throws IOException {
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins), new StablePluginsRegistry());
+        return analysisModule.getAnalysisRegistry();
+    };
 
     /**
      * This cute helper class just holds all analysis building blocks that are used

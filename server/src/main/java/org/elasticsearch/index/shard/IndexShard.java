@@ -3255,7 +3255,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
     }
 
-    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
+    private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {
             assert Thread.holdsLock(mutex) == false : "warming engine under mutex";
@@ -3265,6 +3265,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         };
         final boolean isTimeBasedIndex = mapperService == null ? false : mapperService.mappingLookup().hasTimestampField();
+        if (mapperService != null) {
+            // we build analyzers that require longer running operations and blocking calls
+            // here during shard recovery in the generic thread pool.
+            mapperService.reloadSearchAnalyzers();
+        }
         return new EngineConfig(
             shardId,
             threadPool,

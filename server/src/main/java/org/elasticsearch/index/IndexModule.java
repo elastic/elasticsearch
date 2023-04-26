@@ -37,7 +37,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -487,7 +486,6 @@ public final class IndexModule {
             snapshotCommitSuppliers
         );
         QueryCache queryCache = null;
-        IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
         try {
             if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
@@ -501,9 +499,6 @@ public final class IndexModule {
                 logger.debug("Using no query cache for [{}]", indexSettings.getIndex());
                 queryCache = DisabledQueryCache.INSTANCE;
             }
-            if (IndexService.needsMapperService(indexSettings, indexCreationContext)) {
-                indexAnalyzers = analysisRegistry.build(indexSettings);
-            }
             final IndexService indexService = new IndexService(
                 indexSettings,
                 indexCreationContext,
@@ -511,7 +506,7 @@ public final class IndexModule {
                 parserConfiguration,
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter,
-                indexAnalyzers,
+                analysisRegistry,
                 engineFactory,
                 circuitBreakerService,
                 bigArrays,
@@ -541,7 +536,7 @@ public final class IndexModule {
             return indexService;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(queryCache, indexAnalyzers);
+                IOUtils.closeWhileHandlingException(queryCache);
             }
         }
     }
@@ -637,7 +632,8 @@ public final class IndexModule {
         return new MapperService(
             clusterService,
             indexSettings,
-            analysisRegistry.build(indexSettings),
+            analysisRegistry,
+            analysisRegistry.buildForValidation(indexSettings),
             parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,

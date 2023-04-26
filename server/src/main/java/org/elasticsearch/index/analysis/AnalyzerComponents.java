@@ -38,6 +38,7 @@ public final class AnalyzerComponents {
     }
 
     static AnalyzerComponents createComponents(
+        boolean forValidation,
         String name,
         Settings analyzerSettings,
         final Map<String, TokenizerFactory> tokenizers,
@@ -77,7 +78,13 @@ public final class AnalyzerComponents {
                     "Custom Analyzer [" + name + "] failed to find filter under name " + "[" + tokenFilterName + "]"
                 );
             }
-            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
+            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(
+                forValidation,
+                tokenizer,
+                charFiltersList,
+                tokenFilterList,
+                tokenFilters::get
+            );
             tokenFilterList.add(tokenFilter);
         }
 

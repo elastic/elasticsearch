@@ -72,6 +72,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
 
         AnalyzerComponents components = createComponents(
+            false,
             "my_analyzer",
             analyzerSettings,
             testAnalysis.tokenizer,
@@ -92,6 +93,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         // check that when using regular non-search time filters only, we get an exception
         final Settings indexAnalyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "lowercase").build();
         AnalyzerComponents indexAnalyzerComponents = createComponents(
+            false,
             "my_analyzer",
             indexAnalyzerSettings,
             testAnalysis.tokenizer,
@@ -115,6 +117,7 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
 
         AnalyzerComponents components = createComponents(
+            false,
             "my_analyzer",
             analyzerSettings,
             testAnalysis.tokenizer,

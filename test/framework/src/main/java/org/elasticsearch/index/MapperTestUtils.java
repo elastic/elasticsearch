@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -29,6 +30,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
+import static org.elasticsearch.test.ESTestCase.getAnalysisRegistry;
 
 public class MapperTestUtils {
 
@@ -56,11 +58,13 @@ public class MapperTestUtils {
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings);
-        IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
+        AnalysisRegistry analysisRegistry = getAnalysisRegistry(finalSettings);
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(analysisRegistry, indexSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
         return new MapperService(
             () -> TransportVersion.CURRENT,
             indexSettings,
+            analysisRegistry,
             indexAnalyzers,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,

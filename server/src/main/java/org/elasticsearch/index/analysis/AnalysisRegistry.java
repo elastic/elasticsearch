@@ -201,14 +201,34 @@ public final class AnalysisRegistry implements Closeable {
 
     /**
      * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
+     * Creates analyzers for validation only, as some components will not be built using real data.
+     */
+    public IndexAnalyzers buildForValidation(IndexSettings indexSettings) throws IOException {
+        return build(true, indexSettings);
+    }
+
+    /**
+     * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
      */
     public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
+        return build(false, indexSettings);
+    }
+
+    private IndexAnalyzers build(boolean forValidation, IndexSettings indexSettings) throws IOException {
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> analyzerFactories = buildAnalyzerFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> normalizerFactories = buildNormalizerFactories(indexSettings);
-        return build(indexSettings, analyzerFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+        return build(
+            forValidation,
+            indexSettings,
+            analyzerFactories,
+            normalizerFactories,
+            tokenizerFactories,
+            charFilterFactories,
+            tokenFilterFactories
+        );
     }
 
     /**
@@ -259,7 +279,7 @@ public final class AnalysisRegistry implements Closeable {
             if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
                 throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
             }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
+            tff = tff.getChainAwareTokenFilterFactory(false, tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
                 try {
                     return getComponentFactory(
                         indexSettings,
@@ -281,7 +301,7 @@ public final class AnalysisRegistry implements Closeable {
             charFilterFactories.toArray(new CharFilterFactory[] {}),
             tokenFilterFactories.toArray(new TokenFilterFactory[] {})
         );
-        return produceAnalyzer("__custom__", new AnalyzerProvider<>() {
+        return produceAnalyzer("__custom__", false, new AnalyzerProvider<>() {
             @Override
             public String name() {
                 return "__custom__";
@@ -587,6 +607,7 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     public static IndexAnalyzers build(
+        boolean forValidation,
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -602,6 +623,7 @@ public final class AnalysisRegistry implements Closeable {
                 entry.getKey(),
                 produceAnalyzer(
                     entry.getKey(),
+                    forValidation,
                     entry.getValue(),
                     tokenFilterFactoryFactories,
                     charFilterFactoryFactories,
@@ -640,6 +662,7 @@ public final class AnalysisRegistry implements Closeable {
                 DEFAULT_ANALYZER_NAME,
                 produceAnalyzer(
                     DEFAULT_ANALYZER_NAME,
+                    forValidation,
                     new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.EMPTY),
                     tokenFilterFactoryFactories,
                     charFilterFactoryFactories,
@@ -676,6 +699,7 @@ public final class AnalysisRegistry implements Closeable {
 
     private static NamedAnalyzer produceAnalyzer(
         String name,
+        boolean forValidation,
         AnalyzerProvider<?> analyzerFactory,
         Map<String, TokenFilterFactory> tokenFilters,
         Map<String, CharFilterFactory> charFilters,
@@ -689,7 +713,7 @@ public final class AnalysisRegistry implements Closeable {
          */
         int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
         if (analyzerFactory instanceof CustomAnalyzerProvider) {
-            ((CustomAnalyzerProvider) analyzerFactory).build(tokenizers, charFilters, tokenFilters);
+            ((CustomAnalyzerProvider) analyzerFactory).build(forValidation, tokenizers, charFilters, tokenFilters);
             /*
              * Custom analyzers already default to the correct, version
              * dependent positionIncrementGap and the user is be able to

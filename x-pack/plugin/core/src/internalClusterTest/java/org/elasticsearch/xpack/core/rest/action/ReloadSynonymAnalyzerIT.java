@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersRequest;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -64,7 +63,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         return true;
     }
 
-    public void testSynonymsUpdateable() throws FileNotFoundException, IOException, InterruptedException {
+    public void testSynonymsUpdateable() throws IOException {
         Path config = internalCluster().getInstance(Environment.class).configFile();
         String synonymsFileName = "synonyms.txt";
         Path synonymsFile = config.resolve(synonymsFileName);

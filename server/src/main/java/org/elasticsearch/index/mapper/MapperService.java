@@ -116,6 +116,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.IndexScope
     );
 
+    private final AnalysisRegistry analysisRegistry;
     private final IndexAnalyzers indexAnalyzers;
     private final MappingParser mappingParser;
     private final DocumentParser documentParser;
@@ -128,6 +129,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(
         ClusterService clusterService,
         IndexSettings indexSettings,
+        AnalysisRegistry analysisRegistry,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
@@ -139,6 +141,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this(
             () -> clusterService.state().getMinTransportVersion(),
             indexSettings,
+            analysisRegistry,
             indexAnalyzers,
             parserConfiguration,
             similarityService,
@@ -152,6 +155,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(
         Supplier<TransportVersion> clusterTransportVersion,
         IndexSettings indexSettings,
+        AnalysisRegistry analysisRegistry,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
@@ -162,6 +166,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        this.analysisRegistry = analysisRegistry;
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
         this.mappingParserContext = new MappingParserContext(
@@ -525,10 +530,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingLookup().isMultiField(field);
     }
 
-    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
-        logger.info("reloading search analyzers");
+    public synchronized List<String> reloadSearchAnalyzers() throws IOException {
+        logger.debug("reloading search analyzers");
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
-        return indexAnalyzers.reload(registry, indexSettings);
+        return indexAnalyzers.reload(analysisRegistry, indexSettings);
     }
 
     /**

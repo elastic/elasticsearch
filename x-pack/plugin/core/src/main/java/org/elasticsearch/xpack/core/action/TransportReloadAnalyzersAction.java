@@ -115,7 +115,7 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
         ActionListener.completeWith(listener, () -> {
             logger.info("reloading analyzers for index shard " + shardRouting);
             IndexService indexService = indicesService.indexService(shardRouting.index());
-            List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+            List<String> reloadedSearchAnalyzers = indexService.mapperService().reloadSearchAnalyzers();
             return new ReloadResult(shardRouting.index().getName(), shardRouting.currentNodeId(), reloadedSearchAnalyzers);
         });
     }

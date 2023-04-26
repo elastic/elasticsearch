@@ -200,11 +200,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
-
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
             () -> TransportVersion.CURRENT,
             indexSettings,
+            null,
             createIndexAnalyzers(indexSettings),
             parserConfig(),
             similarityService,

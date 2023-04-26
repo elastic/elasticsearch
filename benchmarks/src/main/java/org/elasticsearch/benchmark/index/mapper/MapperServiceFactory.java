@@ -17,6 +17,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
@@ -37,6 +38,8 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 public class MapperServiceFactory {
 
     public static MapperService create(String mappings) {
@@ -51,9 +54,22 @@ public class MapperServiceFactory {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
 
         SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
+            null,
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap()
+        );
         MapperService mapperService = new MapperService(
             () -> TransportVersion.CURRENT,
             indexSettings,
+            emptyAnalysisRegistry,
             IndexAnalyzers.of(
                 Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
                 Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))

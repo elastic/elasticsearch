@@ -347,11 +347,11 @@ public class InternalEngine extends Engine {
     private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
         final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
         if (listener != null) {
-            var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
                 public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
+                    var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
                     assert indexCommitRef.getIndexCommit() == commit;
                     listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
                 }
@@ -538,7 +538,7 @@ public class InternalEngine extends Engine {
         final int opsRecovered;
         final long localCheckpoint = getProcessedLocalCheckpoint();
         if (localCheckpoint < recoverUpToSeqNo) {
-            try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+            try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
                 opsRecovered = translogRecoveryRunner.run(this, snapshot);
             } catch (Exception e) {
                 throw new EngineException(shardId, "failed to recover from translog", e);
@@ -559,6 +559,10 @@ public class InternalEngine extends Engine {
         );
         flush(false, true);
         translog.trimUnreferencedReaders();
+    }
+
+    protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        return translog.newSnapshot(fromSeqNo, toSeqNo);
     }
 
     private Translog openTranslog(

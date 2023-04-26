@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
-    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("azure_use_fixture", "true"));
+    private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
     @ClassRule
     public static AzureHttpFixture fixture = new AzureHttpFixture(

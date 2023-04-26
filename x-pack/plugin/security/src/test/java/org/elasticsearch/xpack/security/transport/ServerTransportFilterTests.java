@@ -92,7 +92,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         crossClusterAccessAuthcService = mock(CrossClusterAccessAuthenticationService.class);
         when(crossClusterAccessAuthcService.getAuthenticationService()).thenReturn(authcService);
         mockLicenseState = MockLicenseState.createMock();
-        Mockito.when(mockLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(true);
+        Mockito.when(mockLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(true);
     }
 
     public void testInbound() {
@@ -340,7 +340,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testCrossClusterAccessInboundFailsWithUnsupportedLicense() {
         final MockLicenseState unsupportedLicenseState = MockLicenseState.createMock();
-        Mockito.when(unsupportedLicenseState.isAllowed(Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE)).thenReturn(false);
+        Mockito.when(unsupportedLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(false);
 
         ServerTransportFilter crossClusterAccessFilter = getNodeCrossClusterAccessFilter(unsupportedLicenseState);
         PlainActionFuture<Void> listener = new PlainActionFuture<>();
@@ -350,7 +350,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         ElasticsearchSecurityException actualException = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
         assertThat(
             actualException.getMessage(),
-            equalTo("current license is non-compliant for [" + Security.CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE.getName() + "]")
+            equalTo("current license is non-compliant for [" + Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE.getName() + "]")
         );
 
         // License check should be executed first, hence we don't expect authc/authz to be even attempted.

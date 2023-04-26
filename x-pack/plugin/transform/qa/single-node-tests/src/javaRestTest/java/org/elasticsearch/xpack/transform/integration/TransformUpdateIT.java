@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformUpdateIT extends TransformRestTestCase {
@@ -246,7 +247,8 @@ public class TransformUpdateIT extends TransformRestTestCase {
             }
             fail("request should have failed");
         } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+            assertThat("Error was: " + e.getMessage(), e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(e.getMessage(), containsString("Source indices have been deleted or closed."));
         }
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);

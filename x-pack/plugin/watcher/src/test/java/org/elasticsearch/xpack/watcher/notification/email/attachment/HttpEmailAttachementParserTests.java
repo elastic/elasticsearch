@@ -7,8 +7,11 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,6 +23,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.junit.Before;
@@ -31,9 +35,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.INTERVAL_SETTING;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.REPORT_WARNING_ENABLED_SETTING;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.REPORT_WARNING_TEXT;
+import static org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser.RETRIES_SETTING;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -52,7 +61,13 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         httpClient = mock(HttpClient.class);
 
         attachmentParsers = new HashMap<>();
-        attachmentParsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, new MockTextTemplateEngine()));
+        attachmentParsers.put(
+            HttpEmailAttachementParser.TYPE,
+            new HttpEmailAttachementParser(
+                new WebhookService(Settings.EMPTY, httpClient, mockClusterService().getClusterSettings()),
+                new MockTextTemplateEngine()
+            )
+        );
         emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
     }
 
@@ -172,4 +187,13 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
             .buildMock();
     }
 
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            Set.of(INTERVAL_SETTING, RETRIES_SETTING, REPORT_WARNING_ENABLED_SETTING, REPORT_WARNING_TEXT)
+        );
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
+    }
 }

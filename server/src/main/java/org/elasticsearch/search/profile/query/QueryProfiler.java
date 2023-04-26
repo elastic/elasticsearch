@@ -29,18 +29,18 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
     /**
      * The root Collector used in the search
      */
-    private InternalProfileCollector collector;
+    private InternalProfileCollectorManager collectorManager;
 
     public QueryProfiler() {
         super(new InternalQueryProfileTree());
     }
 
-    /** Set the collector that is associated with this profiler. */
-    public void setCollector(InternalProfileCollector collector) {
-        if (this.collector != null) {
-            throw new IllegalStateException("The collector can only be set once.");
+    /** Set the collector manager that is associated with this profiler. */
+    public void setCollectorManager(InternalProfileCollectorManager collectorManager) {
+        if (this.collectorManager != null) {
+            throw new IllegalStateException("The collector manager can only be set once.");
         }
-        this.collector = Objects.requireNonNull(collector);
+        this.collectorManager = Objects.requireNonNull(collectorManager);
     }
 
     /**
@@ -72,7 +72,7 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      * Return the current root Collector for this search
      */
     public CollectorResult getCollector() {
-        return collector.getCollectorTree();
+        return collectorManager.getCollectorTree();
     }
 
 }

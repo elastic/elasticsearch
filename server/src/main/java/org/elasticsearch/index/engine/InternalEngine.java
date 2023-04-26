@@ -2834,8 +2834,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    // Visible only for testing
-    public boolean isSafeAccessRequired() {
+    boolean isSafeAccessRequired() {
         return versionMap.isSafeAccessRequired();
     }
 

@@ -62,10 +62,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // the tombstone
         private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
 
-        public static VersionLookup merge(VersionLookup v1, VersionLookup v2) {
-            var newMap = v1.map;
-            newMap.putAll(v2.map);
-            return new VersionLookup(newMap);
+        // Modifies the map of this instance by merging with the given VersionLookup
+        public void merge(VersionLookup versionLookup) {
+            map.putAll(versionLookup.map);
         }
 
         private VersionLookup(Map<BytesRef, VersionValue> map) {
@@ -152,12 +151,15 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
 
         /**
-         * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
+         * similar to `invalidateOldMap` but used only for the `unsafeKeysMap` used for assertions
          */
-        Maps invalidateOldMap() {
+        Maps invalidateOldMapForAssert() {
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
 
+        /**
+         * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
+         */
         Maps invalidateOldMap(LiveVersionMapArchiver archiver) {
             archiver.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
@@ -267,7 +269,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // reflected in the previous reader. We don't touch tombstones here: they expire on their own index.gc_deletes timeframe:
 
         maps = maps.invalidateOldMap(archiver);
-        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMap()) != null;
+        assert (unsafeKeysMap = unsafeKeysMap.invalidateOldMapForAssert()) != null;
 
     }
 
@@ -278,7 +280,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Returns the live version (add or delete) for this uid.
      */
-    public VersionValue getUnderLock(final BytesRef uid) {
+    VersionValue getUnderLock(final BytesRef uid) {
         return getUnderLock(uid, maps);
     }
 
@@ -295,6 +297,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             return value;
         }
 
+        // We first check the tombstone then the archiver since the archiver accumulates ids from the old map, and we
+        // makes sure in `putDeleteUnderLock` the old map does not hold an entry that is in tombstone, archiver also wouldn't have them.
         value = tombstones.get(uid);
         if (value != null) {
             return value;
@@ -341,7 +345,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         }
     }
 
-    public void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+    void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         maps.put(uid, version);
@@ -355,7 +359,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return true;
     }
 
-    public void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
+    void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         putTombstone(uid, version);
@@ -404,7 +408,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     /**
      * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
      */
-    public void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
+    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             // we do check before we actually lock the key - this way we don't need to acquire the lock for tombstones that are not
             // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can't collect it now w
@@ -481,7 +485,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      * map are broken. We assert on this lock to be hold when calling these methods.
      * @see KeyedLock
      */
-    public Releasable acquireLock(BytesRef uid) {
+    Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
     }
 
@@ -491,7 +495,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     // visible for testing purposes only
-    public LiveVersionMapArchiver getArchiver() {
+    LiveVersionMapArchiver getArchiver() {
         return archiver;
     }
 }

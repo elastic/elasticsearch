@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.ml.packageloader;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
+
 public class MachineLearningPackageLoaderTests extends ESTestCase {
 
     public void testValidateModelRepository() {
@@ -18,9 +21,16 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
             () -> MachineLearningPackageLoader.validateModelRepository("file:///etc/passwd", PathUtils.get("/home/elk/elasticsearch"))
         );
 
-        assertEquals(
-            "If xpack.ml.model_repository is a file location, it must be placed below the configuration: file:///home/elk/elasticsearch",
-            e.getMessage()
+        assertThat(
+            e.getMessage(),
+            is(
+                oneOf(
+                    "If xpack.ml.model_repository is a file location, it must be placed below the configuration: "
+                        + "file:///home/elk/elasticsearch",
+                    "If xpack.ml.model_repository is a file location, it must be placed below the configuration: "
+                        + "file:///C:/home/elk/elasticsearch"
+                )
+            )
         );
 
         e = expectThrows(
@@ -28,9 +38,16 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
             () -> MachineLearningPackageLoader.validateModelRepository("file:///home/elk/", PathUtils.get("/home/elk/elasticsearch"))
         );
 
-        assertEquals(
-            "If xpack.ml.model_repository is a file location, it must be placed below the configuration: file:///home/elk/elasticsearch",
-            e.getMessage()
+        assertThat(
+            e.getMessage(),
+            is(
+                oneOf(
+                    "If xpack.ml.model_repository is a file location, it must be placed below the configuration: "
+                        + "file:///home/elk/elasticsearch",
+                    "If xpack.ml.model_repository is a file location, it must be placed below the configuration: "
+                        + "file:///C:/home/elk/elasticsearch"
+                )
+            )
         );
 
         e = expectThrows(

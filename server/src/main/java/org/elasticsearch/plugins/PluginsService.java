@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
-import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.reflect.Constructor;
 import java.net.URI;
@@ -131,6 +130,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>();
         loadExportsServices(qualifiedExports, PluginsService.class.getClassLoader());
+        addServerExportsService(qualifiedExports);
 
         Set<PluginBundle> seenBundles = new LinkedHashSet<>();
 
@@ -481,9 +481,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
 
-            // load any qualified exports/opens to other modules/plugins
-            loadExportsServices(qualifiedExports, pluginClassLoader);
-
             Plugin plugin;
             if (bundle.pluginDescriptor().isStable()) {
                 stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
@@ -754,7 +751,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);
-        addQualifiedExportsAndOpens(pluginModule, qualifiedExports);
+        // export/open upstream modules to this plugin module
+        exposeQualifiedExportsAndOpens(pluginModule, qualifiedExports);
+        // configure qualified exports/opens to other modules/plugins
+        addPluginExportsServices(qualifiedExports, controller);
         logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
         return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
     }
@@ -783,37 +783,62 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     /**
-     * Adds qualified exports and opens declared in the server module descriptor to the target module.
+     * Adds qualified exports and opens declared in other upstream modules to the target module.
      * This is required since qualified statements targeting yet-to-be-created modules, i.e. plugins,
      * are silently dropped when the boot layer is created.
      */
-    private static void addQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-        // TODO: implement server module exports with ModuleQualifiedExportsService
-        serverModule.getDescriptor()
-            .exports()
-            .stream()
-            .filter(ModuleDescriptor.Exports::isQualified)
-            .filter(exports -> exports.targets().contains(target.getName()))
-            .forEach(exports -> serverModule.addExports(exports.source(), target));
-        serverModule.getDescriptor()
-            .opens()
-            .stream()
-            .filter(ModuleDescriptor.Opens::isQualified)
-            .filter(opens -> opens.targets().contains(target.getName()))
-            .forEach(opens -> serverModule.addOpens(opens.source(), target));
-
+    private static void exposeQualifiedExportsAndOpens(Module target, Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         qualifiedExports.getOrDefault(target.getName(), List.of()).forEach(exportService -> exportService.addExportsAndOpens(target));
     }
 
     private static void loadExportsServices(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports, ClassLoader classLoader) {
         var loader = ServiceLoader.load(ModuleQualifiedExportsService.class, classLoader);
-        for (var exportService : loader) {
-            for (String targetName : exportService.getTargets()) {
-                logger.debug(
-                    "Registered qualified export from module " + exportService.getClass().getModule().getName() + " to " + targetName
-                );
-                qualifiedExports.computeIfAbsent(targetName, k -> new ArrayList<>()).add(exportService);
+        for (var exportsService : loader) {
+            addExportsService(qualifiedExports, exportsService, exportsService.getClass().getModule().getName());
+        }
+    }
+
+    private static void addExportsService(
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        ModuleQualifiedExportsService exportsService,
+        String moduleName
+    ) {
+        for (String targetName : exportsService.getTargets()) {
+            logger.debug("Registered qualified export from module " + moduleName + " to " + targetName);
+            qualifiedExports.computeIfAbsent(targetName, k -> new ArrayList<>()).add(exportsService);
+        }
+    }
+
+    private static void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+        final Module serverModule = PluginsService.class.getModule();
+        var exportsService = new ModuleQualifiedExportsService(PluginsService.class.getModule()) {
+            @Override
+            protected void addExports(String pkg, Module target) {
+                serverModule.addExports(pkg, target);
             }
+
+            @Override
+            protected void addOpens(String pkg, Module target) {
+                serverModule.addOpens(pkg, target);
+            }
+        };
+        addExportsService(qualifiedExports, exportsService, serverModule.getName());
+    }
+
+    private static void addPluginExportsServices(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports, Controller controller) {
+        for (Module module : controller.layer().modules()) {
+            var exportsService = new ModuleQualifiedExportsService(module) {
+                @Override
+                protected void addExports(String pkg, Module target) {
+                    controller.addExports(module, pkg, target);
+                }
+
+                @Override
+                protected void addOpens(String pkg, Module target) {
+                    controller.addOpens(module, pkg, target);
+                }
+            };
+            addExportsService(qualifiedExports, exportsService, module.getName());
         }
     }
 

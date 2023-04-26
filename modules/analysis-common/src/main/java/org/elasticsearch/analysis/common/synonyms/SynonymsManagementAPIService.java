@@ -9,11 +9,19 @@
 package org.elasticsearch.analysis.common.synonyms;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -25,6 +33,32 @@ public class SynonymsManagementAPIService {
     private static final FeatureFlag SYNONYMS_API_FEATURE_FLAG = new FeatureFlag("synonyms_api");
     public static final String SYNONYMS_INDEX = ".synonyms";
     public static final String SYNONYMS_ORIGIN = "synonyms";
+
+    private final Client client;
+
+    public SynonymsManagementAPIService(Client client) {
+        // TODO Should we set an OriginSettingClient? We would need to check the origin at AuthorizationUtils if we set an
+        this.client = client;
+    }
+
+    public void putSynonymSet(String resourceName, SynonymSet synonymSet, ActionListener<IndexResponse> listener) {
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            {
+                synonymSet.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            }
+            builder.endObject();
+
+            final IndexRequest indexRequest = new IndexRequest(SYNONYMS_INDEX).opType(DocWriteRequest.OpType.INDEX)
+                .id(resourceName)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .source(builder);
+            client.index(indexRequest, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
 
     public static SystemIndexDescriptor getSystemIndexDescriptor() {
         return SystemIndexDescriptor.builder()

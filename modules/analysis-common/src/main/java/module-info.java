@@ -12,6 +12,7 @@ module org.elasticsearch.analysis.common {
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.base;
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
@@ -20,6 +21,8 @@ module org.elasticsearch.analysis.common {
     exports org.elasticsearch.analysis.common;  // for painless
 
     opens org.elasticsearch.analysis.common to org.elasticsearch.painless.spi; // whitelist resource access
+
+    exports org.elasticsearch.analysis.common.synonyms.action to org.elasticsearch.server; // Needed for synonyms actions execution
 
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.analysis.common.AnalysisPainlessExtension;
 }

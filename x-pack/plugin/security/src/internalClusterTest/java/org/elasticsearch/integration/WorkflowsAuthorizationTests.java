@@ -82,8 +82,6 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
         Request request = new Request("GET", "/_security/_authenticate");
         Response response = performRequestWithUser("user_a", request);
         assertOK(response);
-        System.out.println("==========" + responseAsMap(response));
-
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {

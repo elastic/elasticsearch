@@ -126,7 +126,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null);
-             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
+            params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             // TODO: Test if cc issues are coming from here
             params.setDefaultParallel(8);
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));

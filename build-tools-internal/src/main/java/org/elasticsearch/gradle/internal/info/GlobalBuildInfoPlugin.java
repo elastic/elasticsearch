@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.info;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
@@ -125,7 +126,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null);
-            // params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
+             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             // TODO: Test if cc issues are coming from here
             params.setDefaultParallel(8);
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));

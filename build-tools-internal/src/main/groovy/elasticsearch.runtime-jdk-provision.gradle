@@ -37,6 +37,7 @@ configure(allprojects) {
         } else {
             test.javaLauncher = javaToolchains.launcherFor {
                 languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+                vendor = JvmVendorSpec.ORACLE
             }
         }
     }

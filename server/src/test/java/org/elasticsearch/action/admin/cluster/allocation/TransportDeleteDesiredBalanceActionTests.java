@@ -50,9 +50,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -157,13 +154,6 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
     }
 
     private static IndexMetadata createIndex(String name) {
-        return IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
-            .build();
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0)).build();
     }
 }

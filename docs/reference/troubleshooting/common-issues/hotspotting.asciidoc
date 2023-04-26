@@ -83,8 +83,7 @@ for more information.
 {es} indices are divided into one or more link:{wikipedia}/Shard_(database_architecture)[shards] 
 which can sometimes be poorly distributed. {es} accounts for this by <<modules-cluster,balancing shard counts>> 
 across data nodes. As link:{blog-ref}whats-new-elasticsearch-kibana-cloud-8-6-0[introduced in version 8.6], 
-{es} by default also enables <<modules-cluster,desired balancing>> to account for ingest load; 
-though there's always link:{es-repo}/issues/17213[room for improvement]. 
+{es} by default also enables <<modules-cluster,desired balancing>> to account for ingest load.
 A node may still experience hot spotting either due to write-heavy indices or by the 
 overall shards it's hosting.
 

@@ -389,7 +389,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                     AuthorizationInfo authorizationInfo,
                     ActionListener<AuthorizationResult> listener
                 ) {
-                    listener.onFailure(new UnsupportedOperationException("not implemented"));
+                    listener.onFailure(AuthorizationResult.granted());
                 }
 
                 @Override

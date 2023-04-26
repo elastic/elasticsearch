@@ -223,7 +223,7 @@ public class DynamicTemplate implements ToXContentObject {
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
-        ensurePatternsDoNotMatchEmptyString(
+        validatePatterns(
             name,
             matchType,
             List.of(
@@ -257,7 +257,7 @@ public class DynamicTemplate implements ToXContentObject {
         }
     }
 
-    private static void ensurePatternsDoNotMatchEmptyString(String templateName, MatchType matchType, List<List<String>> patterns) {
+    private static void validatePatterns(String templateName, MatchType matchType, List<List<String>> patterns) {
         for (List<String> patternList : patterns) {
             for (String regex : patternList) {
                 try {

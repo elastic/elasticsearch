@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -180,7 +181,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 MappingParserContext parserContext = mapperService.parserContext();
                 for (String pathMatch : template.pathMatch()) {
                     var mapper = parserContext.typeParser(mappingSnippetType)
-                        .parse(pathMatch, mappingSnippet, parserContext)
+                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
+                        // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
+                        // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
+                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
                         .build(MapperBuilderContext.root(false));
                     extractPath(routingPaths, mapper);
                 }

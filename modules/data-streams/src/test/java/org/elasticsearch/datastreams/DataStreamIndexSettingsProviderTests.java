@@ -466,9 +466,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(3));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "xprometheus.labels.*"));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*"));
         List<String> routingPathList = IndexMetadata.INDEX_ROUTING_PATH.get(result);
-        assertEquals(2, routingPathList.size());
+        assertEquals(3, routingPathList.size());
     }
 
     public void testGenerateRoutingPathFromDynamicTemplate_templateWithNoPathMatch() throws Exception {
@@ -528,20 +528,20 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 "_doc": {
                     "dynamic_templates": [
                         {
-                            "labels": {
-                                "path_match": "prometheus.labels.*",
-                                "mapping": {
-                                    "type": "keyword",
-                                    "time_series_dimension": true
-                                }
-                            }
-                        },
-                        {
                             "docker.cpu.core.*.pct": {
                                 "path_match": "docker.cpu.core.*.pct",
                                 "mapping": {
                                     "coerce": true,
                                     "type": "float"
+                                }
+                            }
+                        },
+                        {
+                            "labels": {
+                                "path_match": "prometheus.labels.*",
+                                "mapping": {
+                                    "type": "keyword",
+                                    "time_series_dimension": true
                                 }
                             }
                         }
@@ -566,6 +566,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        assertEquals(2, IndexMetadata.INDEX_ROUTING_PATH.get(result).size());
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {

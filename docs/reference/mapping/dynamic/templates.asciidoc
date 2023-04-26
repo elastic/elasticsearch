@@ -235,9 +235,9 @@ PUT my-index-000001/_doc/1
 You can specify a list of patterns using a JSON array for either the
 `match` or `unmatch` fields.
 
-The next example matches all fields whose name starts with
-`one` or has `two` in the name, except for those which end with `ip` or ``)
-and maps them as `keyword` fields:
+The next example matches all fields whose name starts with `ip_` or ends with `_ip`
+in the name, except for those which start with "one" or end with "two" and maps them
+as `keyword` fields:
 
 [source,console]
 --------------------------------------------------
@@ -268,7 +268,7 @@ PUT my-index/_doc/1
 --------------------------------------------------
 
 <1> The `one_ip` field is unmatched, so uses the default mapping of `text`.
-<1> The `ip_two` field is unmatched, so uses the default mapping of `text`.
+<2> The `ip_two` field is unmatched, so uses the default mapping of `text`.
 <3> The `three_ip` field is mapped as `ip`.
 <4> The `ip_four` field is mapped as `ip`.
 

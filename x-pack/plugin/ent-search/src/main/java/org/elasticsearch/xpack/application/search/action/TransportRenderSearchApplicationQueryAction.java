@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,20 +23,18 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
-import java.io.IOException;
+import java.util.Map;
 
-public class TransportQuerySearchApplicationAction extends SearchApplicationTransportAction<
+public class TransportRenderSearchApplicationQueryAction extends SearchApplicationTransportAction<
     SearchApplicationSearchRequest,
-    SearchResponse> {
+    RenderSearchApplicationQueryAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportQuerySearchApplicationAction.class);
-
-    private final Client client;
+    private static final Logger logger = LogManager.getLogger(TransportRenderSearchApplicationQueryAction.class);
 
     private final SearchApplicationTemplateService templateService;
 
     @Inject
-    public TransportQuerySearchApplicationAction(
+    public TransportRenderSearchApplicationQueryAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -51,7 +46,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         NamedXContentRegistry xContentRegistry
     ) {
         super(
-            QuerySearchApplicationAction.NAME,
+            RenderSearchApplicationQueryAction.NAME,
             transportService,
             actionFilters,
             SearchApplicationSearchRequest::new,
@@ -61,25 +56,16 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
             bigArrays,
             licenseState
         );
-        this.client = client;
         this.templateService = new SearchApplicationTemplateService(scriptService, xContentRegistry);
     }
 
     @Override
-    protected void doExecute(SearchApplicationSearchRequest request, ActionListener<SearchResponse> listener) {
-        systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
-            try {
-                SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
-                SearchRequest searchRequest = new SearchRequest(searchApplication.indices()).source(sourceBuilder);
-
-                client.execute(
-                    SearchAction.INSTANCE,
-                    searchRequest,
-                    listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
-                );
-            } catch (IOException e) {
-                l.onFailure(e);
-            }
-        }));
+    protected void doExecute(SearchApplicationSearchRequest request, ActionListener<RenderSearchApplicationQueryAction.Response> listener) {
+        systemIndexService.getSearchApplication(request.name(), ActionListener.wrap(searchApplication -> {
+            final Map<String, Object> renderedMetadata = templateService.renderTemplate(searchApplication, request.queryParams());
+            final SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, renderedMetadata);
+            listener.onResponse(new RenderSearchApplicationQueryAction.Response(request.name(), sourceBuilder));
+        }, listener::onFailure));
     }
+
 }

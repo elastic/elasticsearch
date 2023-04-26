@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,6 +82,7 @@ public class ShutdownTests extends ESTestCase {
     }
 
     public void testKeepIfNodeExists() {
+        TimeValue grace = new TimeValue(1000);
         Stream.of(localNode, otherNode)
             .forEach(
                 node -> assertTrue(
@@ -90,15 +90,65 @@ public class ShutdownTests extends ESTestCase {
                     NodeSeenService.keepShutdownMetadata(
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId(node.getId())
-                            .setTargetNodeName(node.getId())
                             .setType(Type.SIGTERM)
                             .setStartedAtMillis(start)
+                            .setGracefulShutdown(grace)
                             .setReason("my reason")
                             .build(),
-                        now,
+                        start + (2 * grace.millis()), // would otherwise be cleaned up
                         state
                     )
                 )
             );
+    }
+
+    public void testDropIfLargeClockSkew() {
+        TimeValue grace = new TimeValue(1000);
+        assertFalse(
+            NodeSeenService.keepShutdownMetadata(
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId("anotherNode")
+                    .setType(Type.SIGTERM)
+                    .setStartedAtMillis(start)
+                    .setGracefulShutdown(grace)
+                    .setReason("my reason")
+                    .build(),
+                start - 120_000,
+                state
+            )
+        );
+    }
+
+    public void testSomeNegativeClockSkewOK() {
+        TimeValue grace = new TimeValue(1);
+        assertTrue(
+            NodeSeenService.keepShutdownMetadata(
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId("anotherNode")
+                    .setType(Type.SIGTERM)
+                    .setStartedAtMillis(start)
+                    .setGracefulShutdown(grace)
+                    .setReason("my reason")
+                    .build(),
+                start - 1_000,
+                state
+            )
+        );
+    }
+
+    public void testGraceSafety() {
+        long graceMs = 60 * 60 * 1_000;
+        TimeValue grace = new TimeValue(graceMs);
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId("anotherNode")
+            .setType(Type.SIGTERM)
+            .setStartedAtMillis(start)
+            .setGracefulShutdown(grace)
+            .setReason("my reason")
+            .build();
+        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs - 1, state));
+        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs, state));
+        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs + (graceMs / 10), state));
+        assertFalse(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs + (graceMs / 10) + 1, state));
     }
 }

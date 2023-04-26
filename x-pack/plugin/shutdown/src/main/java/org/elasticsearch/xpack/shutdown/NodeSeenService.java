@@ -129,13 +129,10 @@ public class NodeSeenService implements ClusterStateListener {
             return true;
         }
         long timeRunning = nowMillis - shutdown.getStartedAtMillis();
-        if (timeRunning < 0) {
-            if (timeRunning < -1 * 60_000) {
-                return false; // clock skew too big
-            }
-            timeRunning = 0;
+        if (timeRunning < -1 * 60_000) {
+            return false; // clock skew too big
         }
         long cleanupGrace = grace.millis() + (grace.millis() / 10);
-        return cleanupGrace > timeRunning;
+        return cleanupGrace >= timeRunning;
     }
 }

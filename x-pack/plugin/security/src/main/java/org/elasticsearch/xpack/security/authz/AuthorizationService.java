@@ -325,7 +325,7 @@ public class AuthorizationService {
                         } else {
                             logger.debug("denying access as request is not allowed for endpoint [{}]", restEndpoint);
                             auditTrailService.get().accessDenied(auditId, authentication, action, unwrappedRequest, authorizationInfo);
-                            listener.onFailure(actionDenied(authentication, authorizationInfo, action, unwrappedRequest));
+                            listener.onFailure(new ElasticsearchSecurityException("access to [" + restEndpoint + "] is not allowed"));
                         }
                     }, listener::onFailure));
                 }, listener::onFailure), threadContext);

@@ -10,6 +10,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.rest.ESRestTestCase.assertOK;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 
 public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
 
@@ -78,10 +80,31 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
     }
 
     public void testWorkflowAuthorization() throws Exception {
-        // Note: Au
+        // user_a has no endpoint restrictions
         Request request = new Request("GET", "/_security/_authenticate");
         Response response = performRequestWithUser("user_a", request);
         assertOK(response);
+
+        request = new Request("GET", "/_license");
+        response = performRequestWithUser("user_a", request);
+        assertOK(response);
+
+        request = new Request("GET", "/_search");
+        response = performRequestWithUser("user_a", request);
+        assertOK(response);
+
+        // user_b should be denied access
+        var e = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithUser("user_b", new Request("GET", "/_security/_authenticate"))
+        );
+        assertThat(e.getMessage(), containsString("access to [security_authenticate_action] is not allowed"));
+
+        e = expectThrows(ResponseException.class, () -> performRequestWithUser("user_b", new Request("GET", "/_search")));
+        assertThat(e.getMessage(), containsString("access to [search_action] is not allowed"));
+
+        e = expectThrows(ResponseException.class, () -> performRequestWithUser("user_b", new Request("GET", "/_license")));
+        assertThat(e.getMessage(), containsString("access to [get_license] is not allowed"));
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {

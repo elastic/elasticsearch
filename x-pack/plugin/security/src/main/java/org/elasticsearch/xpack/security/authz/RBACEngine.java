@@ -104,7 +104,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 
 public class RBACEngine implements AuthorizationEngine {
@@ -208,9 +208,10 @@ public class RBACEngine implements AuthorizationEngine {
                 // Cross cluster access user can perform has privilege check
                 if (authentication.isCrossClusterAccess() && HasPrivilegesAction.NAME.equals(action)) {
                     assert request instanceof HasPrivilegesRequest;
-                    return ((Authentication) authentication.getAuthenticatingSubject()
-                        .getMetadata()
-                        .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject().getUser().principal().equals(username);
+                    return getAuthenticationFromCrossClusterAccessMetadata(authentication).getEffectiveSubject()
+                        .getUser()
+                        .principal()
+                        .equals(username);
                 }
 
                 final boolean sameUsername = authentication.getEffectiveSubject().getUser().principal().equals(username);

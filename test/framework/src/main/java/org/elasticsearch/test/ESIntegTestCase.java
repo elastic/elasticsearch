@@ -776,7 +776,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * creates an index with the given shard and replica counts
      */
     public final void createIndex(String name, int shards, int replicas) {
-        createIndex(name, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
+        createIndex(name, indexSettings(shards, replicas).build());
     }
 
     /**

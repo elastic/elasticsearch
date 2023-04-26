@@ -46,7 +46,7 @@ public class PostWriteRefresh {
                 @Override
                 public void onResponse(Boolean forced) {
                     if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && location != null) {
-                        refreshUnpromotables(indexShard, location, listener, forced);
+                        refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);
                     }

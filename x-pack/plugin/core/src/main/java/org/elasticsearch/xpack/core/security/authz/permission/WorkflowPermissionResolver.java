@@ -128,7 +128,7 @@ public final class WorkflowPermissionResolver {
         return result;
     }
 
-    private WorkflowPermissionResolver(){
+    private WorkflowPermissionResolver() {
         throw new IllegalAccessError("not permitted");
     }
 }

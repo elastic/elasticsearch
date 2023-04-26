@@ -319,14 +319,14 @@ public class AuthorizationService {
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     engine.authorizeEndpoint(restEndpoint, authorizationInfo, ActionListener.wrap(result -> {
-                            if(result.isGranted()){
-                                threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                                maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                            } else {
-                                logger.debug("denying access as request is not allowed for endpoint [{}]", restEndpoint);
-                                auditTrailService.get().accessDenied(auditId, authentication, action, unwrappedRequest, authorizationInfo);
-                                listener.onFailure(actionDenied(authentication, authorizationInfo, action, unwrappedRequest));
-                            }
+                        if (result.isGranted()) {
+                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                        } else {
+                            logger.debug("denying access as request is not allowed for endpoint [{}]", restEndpoint);
+                            auditTrailService.get().accessDenied(auditId, authentication, action, unwrappedRequest, authorizationInfo);
+                            listener.onFailure(actionDenied(authentication, authorizationInfo, action, unwrappedRequest));
+                        }
                     }, listener::onFailure));
                 }, listener::onFailure), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);

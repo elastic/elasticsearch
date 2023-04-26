@@ -69,13 +69,7 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
     protected String configUsers() {
         final Hasher passwdHasher = getFastStoredHashAlgoForTests();
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers()
-            + "user_a:"
-            + usersPasswdHashed
-            + "\n"
-            + "user_b:"
-            + usersPasswdHashed
-            + "\n";
+        return super.configUsers() + "user_a:" + usersPasswdHashed + "\n" + "user_b:" + usersPasswdHashed + "\n";
     }
 
     @Override
@@ -91,6 +85,7 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
         System.out.println("==========" + responseAsMap(response));
 
     }
+
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(

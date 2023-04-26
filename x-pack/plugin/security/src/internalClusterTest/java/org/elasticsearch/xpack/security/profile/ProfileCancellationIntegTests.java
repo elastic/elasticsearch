@@ -384,7 +384,11 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 }
 
                 @Override
-                public void authorizeEndpoint(String endpoint, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
+                public void authorizeEndpoint(
+                    String endpoint,
+                    AuthorizationInfo authorizationInfo,
+                    ActionListener<AuthorizationResult> listener
+                ) {
                     listener.onFailure(new UnsupportedOperationException("not implemented"));
                 }
 

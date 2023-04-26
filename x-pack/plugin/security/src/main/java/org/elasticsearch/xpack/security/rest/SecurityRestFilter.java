@@ -121,7 +121,14 @@ public class SecurityRestFilter implements RestHandler {
         assert threadContext.getHeader("_xpack_rest_handler_name") == null
             : "thread context should not have rest handler name set: " + threadContext.getHeader("_xpack_rest_handler_name");
         if (restHandlerName.isPresent()) {
-            logger.info(() -> format("resolved name [%s] of rest handler [%s] for uri [%s].",restHandlerName.get(), restHandler.getClass(), request.uri()));
+            logger.info(
+                () -> format(
+                    "resolved name [%s] of rest handler [%s] for uri [%s].",
+                    restHandlerName.get(),
+                    restHandler.getClass(),
+                    request.uri()
+                )
+            );
             threadContext.putHeader("_xpack_rest_handler_name", restHandlerName.get());
         } else {
             logger.info(() -> format("could not resolve name of rest handler [%s] for uri [%s].", restHandler.getClass(), request.uri()));

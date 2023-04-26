@@ -2859,7 +2859,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public void authorizeEndpoint(String endpoint, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
+            public void authorizeEndpoint(
+                String endpoint,
+                AuthorizationInfo authorizationInfo,
+                ActionListener<AuthorizationResult> listener
+            ) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

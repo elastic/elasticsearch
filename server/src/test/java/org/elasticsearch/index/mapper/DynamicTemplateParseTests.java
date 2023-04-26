@@ -136,10 +136,7 @@ public class DynamicTemplateParseTests extends ESTestCase {
             templateDef.put(param, "*a");
             templateDef.put("match_pattern", "regex");
             templateDef.put("mapping", Collections.singletonMap("store", true));
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> DynamicTemplate.parse("my_template", templateDef)
-            );
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef));
             assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [my_template].", e.getMessage());
         }
     }
@@ -379,8 +376,11 @@ public class DynamicTemplateParseTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("""
-            {"path_match":["*name","user*"],"path_unmatch":["first_name","username"],"mapping":{"store":true}}""", Strings.toString(builder));
+        assertEquals(
+            """
+                {"path_match":["*name","user*"],"path_unmatch":["first_name","username"],"mapping":{"store":true}}""",
+            Strings.toString(builder)
+        );
 
         // regex matching
         templateDef = new HashMap<>();

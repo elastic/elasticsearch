@@ -263,7 +263,7 @@ public class DynamicTemplate implements ToXContentObject {
             try {
                 matchType.matches(regex, "");
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
+                throw new MapperParsingException(
                     Strings.format(
                         "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
                         regex,

@@ -244,7 +244,9 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Request getMappings = new Request("GET", indexName + "/_mappings");
             getMappings.setOptions(
                 expectWarnings(
-                    "this request accesses system indices: [" + indexName + "], but in a future major "
+                    "this request accesses system indices: ["
+                        + indexName
+                        + "], but in a future major "
                         + "version, direct access to system indices will be prevented by default"
                 )
             );

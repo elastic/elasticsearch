@@ -40,20 +40,31 @@ public class SynonymsManagementAPIService {
 
     private static XContentBuilder mappings() {
         try {
-            XContentBuilder builder = jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field("version", Version.CURRENT)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("synonyms")
-                .field("type", "object")
-                .field("enabled", "false")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+            XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject(SINGLE_MAPPING_NAME);
+                {
+                    builder.startObject("_meta");
+                    {
+                        builder.field("version", Version.CURRENT.toString());
+                    }
+                    builder.endObject();
+                    builder.field("dynamic", "strict");
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("synonyms");
+                        {
+                            builder.field("type", "object");
+                            builder.field("enabled", "false");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
             return builder;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build mappings for " + SYNONYMS_INDEX, e);

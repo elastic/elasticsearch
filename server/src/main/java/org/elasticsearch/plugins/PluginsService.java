@@ -809,9 +809,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private static void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
         final Module serverModule = PluginsService.class.getModule();
-        var exportsService = new ModuleQualifiedExportsService(PluginsService.class.getModule()) {
+        var exportsService = new ModuleQualifiedExportsService(serverModule) {
             @Override
             protected void addExports(String pkg, Module target) {
                 serverModule.addExports(pkg, target);

@@ -271,25 +271,26 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
          */
         DataLifecycle lifecycle = new DataLifecycle();
         disableDLM();
+        String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
             "id1",
             null,
-            List.of("metrics-foo*"),
+            List.of(dataStreamName + "*"),
             Settings.builder().put("index.number_of_replicas", 1).put("index.number_of_shards", 1).build(),
             null,
             lifecycle
         );
 
-        String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
         int finalGeneration = randomIntBetween(2, 10);
         for (int currentGeneration = 1; currentGeneration < finalGeneration; currentGeneration++) {
-            String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
+            // This is currently the write index, but it will be rolled over as soon as DLM runs:
+            final String toBeRolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration);
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
                 // Make sure the segments get written:
-                FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(writeIndexName)).actionGet();
+                FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(toBeRolledOverIndex)).actionGet();
                 assertThat(flushResponse.getStatus(), equalTo(RestStatus.OK));
             }
             /*
@@ -299,20 +300,24 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
              */
             updateIndexSettings(
                 Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), 5),
-                writeIndexName
+                toBeRolledOverIndex
             );
 
-            final String newIndex = writeIndexName;
-            final String rolledOverIndex;
-            final int preDlmSegmentsRolledOverIndex;
+            final String toBeForceMergedIndex;
+            final int preDlmSegmentsForceMergedIndex;
             if (currentGeneration == 1) {
-                rolledOverIndex = null;
-                preDlmSegmentsRolledOverIndex = -1; // Not going to be used
+                toBeForceMergedIndex = null; // Not going to be used
+                preDlmSegmentsForceMergedIndex = -1; // Not going to be used
             } else {
-                rolledOverIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
-                preDlmSegmentsRolledOverIndex = getSegmentCount(rolledOverIndex);
+                toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
+                preDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
             }
-            final int preDlmSegmentsNewIndex = getSegmentCount(newIndex);
+            final int preDlmSegmentsAboutToBeRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
+            /*
+             * Here we briefly enable DLM so that it will run exactly once. We expect for a new write index to get created and for the one
+             * stored in toBeRolledOverIndex to get rolled over. And the one stored in toBeForceMergedIndex (if we're in the
+             * 2nd generation or later and it exists) to get force merged.
+             */
             TimeValue dlmPollInterval = TimeValue.timeValueMillis(1000);
             enableDLM(dlmPollInterval);
             long dlmEnabledTime = System.nanoTime();
@@ -338,20 +343,24 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(backingIndices.size(), equalTo(currentBackingIndexCount + 1));
                 String writeIndex = dataStream.getWriteIndex().getName();
                 assertThat(writeIndex, backingIndexEqualTo(dataStreamName, currentBackingIndexCount + 1));
-                int postDlmSegmentsNewIndex = getSegmentCount(newIndex);
+                int postDlmSegmentsNewlyRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
+                /*
+                 * We only expect forcemerge to happen on the 2nd DLM run and later, since on the first there's only the single write
+                 * index to be rolled over.
+                 */
                 if (currentBackingIndexCount > 1) {
-                    int postDlmSegmentsRolledOverIndex = getSegmentCount(rolledOverIndex);
+                    int postDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
                     assertThat(
-                        "The segments for " + rolledOverIndex + " were not merged",
-                        postDlmSegmentsRolledOverIndex,
-                        lessThan(preDlmSegmentsRolledOverIndex)
+                        "The segments for " + toBeForceMergedIndex + " were not merged",
+                        postDlmSegmentsForceMergedIndex,
+                        lessThan(preDlmSegmentsForceMergedIndex)
                     );
                 }
-                // We want to assert that the first run of DLM only rolls over the index, and doesn't forcemerge it
+                // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
                 assertThat(
-                    "The segments for " + newIndex + " were unexpectedly merged",
-                    postDlmSegmentsNewIndex,
-                    equalTo(preDlmSegmentsNewIndex)
+                    "The segments for " + toBeRolledOverIndex + " were unexpectedly merged",
+                    postDlmSegmentsNewlyRolledOverIndex,
+                    equalTo(preDlmSegmentsAboutToBeRolledOverIndex)
                 );
             });
         }
@@ -362,7 +371,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
     }
 
     private static void disableDLM() {
-        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, "10000s"));
+        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, TimeValue.MAX_VALUE));
     }
 
     private int getSegmentCount(String indexName) throws ExecutionException, InterruptedException {

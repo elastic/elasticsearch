@@ -24,7 +24,7 @@ supports https://mustache.github.io/[Mustache] variables and has a https://githu
 
 Typically https://mustache.github.io/[Mustache] variables are enclosed in
 double curly brackets: `{{my-var}}`. When you run a templated search, {es}
-replaces these variables with values from `params`. To learn more about mustache syntax - see http://mustache.github.io/mustache.5.html/[Mustache.js manual]
+replaces these variables with values from `params`. To learn more about mustache syntax - see http://mustache.github.io/mustache.5.html[Mustache.js manual]
 
 Search templates must use a `lang` of `mustache`.
 

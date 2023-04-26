@@ -156,14 +156,13 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
         // Scenario 3 (success) - cross cluster access authentication with right name on the inner authentication
         final Authentication authentication3 = AuthenticationTestHelper.builder()
-            .user(user)
-            .apiKey()
-            .build()
-            .toCrossClusterAccess(
+            .crossClusterAccess(
+                randomAlphaOfLength(20),
                 AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
                     AuthenticationTestHelper.builder().user(new User(requestedUsername)).build()
                 )
-            );
+            )
+            .build();
         when(context.getAuthentication()).thenReturn(authentication3);
         final HasPrivilegesRequest request3 = new HasPrivilegesRequest();
         request3.clusterPrivileges("all");

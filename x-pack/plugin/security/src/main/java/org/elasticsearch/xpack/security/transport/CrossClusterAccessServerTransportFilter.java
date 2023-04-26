@@ -101,7 +101,6 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 XPackInfoAction.NAME,
                 GetCheckpointAction.NAME,
                 // CCR actions
-                XPackInfoAction.NAME,
                 HasPrivilegesAction.NAME,
                 IndicesStatsAction.NAME,
                 RetentionLeaseActions.Add.ACTION_NAME,

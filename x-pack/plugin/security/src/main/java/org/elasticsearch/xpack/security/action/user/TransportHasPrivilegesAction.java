@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
 
 /**
  * Transport action that tests whether the currently authenticated user has the specified
@@ -61,16 +61,8 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
         final Authentication authentication = securityContext.getAuthentication();
-        final Subject subject = authentication.getEffectiveSubject();
-        if (authentication.isCrossClusterAccess()) {
-            final Subject innerSubject = ((Authentication) authentication.getAuthenticatingSubject()
-                .getMetadata()
-                .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).getEffectiveSubject();
-            if (innerSubject.getUser().principal().equals(username) == false) {
-                listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
-                return;
-            }
-        } else if (subject.getUser().principal().equals(username) == false) {
+
+        if (isSameUser(authentication, username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
         }
@@ -79,7 +71,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             request,
             ActionListener.wrap(
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
-                    subject,
+                    authentication.getEffectiveSubject(),
                     request.getPrivilegesToCheck(),
                     applicationPrivilegeDescriptors,
                     listener.map(privilegesCheckResult -> {
@@ -111,5 +103,15 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         return Arrays.stream(request.applicationPrivileges())
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
+    }
+
+    private static boolean isSameUser(Authentication authentication, String username) {
+        final Subject subjectToCheck;
+        if (authentication.isCrossClusterAccess()) {
+            subjectToCheck = getAuthenticationFromCrossClusterAccessMetadata(authentication).getEffectiveSubject();
+        } else {
+            subjectToCheck = authentication.getEffectiveSubject();
+        }
+        return subjectToCheck.getUser().principal().equals(username);
     }
 }

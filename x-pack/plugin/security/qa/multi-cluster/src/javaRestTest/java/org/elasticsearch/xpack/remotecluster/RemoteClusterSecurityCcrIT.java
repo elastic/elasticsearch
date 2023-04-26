@@ -122,6 +122,8 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 { "name": "doc-3" }
                 { "index": { "_index": "leader-index" } }
                 { "name": "doc-4" }
+                { "index": { "_index": "private-index" } }
+                { "name": "doc-5" }
                 """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
@@ -168,6 +170,19 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             assertNoFollowerInfo(followIndexName);
             final var e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
             assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
+        }
+
+        // query cluster error cases
+        {
+            final Request putCcrRequest = new Request("PUT", "/follower-index-2/_ccr/follow?wait_for_active_shards=1");
+            putCcrRequest.setJsonEntity("""
+                {
+                  "remote_cluster": "my_remote_cluster",
+                  "leader_index": "private-index"
+                }""");
+            final ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithCcrUser(putCcrRequest));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [private-index]"));
         }
     }
 

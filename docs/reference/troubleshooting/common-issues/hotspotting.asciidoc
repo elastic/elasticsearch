@@ -19,7 +19,7 @@ Hot spotting most commonly surfaces as significantly elevated
 resource utilization (of `disk.percent`, `heap.percent`, or `cpu`) among a 
 subset of nodes as reported via <<cat-nodes,cat nodes>>. Individual spikes aren't 
 necessarily problematic, but if utilization repeatedly spikes or consistently remains 
-high over time (e.g. `>30s`) then that resource may be experiencing problematic 
+high over time (for example longer than 30 seconds), the resource may be experiencing problematic 
 hot spotting. 
 
 For example, let's show case two separate plausible issues using cat nodes:
@@ -60,7 +60,7 @@ Here are some common improper hardware setups which may contribute to hot
 spotting:
 
 * Resources are allocated non-uniformly. For example, if one hot node is 
-given half the cpu of its peers. {es} expects all nodes on a 
+given half the CPU of its peers. {es} expects all nodes on a 
 <<data-tiers,data tier>> to share the same hardware profiles or 
 specifications.
 
@@ -115,13 +115,14 @@ node_3    445           43      271.5gb   289.4gb
 ----
 // TEST[skip:illustrative response only]
 
-Here we see two significantly unique situations. The first is a node 
-recently restarted so has much lower shards than all other nodes, 
-which also relates to `disk.indices` being much smaller than `disk.used` 
+Here we see two significantly unique situations. `node_1` has 
+recently restarted, so it has a much lower number of shards than all other nodes. 
+This also relates to `disk.indices` being much smaller than `disk.used` 
 while shards are recovering as seen via <<cat-recovery,cat recovery>>. The 
-second is one node with par shards shows much higher `disk.percent`. This 
+second situation is that `node_3` has a higher `disk.percent` than `node_1`, 
+even though they hold roughly the same number of shards. This 
 occurs when either shards are not evenly sized (refer to 
-<<shard-size-recommendation>>) or when there's a lot of empty indices.
+<<shard-size-recommendation>>) or when there are a lot of empty indices.
 
 Cluster rebalancing based on desired balance does much of the heavy lifting 
 of keeping nodes from hot spotting. It can be limited by either nodes hitting 
@@ -165,11 +166,11 @@ write  node_3   1 5 0 8714
 ----
 // TEST[skip:illustrative response only]
 
-Here you can see two significantly unique situations. Firstly, a node has a severely 
-backed up write queue compared to other nodes. Secondly, a node shows historically 
+Here you can see two significantly unique situations. Firstly, `node_1` has a severely 
+backed up write queue compared to other nodes. Secondly, `node_3` shows historically 
 completed writes that are double any other node. These are both probably due 
-to either poorly distributed write-heavy indices or are a synergestic point 
-where multiple write-heavy indices overlap. Since primary and replica writes 
+to either poorly distributed write-heavy indices, or to multiple write-heavy 
+indices allocated to the same node. Since primary and replica writes 
 are majorly the same amount of cluster work, we usually recommend setting 
 <<total-shards-per-node,`index.routing.allocation.total_shards_per_node`>> 
 to force index spreading after lining up index shard counts to total nodes. 
@@ -182,7 +183,7 @@ If it's non-obvious what indices are problematic, you can introspect further via
 GET _stats?level=shards&human&expand_wildcards=all&filter_path=indices.*.total.indexing.index_total
 ----
 
-For more advanced analysis, going further you can poll for shard-level stats, 
+For more advanced analysis, you can poll for shard-level stats, 
 which lets you compare joint index-level and node-level stats. This analysis 
 wouldn't account for node restarts and/or shards rerouting, but serves as 
 overview:

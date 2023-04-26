@@ -372,7 +372,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert false : message;
                     throw illegalArgumentExceptionWithDebugLog(message);
                 } else {
-                    assert false == action.startsWith("internal:") : "internal action must not be sent with non-system-user";
+                    assert false == action.startsWith("internal:") : "internal action must be sent with system user";
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
                         authentication.getEffectiveSubject(),

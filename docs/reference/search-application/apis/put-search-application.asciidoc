@@ -38,7 +38,7 @@ Contains parameters for a search application:
 ====
 `indices`::
 (Required, array of strings)
-The <<indices>> associated with this search application. All indices need to exist in order to be added to a search application.
+The <<indices,indices>> associated with this search application. All indices need to exist in order to be added to a search application.
 
 `analytics_collection_name`::
 (Optional, string) The name of the behavioral analytics association being used with this search application.
@@ -50,9 +50,9 @@ The <<search-template,search template>> associated with this search application.
 
 - This search template must be a Mustache template.
 - The template must contain a Mustache script and script source.
-- The template may be modified with subsequent <<put-search-application>> requests.
-- If no template is specified when creating a search application, or if a template is removed from a search application, we use the default <<query-string-query-ex-request>> defined in the template examples as a default.
-- This template will be used by the <<search-application-search>> API to execute searches.
+- The template may be modified with subsequent <<put-search-application,put search application>> requests.
+- If no template is specified when creating a search application, or if a template is removed from a search application, we use the <<query-string-query-ex-request,query_string>> defined in the template examples as a default.
+- This template will be used by the <<search-application-search,search application search>> API to execute searches.
 ====
 
 

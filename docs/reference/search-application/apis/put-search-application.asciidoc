@@ -42,7 +42,7 @@ The <<indices>> associated with this search application. All indices need to exi
 
 `analytics_collection_name`::
 (Optional, string) The name of the behavioral analytics association being used with this search application.
-As of this release, this is used for informational purposes only. For more information see: <<behavioral-analytics-apis
+Presently, this is used for informational purposes only. For more information see: <<behavioral-analytics-apis
 
 `template`::
 (Optional, object)

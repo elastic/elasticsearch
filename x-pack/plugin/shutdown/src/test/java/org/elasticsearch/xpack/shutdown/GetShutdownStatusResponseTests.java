@@ -61,7 +61,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
             .setStartedAtMillis(randomNonNegativeLong())
             .setTargetNodeName(targetNodeName)
             .setAllocationDelay(allocationDelay)
-            .setGracefulShutdown(gracefulShutdown)
+            .setGracePeriod(gracefulShutdown)
             .build();
     }
 

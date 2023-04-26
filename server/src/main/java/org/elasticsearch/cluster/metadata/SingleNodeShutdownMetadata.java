@@ -355,7 +355,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         private boolean nodeSeen = false;
         private TimeValue allocationDelay;
         private String targetNodeName;
-        private TimeValue gracefulShutdown;
+        private TimeValue gracePeriod;
 
         private Builder() {}
 
@@ -422,8 +422,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             return this;
         }
 
-        public Builder setGracefulShutdown(TimeValue gracefulShutdown) {
-            this.gracefulShutdown = gracefulShutdown;
+        public Builder setGracePeriod(TimeValue gracePeriod) {
+            this.gracePeriod = gracePeriod;
             return this;
         }
 
@@ -440,7 +440,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                 nodeSeen,
                 allocationDelay,
                 targetNodeName,
-                gracefulShutdown
+                gracePeriod
             );
         }
     }

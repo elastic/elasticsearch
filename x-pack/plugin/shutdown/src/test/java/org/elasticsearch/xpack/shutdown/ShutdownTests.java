@@ -76,7 +76,7 @@ public class ShutdownTests extends ESTestCase {
             .setNodeId(localNode.getId())
             .setType(Type.SIGTERM)
             .setStartedAtMillis(start)
-            .setGracefulShutdown(grace)
+            .setGracePeriod(grace)
             .setReason("my reason")
             .build();
     }
@@ -92,7 +92,7 @@ public class ShutdownTests extends ESTestCase {
                             .setNodeId(node.getId())
                             .setType(Type.SIGTERM)
                             .setStartedAtMillis(start)
-                            .setGracefulShutdown(grace)
+                            .setGracePeriod(grace)
                             .setReason("my reason")
                             .build(),
                         start + (2 * grace.millis()), // would otherwise be cleaned up
@@ -110,7 +110,7 @@ public class ShutdownTests extends ESTestCase {
                     .setNodeId("anotherNode")
                     .setType(Type.SIGTERM)
                     .setStartedAtMillis(start)
-                    .setGracefulShutdown(grace)
+                    .setGracePeriod(grace)
                     .setReason("my reason")
                     .build(),
                 start - 120_000,
@@ -127,7 +127,7 @@ public class ShutdownTests extends ESTestCase {
                     .setNodeId("anotherNode")
                     .setType(Type.SIGTERM)
                     .setStartedAtMillis(start)
-                    .setGracefulShutdown(grace)
+                    .setGracePeriod(grace)
                     .setReason("my reason")
                     .build(),
                 start - 1_000,
@@ -143,7 +143,7 @@ public class ShutdownTests extends ESTestCase {
             .setNodeId("anotherNode")
             .setType(Type.SIGTERM)
             .setStartedAtMillis(start)
-            .setGracefulShutdown(grace)
+            .setGracePeriod(grace)
             .setReason("my reason")
             .build();
         assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs - 1, state));

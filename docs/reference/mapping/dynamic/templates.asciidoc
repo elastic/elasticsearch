@@ -235,9 +235,9 @@ PUT my-index-000001/_doc/1
 You can specify a list of patterns using a JSON array for either the
 `match` or `unmatch` fields.
 
-The next example matches all fields whose name starts with `ip_` or ends with `_ip`
-in the name, except for those which start with "one" or end with "two" and maps them
-as `keyword` fields:
+The next example matches all fields whose name starts with `ip_` or ends with `_ip`, 
+except for fields which start with `one` or end with `two` and maps them
+as `ip` fields:
 
 [source,console]
 --------------------------------------------------
@@ -247,7 +247,7 @@ PUT my-index-000001
     "dynamic_templates": [
       {
         "ip_fields": {
-          "match": ["ip_*", "*_ip"],
+          "match":   ["ip_*", "*_ip"],
           "unmatch": ["one*", "*two"],
           "mapping": {
             "type": "ip"
@@ -260,17 +260,17 @@ PUT my-index-000001
 
 PUT my-index/_doc/1
 {
-  "one_ip": "will not match", <1>
-  "ip_two": "will not match", <2>
+  "one_ip":   "will not match", <1>
+  "ip_two":   "will not match", <2>
   "three_ip": "12.12.12.12", <3>
-  "ip_four": "13.13.13.13" <4>
+  "ip_four":  "13.13.13.13" <4>
 }
 --------------------------------------------------
 
 <1> The `one_ip` field is unmatched, so uses the default mapping of `text`.
 <2> The `ip_two` field is unmatched, so uses the default mapping of `text`.
-<3> The `three_ip` field is mapped as `ip`.
-<4> The `ip_four` field is mapped as `ip`.
+<3> The `three_ip` field is mapped as type `ip`.
+<4> The `ip_four` field is mapped as type `ip`.
 
 
 [[path-match-unmatch]]
@@ -353,9 +353,9 @@ PUT my-index-000001/_doc/2
 {
   "user": {
     "name": {
-      "first":  "Jane",
+      "first":      "Jane",
       "midinitial": "M",
-      "last":   "Salazar"
+      "last":       "Salazar"
     }
   }
 }

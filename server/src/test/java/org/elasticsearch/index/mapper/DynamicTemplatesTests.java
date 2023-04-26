@@ -1765,7 +1765,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testMatchWithArrayOfFieldNames() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
@@ -1811,7 +1811,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testMatchAndUnmatchWithArrayOfFieldNamesMapToIpType() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
@@ -1864,7 +1864,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testMatchWithArrayOfFieldNamesUsingRegex() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
@@ -1911,7 +1911,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testMatchWithArrayOfFieldNamesMixingGlobsAndRegex() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
@@ -1958,7 +1958,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
@@ -2018,7 +2018,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testMatchAndUnmatchWithArrayOfFieldNamesWithMatchMappingType() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
@@ -2057,7 +2057,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testPathMatchWithArrayOfFieldNames() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "full_name": {
@@ -2143,7 +2143,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testPathMatchAndPathUnmatchWithArrayOfFieldNames() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "full_name": {
@@ -2228,7 +2228,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     public void testInvalidMatchWithArrayOfFieldNamesUsingNonStringEntries() throws IOException {
         String mapping = """
             {
-              "_mappings": {
+              "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {

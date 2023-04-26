@@ -12,6 +12,7 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.initialization.IncludedBuild;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -19,6 +20,7 @@ import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
 import java.io.File;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -117,11 +119,23 @@ public class Util {
     }
 
     public static File locateElasticsearchWorkspace(Project project) {
-        if (project.getRootProject().getName() == "elasticsearch") {
-            return project.getRootProject().getRootDir();
-        } else {
-            // We're an included build, so keep looking
-            return project.getRootDir().getParentFile();
+        File rootDir = project.getRootProject().getRootDir();
+        if (versionFileExists(rootDir)) {
+            return rootDir;
         }
+        File parentDir = rootDir.getParentFile();
+        if (versionFileExists(parentDir)) {
+            return parentDir;
+        }
+        File elasticsearchIncluded = new File(rootDir, "elasticsearch");
+        if (versionFileExists(elasticsearchIncluded)) {
+            return elasticsearchIncluded;
+        }
+        throw new IllegalStateException("Cannot resolve elasticsearch workspace");
+    }
+
+    private static boolean versionFileExists(File rootDir) {
+        File versionProperties = new File(rootDir, "build-tools-internal/version.properties");
+        return versionProperties.exists();
     }
 }

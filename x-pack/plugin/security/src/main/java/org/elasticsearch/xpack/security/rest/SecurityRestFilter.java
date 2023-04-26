@@ -12,6 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -87,6 +89,7 @@ public class SecurityRestFilter implements RestHandler {
                 if (secondaryAuthentication != null) {
                     logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, request.uri());
                 }
+                maybeStoreRestHandlerNameInThreadContext(request);
                 doHandleRequest(request, channel, client);
             }, e -> handleException(request, channel, e)));
         }, e -> handleException(request, channel, e)));
@@ -99,6 +102,29 @@ public class SecurityRestFilter implements RestHandler {
         } catch (Exception e) {
             logger.debug(() -> format("Request handling failed for REST request [%s]", request.uri()), e);
             throw e;
+        }
+    }
+
+    private Optional<String> resolveRestHandlerName() {
+        // TODO: Not all rest handlers extend BaseRestHandler.
+        // Would it make sense to enforce that every rest handler provides a unique name?
+        // Or assume if name is missing then the roles which are restricted to workflows should be rejected?
+        if (restHandler instanceof BaseRestHandler baseRestHandler) {
+            return Optional.ofNullable(baseRestHandler.getName());
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    private void maybeStoreRestHandlerNameInThreadContext(RestRequest request) {
+        final Optional<String> restHandlerName = resolveRestHandlerName();
+        assert threadContext.getHeader("_xpack_rest_handler_name") == null
+            : "thread context should not have rest handler name set: " + threadContext.getHeader("_xpack_rest_handler_name");
+        if (restHandlerName.isPresent()) {
+            logger.info(() -> format("resolved name [%s] of rest handler [%s] for uri [%s].",restHandlerName.get(), restHandler.getClass(), request.uri()));
+            threadContext.putHeader("_xpack_rest_handler_name", restHandlerName.get());
+        } else {
+            logger.info(() -> format("could not resolve name of rest handler [%s] for uri [%s].", restHandler.getClass(), request.uri()));
         }
     }
 

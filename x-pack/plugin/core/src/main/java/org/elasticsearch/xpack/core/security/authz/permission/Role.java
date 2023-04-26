@@ -66,6 +66,8 @@ public interface Role {
      */
     boolean hasFieldOrDocumentLevelSecurity();
 
+    boolean hasWorkflowsPermission();
+
     /**
      * @return A predicate that will match all the indices that this role
      * has the privilege for executing the given action on.

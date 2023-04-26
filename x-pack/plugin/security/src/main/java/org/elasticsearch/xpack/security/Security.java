@@ -275,6 +275,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestCacheDisa
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.WorkflowRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -913,6 +914,7 @@ public class Security extends Plugin
                 )
             );
         }
+        requestInterceptors.add(new WorkflowRequestInterceptor(threadPool.getThreadContext(), getLicenseState()));
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
         final AuthorizationService authzService = new AuthorizationService(

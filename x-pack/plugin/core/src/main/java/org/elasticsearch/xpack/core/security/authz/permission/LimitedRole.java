@@ -80,6 +80,11 @@ public final class LimitedRole implements Role {
     }
 
     @Override
+    public boolean hasWorkflowsPermission() {
+        return baseRole.hasWorkflowsPermission() || limitedByRole.hasWorkflowsPermission();
+    }
+
+    @Override
     public ApplicationPermission application() {
         throw new UnsupportedOperationException("cannot retrieve application permission on limited role");
     }

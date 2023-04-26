@@ -214,6 +214,11 @@ public class SimpleRole implements Role {
     }
 
     @Override
+    public boolean hasWorkflowsPermission() {
+        return workflows.workflows().isEmpty() == false;
+    }
+
+    @Override
     public boolean checkWorkflowEndpoint(String endpoint) {
         return workflows.checkEndpoint(endpoint);
     }

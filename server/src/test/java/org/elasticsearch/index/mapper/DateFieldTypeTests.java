@@ -16,13 +16,18 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -168,7 +173,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(date, ft.valueForDisplay(instant));
     }
 
-    public void testTermQuery() {
+    public void testTermQueryWithNoTermsIndex() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -195,13 +200,87 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             emptyMap()
         );
-        MappedFieldType ft = new DateFieldType("field");
+        MappedFieldType ft = new DateFieldType(
+            "field",
+            true,
+            true,
+            false,
+            true,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null,
+            Collections.emptyMap());
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant + 999),
             SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
         );
+        assertEquals(expected, ft.termQuery(date, context));
+
+        ft = new DateFieldType("field", false);
+        expected = SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999);
+        assertEquals(expected, ft.termQuery(date, context));
+
+        MappedFieldType unsearchable = new DateFieldType(
+            "field",
+            false,
+            false,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null,
+            Collections.emptyMap()
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(date, context));
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+    }
+
+    public void testTermQueryWithTermsIndex() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        SearchExecutionContext context = new SearchExecutionContext(
+            0,
+            0,
+            new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            parserConfig(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
+        MappedFieldType ft = new DateFieldType(
+            "field",
+            true,
+            true,
+            false,
+            true,
+            true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null,
+            Collections.emptyMap());
+        String date = "2015-10-12T14:10:55";
+        long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
+        Query expected = new TermQuery(new Term("field", new BytesRef(Numbers.longToBytes(instant))));
         assertEquals(expected, ft.termQuery(date, context));
 
         ft = new DateFieldType("field", false);

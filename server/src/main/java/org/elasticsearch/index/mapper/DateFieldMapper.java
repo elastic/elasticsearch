@@ -10,19 +10,27 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -62,6 +70,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
@@ -226,6 +235,8 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
+        private final Parameter<Boolean> hasTerms = Parameter.hasTermsParam(m -> toType(m).hasTerms, false);
+
         private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -350,6 +361,7 @@ public final class DateFieldMapper extends FieldMapper {
                 index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
+                hasTerms.getValue(),
                 buildFormatter(),
                 resolution,
                 nullValue.getValue(),
@@ -395,6 +407,7 @@ public final class DateFieldMapper extends FieldMapper {
         protected final String nullValue;
         protected final FieldValues<Long> scriptValues;
         private final boolean pointsMetadataAvailable;
+        private final boolean hasTerms;
 
         public DateFieldType(
             String name,
@@ -402,6 +415,7 @@ public final class DateFieldMapper extends FieldMapper {
             boolean pointsMetadataAvailable,
             boolean isStored,
             boolean hasDocValues,
+            boolean hasTerms,
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
@@ -415,6 +429,7 @@ public final class DateFieldMapper extends FieldMapper {
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.pointsMetadataAvailable = pointsMetadataAvailable;
+            this.hasTerms = hasTerms;
         }
 
         public DateFieldType(
@@ -428,11 +443,11 @@ public final class DateFieldMapper extends FieldMapper {
             FieldValues<Long> scriptValues,
             Map<String, String> meta
         ) {
-            this(name, isIndexed, isIndexed, isStored, hasDocValues, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
+            this(name, isIndexed, isIndexed, isStored, hasDocValues, isIndexed, dateTimeFormatter, resolution, nullValue, scriptValues, meta);
         }
 
         public DateFieldType(String name) {
-            this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, boolean isIndexed) {
@@ -442,6 +457,7 @@ public final class DateFieldMapper extends FieldMapper {
                 isIndexed,
                 false,
                 true,
+                isIndexed,
                 DEFAULT_DATE_TIME_FORMATTER,
                 Resolution.MILLISECONDS,
                 null,
@@ -451,15 +467,15 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, true, dateFormatter, Resolution.MILLISECONDS, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, true, false, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, true, DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, true, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
+            this(name, true, true, false, true, true, dateFormatter, resolution, null, null, Collections.emptyMap());
         }
 
         @Override
@@ -549,7 +565,26 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
+            if (isIndexed() && hasTerms) {
+                long timestamp = parseToLong(value, false, null, dateMathParser, context::nowInMillis, resolution);
+                return new TermQuery(new Term(name(), serializeDate(timestamp)));
+            }
             return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+            if (isIndexed() && hasTerms) {
+                BytesRef[] v = new BytesRef[values.size()];
+                int pos = 0;
+                for (Object value : values) {
+                    long timestamp = parseToLong(value, false, null, dateMathParser, context::nowInMillis, resolution);
+                    v[pos++] = serializeDate(timestamp);
+                }
+                return new TermInSetQuery(name(), v);
+            } else {
+                return super.termsQuery(values, context);
+            }
         }
 
         @Override
@@ -594,6 +629,26 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 return query;
             });
+        }
+
+        private static FieldType getTermsFieldType() {
+            FieldType fieldType = new FieldType();
+            fieldType.setTokenized(false);
+            fieldType.setOmitNorms(true);
+            fieldType.setStoreTermVectors(false);
+            fieldType.setIndexOptions(IndexOptions.DOCS);
+            fieldType.freeze();
+            return fieldType;
+        }
+
+        private static BytesRef serializeDate(long value) {
+            return new BytesRef(Numbers.longToBytes(value));
+        }
+
+        private static class DateTermField extends Field {
+            private DateTermField(String field, long term) {
+                super(field, serializeDate(term), getTermsFieldType());
+            }
         }
 
         public static Query dateRangeQuery(
@@ -826,6 +881,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean store;
     private final boolean indexed;
     private final boolean hasDocValues;
+    private final boolean hasTerms;
     private final Locale locale;
     private final String format;
     private final boolean ignoreMalformed;
@@ -853,6 +909,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();
+        this.hasTerms = builder.hasTerms.getValue();
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
@@ -908,6 +965,10 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, long timestamp) {
+        if (indexed && hasTerms) {
+            context.doc().add(new DateFieldType.DateTermField(fieldType().name(), timestamp));
+        }
+
         if (indexed && hasDocValues) {
             context.doc().add(new LongField(fieldType().name(), timestamp));
         } else if (hasDocValues) {

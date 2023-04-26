@@ -1508,6 +1508,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             false,
             true,
             true,
+            true,
             null,
             Map.of(),
             null,
@@ -1517,7 +1518,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
-            numberType.addFields(document, "f", i, true, true, false);
+            numberType.addFields(document, "f", i, true, true, false, true);
             return document;
         });
     }
@@ -1529,6 +1530,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 randomFrom(NumberFieldMapper.NumberType.values()),
                 true,
                 false,
+                true,
                 true,
                 true,
                 null,

@@ -19,6 +19,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -27,6 +28,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -34,6 +37,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -92,15 +96,38 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void testIntegerTermsQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+    public void testTermsQueryWithTermsIndex() {
+        MappedFieldType ft = indexedWithTerms("field", NumberType.INTEGER);
+        TermQuery expected = new TermQuery(new Term("field", new BytesRef(Numbers.intToBytes(11))));
+        assertEquals(expected, ft.termQuery(11, MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIntegerTermsQueryWithDecimalPartWithTermsIndex() {
+        MappedFieldType ft = indexedWithTerms("field", NumberType.INTEGER);
+        TermInSetQuery expected = new TermInSetQuery("field", new BytesRef[]{new BytesRef(Numbers.intToBytes(1))});
+        assertEquals(expected, ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(expected, ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIntegerTermsQueryWithDecimalPartWithNoTermsIndex() {
+        MappedFieldType ft = indexedWithoutTerms("field", NumberType.INTEGER);
         assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
         assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
-    public void testLongTermsQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+    public void testLongTermsQueryWithDecimalPartWithTermsIndex() {
+        MappedFieldType ft = indexedWithTerms("field", NumberType.LONG);
+        TermInSetQuery expected = new TermInSetQuery("field", new BytesRef[]{new BytesRef(Numbers.longToBytes(1))});
+        assertEquals(expected, ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(expected, ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
+    }
+
+    public void testLongTermsQueryWithDecimalPartWithNoTermsIndex() {
+        MappedFieldType ft = indexedWithoutTerms("field", NumberType.LONG);
         assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
         assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
@@ -126,13 +153,14 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
-    private static MappedFieldType unsearchable() {
+    private static MappedFieldType indexedWithTerms(String name, NumberType type) {
         return new NumberFieldType(
-            "field",
-            NumberType.LONG,
+            name,
+            type,
+            true,
             false,
             false,
-            false,
+            true,
             true,
             null,
             Collections.emptyMap(),
@@ -143,8 +171,44 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void testTermQuery() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+    private static MappedFieldType indexedWithoutTerms(String name, NumberType type) {
+        return new NumberFieldType(
+            name,
+            type,
+            true,
+            false,
+            false,
+            true,
+            false,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null
+        );
+    }
+
+    private static MappedFieldType unsearchable() {
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            false,
+            false,
+            false,
+            true,
+            false,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null
+        );
+    }
+
+    public void testTermQueryWithNoTermsIndex() {
+        MappedFieldType ft = indexedWithoutTerms("field", NumberType.LONG);
         assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
@@ -160,6 +224,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
         );
+    }
+
+    public void testTermQueryWithTermsIndex() {
+        MappedFieldType ft = indexedWithTerms("field", NumberType.LONG);
+        assertEquals(new TermQuery(new Term("field", new BytesRef(Numbers.longToBytes(42L)))), ft.termQuery("42", MOCK_CONTEXT));
     }
 
     public void testRangeQueryWithNegativeBounds() {
@@ -491,6 +560,71 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IOUtils.close(reader, dir);
     }
 
+    public void testTermsIndexLong() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.LONG, 10_300_123_456L, 10_300_123_457L);
+    }
+
+    public void testTermsIndexInt() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.INTEGER, 300_123_456, 300_123_457);
+    }
+
+    public void testTermsIndexDouble() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.DOUBLE, 10_300_123_456.345d, 10_300_123_457.345d);
+    }
+
+    public void testTermsIndexFloat() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.FLOAT, 300_125_456.345f, 300_124_457.345f);
+    }
+
+    public void testTermsIndexHalfFloat() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.HALF_FLOAT, 456.345f, 457.345f);
+    }
+
+    public void testTermsIndexByte() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.BYTE, 123, 124);
+    }
+
+    public void testTermsIndexShort() throws Exception {
+        doTestTermsIndexTermQueries(NumberType.SHORT, 2345, 2346);
+    }
+
+    public void doTestTermsIndexTermQueries(NumberType type, Number value, Number nonValue) throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        final int numDocs = TestUtil.nextInt(random(), 100, 500);
+        for (int i = 0; i < numDocs; ++i) {
+            final LuceneDocument doc = new LuceneDocument();
+            type.addFields(doc, "foo", value, true, true, false, true);
+            w.addDocument(doc);
+        }
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = newSearcher(reader);
+        w.close();
+
+        Query query = type.termQuery(
+            "foo",
+            value,
+            true,
+            true
+        );
+
+        assertThat(query, instanceOf(TermQuery.class));
+        assertEquals(searcher.count(query), numDocs);
+
+        query = type.termQuery(
+            "foo",
+            nonValue,
+            true,
+            true
+        );
+
+        assertThat(query, instanceOf(TermQuery.class));
+        assertEquals(searcher.count(query), 0);
+
+        reader.close();
+        dir.close();
+    }
+
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
         assertEquals(
@@ -506,9 +640,25 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
 
-        assertNotEquals(NumberType.DOUBLE.termQuery("field", -0d, isIndexed), NumberType.DOUBLE.termQuery("field", +0d, isIndexed));
-        assertNotEquals(NumberType.FLOAT.termQuery("field", -0f, isIndexed), NumberType.FLOAT.termQuery("field", +0f, isIndexed));
-        assertNotEquals(NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed), NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed));
+        assertNotEquals(
+            NumberType.DOUBLE.termQuery("field", -0d, isIndexed, false),
+            NumberType.DOUBLE.termQuery("field", +0d, isIndexed, false));
+        assertNotEquals(
+            NumberType.FLOAT.termQuery("field", -0f, isIndexed, false),
+            NumberType.FLOAT.termQuery("field", +0f, isIndexed, false));
+        assertNotEquals(
+            NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed, false),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed, false));
+
+        assertNotEquals(
+            NumberType.DOUBLE.termQuery("field", -0d, isIndexed, true),
+            NumberType.DOUBLE.termQuery("field", +0d, isIndexed, true));
+        assertNotEquals(
+            NumberType.FLOAT.termQuery("field", -0f, isIndexed, true),
+            NumberType.FLOAT.termQuery("field", +0f, isIndexed, true));
+        assertNotEquals(
+            NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed, true),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed, true));
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match
@@ -547,7 +697,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "foo", valueSupplier.get(), true, true, false, false);
             w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
@@ -608,7 +758,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "field", valueSupplier.get(), true, true, false, false);
             w.addDocument(doc);
         }
 

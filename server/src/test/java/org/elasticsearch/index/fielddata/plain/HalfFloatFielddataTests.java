@@ -33,7 +33,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         // we need the default codec to check for singletons
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(TestUtil.getDefaultCodec()));
         LuceneDocument doc = new LuceneDocument();
-        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false, true);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
@@ -53,8 +53,8 @@ public class HalfFloatFielddataTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         LuceneDocument doc = new LuceneDocument();
-        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false);
-        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 2f, false, true, false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 3f, false, true, false, true);
+        NumberFieldMapper.NumberType.HALF_FLOAT.addFields(doc, "half_float", 2f, false, true, false, true);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);

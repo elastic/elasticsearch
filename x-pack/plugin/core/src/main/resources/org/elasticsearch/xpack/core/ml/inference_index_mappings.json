@@ -59,6 +59,9 @@
       "total_definition_length": {
         "type": "long"
       },
+      "eos":{
+        "type": "boolean"
+      },
       "default_field_map": {
         "enabled": false
       },

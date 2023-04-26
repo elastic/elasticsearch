@@ -17,6 +17,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -53,6 +54,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 createAndOpenTestJob();
+                createNlpModel();
                 break;
             case MIXED:
                 // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
@@ -63,6 +65,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 closeAndReopenTestJob();
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
+                assertMlNativeMappings();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
                 break;
             default:
@@ -92,6 +95,13 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         Request openJob = new Request("POST", "_ml/anomaly_detectors/" + JOB_ID + "/_open");
         response = client().performRequest(openJob);
         assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
+    private void createNlpModel() throws IOException {
+        String modelId = "nlp-model-mappings-upgrade";
+        MLModelDeploymentsUpgradeIT.createTrainedModel(client(), modelId);
+        MLModelDeploymentsUpgradeIT.putModelDefinition(client(), modelId);
+        MLModelDeploymentsUpgradeIT.putVocabulary(client(), List.of("these", "are", "my", "words"), modelId);
     }
 
     // Doing this should force the config index mappings to be upgraded,
@@ -223,6 +233,36 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "Incorrect type for annotations_enabled in " + responseLevel,
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
+            );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertMlNativeMappings() throws Exception {
+        String indexName = ".ml-inference-native-000001";
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", indexName + "/_mappings");
+            getMappings.setOptions(
+                expectWarnings(
+                    "this request accesses system indices: [" + indexName + "], but in a future major "
+                        + "version, direct access to system indices will be prevented by default"
+                )
+            );
+            Response response = client().performRequest(getMappings);
+
+            Map<String, Object> responseLevel = entityAsMap(response);
+            assertNotNull(responseLevel);
+            Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(indexName);
+            assertNotNull(indexLevel);
+
+            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+
+            // TODO: as the years go by, the field we assert on here should be changed
+            // to the most recent field we've added that is NOT of type "keyword"
+            assertEquals(
+                "Incorrect type for annotations_enabled in " + responseLevel,
+                "boolean",
+                extractValue("mappings.properties.eos.type", indexLevel)
             );
         });
     }

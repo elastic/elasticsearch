@@ -11,6 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.junit.After;
@@ -192,14 +193,22 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
-    private void putModelDefinition(String modelId) throws IOException {
+    void putModelDefinition(String modelId) throws IOException {
+        putModelDefinition(client(), modelId);
+    }
+
+    static void putModelDefinition(RestClient client, String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
         request.setJsonEntity(Strings.format("""
             {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
-    private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
+    void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
+        putVocabulary(client(), vocabulary, modelId);
+    }
+
+    static void putVocabulary(RestClient client, List<String> vocabulary, String modelId) throws IOException {
         List<String> vocabularyWithPad = new ArrayList<>();
         vocabularyWithPad.add("[PAD]");
         vocabularyWithPad.add("[UNK]");
@@ -210,10 +219,14 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         request.setJsonEntity(Strings.format("""
             { "vocabulary": [%s] }
             """, quotedWords));
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
-    private void createTrainedModel(String modelId) throws IOException {
+    void createTrainedModel(String modelId) throws IOException {
+        createTrainedModel(client(), modelId);
+    }
+
+    static void createTrainedModel(RestClient client, String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity("""
             {
@@ -229,7 +242,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                  }
                }
              }""");
-        client().performRequest(request);
+        client.performRequest(request);
     }
 
     private Response startDeployment(String modelId) throws IOException {

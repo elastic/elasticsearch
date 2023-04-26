@@ -530,7 +530,6 @@ public class TasksIT extends ESIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95325")
     public void testTasksUnblocking() throws Exception {
         // Start blocking test task
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");
@@ -546,9 +545,11 @@ public class TasksIT extends ESIntegTestCase {
         new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
-        assertEquals(
-            0,
-            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+        assertBusy(
+            () -> assertEquals(
+                0,
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
         );
     }
 

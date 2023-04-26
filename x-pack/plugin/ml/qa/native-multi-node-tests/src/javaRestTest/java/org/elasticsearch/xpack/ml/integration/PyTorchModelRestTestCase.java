@@ -122,7 +122,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected void assertInferenceCount(int expectedCount, String deploymentId) throws IOException {
+    protected void assertInferenceCountOnDeployment(int expectedCount, String deploymentId) throws IOException {
         Response statsResponse = getTrainedModelStats(deploymentId);
         Map<String, Object> stats = entityAsMap(statsResponse);
         List<Map<String, Object>> trainedModelStats = (List<Map<String, Object>>) stats.get("trained_model_stats");
@@ -141,6 +141,23 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         }
 
         assertTrue("No deployment stats found for deployment [" + deploymentId + "]", deploymentFound);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void assertInferenceCountOnModel(int expectedCount, String modelId) throws IOException {
+        Response statsResponse = getTrainedModelStats(modelId);
+        Map<String, Object> stats = entityAsMap(statsResponse);
+        List<Map<String, Object>> trainedModelStats = (List<Map<String, Object>>) stats.get("trained_model_stats");
+
+        int summedCount = 0;
+        for (var statsMap : trainedModelStats) {
+            assertEquals(modelId, statsMap.get("model_id"));
+            var deploymentStats = (Map<String, Object>) XContentMapValues.extractValue("deployment_stats", statsMap);
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue("nodes", deploymentStats);
+            summedCount += sumInferenceCountOnNodes(nodes);
+        }
+
+        assertEquals(stats.toString(), expectedCount, summedCount);
     }
 
     protected int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
@@ -212,21 +229,21 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
     }
 
     protected Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
+        return startDeployment(modelId, AllocationStatus.State.STARTED);
     }
 
     protected Response startWithDeploymentId(String modelId, String deploymentId) throws IOException {
-        return startDeployment(modelId, deploymentId, AllocationStatus.State.STARTED.toString(), 1, 1, Priority.NORMAL);
+        return startDeployment(modelId, deploymentId, AllocationStatus.State.STARTED, 1, 1, Priority.NORMAL);
     }
 
-    protected Response startDeployment(String modelId, String waitForState) throws IOException {
+    protected Response startDeployment(String modelId, AllocationStatus.State waitForState) throws IOException {
         return startDeployment(modelId, null, waitForState, 1, 1, Priority.NORMAL);
     }
 
     protected Response startDeployment(
         String modelId,
         String deploymentId,
-        String waitForState,
+        AllocationStatus.State waitForState,
         int numberOfAllocations,
         int threadsPerAllocation,
         Priority priority

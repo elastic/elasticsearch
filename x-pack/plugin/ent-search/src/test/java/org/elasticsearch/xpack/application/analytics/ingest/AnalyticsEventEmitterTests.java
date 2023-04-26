@@ -19,6 +19,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionResolver;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
@@ -29,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
@@ -96,12 +99,18 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         Client clientMock = mock(Client.class);
 
         // Mocking the bulk processor used in the test.
-        BulkProcessorFactory bulkProcessorFactoryMock = mock(BulkProcessorFactory.class);
         BulkProcessor2 bulkProcessorMock = mock(BulkProcessor2.class);
-        doReturn(bulkProcessorMock).when(bulkProcessorFactoryMock).create(clientMock);
+
+        // Mocking the analytics collection resolver used in the test
+        AnalyticsCollectionResolver collectionResolverMock = mock(AnalyticsCollectionResolver.class);
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(clientMock, bulkProcessorFactoryMock, eventFactoryMock);
+        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(
+            clientMock,
+            bulkProcessorMock,
+            collectionResolverMock,
+            eventFactoryMock
+        );
 
         // Emit the event.
         analyticsEventEmitter.emitEvent(request, listener);
@@ -121,29 +130,39 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
 
     public void testEmitEventWhenCollectionWhenBulkProcessorIsFull() throws IOException {
         // Preparing a mocked request.
+        String collectionName = randomIdentifier();
         PostAnalyticsEventAction.Request request = mock(PostAnalyticsEventAction.Request.class);
+        doReturn(collectionName).when(request).eventCollectionName();
 
         // Preparing an action listener.
         @SuppressWarnings("unchecked")
         ActionListener<PostAnalyticsEventAction.Response> listener = mock(ActionListener.class);
 
         AnalyticsEventFactory eventFactoryMock = mock(AnalyticsEventFactory.class);
-        doReturn(analyticsEventMock(randomIdentifier())).when(eventFactoryMock).fromRequest(request);
+        doReturn(analyticsEventMock(collectionName)).when(eventFactoryMock).fromRequest(request);
 
         // Mocking the client used in the test.
         Client clientMock = mock(Client.class);
         doReturn(mock(ThreadPool.class)).when(clientMock).threadPool();
 
         // Mocking the bulk processor used in the test.
-        BulkProcessorFactory bulkProcessorFactoryMock = mock(BulkProcessorFactory.class);
         BulkProcessor2 bulkProcessorMock = mock(BulkProcessor2.class);
-        doReturn(bulkProcessorMock).when(bulkProcessorFactoryMock).create(clientMock);
 
-        // The bulk processor return an exception
+        // Mocking the analytics collection resolver used in the test.
+        AnalyticsCollectionResolver collectionResolverMock = mock(AnalyticsCollectionResolver.class);
+        AnalyticsCollection collectionMock = mock(AnalyticsCollection.class);
+        doReturn(collectionMock).when(collectionResolverMock).collection(eq(collectionName));
+
+        // The bulk processor return an exception.
         doThrow(EsRejectedExecutionException.class).when(bulkProcessorMock).add(any(IndexRequest.class));
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(clientMock, bulkProcessorFactoryMock, eventFactoryMock);
+        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(
+            clientMock,
+            bulkProcessorMock,
+            collectionResolverMock,
+            eventFactoryMock
+        );
 
         // Emit the event.
         analyticsEventEmitter.emitEvent(request, listener);
@@ -160,16 +179,16 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
     }
 
     public void testEventProcessorIsClosedAutomatically() {
-        // Mocking the client used in the test.
-        Client client = mock(Client.class);
-
         // Mocking the bulk processor used in the test.
-        BulkProcessorFactory bulkProcessorFactory = mock(BulkProcessorFactory.class);
         BulkProcessor2 bulkProcessor = mock(BulkProcessor2.class);
-        doReturn(bulkProcessor).when(bulkProcessorFactory).create(client);
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter eventEmitter = new AnalyticsEventEmitter(client, bulkProcessorFactory, mock(AnalyticsEventFactory.class));
+        AnalyticsEventEmitter eventEmitter = new AnalyticsEventEmitter(
+            mock(Client.class),
+            bulkProcessor,
+            mock(AnalyticsCollectionResolver.class),
+            mock(AnalyticsEventFactory.class)
+        );
 
         // Closing the event emitter.
         eventEmitter.close();
@@ -188,12 +207,19 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
         Client clientMock = mock(Client.class);
 
         // Mocking the bulk processor used in the test.
-        BulkProcessorFactory bulkProcessorFactoryMock = mock(BulkProcessorFactory.class);
         BulkProcessor2 bulkProcessorMock = mock(BulkProcessor2.class);
-        doReturn(bulkProcessorMock).when(bulkProcessorFactoryMock).create(clientMock);
+
+        // Mocking analytics collection resolver used during the tests.
+        AnalyticsCollectionResolver collectionResolver = mock(AnalyticsCollectionResolver.class);
+        doReturn(request.analyticsCollection()).when(collectionResolver).collection(collectionName);
 
         // Instantiating the tested event emitter.
-        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(clientMock, bulkProcessorFactoryMock, eventFactoryMock);
+        AnalyticsEventEmitter analyticsEventEmitter = new AnalyticsEventEmitter(
+            clientMock,
+            bulkProcessorMock,
+            collectionResolver,
+            eventFactoryMock
+        );
 
         analyticsEventEmitter.emitEvent(request, listener);
 
@@ -208,7 +234,6 @@ public class AnalyticsEventEmitterTests extends ESTestCase {
     private AnalyticsEvent analyticsEventMock(String collectionName) throws IOException {
         AnalyticsEvent analyticsEventMock = mock(AnalyticsEvent.class);
         doReturn(collectionName).when(analyticsEventMock).eventCollectionName();
-        doCallRealMethod().when(analyticsEventMock).context();
         doAnswer(i -> i.getArgument(0, XContentBuilder.class).value(collectionName)).when(analyticsEventMock).toXContent(any(), any());
 
         return analyticsEventMock;

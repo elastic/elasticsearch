@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
@@ -58,11 +57,6 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
             minDocs,
             minPrimaryShardDocs
         );
-    }
-
-    private static ByteSizeValue randomByteSizeValue() {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
-        return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
     }
 
     @Override

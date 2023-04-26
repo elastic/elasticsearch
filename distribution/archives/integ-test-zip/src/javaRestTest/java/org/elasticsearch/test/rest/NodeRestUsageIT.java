@@ -143,24 +143,24 @@ public class NodeRestUsageIT extends ESRestTestCase {
         // Do some requests to get some rest usage stats
         Request create = new Request("PUT", "/test");
         create.setJsonEntity("""
-                {
-                  "mappings": {
-                    "properties": {
-                      "str": {
-                        "type": "keyword"
-                      },
-                      "foo": {
-                        "type": "keyword"
-                      },
-                      "num": {
-                        "type": "long"
-                      },
-                      "start": {
-                        "type": "date"
-                      }
-                    }
+            {
+              "mappings": {
+                "properties": {
+                  "str": {
+                    "type": "keyword"
+                  },
+                  "foo": {
+                    "type": "keyword"
+                  },
+                  "num": {
+                    "type": "long"
+                  },
+                  "start": {
+                    "type": "date"
                   }
-                }""");
+                }
+              }
+            }""");
         client().performRequest(create);
 
         Request searchRequest = new Request("GET", "/test/_search");

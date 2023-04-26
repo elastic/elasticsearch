@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -91,12 +92,12 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
 
-        IndexableField pointField = fields[1];
+        IndexableField pointField = fields.get(1);
         assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
     }
@@ -107,8 +108,8 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             b.field("index", false);
         }));
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
     }
 
     public final void testNoDocValues() throws Exception {
@@ -118,9 +119,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
 
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
     }
 
@@ -132,13 +133,13 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             b.field("store", true);
         }));
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(3, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.BINARY, dvField.fieldType().docValuesType());
-        IndexableField pointField = fields[1];
+        IndexableField pointField = fields.get(1);
         assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
-        IndexableField storedField = fields[2];
+        IndexableField storedField = fields.get(2);
         assertTrue(storedField.fieldType().stored());
         assertThat(storedField.stringValue(), containsString(storedValue()));
     }
@@ -155,8 +156,8 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             b.field("coerce", false);
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        Exception e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper2.parse(source(b -> b.startObject("field").field(getFromField(), "5.2").field(getToField(), "10").endObject()))
         );
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
@@ -183,10 +184,10 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             source(b -> b.startObject("field").field(GT_FIELD.getPreferredName(), "2").field(LT_FIELD.getPreferredName(), "5").endObject())
         );
 
-        IndexableField[] fields1 = doc1.rootDoc().getFields("field");
-        IndexableField[] fields2 = doc2.rootDoc().getFields("field");
+        List<IndexableField> fields1 = doc1.rootDoc().getFields("field");
+        List<IndexableField> fields2 = doc2.rootDoc().getFields("field");
 
-        assertEquals(fields1[1].binaryValue(), fields2[1].binaryValue());
+        assertEquals(fields1.get(1).binaryValue(), fields2.get(1).binaryValue());
     }
 
     protected abstract Object rangeValue();
@@ -217,9 +218,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
     }
 
     private static String storedValue(ParsedDocument doc) {
-        assertEquals(3, doc.rootDoc().getFields("field").length);
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        IndexableField storedField = fields[2];
+        assertEquals(3, doc.rootDoc().getFields("field").size());
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableField storedField = fields.get(2);
         return storedField.stringValue();
     }
 

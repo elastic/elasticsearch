@@ -25,8 +25,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
-import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -62,12 +62,12 @@ import static org.mockito.Mockito.when;
 
 public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
 
-    private ClusterStateLicenseService clusterStateLicenseService;
+    private LicenseService licenseService;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        clusterStateLicenseService = mock(ClusterStateLicenseService.class);
+        licenseService = mock(LicenseService.class);
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
@@ -76,7 +76,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             TestIndexNameExpressionResolver.newInstance()
         );
 
@@ -89,7 +89,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             TestIndexNameExpressionResolver.newInstance()
         );
 
@@ -107,7 +107,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             resolver
         );
 
@@ -124,7 +124,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             resolver
         );
 
@@ -141,7 +141,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             resolver
         );
 
@@ -198,7 +198,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             .maxNodes(License.OperationMode.ENTERPRISE == mode ? -1 : randomIntBetween(1, 10))
             .maxResourceUnits(License.OperationMode.ENTERPRISE == mode ? randomIntBetween(10, 99) : -1)
             .build();
-        when(clusterStateLicenseService.getLicense()).thenReturn(license);
+        when(licenseService.getLicense()).thenReturn(license);
 
         final ClusterStatsResponse mockClusterStatsResponse = mock(ClusterStatsResponse.class);
 
@@ -242,7 +242,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             indexNameExpressionResolver
         );
 
@@ -290,7 +290,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         verify(clusterService, times(1)).getClusterName();
         verify(clusterState, times(1)).metadata();
         verify(metadata, times(1)).clusterUUID();
-        verify(clusterStateLicenseService, times(1)).getLicense();
+        verify(licenseService, times(1)).getLicense();
         verify(clusterAdminClient).prepareClusterStats();
         verify(client).execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class));
 
@@ -357,7 +357,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             indexNameExpressionResolver
         );
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
@@ -425,7 +425,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             clusterService,
             licenseState,
             client,
-            clusterStateLicenseService,
+            licenseService,
             indexNameExpressionResolver
         );
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));

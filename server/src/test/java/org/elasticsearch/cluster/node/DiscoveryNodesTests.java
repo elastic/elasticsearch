@@ -17,7 +17,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -160,9 +159,16 @@ public class DiscoveryNodesTests extends ESTestCase {
         final List<DiscoveryNode> returnedNodes = discoBuilder.build().mastersFirstStream().toList();
         assertEquals(returnedNodes.size(), inputNodes.size());
         assertEquals(new HashSet<>(returnedNodes), new HashSet<>(inputNodes));
-        final List<DiscoveryNode> sortedNodes = new ArrayList<>(returnedNodes);
-        Collections.sort(sortedNodes, Comparator.comparing(n -> n.isMasterNode() == false));
-        assertEquals(sortedNodes, returnedNodes);
+
+        boolean mastersOk = true;
+        final var message = returnedNodes.toString();
+        for (final var discoveryNode : returnedNodes) {
+            if (discoveryNode.isMasterNode()) {
+                assertTrue(message, mastersOk);
+            } else {
+                mastersOk = false;
+            }
+        }
     }
 
     public void testDeltaListsMultipleNodes() {

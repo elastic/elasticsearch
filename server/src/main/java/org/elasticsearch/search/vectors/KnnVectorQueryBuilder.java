@@ -45,21 +45,35 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final byte[] byteQueryVector;
     private final int numCands;
     private final List<QueryBuilder> filterQueries;
+    private final Float vectorSimilarity;
 
-    public KnnVectorQueryBuilder(String fieldName, float[] queryVector, int numCands) {
+    public KnnVectorQueryBuilder(String fieldName, float[] queryVector, int numCands, Float vectorSimilarity) {
         this.fieldName = fieldName;
         this.queryVector = Objects.requireNonNull(queryVector);
         this.byteQueryVector = null;
         this.numCands = numCands;
         this.filterQueries = new ArrayList<>();
+        this.vectorSimilarity = vectorSimilarity;
     }
 
-    public KnnVectorQueryBuilder(String fieldName, byte[] queryVector, int numCands) {
+    public KnnVectorQueryBuilder(String fieldName, byte[] queryVector, int numCands, Float vectorSimilarity) {
         this.fieldName = fieldName;
         this.queryVector = null;
         this.byteQueryVector = Objects.requireNonNull(queryVector);
         this.numCands = numCands;
         this.filterQueries = new ArrayList<>();
+        this.vectorSimilarity = vectorSimilarity;
+    }
+
+    // Tests only
+    KnnVectorQueryBuilder(String fieldName, byte[] queryVector, float[] floatQueryVector, int numCands, Float vectorSimilarity) {
+        assert queryVector != null ^ floatQueryVector != null;
+        this.fieldName = fieldName;
+        this.queryVector = floatQueryVector;
+        this.byteQueryVector = queryVector;
+        this.numCands = numCands;
+        this.filterQueries = new ArrayList<>();
+        this.vectorSimilarity = vectorSimilarity;
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -78,6 +92,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.filterQueries = readQueries(in);
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            this.vectorSimilarity = in.readOptionalFloat();
+        } else {
+            this.vectorSimilarity = null;
+        }
     }
 
     public String getFieldName() {
@@ -92,6 +111,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Nullable
     public byte[] getByteQueryVector() {
         return byteQueryVector;
+    }
+
+    @Nullable
+    public Float getVectorSimilarity() {
+        return vectorSimilarity;
     }
 
     public int numCands() {
@@ -144,6 +168,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             writeQueries(out, filterQueries);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalFloat(vectorSimilarity);
+        }
     }
 
     @Override
@@ -152,6 +179,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             .field("field", fieldName)
             .field("vector", queryVector != null ? queryVector : byteQueryVector)
             .field("num_candidates", numCands);
+        if (vectorSimilarity != null) {
+            builder.field("similarity", vectorSimilarity);
+        }
         if (filterQueries.isEmpty() == false) {
             builder.startArray("filters");
             for (QueryBuilder filterQuery : filterQueries) {
@@ -184,8 +214,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (changed) {
             return byteQueryVector != null
-                ? new KnnVectorQueryBuilder(fieldName, byteQueryVector, numCands).addFilterQueries(rewrittenQueries)
-                : new KnnVectorQueryBuilder(fieldName, queryVector, numCands).addFilterQueries(rewrittenQueries);
+                ? new KnnVectorQueryBuilder(fieldName, byteQueryVector, numCands, vectorSimilarity).addFilterQueries(rewrittenQueries)
+                : new KnnVectorQueryBuilder(fieldName, queryVector, numCands, vectorSimilarity).addFilterQueries(rewrittenQueries);
         }
         return this;
     }
@@ -212,13 +242,20 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         return queryVector != null
-            ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery)
-            : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery);
+            ? vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity)
+            : vectorFieldType.createKnnQuery(byteQueryVector, numCands, filterQuery, vectorSimilarity);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(queryVector), Arrays.hashCode(byteQueryVector), numCands, filterQueries);
+        return Objects.hash(
+            fieldName,
+            Arrays.hashCode(queryVector),
+            Arrays.hashCode(byteQueryVector),
+            numCands,
+            filterQueries,
+            vectorSimilarity
+        );
     }
 
     @Override
@@ -227,7 +264,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Arrays.equals(queryVector, other.queryVector)
             && Arrays.equals(byteQueryVector, other.byteQueryVector)
             && numCands == other.numCands
-            && Objects.equals(filterQueries, other.filterQueries);
+            && Objects.equals(filterQueries, other.filterQueries)
+            && Objects.equals(vectorSimilarity, other.vectorSimilarity);
     }
 
     @Override

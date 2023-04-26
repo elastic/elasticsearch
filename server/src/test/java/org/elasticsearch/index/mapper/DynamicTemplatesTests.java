@@ -28,9 +28,9 @@ import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -689,8 +689,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             """;
         ParsedDocument doc = mapperService.documentMapper()
             .parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON, null, Map.of("foo", "geo_point")));
-        assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));
-        assertThat(doc.rootDoc().getFields("bar"), arrayWithSize(1));
+        assertThat(doc.rootDoc().getFields("foo"), hasSize(2));
+        assertThat(doc.rootDoc().getFields("bar"), hasSize(1));
     }
 
     public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
@@ -1198,17 +1198,14 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
             {
               "metrics.object" : [
                 {}
               ]
             }
             """)));
-        assertEquals(
-            "Tried to add nested object [object] to object [metrics] which does not support subobjects",
-            err.getRootCause().getMessage()
-        );
+        assertEquals("[3:5] Tried to add nested object [object] to object [metrics] which does not support subobjects", err.getMessage());
     }
 
     public void testRootSubobjectFalseDynamicNestedNotAllowed() throws IOException {
@@ -1232,14 +1229,14 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("subobjects", false);
         }));
 
-        MapperParsingException err = expectThrows(MapperParsingException.class, () -> mapper.parse(source("""
+        DocumentParsingException err = expectThrows(DocumentParsingException.class, () -> mapper.parse(source("""
             {
               "object" : [
                 {}
               ]
             }
             """)));
-        assertEquals("Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
+        assertEquals("[3:5] Tried to add nested object [object] to object [_doc] which does not support subobjects", err.getMessage());
     }
 
     public void testSubobjectsFalseDocsWithGeoPointFromDynamicTemplate() throws Exception {

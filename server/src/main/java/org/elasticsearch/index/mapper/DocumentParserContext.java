@@ -436,7 +436,7 @@ public abstract class DocumentParserContext {
      * @param fieldName the name of the field
      * @param matchType the expecting matchType of the field
      * @return the matching template; otherwise returns null
-     * @throws MapperParsingException if the given field has a dynamic template name specified, but no template matches that name.
+     * @throws DocumentParsingException if the given field has a dynamic template name specified, but no template matches that name.
      */
     public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
         final String pathAsString = path().pathAsText(fieldName);
@@ -447,7 +447,8 @@ public abstract class DocumentParserContext {
             }
         }
         if (matchTemplateName != null) {
-            throw new MapperParsingException(
+            throw new DocumentParsingException(
+                parser().getTokenLocation(),
                 "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]"
             );
         }

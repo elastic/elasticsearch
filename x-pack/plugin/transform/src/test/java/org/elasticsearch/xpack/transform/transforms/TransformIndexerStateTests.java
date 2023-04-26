@@ -146,7 +146,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 context.getStateReason(),
                 getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                null
             );
         }
 
@@ -782,13 +783,9 @@ public class TransformIndexerStateTests extends ESTestCase {
     }
 
     private void countResponse(Consumer<ActionListener<Void>> function, CountDownLatch latch) throws InterruptedException {
-        LatchedActionListener<Void> listener = new LatchedActionListener<>(
-            ActionListener.wrap(
-                r -> { assertEquals("listener called more than once", 1, latch.getCount()); },
-                e -> { fail("got unexpected exception: " + e.getMessage()); }
-            ),
-            latch
-        );
+        LatchedActionListener<Void> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+            assertEquals("listener called more than once", 1, latch.getCount());
+        }, e -> { fail("got unexpected exception: " + e.getMessage()); }), latch);
         function.accept(listener);
     }
 

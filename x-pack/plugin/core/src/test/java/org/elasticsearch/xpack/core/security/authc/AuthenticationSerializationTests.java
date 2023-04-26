@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
@@ -82,9 +83,10 @@ public class AuthenticationSerializationTests extends ESTestCase {
             : AuthenticationTestHelper.builder().build();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
+            TransportVersion.V_7_17_0,
+            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         out.setTransportVersion(version);
 
@@ -94,7 +96,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] can't handle cross cluster access authentication and attempted to send to ["
                         + out.getTransportVersion()
                         + "]"

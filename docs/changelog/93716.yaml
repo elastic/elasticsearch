@@ -1,6 +1,0 @@
-pr: 93716
-summary: Clear field caps index responses on cancelled
-area: Search
-type: bug
-issues:
- - 93029

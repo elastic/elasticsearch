@@ -45,7 +45,9 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class AbstractCompositeAggFunction implements Function {
 
-    public static final int TEST_QUERY_PAGE_SIZE = 50;
+    private static final int TEST_QUERY_PAGE_SIZE = 50;
+    private static final int PREVIEW_QUERY_PAGE_SIZE = 100;
+
     public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
 
     private final CompositeAggregationBuilder cachedCompositeAggregation;
@@ -68,19 +70,31 @@ public abstract class AbstractCompositeAggFunction implements Function {
         Map<String, String> headers,
         SourceConfig sourceConfig,
         Map<String, String> fieldTypeMap,
-        int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
         ClientHelper.assertNoAuthorizationHeader(headers);
+        SearchRequest searchRequest = buildSearchRequest(sourceConfig, timeout, PREVIEW_QUERY_PAGE_SIZE);
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
-            buildSearchRequest(sourceConfig, timeout, numberOfBuckets),
-            ActionListener.wrap(r -> {
+            searchRequest,
+            ActionListener.wrap(response -> {
                 try {
-                    final Aggregations aggregations = r.getAggregations();
+                    if (response == null) {
+                        listener.onFailure(new ValidationException().addValidationError("Unexpected null response from preview query"));
+                        return;
+                    }
+                    if (response.status() != RestStatus.OK) {
+                        listener.onFailure(
+                            new ValidationException().addValidationError(
+                                format("Unexpected status from response of preview query: %s", response.status())
+                            )
+                        );
+                        return;
+                    }
+                    final Aggregations aggregations = response.getAggregations();
                     if (aggregations == null) {
                         listener.onFailure(
                             new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
@@ -128,6 +142,13 @@ public abstract class AbstractCompositeAggFunction implements Function {
                         new ValidationException().addValidationError(
                             format("Unexpected status from response of test query: %s", response.status())
                         )
+                    );
+                    return;
+                }
+                final Aggregations aggregations = response.getAggregations();
+                if (aggregations == null) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
                     );
                     return;
                 }

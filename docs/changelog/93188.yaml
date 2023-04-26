@@ -1,5 +1,0 @@
-pr: 93188
-summary: Adjust range of allowed percentages of deletes in an index
-area: Engine
-type: enhancement
-issues: []

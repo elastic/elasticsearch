@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -68,7 +69,6 @@ import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtil
 
 public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
-    private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final SecurityContext securityContext;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
@@ -145,6 +145,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getSource(),
                 config.getDestination().getPipeline(),
                 config.getDestination().getIndex(),
+                config.getDestination().getAliases(),
                 config.getSyncConfig(),
                 listener
             ),
@@ -174,6 +175,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "preview",
+                nodeSettings,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
@@ -184,7 +186,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
                 checkPrivilegesListener
             );
-        } else { // No security enabled, just create the transform
+        } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);
         }
     }
@@ -198,6 +200,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         SourceConfig source,
         String pipeline,
         String dest,
+        List<DestAlias> aliases,
         SyncConfig syncConfig,
         ActionListener<Response> listener
     ) {
@@ -275,15 +278,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
-            function.preview(
-                parentTaskAssigningClient,
-                timeout,
-                filteredHeaders,
-                source,
-                deducedMappings,
-                NUMBER_OF_PREVIEW_BUCKETS,
-                previewListener
-            );
+            function.preview(parentTaskAssigningClient, timeout, filteredHeaders, source, deducedMappings, previewListener);
         }, listener::onFailure);
 
         function.deduceMappings(parentTaskAssigningClient, filteredHeaders, source, deduceMappingsListener);

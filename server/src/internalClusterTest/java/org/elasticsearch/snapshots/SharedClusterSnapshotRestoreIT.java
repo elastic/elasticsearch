@@ -2238,8 +2238,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {
         for (SnapshotInfo snapshotInfo : response.getSnapshots()) {
-            final List<String> expected = snapshotInfo.indices();
-            assertEquals(expected, indicesPerSnapshot.get(snapshotInfo.snapshotId().getName()));
+            assertEquals(Set.copyOf(indicesPerSnapshot.get(snapshotInfo.snapshotId().getName())), Set.copyOf(snapshotInfo.indices()));
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         }
     }

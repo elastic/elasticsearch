@@ -61,7 +61,7 @@ public class TrainedModelAssignmentService {
         ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         DiscoveryNode masterNode = currentState.nodes().getMasterNode();
         if (masterNode == null) {
-            logger.warn("[{}] no master known for assignment update [{}]", request.getModelId(), request.getUpdate());
+            logger.warn("[{}] no master known for assignment update [{}]", request.getDeploymentId(), request.getUpdate());
             waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
             return;
         }
@@ -72,7 +72,7 @@ public class TrainedModelAssignmentService {
                 if (isMasterChannelException(failure)) {
                     logger.info(
                         "[{}] master channel exception will retry on new master node for assignment update [{}]",
-                        request.getModelId(),
+                        request.getDeploymentId(),
                         request.getUpdate()
                     );
                     waitForNewMasterAndRetry(observer, UpdateTrainedModelAssignmentRoutingInfoAction.INSTANCE, request, listener);
@@ -95,7 +95,7 @@ public class TrainedModelAssignmentService {
     }
 
     public void waitForAssignmentCondition(
-        final String modelId,
+        final String deploymentId,
         final Predicate<ClusterState> predicate,
         final @Nullable TimeValue timeout,
         final WaitForAssignmentListener listener
@@ -104,12 +104,12 @@ public class TrainedModelAssignmentService {
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         final ClusterState clusterState = observer.setAndGetObservedState();
         if (predicate.test(clusterState)) {
-            listener.onResponse(TrainedModelAssignmentMetadata.assignmentForModelId(clusterState, modelId).orElse(null));
+            listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(clusterState, deploymentId).orElse(null));
         } else {
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    listener.onResponse(TrainedModelAssignmentMetadata.assignmentForModelId(state, modelId).orElse(null));
+                    listener.onResponse(TrainedModelAssignmentMetadata.assignmentForDeploymentId(state, deploymentId).orElse(null));
                 }
 
                 @Override

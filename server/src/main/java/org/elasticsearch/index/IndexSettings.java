@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -490,16 +489,24 @@ public final class IndexSettings {
         Setting.Property.IndexScope,
         Property.DeprecatedWarning
     );
+    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
+        LIFECYCLE_ORIGINATION_DATE,
+        -1,
+        -1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
+    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
+        LIFECYCLE_PARSE_ORIGINATION_DATE,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
 
-    /**
-     * Is the {@code index.mode} enabled? It should only be enabled if you
-     * pass a jvm parameter or are running a snapshot build.
-     */
-    private static final FeatureFlag TIME_SERIES_MODE_FEATURE_FLAG = FeatureFlag.legacyRegisteredFlag("index_mode");
-
-    public static boolean isTimeSeriesModeEnabled() {
-        return TIME_SERIES_MODE_FEATURE_FLAG.isEnabled();
-    }
+    public static final String PREFER_ILM = "index.lifecycle.prefer_ilm";
+    public static final Setting<Boolean> PREFER_ILM_SETTING = Setting.boolSetting(PREFER_ILM, true, Property.Dynamic, Property.IndexScope);
 
     /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
@@ -540,6 +547,20 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Dynamic
     );
+
+    public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.es87tsdb_codec.enabled",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
+     */
+    public boolean isES87TSDBCodecEnabled() {
+        return es87TSDBCodecEnabled;
+    }
 
     /**
      * The {@link IndexMode "mode"} of the index.
@@ -618,6 +639,7 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
+    private final boolean es87TSDBCodecEnabled;
 
     private volatile long retentionLeaseMillis;
 
@@ -742,10 +764,9 @@ public final class IndexSettings {
         mode = scopedSettings.get(MODE);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
-            scopedSettings.addSettingsUpdateConsumer(
-                IndexSettings.TIME_SERIES_END_TIME,
-                endTime -> { this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime); }
-            );
+            scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {
+                this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime);
+            });
         }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -791,6 +812,7 @@ public final class IndexSettings {
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,

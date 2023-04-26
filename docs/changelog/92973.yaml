@@ -1,5 +1,0 @@
-pr: 92973
-summary: Fix indices resolver for datemath with colon
-area: Infra/Core
-type: bug
-issues: []

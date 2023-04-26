@@ -274,7 +274,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         runExecutionTest(runner, runnable, willThrow, o -> {
             assertEquals(willThrow, o.isPresent());
             if (willThrow) {
-                if (o.get()instanceof Error error) throw error;
+                if (o.get() instanceof Error error) throw error;
                 assertThat(o.get(), instanceOf(IllegalStateException.class));
                 assertThat(o.get(), hasToString(containsString("future exception")));
             }

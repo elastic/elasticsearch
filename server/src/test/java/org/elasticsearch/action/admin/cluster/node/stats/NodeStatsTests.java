@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.NodeStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -66,10 +68,13 @@ import org.elasticsearch.script.ScriptContextStats;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.transport.TransportActionStats;
 import org.elasticsearch.transport.TransportStats;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -550,6 +555,57 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createNodeStats(),
+            randomFrom(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("level", "node"))),
+            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.NODE)
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createNodeStats(),
+            new ToXContent.MapParams(Map.of("level", "indices")),
+            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.INDICES)
+        );
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createNodeStats(),
+            new ToXContent.MapParams(Map.of("level", "shards")),
+            nodeStats -> expectedChunks(nodeStats, NodeStatsLevel.SHARDS)
+        );
+    }
+
+    private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
+        return 4 + expectedChunks(nodeStats.getHttp()) + expectedChunks(nodeStats.getIndices(), level) + expectedChunks(
+            nodeStats.getTransport()
+        ) + expectedChunks(nodeStats.getIngestStats());
+    }
+
+    private static int expectedChunks(@Nullable IngestStats ingestStats) {
+        return ingestStats == null
+            ? 0
+            : 2 + ingestStats.getPipelineStats()
+                .stream()
+                .mapToInt(
+                    pipelineStats -> 2 + ingestStats.getProcessorStats().getOrDefault(pipelineStats.getPipelineId(), List.of()).size()
+                )
+                .sum();
+    }
+
+    private static int expectedChunks(@Nullable HttpStats httpStats) {
+        return httpStats == null ? 0 : 2 + httpStats.getClientStats().size();
+    }
+
+    private static int expectedChunks(@Nullable TransportStats transportStats) {
+        return transportStats == null ? 0 : 3; // only one transport action
+    }
+
+    private static int expectedChunks(@Nullable NodeIndicesStats nodeIndicesStats, NodeStatsLevel level) {
+        return nodeIndicesStats == null ? 0 : switch (level) {
+            case NODE -> 2;
+            case INDICES -> 5; // only one index
+            case SHARDS -> 9; // only one shard
+        };
+    }
+
     private static CommonStats createIndexLevelCommonStats() {
         CommonStats stats = new CommonStats(new CommonStatsFlags().clear().set(CommonStatsFlags.Flag.Mappings, true));
         stats.nodeMappings = new NodeMappingStats(randomNonNegativeLong(), randomNonNegativeLong());
@@ -561,7 +617,13 @@ public class NodeStatsTests extends ESTestCase {
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = new HashMap<>();
+        fieldOrdinalStats.put(
+            randomAlphaOfLength(4),
+            new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        var ordinalStats = new FieldDataStats.GlobalOrdinalsStats(randomNonNegativeLong(), fieldOrdinalStats);
+        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, ordinalStats));
         indicesCommonStats.getStore().add(new StoreStats(++iota, ++iota, ++iota));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
@@ -836,7 +898,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray()
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                Map.of("test-action", new TransportActionStats(1, 2, new long[29], 3, 4, new long[29]))
             )
             : null;
         HttpStats httpStats = null;

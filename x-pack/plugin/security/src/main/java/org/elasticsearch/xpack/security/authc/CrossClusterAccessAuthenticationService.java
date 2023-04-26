@@ -19,23 +19,17 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
-import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 public class CrossClusterAccessAuthenticationService {
-
-    public static final Version VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
@@ -68,12 +62,12 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        if (getMinNodeVersion().before(VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION)) {
+        if (getMinNodeVersion().before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
+                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener
@@ -100,13 +94,8 @@ public class CrossClusterAccessAuthenticationService {
                     // try-catch so any failure here is wrapped by `withRequestProcessingFailure`, whereas `authenticate` failures are not
                     // we should _not_ wrap `authenticate` failures since this produces duplicate audit events
                     try {
-                        final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = crossClusterAccessHeaders.subjectInfo();
-                        validate(crossClusterAccessSubjectInfo);
-                        writeAuthToContext(
-                            authcContext,
-                            authentication.toCrossClusterAccess(maybeRewriteForCrossClusterAccessUser(crossClusterAccessSubjectInfo)),
-                            listener
-                        );
+                        final CrossClusterAccessSubjectInfo subjectInfo = crossClusterAccessHeaders.getCleanAndValidatedSubjectInfo();
+                        writeAuthToContext(authcContext, authentication.toCrossClusterAccess(subjectInfo), listener);
                     } catch (Exception ex) {
                         withRequestProcessingFailure(authcContext, ex, listener);
                     }
@@ -117,75 +106,6 @@ public class CrossClusterAccessAuthenticationService {
 
     public AuthenticationService getAuthenticationService() {
         return authenticationService;
-    }
-
-    private CrossClusterAccessSubjectInfo maybeRewriteForCrossClusterAccessUser(
-        CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo
-    ) {
-        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-        final User user = effectiveSubject.getUser();
-        if (CrossClusterAccessUser.is(user)) {
-            return CrossClusterAccessUser.subjectInfoWithRoleDescriptors(
-                effectiveSubject.getTransportVersion(),
-                effectiveSubject.getRealm().getNodeName()
-            );
-        } else {
-            return crossClusterAccessSubjectInfo;
-        }
-    }
-
-    private void validate(final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo) {
-        final Authentication authentication = crossClusterAccessSubjectInfo.getAuthentication();
-        authentication.checkConsistency();
-        final Subject effectiveSubject = authentication.getEffectiveSubject();
-        if (false == effectiveSubject.getType().equals(Subject.Type.USER)
-            && false == effectiveSubject.getType().equals(Subject.Type.SERVICE_ACCOUNT)
-            && false == effectiveSubject.getType().equals(Subject.Type.API_KEY)) {
-            throw new IllegalArgumentException(
-                "subject ["
-                    + effectiveSubject.getUser().principal()
-                    + "] has type ["
-                    + effectiveSubject.getType()
-                    + "] which is not supported for cross cluster access"
-            );
-        }
-
-        final User user = effectiveSubject.getUser();
-        if (CrossClusterAccessUser.is(user)) {
-            if (false == crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().isEmpty()) {
-                logger.warn(
-                    "Received non-empty role descriptors bytes list for internal cross cluster access user. "
-                        + "These will be ignored during authorization."
-                );
-                assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
-            }
-        } else if (User.isInternal(user)) {
-            throw new IllegalArgumentException(
-                "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
-            );
-        } else {
-            for (CrossClusterAccessSubjectInfo.RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessSubjectInfo
-                .getRoleDescriptorsBytesList()) {
-                final Set<RoleDescriptor> roleDescriptors = roleDescriptorsBytes.toRoleDescriptors();
-                for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                    final boolean privilegesOtherThanIndex = roleDescriptor.hasClusterPrivileges()
-                        || roleDescriptor.hasConfigurableClusterPrivileges()
-                        || roleDescriptor.hasApplicationPrivileges()
-                        || roleDescriptor.hasRunAs()
-                        || roleDescriptor.hasRemoteIndicesPrivileges();
-                    if (privilegesOtherThanIndex) {
-                        throw new IllegalArgumentException(
-                            "role descriptor for cross cluster access can only contain index privileges "
-                                + "but other privileges found for subject ["
-                                + effectiveSubject.getUser().principal()
-                                + "]"
-                        );
-                    }
-                }
-            }
-        }
-
     }
 
     private Version getMinNodeVersion() {
@@ -213,11 +133,14 @@ public class CrossClusterAccessAuthenticationService {
             authentication.writeToContext(context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
+            logger.debug(
+                () -> format("Failed to store authentication [%s] for cross cluster request [%s]", authentication, context.getRequest()),
+                e
+            );
             withRequestProcessingFailure(context, e, listener);
             return;
         }
-        logger.trace("Established authentication [{}] for request [{}]", authentication, context.getRequest());
+        logger.trace("Established authentication [{}] for cross cluster request [{}]", authentication, context.getRequest());
         listener.onResponse(authentication);
     }
 }

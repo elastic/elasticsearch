@@ -2,8 +2,6 @@
 [[jwt-auth-realm]]
 === JWT authentication
 
-beta::[]
-
 {es} can be configured to trust JSON Web Tokens (JWTs) issued from an external service
 as bearer tokens for authentication.
 

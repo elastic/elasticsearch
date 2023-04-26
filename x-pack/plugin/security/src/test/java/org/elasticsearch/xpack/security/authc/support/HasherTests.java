@@ -296,17 +296,15 @@ public class HasherTests extends ESTestCase {
         );
 
         // 12345 iterations are not supported
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { check("{PBKDF2}12345$Rvr0LPiggps=$qBVD7TdDG3mgnLI5yZuR2g==", "s3cr3t", true); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            check("{PBKDF2}12345$Rvr0LPiggps=$qBVD7TdDG3mgnLI5yZuR2g==", "s3cr3t", true);
+        });
         assertThat(e.getMessage(), containsString("unknown hash function [pbkdf2_12345]"));
 
         // salt smaller than 8 bytes is not supported
-        ElasticsearchException ee = expectThrows(
-            ElasticsearchException.class,
-            () -> { check("{PBKDF2}10000$erwUfw==$Pv/wuOn49EH5nY88LOtY2g==", "s3cr3t", true); }
-        );
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class, () -> {
+            check("{PBKDF2}10000$erwUfw==$Pv/wuOn49EH5nY88LOtY2g==", "s3cr3t", true);
+        });
         assertThat(ee.getMessage(), containsString("PBKDF2 salt must be at least [8 bytes] long"));
 
         // derived key length is not multiple of 128 bits

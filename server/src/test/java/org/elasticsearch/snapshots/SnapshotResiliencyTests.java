@@ -1933,7 +1933,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             scriptService,
                             new AnalysisModule(environment, Collections.emptyList(), new StablePluginsRegistry()).getAnalysisRegistry(),
                             Collections.emptyList(),
-                            client
+                            client,
+                            null
                         ),
                         client,
                         actionFilters,

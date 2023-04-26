@@ -361,7 +361,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.get("role_query_fields"), nullValue());
         assertThat(roles.get("role_query_invalid"), nullValue());
 
-        assertThat(events, hasSize(4));
+        assertThat(events, hasSize(TcpTransport.isUntrustedRemoteClusterEnabled() ? 4 : 5));
         assertThat(
             events.get(0),
             startsWith(
@@ -394,6 +394,9 @@ public class FileRolesStoreTests extends ESTestCase {
                     + "]. document and field level security is not enabled."
             )
         );
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(events.get(4), startsWith("failed to parse role [role_remote_indices]. unexpected field [remote_indices]"));
+        }
     }
 
     public void testParseFileWithFLSAndDLSUnlicensed() throws Exception {

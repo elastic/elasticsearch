@@ -69,6 +69,7 @@ A sample response:
       "name": "app-2",
       "indices": [ "index3", "index4" ]
     }
-  ]
+  ],
+  "updated_at_millis": 1682105622204
 }
 ----

@@ -494,7 +494,7 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                     assertThat("target node name parameter is only valid for REPLACE-type shutdowns", type, equalToIgnoringCase("replace"));
                     putBody.field("target_node_name", targetNodeName);
                 } else {
-                    assertThat("target node name is required for REPALCE-type shutdowns", type, not(equalToIgnoringCase("replace")));
+                    assertThat("target node name is required for REPLACE-type shutdowns", type, not(equalToIgnoringCase("replace")));
                 }
                 if (grace != null) {
                     assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));

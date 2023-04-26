@@ -75,7 +75,7 @@
 
 
 ---
-"composite buckets":
+"composite aggregation":
   - do:
       bulk:
         index: test3
@@ -169,7 +169,7 @@
 "runtime field with script":
   - do:
       bulk:
-        index: test2
+        index: test5
         refresh: true
         body:
           - '{"index": {}}'
@@ -183,7 +183,7 @@
   - do:
       search:
         size: 0
-        index: test2
+        index: test5
         body:
           runtime_mappings:
             val.adjusted:

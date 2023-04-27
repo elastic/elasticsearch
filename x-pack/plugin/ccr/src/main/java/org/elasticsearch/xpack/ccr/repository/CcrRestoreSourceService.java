@@ -138,7 +138,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         }
     }
 
-    public void ensureFileNameIsKnownToSession(String sessionUUID, String fileName) throws IOException {
+    public void ensureFileNameIsKnownToSession(String sessionUUID, String fileName) {
         final RestoreSession restore = onGoingRestores.get(sessionUUID);
         if (restore == null) {
             logger.debug("could not get session [{}] because session not found", sessionUUID);

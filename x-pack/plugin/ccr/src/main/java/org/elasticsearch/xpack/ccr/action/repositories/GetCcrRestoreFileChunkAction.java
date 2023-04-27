@@ -27,7 +27,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 
 public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
@@ -87,6 +86,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             }
         }
 
+        // We don't enforce any validation by default so that the internal action stays the same for BWC reasons
         protected void validate(GetCcrRestoreFileChunkRequest request) {}
     }
 
@@ -118,11 +118,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         protected void validate(GetCcrRestoreFileChunkRequest request) {
             final ShardId shardId = request.getShardId();
             restoreSourceService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
-            try {
-                restoreSourceService.ensureFileNameIsKnownToSession(request.getSessionUUID(), request.getFileName());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            restoreSourceService.ensureFileNameIsKnownToSession(request.getSessionUUID(), request.getFileName());
         }
     }
 

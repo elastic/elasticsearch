@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -81,7 +79,7 @@ public class GetCcrRestoreFileChunkActionTests extends ESTestCase {
         assertThat(internalAction.actionName, equalTo(GetCcrRestoreFileChunkAction.INTERNAL_NAME));
     }
 
-    public void testRequestedShardIdMustBeConsistentWithSessionShardId() throws IOException {
+    public void testRequestedShardIdMustBeConsistentWithSessionShardId() {
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofBytes(1024));
         final TransportService transportService = mock(TransportService.class);

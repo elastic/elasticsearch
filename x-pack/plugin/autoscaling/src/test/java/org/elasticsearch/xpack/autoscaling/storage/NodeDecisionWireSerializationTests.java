@@ -6,28 +6,19 @@
  */
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 
 public class NodeDecisionWireSerializationTests extends AbstractWireSerializingTestCase<NodeDecision> {
 
     @Override
     protected NodeDecision mutateInstance(NodeDecision instance) throws IOException {
         if (randomBoolean()) {
-            return new NodeDecision(
-                new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                instance.decision()
-            );
+            return new NodeDecision(NodeDecisionTestUtils.randomDiscoveryNode(), instance.decision());
         } else if (randomBoolean()) {
-            return new NodeDecision(instance.node(), randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES));
+            return new NodeDecision(instance.node(), randomValueOtherThan(instance.decision(), NodeDecisionTestUtils::randomDecision));
         } else {
             return randomValueOtherThan(instance, this::createTestInstance);
         }

@@ -21,16 +21,21 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 class NodeDecisionTestUtils {
 
     static NodeDecision randomNodeDecision() {
-        return new NodeDecision(
-            new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            randomFrom(
-                new Decision.Single(Decision.Type.NO, DiskThresholdDecider.NAME, "Unable to allocate on disk"),
-                new Decision.Single(Decision.Type.YES, FilterAllocationDecider.NAME, "Filter allows allocation"),
-                new Decision.Single(Decision.Type.THROTTLE, "throttle label", "Throttling the consumer"),
-                new Decision.Multi().add(randomFrom(Decision.NO, Decision.YES, Decision.THROTTLE))
-                    .add(new Decision.Single(Decision.Type.NO, "multi_no", "No multi decision"))
-                    .add(new Decision.Single(Decision.Type.YES, "multi_yes", "Yes multi decision"))
-            )
+        return new NodeDecision(randomDiscoveryNode(), randomDecision());
+    }
+
+    static DiscoveryNode randomDiscoveryNode() {
+        return new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+    }
+
+    static Decision randomDecision() {
+        return randomFrom(
+            new Decision.Single(Decision.Type.NO, DiskThresholdDecider.NAME, "Unable to allocate on disk"),
+            new Decision.Single(Decision.Type.YES, FilterAllocationDecider.NAME, "Filter allows allocation"),
+            new Decision.Single(Decision.Type.THROTTLE, "throttle label", "Throttling the consumer"),
+            new Decision.Multi().add(randomFrom(Decision.NO, Decision.YES, Decision.THROTTLE))
+                .add(new Decision.Single(Decision.Type.NO, "multi_no", "No multi decision"))
+                .add(new Decision.Single(Decision.Type.YES, "multi_yes", "Yes multi decision"))
         );
     }
 }

@@ -96,7 +96,7 @@ public class BulkProcessorFactoryTests extends ESTestCase {
         bulkProcessor.awaitClose(1, TimeUnit.SECONDS);
 
         if (totalEvents % maxBulkActions > 0) {
-            inOrder.verify(client).execute(any(BulkAction.class),argThat((BulkRequest bulkRequest) -> {
+            inOrder.verify(client).execute(any(BulkAction.class), argThat((BulkRequest bulkRequest) -> {
                 // Verify another bulk with only 1 event (the remaining) is executed when closing the processor.
                 assertThat(bulkRequest.numberOfActions(), equalTo(totalEvents % maxBulkActions));
                 return true;

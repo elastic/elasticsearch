@@ -130,6 +130,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    ".secrets*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices":true
+                },
+                {
+                  "names": [
                     "synthetics-*"
                   ],
                   "privileges": [

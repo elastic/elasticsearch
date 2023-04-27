@@ -101,6 +101,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
+                    logger.debug("Marked shard {} as failed", shardRouting.shardId());
                     l.onResponse(null);
                 }
 

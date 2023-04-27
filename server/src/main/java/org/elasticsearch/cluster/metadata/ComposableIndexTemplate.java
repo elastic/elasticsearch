@@ -198,6 +198,23 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return componentTemplates;
     }
 
+    /**
+     * Returns the <b>required</b> component templates, i.e. such that are not allowed to be missing, as in
+     * {@link #ignoreMissingComponentTemplates}.
+     * @return a list of required component templates
+     */
+    public List<String> getRequiredComponentTemplates() {
+        if (componentTemplates == null) {
+            return List.of();
+        }
+        if (ignoreMissingComponentTemplates == null) {
+            return componentTemplates;
+        }
+        return componentTemplates.stream()
+            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
+            .toList();
+    }
+
     @Nullable
     public Long priority() {
         return priority;

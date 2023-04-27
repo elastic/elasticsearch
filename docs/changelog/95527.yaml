@@ -1,5 +1,5 @@
 pr: 95527
-summary: Fix issues with `ignore_missing_component_templates`
+summary: Allow deletion of component templates that are specified in the `ignore_missing_component_templates` array
 area: Data streams
 type: bug
 issues: []

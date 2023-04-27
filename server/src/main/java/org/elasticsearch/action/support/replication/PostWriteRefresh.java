@@ -144,7 +144,7 @@ public class PostWriteRefresh {
             transportService.getLocalNode(),
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
-            postWriteRefreshTimeout != null ? TransportRequestOptions.timeout(postWriteRefreshTimeout) : TransportRequestOptions.EMPTY,
+            TransportRequestOptions.timeout(postWriteRefreshTimeout),
             new ActionListenerResponseHandler<>(
                 listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
                 (in) -> ActionResponse.Empty.INSTANCE,

@@ -1,5 +1,4 @@
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'

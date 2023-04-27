@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -52,7 +53,6 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -84,7 +84,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -96,6 +95,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -944,10 +944,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     @SuppressForbidden(reason = "We need to interact with the file system in order to perform auto configuration")
     private void deleteDirectory(Path directory) throws IOException {
-        Files.walk(directory)
-            .sorted(Comparator.reverseOrder()) // Ensures directory contents are deleted first
-            .map(Path::toFile)
-            .map(File::delete);
+        IOUtils.rm(directory);
     }
 
     @SuppressForbidden(reason = "We need to interact with the file system in order to perform auto configuration")

@@ -172,14 +172,20 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     @Override
     public Settings additionalSettings() {
         var settings = Settings.builder().put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME);
-
-        if (sharedCachedSettingExplicitlySet == false && hasSearchRole) {
-            return settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
-                .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB")
-                .build();
-        } else {
-            return settings.build();
+        if (sharedCachedSettingExplicitlySet == false) {
+            if (hasSearchRole) {
+                return settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "75%")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB")
+                    .build();
+            }
+            if (hasIndexRole) {
+                return settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "50%")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "-1")
+                    .build();
+            }
         }
+
+        return settings.build();
     }
 
     @Override

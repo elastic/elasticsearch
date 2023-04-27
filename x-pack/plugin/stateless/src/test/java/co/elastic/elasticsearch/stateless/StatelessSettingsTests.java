@@ -93,8 +93,8 @@ public class StatelessSettingsTests extends ESTestCase {
                 .build()
         );
         Settings indexNodeSettings = indexNodeStateless.additionalSettings();
-        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(indexNodeSettings));
-        assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.exists(indexNodeSettings));
+        assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("50%"));
+        assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
     }
 
     private static Settings statelessSettings(Collection<DiscoveryNodeRole> roles) {

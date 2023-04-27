@@ -28,7 +28,7 @@ timing out in the browser's Developer Tools Network tab.
 
 * Discover's **Available fields** taking a long time to compile Javascript in the browser's Developer Tools Performance tab. This may potentially escalate to temporary browser page unresponsiveness.
 
-* Kibana's {kibana-ref}/alerting-getting-started.html[alerting] or {kibana-ref}/detection-engine-overview.html[security rules] may error `The content length (X) is bigger than the maximum allowed string (Y)` where `X` is attempted payload and `Y` is {kib}'s {kibana-ref}/settings.html#server-maxPayload[`server-maxPayload`]. 
+* Kibana's {kibana-ref}/alerting-getting-started.html[alerting] or {security-guide}/detection-engine-overview.html[security rules] may error `The content length (X) is bigger than the maximum allowed string (Y)` where `X` is attempted payload and `Y` is {kib}'s {kibana-ref}/settings.html#server-maxPayload[`server-maxPayload`]. 
 
 * Long {es} start-up durations. See link:https://github.com/elastic/elasticsearch/issues/83203[this discussion].
 

@@ -346,7 +346,10 @@ public class CreateIndexIT extends ESIntegTestCase {
 
             try {
                 response = prepareCreate("test_" + shards + "_" + partitionSize).setSettings(
-                    indexSettings(shards, shards).put("index.routing_partition_size", partitionSize)
+                    Settings.builder()
+                        .put("index.number_of_shards", shards)
+                        .put("index.number_of_routing_shards", shards)
+                        .put("index.routing_partition_size", partitionSize)
                 ).execute().actionGet();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;

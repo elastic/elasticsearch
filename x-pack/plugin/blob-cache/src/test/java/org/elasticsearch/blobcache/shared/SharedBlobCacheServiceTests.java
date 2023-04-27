@@ -307,12 +307,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofBytes(-1)));
     }
 
-    public void testSearchOrIndexNodeCacheSizeDefaults() {
+    public void testSearchNodeCacheSizeDefaults() {
         final Settings settings = Settings.builder()
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName()
-            )
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             .build();
 
         RelativeByteSizeValue relativeCacheSize = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.get(settings);
@@ -320,6 +317,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(relativeCacheSize.isNonZeroSize(), is(true));
         assertThat(relativeCacheSize.calculateValue(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(9000)));
         assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofGb(100)));
+    }
+
+    public void testIndexNodeCacheSizeDefaults() {
+        final Settings settings = Settings.builder()
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
+            .build();
+
+        RelativeByteSizeValue relativeCacheSize = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.get(settings);
+        assertThat(relativeCacheSize.isAbsolute(), is(false));
+        assertThat(relativeCacheSize.isNonZeroSize(), is(true));
+        assertThat(relativeCacheSize.calculateValue(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(5000)));
+        assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.MINUS_ONE));
     }
 
     public void testMaxHeadroomRejectedForAbsoluteCacheSize() {

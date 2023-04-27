@@ -109,8 +109,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     public static final Setting<RelativeByteSizeValue> SHARED_CACHE_SIZE_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
         (settings) -> {
-            if (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings)) {
+            if (DiscoveryNode.isDedicatedFrozenNode(settings) || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
                 return "90%";
+            } else if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)) {
+                return "50%";
             } else {
                 return ByteSizeValue.ZERO.getStringRep();
             }
@@ -167,16 +169,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
-    private static boolean isSearchOrIndexingNode(Settings settings) {
-        return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)
-            || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
-    }
-
     public static final Setting<ByteSizeValue> SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
         (settings) -> {
             if (SHARED_CACHE_SIZE_SETTING.exists(settings) == false
-                && (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings))) {
+                && (DiscoveryNode.isDedicatedFrozenNode(settings) || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE))) {
                 return "100GB";
             }
 

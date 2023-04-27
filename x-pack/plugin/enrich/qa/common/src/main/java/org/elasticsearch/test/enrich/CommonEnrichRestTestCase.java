@@ -166,37 +166,37 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testBasicFlowKeyword() throws Exception {
         setupGenericLifecycleTest("host", "match", "elastic.co");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowDate() throws Exception {
         setupGenericLifecycleTest("date", "range", "2021-09-06");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowInteger() throws Exception {
         setupGenericLifecycleTest("integer", "range", "41");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowLong() throws Exception {
         setupGenericLifecycleTest("long", "range", "8411017");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowDouble() throws Exception {
         setupGenericLifecycleTest("double", "range", "15.15");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowFloat() throws Exception {
         setupGenericLifecycleTest("float", "range", "10000.66666");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testBasicFlowIp() throws Exception {
         setupGenericLifecycleTest("ip", "range", "100.120.140.160");
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 3, TimeUnit.MINUTES);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testImmutablePolicy() throws IOException {

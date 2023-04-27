@@ -4,11 +4,11 @@
 
 preview::[]
 
-The goal of {dlm} ({dlm-init}) is to enable you to automatically manage data streams
-according to your retention requirements. For example, you could use {dlm-init} to:
+The goal of {dlm} ({dlm-init}) is to enable you to easily automate the management of your data streams
+according to your retention requirements without having to worry. For example, you could use {dlm-init} to:
 
 * Ensure that data indexed in a data stream will be kept at least for the retention time you defined.
-* Older data will be deleted by {es} at a later time.
+* Ensure that data older than the retention period will be deleted automatically by {es} at a later time.
 
 To achieve that, it supports:
 

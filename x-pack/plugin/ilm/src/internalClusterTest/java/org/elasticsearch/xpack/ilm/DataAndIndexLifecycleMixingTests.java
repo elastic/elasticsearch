@@ -610,6 +610,129 @@ public class DataAndIndexLifecycleMixingTests extends ESIntegTestCase {
         });
     }
 
+    public void testUpdateIndexTemplateToMigrateFromDLMToILM() throws Exception {
+        // starting with a data stream managed by DLM (rolling over every 1 doc)
+        putComposableIndexTemplate(indexTemplateName, null, List.of(dataStreamName + "*"), null, null, new DataLifecycle());
+
+        // this will create the data stream and trigger a rollover so we will end up with a data stream with 2 backing indices
+        indexDocs(dataStreamName, 1);
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), is(2));
+
+        });
+
+        assertBusy(() -> {
+            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
+            String writeIndex = getDefaultBackingIndexName(dataStreamName, 2);
+
+            // let's check the indices are managed by DLM
+            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataLifecycleAction.INSTANCE,
+                new ExplainDataLifecycleAction.Request(new String[] { firstGenerationIndex, writeIndex })
+            ).actionGet();
+            assertThat(dlmExplainResponse.getIndices().size(), is(2));
+            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
+                assertThat(index.isManagedByDLM(), is(true));
+            }
+        });
+
+        // ILM rolls over every 2 documents - create the policy
+        RolloverAction rolloverIlmAction = new RolloverAction(RolloverConditions.newBuilder().addMaxIndexDocsCondition(2L).build());
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverIlmAction.getWriteableName(), rolloverIlmAction));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase));
+        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
+        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+
+        // let's update the index template to remove the DLM configuration and replace it with an ILM configuration
+        // note that this change will apply to new backing indices only. the write index will continue to be managed by DLM
+        // so we'll trigger a rollover by indexing one document (the next write index, and all subsequent new generations will start being
+        // managed by ILM)
+
+        // note that simply removing the DLM configuration from the index template does NOT remove it from the data stream, however the
+        // default value for the prefer_ilm setting is `true` so even though the new indices of the data stream will have both the DLM
+        // lifecycle configuration (by virtue of being part of a data stream that has `lifecycle` configured) and the ILM lifecycle
+        // configuration provided by the index template, ILM will take priority
+
+        putComposableIndexTemplate(
+            indexTemplateName,
+            null,
+            List.of(dataStreamName + "*"),
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
+            null,
+            null
+        );
+
+        indexDocs(dataStreamName, 1);
+
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), is(3));
+
+        });
+
+        assertBusy(() -> {
+            String firstGenerationIndex = getDefaultBackingIndexName(dataStreamName, 1);
+            String secondGenerationIndex = getDefaultBackingIndexName(dataStreamName, 2);
+            String writeIndex = getDefaultBackingIndexName(dataStreamName, 3);
+
+            // let's check the previous indices are managed by DLM
+            ExplainDataLifecycleAction.Response dlmExplainResponse = client().execute(
+                ExplainDataLifecycleAction.INSTANCE,
+                new ExplainDataLifecycleAction.Request(new String[] { firstGenerationIndex, secondGenerationIndex })
+            ).actionGet();
+            assertThat(dlmExplainResponse.getIndices().size(), is(2));
+            for (ExplainIndexDataLifecycle index : dlmExplainResponse.getIndices()) {
+                assertThat(index.isManagedByDLM(), is(true));
+            }
+
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(writeIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+
+            IndexLifecycleExplainResponse writeIndexExplain = explainResponse.getIndexResponses().get(writeIndex);
+            assertThat(writeIndexExplain.managedByILM(), is(true));
+            assertThat(writeIndexExplain.getPhase(), is("hot"));
+            assertThat(writeIndexExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
+        });
+
+        // rollover should now happen when indexing 2 documents (as configured in ILM)
+        indexDocs(dataStreamName, 2);
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), is(4));
+
+        });
+
+        // the new write index is also managed by ILM
+        assertBusy(() -> {
+            String thirdGenerationIndex = getDefaultBackingIndexName(dataStreamName, 3);
+            String writeIndex = getDefaultBackingIndexName(dataStreamName, 4);
+
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(thirdGenerationIndex, writeIndex);
+            ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+
+            IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(thirdGenerationIndex);
+            assertThat(thirdGenerationExplain.managedByILM(), is(true));
+            assertThat(thirdGenerationExplain.getPhase(), is("hot"));
+            assertThat(thirdGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
+
+            IndexLifecycleExplainResponse writeIndexExplain = explainResponse.getIndexResponses().get(writeIndex);
+            assertThat(writeIndexExplain.managedByILM(), is(true));
+            assertThat(writeIndexExplain.getPhase(), is("hot"));
+            assertThat(writeIndexExplain.getStep(), is(WaitForRolloverReadyStep.NAME));
+        });
+    }
+
     static void indexDocs(String dataStream, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {

@@ -194,7 +194,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private SystemIndexDescriptor fleetSecretsSystemIndexDescriptor() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(loadTemplateSource("/fleet-secrets.json"), XContentType.JSON);
-        System.out.println(request.mappings());
         return SystemIndexDescriptor.builder()
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)

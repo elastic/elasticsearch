@@ -53,7 +53,6 @@ A sample response:
 {
     "name": "my-app",
     "indices": [ "index1", "index2" ],
-    "analytics_collection_name": "my-analytics",
     "updated_at_millis": 1682105622204,
     "template": {
       "script": {

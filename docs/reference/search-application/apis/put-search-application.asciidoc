@@ -30,7 +30,7 @@ Also requires <<privileges-list-indices,manage privileges>> on all indices that 
 Defaults to `false`.
 
 `<body>`::
-(Optional, object)
+(Required, object)
 Contains parameters for a search application:
 +
 .Properties of `<body>` objects
@@ -39,10 +39,6 @@ Contains parameters for a search application:
 `indices`::
 (Required, array of strings)
 The <<indices,indices>> associated with this search application. All indices need to exist in order to be added to a search application.
-
-`analytics_collection_name`::
-(Optional, string) The name of the behavioral analytics association being used with this search application.
-Presently, this is used for informational purposes only. For more information see: <<behavioral-analytics-apis
 
 `template`::
 (Optional, object)
@@ -75,7 +71,6 @@ The following example creates a new Search Application called `my-app`:
 PUT _application/search_application/my-app?create
 {
   "indices": [ "index1", "index2" ],
-  "analytics_collection_name": "my-analytics-collection",
   "template": {
     "script": {
       "source": {
@@ -103,7 +98,6 @@ The following example creates or updates an existing Search Application called `
 PUT _application/search_application/my-app
 {
   "indices": [ "index1", "index2", "index3" ],
-  "analytics_collection_name": "my-analytics-collection",
   "template": {
     "script": {
       "source": {

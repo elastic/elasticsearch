@@ -217,16 +217,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.velocity.runtime.resource.loader.StringResourceLoader',
     'org.apache.velocity.runtime.resource.util.StringResourceRepository',
     // [missing classes] OpenSAML depends on Apache XML security which depends on Xalan, but only for functionality that OpenSAML doesn't use
-    'org.apache.xml.dtm.DTM',
-    'org.apache.xml.utils.PrefixResolver',
-    'org.apache.xpath.Expression',
-    'org.apache.xpath.NodeSetDTM',
-    'org.apache.xpath.XPath',
-    'org.apache.xpath.XPathContext',
-    'org.apache.xpath.compiler.FunctionTable',
-    'org.apache.xpath.functions.Function',
-    'org.apache.xpath.objects.XNodeSet',
-    'org.apache.xpath.objects.XObject',
     // [missing classes] OpenSAML storage has an optional LDAP storage impl
     'org.ldaptive.AttributeModification',
     'org.ldaptive.AttributeModificationType',
@@ -263,15 +253,9 @@ tasks.named("thirdPartyAudit").configure {
     'net.spy.memcached.CASResponse',
     'net.spy.memcached.CASValue',
     'net.spy.memcached.MemcachedClient',
-    'net.spy.memcached.MemcachedClientIF',
     'net.spy.memcached.CachedData',
     'net.spy.memcached.internal.OperationFuture',
     'net.spy.memcached.transcoders.Transcoder',
-    // [missing classes] Http Client cache has optional ehcache support
-    'net.sf.ehcache.Ehcache',
-    'net.sf.ehcache.Element',
-    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-    'org.slf4j.ext.EventData',
         // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
         // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
         'org.bouncycastle.asn1.ASN1Encodable',

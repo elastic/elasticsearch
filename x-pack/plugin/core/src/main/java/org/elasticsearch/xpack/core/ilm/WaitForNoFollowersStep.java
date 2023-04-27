@@ -55,21 +55,17 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
         xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
-        getClient().execute(
-            XPackInfoAction.INSTANCE,
-            xPackInfoRequest,
-            ActionListener.wrap((xPackInfoResponse) -> {
-                XPackInfoResponse.FeatureSetsInfo featureSetsInfo = xPackInfoResponse.getFeatureSetsInfo();
-                if (featureSetsInfo != null) {
-                    XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = featureSetsInfo.getFeatureSets().get(CCR_LEASE_KEY);
-                    if (featureSet != null && (featureSet.available() == false || featureSet.enabled() == false)){
-                        listener.onResponse(true, null);
-                        return;
-                    }
+        getClient().execute(XPackInfoAction.INSTANCE, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
+            XPackInfoResponse.FeatureSetsInfo featureSetsInfo = xPackInfoResponse.getFeatureSetsInfo();
+            if (featureSetsInfo != null) {
+                XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = featureSetsInfo.getFeatureSets().get(CCR_LEASE_KEY);
+                if (featureSet != null && (featureSet.available() == false || featureSet.enabled() == false)) {
+                    listener.onResponse(true, null);
+                    return;
                 }
-                leaderIndexCheck(metadata, index, listener, masterTimeout);
-            }, listener::onFailure)
-        );
+            }
+            leaderIndexCheck(metadata, index, listener, masterTimeout);
+        }, listener::onFailure));
     }
 
     private void leaderIndexCheck(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {

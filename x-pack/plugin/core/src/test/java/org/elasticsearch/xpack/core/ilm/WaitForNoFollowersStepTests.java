@@ -68,7 +68,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         return new WaitForNoFollowersStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testConditionMetWhenEnable() {
+    public void testConditionMetWhenCCREnabled() {
         WaitForNoFollowersStep step = createRandomInstance();
 
         String indexName = randomAlphaOfLengthBetween(5, 10);
@@ -102,7 +102,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         assertNull(stepInfoHolder.get());
     }
 
-    public void testConditionMetWhenDisabled() {
+    public void testConditionMetWhenCCRDisabled() {
         WaitForNoFollowersStep step = createRandomInstance();
 
         String indexName = randomAlphaOfLengthBetween(5, 10);

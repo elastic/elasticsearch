@@ -17,15 +17,11 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,40 +29,30 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -209,34 +195,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
 
         assertReplicatedTranslogConsistentWithShards();
-    }
-
-    private static void assertReplicatedTranslogConsistentWithShards() throws Exception {
-        final Map<Index, Integer> indices = resolveIndices();
-        assertThat(indices.isEmpty(), is(false));
-
-        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
-            assertThat(entry.getValue(), greaterThan(0));
-            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
-                DiscoveryNode indexNode = findIndexNode(entry.getKey(), shardId);
-                IndexShard indexShard = findIndexShard(entry.getKey(), shardId);
-                final ShardId objShardId = new ShardId(entry.getKey(), shardId);
-
-                // Check that the translog on the object store contains the correct sequence numbers and number of operations
-                var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode.getName());
-                var reader = new TranslogReplicatorReader(indexObjectStoreService.getTranslogBlobContainer(), objShardId);
-                long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-                long totalOps = 0;
-                Translog.Operation next = reader.next();
-                while (next != null) {
-                    maxSeqNo = SequenceNumbers.max(maxSeqNo, next.seqNo());
-                    totalOps++;
-                    next = reader.next();
-                }
-                assertThat(maxSeqNo, equalTo(indexShard.seqNoStats().getMaxSeqNo()));
-                assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
-            }
-        }
     }
 
     public void testDownloadNewCommitsFromObjectStore() throws Exception {
@@ -507,220 +465,4 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    private static void indexDocuments(String indexName) {
-        final int iters = randomIntBetween(1, 20);
-        for (int i = 0; i < iters; i++) {
-            indexDocs(indexName, randomIntBetween(1, 100));
-            switch (randomInt(2)) {
-                case 0 -> client().admin().indices().prepareFlush(indexName).setForce(randomBoolean()).get();
-                case 1 -> client().admin().indices().prepareRefresh(indexName).get();
-                case 2 -> client().admin().indices().prepareForceMerge(indexName).get();
-            }
-            assertObjectStoreConsistentWithIndexShards();
-        }
-    }
-
-    private static void assertObjectStoreConsistentWithIndexShards() {
-        assertObjectStoreConsistentWithShards(DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
-    }
-
-    private static void assertObjectStoreConsistentWithSearchShards() {
-        assertObjectStoreConsistentWithShards(DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
-    }
-
-    private static void assertObjectStoreConsistentWithShards(DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
-        final Map<Index, Integer> indices = resolveIndices();
-        assertThat(indices.isEmpty(), is(false));
-
-        for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
-            assertThat(entry.getValue(), greaterThan(0));
-            for (int shardId = 0; shardId < entry.getValue(); shardId++) {
-                assertThatObjectStoreIsConsistentWithLastCommit(findShard(entry.getKey(), shardId, nodeRole, shardRole));
-            }
-        }
-    }
-
-    private static void assertThatObjectStoreIsConsistentWithLastCommit(final IndexShard indexShard) {
-        final Store store = indexShard.store();
-        store.incRef();
-        try {
-            ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
-            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-
-            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
-
-            // can take some time for files to be uploaded to the object store
-            assertBusy(() -> {
-                String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
-                assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true));
-                StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                    new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
-                );
-                var localFiles = segmentInfos.files(false);
-                var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
-                var remoteFiles = blobContainerForCommit.listBlobs().keySet();
-                assertThat(
-                    "Expected that all local files " + localFiles + " exist in remote " + remoteFiles,
-                    remoteFiles,
-                    hasItems(expectedBlobFile.toArray(String[]::new))
-                );
-                for (String localFile : segmentInfos.files(false)) {
-                    BlobLocation blobLocation = commit.commitFiles().get(localFile);
-                    final BlobContainer blobContainerForFile = objectStoreService.getBlobContainer(
-                        indexShard.shardId(),
-                        blobLocation.primaryTerm()
-                    );
-                    assertThat("" + localFile, blobContainerForFile.blobExists(blobLocation.blobName()), is(true));
-                    try (
-                        IndexInput input = store.directory().openInput(localFile, IOContext.READONCE);
-                        InputStream local = new InputStreamIndexInput(input, input.length());
-                        InputStream remote = blobContainerForFile.readBlob(
-                            blobLocation.blobName(),
-                            blobLocation.offset(),
-                            blobLocation.length()
-                        );
-                    ) {
-                        assertEquals("File [" + blobLocation + "] in object store has a different content than local file ", local, remote);
-                    }
-                }
-            });
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        } finally {
-            store.decRef();
-        }
-    }
-
-    private static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard) {
-        final Store indexStore = indexShard.store();
-        final Store searchStore = searchShard.store();
-        indexStore.incRef();
-        searchStore.incRef();
-        try {
-            ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
-            var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-
-            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
-
-            String commitFile = StatelessCompoundCommit.NAME + segmentInfos.getGeneration();
-            assertBusy(() -> assertThat("" + commitFile, blobContainerForCommit.blobExists(commitFile), is(true)));
-            StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                new InputStreamStreamInput(blobContainerForCommit.readBlob(commitFile))
-            );
-
-            for (String localFile : segmentInfos.files(false)) {
-                var blobPath = commit.commitFiles().get(localFile);
-                BlobContainer blobContainer = objectStoreService.getBlobContainer(indexShard.shardId(), blobPath.primaryTerm());
-                var blobFile = blobPath.blobName();
-                // can take some time for files to be uploaded to the object store
-                assertBusy(() -> {
-                    assertThat("" + blobFile, blobContainer.blobExists(blobFile), is(true));
-
-                    try (
-                        IndexInput input = indexStore.directory().openInput(localFile, IOContext.READONCE);
-                        InputStream local = new InputStreamIndexInput(input, input.length());
-                        IndexInput searchInput = searchStore.directory().openInput(localFile, IOContext.READONCE);
-                        InputStream searchInputStream = new InputStreamIndexInput(searchInput, searchInput.length());
-                    ) {
-                        assertEquals(
-                            "File [" + blobFile + "] on search shard has a different content than local file ",
-                            local,
-                            searchInputStream
-                        );
-                    }
-                });
-            }
-        } catch (Exception e) {
-            throw new AssertionError(e);
-        } finally {
-            indexStore.decRef();
-            searchStore.decRef();
-        }
-    }
-
-    private static void assertEquals(String message, InputStream expected, InputStream actual) throws IOException {
-        // adapted from Files.mismatch()
-        final int BUFFER_SIZE = 8192;
-        byte[] buffer1 = new byte[BUFFER_SIZE];
-        byte[] buffer2 = new byte[BUFFER_SIZE];
-        try (
-            InputStream expectedStream = new BufferedInputStream(expected, BUFFER_SIZE);
-            InputStream actualStream = new BufferedInputStream(actual, BUFFER_SIZE)
-        ) {
-            long totalRead = 0;
-            while (true) {
-                int nRead1 = expectedStream.readNBytes(buffer1, 0, BUFFER_SIZE);
-                int nRead2 = actualStream.readNBytes(buffer2, 0, BUFFER_SIZE);
-
-                int i = Arrays.mismatch(buffer1, 0, nRead1, buffer2, 0, nRead2);
-                assertThat(message + "(position: " + (totalRead + i) + ')', i, equalTo(-1));
-                if (nRead1 < BUFFER_SIZE) {
-                    // we've reached the end of the files, but found no mismatch
-                    break;
-                }
-                totalRead += nRead1;
-            }
-        }
-    }
-
-    private static DiscoveryNode findIndexNode(Index index, int shardId) {
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), DiscoveryNodeRole.INDEX_ROLE)) {
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService != null) {
-                    IndexShard shardOrNull = indexService.getShardOrNull(shardId);
-                    if (shardOrNull != null && shardOrNull.isActive()) {
-                        assertTrue(shardOrNull.routingEntry().primary());
-                        return indicesService.clusterService().localNode();
-                    }
-                }
-            }
-        }
-        throw new AssertionError("Cannot finding indexing node for: " + shardId);
-    }
-
-    private static IndexShard findIndexShard(Index index, int shardId) {
-        return findShard(index, shardId, DiscoveryNodeRole.INDEX_ROLE, ShardRouting.Role.INDEX_ONLY);
-    }
-
-    private static IndexShard findSearchShard(Index index, int shardId) {
-        return findShard(index, shardId, DiscoveryNodeRole.SEARCH_ROLE, ShardRouting.Role.SEARCH_ONLY);
-    }
-
-    private static IndexShard findShard(Index index, int shardId, DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
-        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), nodeRole)) {
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService != null) {
-                    IndexShard shard = indexService.getShardOrNull(shardId);
-                    if (shard != null && shard.isActive()) {
-                        assertThat("Unexpected shard role", shard.routingEntry().role(), equalTo(shardRole));
-                        return shard;
-                    }
-                }
-            }
-        }
-        throw new AssertionError(
-            "IndexShard instance not found for shard " + new ShardId(index, shardId) + " on nodes with [" + nodeRole.roleName() + "] role"
-        );
-    }
-
-    private static Map<Index, Integer> resolveIndices() {
-        return client().admin()
-            .indices()
-            .prepareGetIndex()
-            .get()
-            .getSettings()
-            .values()
-            .stream()
-            .collect(
-                Collectors.toUnmodifiableMap(
-                    settings -> new Index(
-                        settings.get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME),
-                        settings.get(IndexMetadata.SETTING_INDEX_UUID)
-                    ),
-                    settings -> settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 0)
-                )
-            );
-    }
 }

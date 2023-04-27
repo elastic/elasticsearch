@@ -412,7 +412,7 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary()
                 );
-                return new IndexEngine(newConfig, translogReplicator.get());
+                return new IndexEngine(newConfig, translogReplicator.get(), getObjectStoreService());
             } else {
                 return new SearchEngine(config);
             }

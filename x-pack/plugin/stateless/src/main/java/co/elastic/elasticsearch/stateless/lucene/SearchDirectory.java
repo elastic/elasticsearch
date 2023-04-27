@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
@@ -97,6 +98,7 @@ public class SearchDirectory extends BaseDirectory {
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
 
     private volatile Map<String, BlobLocation> currentMetadata = Map.of();
+    private volatile Optional<String> currentMetadataNodeEphemeralId = Optional.empty();
 
     public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(new SingleInstanceLockFactory());
@@ -140,9 +142,14 @@ public class SearchDirectory extends BaseDirectory {
             final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
             updated.putAll(newCommit.commitFiles());
             currentMetadata = Map.copyOf(updated);
+            currentMetadataNodeEphemeralId = Optional.of(newCommit.nodeEphemeralId());
         } finally {
             assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
         }
+    }
+
+    public Optional<String> getCurrentMetadataNodeEphemeralId() {
+        return currentMetadataNodeEphemeralId;
     }
 
     private boolean assertCompareAndSetUpdatingCommitThread(Thread current, Thread updated) {

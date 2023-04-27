@@ -180,12 +180,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
         IndexMetadata.Builder builder = IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT.id)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 1)
-            );
+            .settings(indexSettings(1, 1).put("index.version.created", Version.CURRENT.id));
         for (String alias : aliases) {
             builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }

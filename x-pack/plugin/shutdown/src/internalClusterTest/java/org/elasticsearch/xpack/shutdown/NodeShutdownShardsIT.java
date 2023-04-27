@@ -200,14 +200,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index and pin it to nodeA, when we replace it with nodeB,
         // it'll move the data, overridding the `_name` allocation filter
-        createIndex(
-            "myindex",
-            Settings.builder()
-                .put("index.routing.allocation.require._name", nodeA)
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .build()
-        );
+        createIndex("myindex", indexSettings(3, 0).put("index.routing.allocation.require._name", nodeA).build());
         final String nodeAId = getNodeId(nodeA);
         final String nodeB = "node_t2"; // TODO: fix this to so it's actually overrideable
 
@@ -270,14 +263,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         // Create an index on nodeA, then create allocation filter that could not be satisfied.
         // when we replace it with nodeB, it'll move the data, overridding the `_name` allocation filter
-        createIndex(
-            "myindex",
-            Settings.builder()
-                .put("index.routing.allocation.require._name", nodeA)
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .build()
-        );
+        createIndex("myindex", indexSettings(3, 0).put("index.routing.allocation.require._name", nodeA).build());
 
         var fakeNodeName = UUIDs.randomBase64UUID();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", fakeNodeName), "myindex");

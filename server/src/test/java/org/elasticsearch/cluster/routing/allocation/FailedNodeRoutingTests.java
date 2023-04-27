@@ -44,8 +44,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -138,10 +136,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         logger.info("--> creating some indices");
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
-            Settings.Builder settingsBuilder = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(2, 4));
-            CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
+            CreateIndexRequest request = new CreateIndexRequest(name, indexSettings(randomIntBetween(1, 4), randomIntBetween(2, 4)).build())
+                .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex(name));
         }

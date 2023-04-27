@@ -59,7 +59,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
             XPackInfoResponse.FeatureSetsInfo featureSetsInfo = xPackInfoResponse.getFeatureSetsInfo();
             if (featureSetsInfo != null) {
                 XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = featureSetsInfo.getFeatureSets().get(CCR_LEASE_KEY);
-                if (featureSet != null && (featureSet.available() == false || featureSet.enabled() == false)) {
+                if (featureSet != null && featureSet.enabled() == false) {
                     listener.onResponse(true, null);
                     return;
                 }

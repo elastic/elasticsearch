@@ -120,6 +120,7 @@ public class ReactiveReasonTests extends ESTestCase {
             List<Map<String, Object>> canAllocateDecisions = (List<Map<String, Object>>) unassignedNodeDecisions.get(
                 "can_allocate_decisions"
             );
+            assertEquals(2, canAllocateDecisions.size());
             assertEquals("node1", canAllocateDecisions.get(0).get("node_id"));
             assertEquals(
                 List.of(Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate")),

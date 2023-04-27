@@ -109,7 +109,7 @@ public final class IndexPrivilege extends Privilege {
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,
-        "indices:admin/data_lifecycle/get",
+        "indices:admin/dlm/get",
         "indices:admin/dlm/explain",
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,

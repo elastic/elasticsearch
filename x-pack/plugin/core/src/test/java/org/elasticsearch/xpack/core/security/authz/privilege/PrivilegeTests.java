@@ -451,11 +451,11 @@ public class PrivilegeTests extends ESTestCase {
             Predicate<String> predicate = IndexPrivilege.MANAGE_DLM.predicate();
             // check indices actions
             assertThat(predicate.test("indices:admin/dlm/explain"), is(true));
-            assertThat(predicate.test("indices:admin/data_lifecycle/get"), is(true));
-            assertThat(predicate.test("indices:admin/data_lifecycle/delete"), is(true));
-            assertThat(predicate.test("indices:admin/data_lifecycle/put"), is(true));
+            assertThat(predicate.test("indices:admin/dlm/get"), is(true));
+            assertThat(predicate.test("indices:admin/dlm/delete"), is(true));
+            assertThat(predicate.test("indices:admin/dlm/put"), is(true));
             assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(true));
-            assertThat(predicate.test("indices:admin/data_lifecycle/brand_new_api"), is(true));
+            assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(true));
             // check non-dlm action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }
@@ -464,11 +464,11 @@ public class PrivilegeTests extends ESTestCase {
             Predicate<String> predicate = IndexPrivilege.VIEW_METADATA.predicate();
             // check indices actions
             assertThat(predicate.test("indices:admin/dlm/explain"), is(true));
-            assertThat(predicate.test("indices:admin/data_lifecycle/get"), is(true));
-            assertThat(predicate.test("indices:admin/data_lifecycle/delete"), is(false));
-            assertThat(predicate.test("indices:admin/data_lifecycle/put"), is(false));
+            assertThat(predicate.test("indices:admin/dlm/get"), is(true));
+            assertThat(predicate.test("indices:admin/dlm/delete"), is(false));
+            assertThat(predicate.test("indices:admin/dlm/put"), is(false));
             assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(false));
-            assertThat(predicate.test("indices:admin/data_lifecycle/brand_new_api"), is(false));
+            assertThat(predicate.test("indices:admin/dlm/brand_new_api"), is(false));
             // check non-dlm action
             assertThat(predicate.test("indices:admin/whatever"), is(false));
         }

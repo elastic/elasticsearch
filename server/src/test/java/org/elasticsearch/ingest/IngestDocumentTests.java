@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -1142,4 +1143,19 @@ public class IngestDocumentTests extends ESTestCase {
         assertFalse(IngestDocument.Metadata.isMetadata("address"));
     }
 
+    public void testIndexHistory() {
+        // the index history contains the original index
+        String index1 = ingestDocument.getFieldValue("_index", String.class);
+        assertThat(index1, equalTo("index"));
+        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1));
+
+        // it can be updated to include another index
+        String index2 = "another_index";
+        assertTrue(ingestDocument.updateIndexHistory(index2));
+        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+
+        // an index cycle cannot be introduced, however
+        assertFalse(ingestDocument.updateIndexHistory(index1));
+        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+    }
 }

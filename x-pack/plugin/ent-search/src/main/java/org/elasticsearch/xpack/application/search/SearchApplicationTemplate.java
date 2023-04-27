@@ -18,18 +18,33 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction;
-import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
+import org.elasticsearch.xpack.application.search.action.SearchApplicationSearchRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Search template included in a {@link SearchApplication}. It will be used for searching using the
- * {@link QuerySearchApplicationAction}, overriding the parameters included on it via {@link Request}
+ * {@link QuerySearchApplicationAction}, overriding the parameters included on it via
+ * {@link SearchApplicationSearchRequest}
  */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
+
+    public static final SearchApplicationTemplate DEFAULT_TEMPLATE = new SearchApplicationTemplate(
+        new Script(ScriptType.INLINE, MustacheScriptEngine.NAME, """
+            {
+              "query": {
+                "query_string": {
+                    "query": "{{query_string}}",
+                    "default_field": "{{default_field}}"
+                    }
+                }
+            }
+            """, Map.of("query_string", "*", "default_field", "*"))
+    );
     private final Script script;
 
     public SearchApplicationTemplate(StreamInput in) throws IOException {
@@ -96,4 +111,5 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
     public Script script() {
         return script;
     }
+
 }

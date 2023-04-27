@@ -123,6 +123,10 @@ public class ListSearchApplicationAction extends ActionType<ListSearchApplicatio
             return RestStatus.OK;
         }
 
+        public QueryPage<SearchApplicationListItem> queryPage() {
+            return queryPage;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

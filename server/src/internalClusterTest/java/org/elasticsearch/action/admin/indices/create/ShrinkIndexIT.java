@@ -105,13 +105,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareResizeIndex("source", "first_shrink")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", shardSplits[1])
-                        .putNull("index.blocks.write")
-                        .build()
-                )
+                .setSettings(indexSettings(shardSplits[1], 0).putNull("index.blocks.write").build())
                 .get()
         );
         ensureGreen();
@@ -139,12 +133,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .indices()
                 .prepareResizeIndex("first_shrink", "second_shrink")
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", shardSplits[2])
-                        .putNull("index.blocks.write")
-                        .putNull("index.routing.allocation.require._name")
-                        .build()
+                    indexSettings(shardSplits[2], 0).putNull("index.blocks.write").putNull("index.routing.allocation.require._name").build()
                 )
                 .get()
         );
@@ -230,10 +219,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final long beforeShrinkPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetadata::primaryTerm).max().getAsLong();
 
         // now merge source into target
-        final Settings shrinkSettings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", numberOfTargetShards)
-            .build();
+        final Settings shrinkSettings = indexSettings(numberOfTargetShards, 0).build();
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target").setSettings(shrinkSettings).get());
 
         ensureGreen(TimeValue.timeValueSeconds(120));
@@ -476,13 +462,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             () -> client().admin()
                 .indices()
                 .prepareResizeIndex("source", "target")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", "2")
-                        .put("index.sort.field", "foo")
-                        .build()
-                )
+                .setSettings(indexSettings(2, 0).put("index.sort.field", "foo").build())
                 .get()
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
@@ -492,13 +472,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareResizeIndex("source", "target")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", "2")
-                        .putNull("index.blocks.write")
-                        .build()
-                )
+                .setSettings(indexSettings(2, 0).putNull("index.blocks.write").build())
                 .get()
         );
         ensureGreen();
@@ -620,11 +594,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .indices()
                 .prepareResizeIndex("original", "shrunk")
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                        .build()
+                    indexSettings(1, 1).putNull(
+                        IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()
+                    ).build()
                 )
                 .setResizeType(ResizeType.SHRINK)
                 .get()
@@ -644,11 +616,9 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .indices()
                 .prepareResizeIndex("shrunk", "splitagain")
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
-                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                        .build()
+                    indexSettings(shardCount, 0).putNull(
+                        IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()
+                    ).build()
                 )
                 .setResizeType(ResizeType.SPLIT)
         );

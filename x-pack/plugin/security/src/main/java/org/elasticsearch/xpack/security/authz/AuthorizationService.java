@@ -466,17 +466,17 @@ public class AuthorizationService {
                             false
                         ),
                         Set.of(),
-                        ActionListener.wrap(privilegesCheckResult -> {
-                            if (privilegesCheckResult.allChecksSuccess()) {
-                                clusterAuthzListener.onResponse(AuthorizationResult.granted());
-                            } else {
-                                clusterAuthzListener.onResponse(AuthorizationResult.deny());
-                            }
-                        }, clusterAuthzListener::onFailure)
+                        ActionListener.wrap(
+                            privilegesCheckResult -> {
+                                clusterAuthzListener.onResponse(
+                                    privilegesCheckResult.allChecksSuccess() ? AuthorizationResult.granted() : AuthorizationResult.deny()
+                                );
+                            },
+                            clusterAuthzListener::onFailure
+                        )
                     );
                     return;
                 }
-
                 clusterAuthzListener.onResponse(result);
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {

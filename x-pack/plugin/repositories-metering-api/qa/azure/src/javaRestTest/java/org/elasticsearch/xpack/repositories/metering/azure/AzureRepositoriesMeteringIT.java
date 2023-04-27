@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.repositories.metering.azure;
 
 import fixture.azure.AzureHttpFixture;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -20,7 +19,6 @@ import org.junit.rules.TestRule;
 import java.util.List;
 import java.util.Map;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95136")
 public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");

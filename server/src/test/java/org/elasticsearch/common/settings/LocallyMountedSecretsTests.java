@@ -139,6 +139,17 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         assertNull(secrets.getString("ccc"));
     }
 
+    public void testResolveSecretsDir() {
+        assertTrue(LocallyMountedSecrets.resolveSecretsDir(env).endsWith("config/" + LocallyMountedSecrets.SECRETS_DIRECTORY));
+    }
+
+    public void testResolveSecretsFile() {
+        assertTrue(
+            LocallyMountedSecrets.resolveSecretsFile(env)
+                .endsWith("config/" + LocallyMountedSecrets.SECRETS_DIRECTORY + "/" + LocallyMountedSecrets.SECRETS_FILE_NAME)
+        );
+    }
+
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
 

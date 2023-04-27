@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.packageloader.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.security.AccessController;
 import java.security.MessageDigest;
@@ -93,6 +95,8 @@ final class ModelLoaderUtils {
 
     static InputStream getInputStreamFromModelRepository(URI uri) throws IOException {
         String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+
+        // if you add a scheme here, also add it to the bootstrap check in {@link MachineLearningPackageLoader#validateModelRepository}
         switch (scheme) {
             case "http":
             case "https":
@@ -104,7 +108,7 @@ final class ModelLoaderUtils {
         }
     }
 
-    public static Tuple<List<String>, List<String>> loadVocabulary(URI uri) {
+    static Tuple<List<String>, List<String>> loadVocabulary(URI uri) {
         try {
             InputStream vocabInputStream = getInputStreamFromModelRepository(uri);
 
@@ -132,11 +136,32 @@ final class ModelLoaderUtils {
         }
     }
 
+    static URI resolvePackageLocation(String repository, String artefact) throws URISyntaxException {
+        URI baseUri = new URI(repository.endsWith("/") ? repository : repository + "/").normalize();
+        URI resolvedUri = baseUri.resolve(artefact).normalize();
+
+        if (Strings.isNullOrEmpty(baseUri.getScheme())) {
+            throw new IllegalArgumentException("Repository must contain a scheme");
+        }
+
+        if (baseUri.getScheme().equals(resolvedUri.getScheme()) == false) {
+            throw new IllegalArgumentException("Illegal schema change in package location");
+        }
+
+        if (resolvedUri.getPath().startsWith(baseUri.getPath()) == false) {
+            throw new IllegalArgumentException("Illegal path in package location");
+        }
+
+        return baseUri.resolve(artefact);
+    }
+
     private ModelLoaderUtils() {}
 
     @SuppressWarnings("'java.lang.SecurityManager' is deprecated and marked for removal ")
     @SuppressForbidden(reason = "we need socket connection to download")
     private static InputStream getHttpOrHttpsInputStream(URI uri) throws IOException {
+
+        assert uri.getUserInfo() == null : "URI's with credentials are not supported";
 
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

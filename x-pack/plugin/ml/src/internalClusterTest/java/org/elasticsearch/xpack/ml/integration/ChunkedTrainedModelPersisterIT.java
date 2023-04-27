@@ -113,6 +113,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -184,6 +185,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();

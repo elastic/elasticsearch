@@ -55,8 +55,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -1315,10 +1313,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see #3555
     public void testPrunedSegments() throws IOException {
-        createIndexAndMappingAndSettings(
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(),
-            completionMappingBuilder
-        );
+        createIndexAndMappingAndSettings(indexSettings(1, 0).build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX)
             .setId("1")

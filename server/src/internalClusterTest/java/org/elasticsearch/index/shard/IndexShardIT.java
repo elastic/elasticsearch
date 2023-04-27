@@ -95,8 +95,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 import static org.elasticsearch.index.shard.IndexShardTestCase.recoverFromStore;
@@ -239,12 +237,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testExpectedShardSizeIsPresent() throws InterruptedException {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         for (int i = 0; i < 50; i++) {
             client().prepareIndex("test").setSource("{}", XContentType.JSON).get();
         }

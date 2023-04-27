@@ -602,14 +602,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
             var shardSize = randomLongBetween(10_000_000L, 10_000_000_000L);
 
-            var indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(
-                    Settings.builder()
-                        .put("index.number_of_shards", shards)
-                        .put("index.number_of_replicas", replicas)
-                        .put("index.version.created", Version.CURRENT)
-                        .build()
-                );
+            var indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, shards, replicas));
             if (randomBoolean()) {
                 indexMetadataBuilder.shardSizeInBytesForecast(smallShardSizeDeviation(shardSize));
             }
@@ -749,14 +742,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(
-                        Settings.builder()
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 1)
-                            .put("index.version.created", Version.CURRENT)
-                            .put("index.routing.allocation.exclude._name", "node-2")
-                            .build()
-                    )
+                    .settings(indexSettings(Version.CURRENT, 1, 1).put("index.routing.allocation.exclude._name", "node-2"))
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
@@ -789,14 +775,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(
-                        Settings.builder()
-                            .put("index.number_of_shards", 1)
-                            .put("index.number_of_replicas", 0)
-                            .put("index.version.created", Version.CURRENT)
-                            .put("index.routing.allocation.exclude._name", "node-2")
-                            .build()
-                    )
+                    .settings(indexSettings(Version.CURRENT, 1, 0).put("index.routing.allocation.exclude._name", "node-2"))
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();

@@ -1,0 +1,14 @@
+{
+  "index_patterns": [
+    "profiling-stacktraces*"
+  ],
+  "composed_of": [
+    "profiling-stacktraces"
+  ],
+  "priority": 100,
+  "version": 1,
+  "_meta": {
+    "description": "Index template for profiling-stacktraces",
+    "version": 1
+  }
+}

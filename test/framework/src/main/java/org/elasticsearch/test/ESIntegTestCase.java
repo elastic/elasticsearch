@@ -362,7 +362,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final Scope currentClusterScope = getCurrentClusterScope();
         Callable<Void> setup = () -> {
             cluster().beforeTest(random());
-            cluster().wipe(excludeTemplates());
+            if (wipeCluster()) {
+                cluster().wipe(excludeTemplates());
+            }
             randomIndexTemplate();
             return null;
         };
@@ -604,6 +606,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected Set<String> excludeTemplates() {
         return Collections.emptySet();
+    }
+
+    /**
+     * @return <code>true</code> if the cluster should be wiped before each test. By default, the cluster is wiped.
+     */
+    protected boolean wipeCluster() {
+        return true;
     }
 
     protected void beforeIndexDeletion() throws Exception {

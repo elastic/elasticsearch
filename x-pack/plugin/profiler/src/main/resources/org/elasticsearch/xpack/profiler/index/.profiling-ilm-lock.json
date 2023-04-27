@@ -1,0 +1,18 @@
+{
+  "settings": {
+    "index": {
+      "hidden": true
+    }
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date",
+        "format": "epoch_second"
+      },
+      "phase": {
+        "type": "keyword"
+      }
+    }
+  }
+}

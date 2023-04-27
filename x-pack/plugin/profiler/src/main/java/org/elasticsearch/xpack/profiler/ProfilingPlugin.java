@@ -77,21 +77,13 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         AllocationService allocationService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
-        return super.createComponents(
-            client,
-            clusterService,
-            threadPool,
-            resourceWatcherService,
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            indexNameExpressionResolver,
-            repositoriesServiceSupplier,
-            tracer,
-            allocationService
-        );
+        if (enabled) {
+            ProfilingIndexManager indexManager = new ProfilingIndexManager(client, xContentRegistry, clusterService);
+            indexManager.init();
+            return Collections.singletonList(indexManager);
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     @Override

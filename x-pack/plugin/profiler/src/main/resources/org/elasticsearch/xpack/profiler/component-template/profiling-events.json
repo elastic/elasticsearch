@@ -1,24 +1,24 @@
 {
-  "settings": {
-    "index": {
-      "number_of_shards": "4",
-      "max_result_window": 150000,
-      "refresh_interval": "10s",
-      "sort": {
-        "field": [
-          "service.name",
-          "@timestamp",
-          "orchestrator.resource.name",
-          "container.name",
-          "process.thread.name",
-          "host.id"
-        ]
-      }
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 4,
+        "max_result_window": 150000,
+        "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "service.name",
+            "@timestamp",
+            "orchestrator.resource.name",
+            "container.name",
+            "process.thread.name",
+            "host.id"
+          ]
+        }
+      },
+      "codec": "best_compression"
     },
-    "codec": "best_compression"
-  },
-  "mappings": {
-    "_doc": {
+    "mappings": {
       "_source": {
         "enabled": false
       },
@@ -59,9 +59,6 @@
         },
         "host.ip": {
           "type": "ip"
-        },
-        "host.ipstring": {
-          "type": "keyword"
         },
         "host.name": {
           "type": "keyword"

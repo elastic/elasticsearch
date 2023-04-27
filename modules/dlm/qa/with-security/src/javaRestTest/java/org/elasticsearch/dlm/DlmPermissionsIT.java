@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PermissionsIT extends ESRestTestCase {
+public class DlmPermissionsIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
@@ -48,19 +48,12 @@ public class PermissionsIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    /**
-     * Tests that a policy that simply deletes an index after 0s succeeds when an index
-     * with user `test_admin` is created referencing a policy created by `test_dlm` when both
-     * users have read/write permissions on the index. The goal is to verify that one
-     * does not need to be the same user who created both the policy and the index to have the
-     * index be properly managed by DLM.
-     */
     @SuppressWarnings("unchecked")
     public void testManageDLM() throws Exception {
         String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
         createDataStreamAsAdmin(dataStreamName);
-        Response createDatastreamRepsonse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
-        final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(createDatastreamRepsonse).evaluate("data_streams");
+        Response dataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
+        final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(dataStreamResponse).evaluate("data_streams");
         String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
 
         Request explainLifecycleRequest = new Request("POST", "/" + index + "/_lifecycle/explain");

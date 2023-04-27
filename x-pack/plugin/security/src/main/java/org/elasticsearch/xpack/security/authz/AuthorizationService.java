@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.PrivilegesCheckRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
@@ -451,6 +453,25 @@ public class AuthorizationService {
                         return;
                     }
                 }
+                if (result.isGranted() && request instanceof PrivilegesCheckRequest) {
+                    var indices = ((PrivilegesCheckRequest) request).getPrivilegesToCheck().indices();
+                    var indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("delete").build() };
+                    checkPrivileges(
+                        authentication.getEffectiveSubject(),
+                        new AuthorizationEngine.PrivilegesToCheck(null, indicesPrivilegesToCheck, null, false),
+                        Set.of(),
+                        ActionListener.wrap(privilegesCheckResult -> {
+                            if (privilegesCheckResult.allChecksSuccess()) {
+                                clusterAuthzListener.onResponse(AuthorizationResult.granted());
+                            } else {
+                                clusterAuthzListener.onResponse(AuthorizationResult.deny());
+                            }
+                        }, clusterAuthzListener::onFailure)
+                    );
+                    return;
+                }
+
                 clusterAuthzListener.onResponse(result);
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {

@@ -11,6 +11,7 @@ package org.elasticsearch.dlm.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.PrivilegesCheckRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,13 +38,17 @@ import static org.elasticsearch.cluster.metadata.DataLifecycle.DATA_RETENTION_FI
 public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutDataLifecycleAction INSTANCE = new PutDataLifecycleAction();
-    public static final String NAME = "indices:admin/dlm/put";
+    public static final String NAME = "cluster:admin/dlm/put";
 
     private PutDataLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
+    public static final class Request extends AcknowledgedRequest<Request>
+        implements
+            IndicesRequest,
+            PrivilegesCheckRequest,
+            ToXContentObject {
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
@@ -145,10 +150,14 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
             return result;
         }
 
-        @Override
         public IndicesRequest indices(String... names) {
             this.names = names;
             return this;
+        }
+
+        @Override
+        public CorePrivilegesToCheck getPrivilegesToCheck() {
+            return new CorePrivilegesToCheck(indices());
         }
     }
 }

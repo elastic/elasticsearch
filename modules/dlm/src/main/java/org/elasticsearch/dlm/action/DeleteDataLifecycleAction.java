@@ -10,7 +10,6 @@ package org.elasticsearch.dlm.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -27,13 +26,13 @@ import java.util.Objects;
 public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteDataLifecycleAction INSTANCE = new DeleteDataLifecycleAction();
-    public static final String NAME = "indices:admin/dlm/delete";
+    public static final String NAME = "cluster:admin/dlm/delete";
 
     private DeleteDataLifecycleAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+    public static final class Request extends AcknowledgedRequest<Request> {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
@@ -64,12 +63,10 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
             return null;
         }
 
-        @Override
         public String[] indices() {
             return names;
         }
 
-        @Override
         public IndicesOptions indicesOptions() {
             return indicesOptions;
         }
@@ -79,7 +76,6 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
             return this;
         }
 
-        @Override
         public boolean includeDataStreams() {
             return true;
         }
@@ -97,12 +93,6 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
             int result = Objects.hash(indicesOptions);
             result = 31 * result + Arrays.hashCode(names);
             return result;
-        }
-
-        @Override
-        public IndicesRequest indices(String... indices) {
-            this.names = indices;
-            return this;
         }
     }
 }

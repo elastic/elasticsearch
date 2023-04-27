@@ -175,7 +175,6 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
-            entry("manage_dlm", MANAGE_DLM),
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE)
         )

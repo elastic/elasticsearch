@@ -227,12 +227,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected static IndexSettings createIndexSettings(Version version, Settings settings) {
-        settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put(settings)
-            .put("index.version.created", version)
-            .build();
+        settings = indexSettings(1, 0).put(settings).put("index.version.created", version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(meta, settings);
     }

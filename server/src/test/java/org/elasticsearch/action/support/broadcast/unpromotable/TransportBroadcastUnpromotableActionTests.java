@@ -276,7 +276,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(numReachableUnpromotables)));
     }
 
-    public void testInvalidNodes() {
+    public void testInvalidNodes() throws Exception {
         final String index = "test";
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
             new String[] { index },
@@ -306,23 +306,16 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
         PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
+
+        // The request fails if we don't mark shards as stale
         assertThat(
-            expectThrows(
-                NodeNotConnectedException.class,
-                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
-                    f -> ActionTestUtils.execute(
-                        broadcastUnpromotableAction,
-                        null,
-                        new TestBroadcastUnpromotableRequest(wrongRoutingTable, true),
-                        f
-                    ),
-                    10,
-                    TimeUnit.SECONDS
-                )
-            ).toString(),
+            expectThrows(NodeNotConnectedException.class, () -> brodcastUnpromotableRequest(wrongRoutingTable, false)).toString(),
             containsString("discovery node must not be null")
         );
+        Mockito.verifyNoInteractions(shardStateAction);
 
+        // We were able to mark shards as stale, so the request finishes successfully
+        assertThat(brodcastUnpromotableRequest(wrongRoutingTable, true), equalTo(ActionResponse.Empty.INSTANCE));
         for (var shardRouting : wrongRoutingTable.unpromotableShards()) {
             Mockito.verify(shardStateAction)
                 .remoteShardFailed(
@@ -335,6 +328,34 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                     any()
                 );
         }
+
+        // If we are unable to mark a shard as stale, then the request fails
+        Mockito.doAnswer(invocation -> {
+            Exception exception = invocation.getArgument(5);
+            ActionListener<Void> argument = invocation.getArgument(6);
+            argument.onFailure(exception);
+            return null;
+        })
+            .when(shardStateAction)
+            .remoteShardFailed(any(ShardId.class), anyString(), anyLong(), anyBoolean(), anyString(), any(Exception.class), any());
+        assertThat(
+            expectThrows(NodeNotConnectedException.class, () -> brodcastUnpromotableRequest(wrongRoutingTable, true)).toString(),
+            containsString("discovery node must not be null")
+        );
+    }
+
+    private ActionResponse brodcastUnpromotableRequest(IndexShardRoutingTable wrongRoutingTable, boolean failShardOnError)
+        throws Exception {
+        return PlainActionFuture.<ActionResponse.Empty, Exception>get(
+            f -> ActionTestUtils.execute(
+                broadcastUnpromotableAction,
+                null,
+                new TestBroadcastUnpromotableRequest(wrongRoutingTable, failShardOnError),
+                f
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testNullIndexShardRoutingTable() {

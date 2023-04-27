@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DynamicTemplate implements ToXContentObject {
@@ -220,10 +219,9 @@ public class DynamicTemplate implements ToXContentObject {
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
-        List<String> allPatterns = Stream.concat(
-            Stream.concat(match.stream(), unmatch.stream()),
-            Stream.concat(pathMatch.stream(), pathUnmatch.stream())
-        ).collect(Collectors.toList());
+        List<String> allPatterns = Stream.of(match.stream(), unmatch.stream(), pathMatch.stream(), pathUnmatch.stream())
+            .flatMap(s -> s)
+            .toList();
         validatePatterns(name, matchType, allPatterns);
 
         return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xContentFieldTypes, matchType, mapping, runtime);

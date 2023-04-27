@@ -87,6 +87,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
@@ -1266,6 +1267,31 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
         return this.custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY).getAllNodeMetadataMap();
+    }
+
+    /**
+     * Indicates if the provided index is managed by ILM. This takes into account if the index is part of
+     * data stream that's potentially managed by DLM and the value of the {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     */
+    public boolean isIndexManagedByILM(IndexMetadata indexMetadata) {
+        if (Strings.hasText(indexMetadata.getLifecyclePolicyName()) == false) {
+            // no ILM policy configured so short circuit this to *not* managed by ILM
+            return false;
+        }
+
+        IndexAbstraction indexAbstraction = getIndicesLookup().get(indexMetadata.getIndex().getName());
+        if (indexAbstraction == null) {
+            // index doesn't exist anymore
+            return false;
+        }
+
+        DataStream parentDataStream = indexAbstraction.getParentDataStream();
+        if (parentDataStream != null && parentDataStream.getLifecycle() != null) {
+            // index has both ILM and DLM configured so let's check which is preferred
+            return PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        }
+
+        return true;
     }
 
     public Map<String, Custom> customs() {

@@ -85,10 +85,10 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             );
         }
 
-        public static Request.Builder parseRequest(String modelId, XContentParser parser) {
+        public static Request.Builder parseRequest(String id, XContentParser parser) {
             Request.Builder builder = PARSER.apply(parser, null);
-            if (modelId != null) {
-                builder.setId(modelId);
+            if (id != null) {
+                builder.setId(id);
             }
             return builder;
         }
@@ -103,14 +103,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         // input and so cannot construct a document.
         private final List<String> textInput;
 
-        public static Request forDocs(
-            String modelId,
-            InferenceConfigUpdate update,
-            List<Map<String, Object>> docs,
-            TimeValue inferenceTimeout
-        ) {
+        public static Request forDocs(String id, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             return new Request(
-                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID),
+                ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
@@ -119,14 +114,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             );
         }
 
-        public static Request forTextInput(
-            String modelId,
-            InferenceConfigUpdate update,
-            List<String> textInput,
-            TimeValue inferenceTimeout
-        ) {
+        public static Request forTextInput(String id, InferenceConfigUpdate update, List<String> textInput, TimeValue inferenceTimeout) {
             return new Request(
-                ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID),
+                ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID),
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
@@ -137,14 +127,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         // for tests
         Request(
-            String modelId,
+            String id,
             InferenceConfigUpdate update,
             List<Map<String, Object>> docs,
             List<String> textInput,
             boolean highPriority,
             TimeValue inferenceTimeout
         ) {
-            this.id = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.DEPLOYMENT_ID);
+            this.id = ExceptionsHelper.requireNonNull(id, InferModelAction.Request.DEPLOYMENT_ID);
             this.docs = docs;
             this.textInput = textInput;
             this.update = update;

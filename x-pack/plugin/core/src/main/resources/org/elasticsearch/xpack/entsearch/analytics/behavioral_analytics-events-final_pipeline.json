@@ -33,6 +33,42 @@
           }
         }
       }
+    },
+    {
+      "user_agent": {
+        "field": "session.user_agent",
+        "target_field": "session.user_agent",
+        "ignore_missing": true,
+        "properties": ["name", "version", "os", "device"],
+        "extract_device_type": true
+      }
+    },
+    {
+      "rename": {
+        "field": "session.user_agent.name",
+        "target_field": "session.user_agent.browser.name",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "session.user_agent.version",
+        "target_field": "session.user_agent.browser.version",
+        "ignore_missing": true
+      }
+    },
+    {
+      "geoip": {
+        "field": "session.ip",
+        "target_field": "session.location",
+        "ignore_missing": true
+      }
+    },
+    {
+      "remove": {
+        "field": "session.ip",
+        "ignore_missing": true
+      }
     }
   ],
   "_meta": {

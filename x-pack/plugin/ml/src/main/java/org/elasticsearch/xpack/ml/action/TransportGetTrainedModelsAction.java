@@ -14,8 +14,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -24,11 +22,9 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.Collections;
@@ -82,12 +78,12 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
                 return;
             }
 
-            definitionStatus(
+            TransportStartTrainedModelDeploymentAction.checkFullModelDefinitionIsPresent(
                 new OriginSettingClient(client, ML_ORIGIN),
-                configs.get(0).getModelId(),
-                configs.get(0).getLocation().getResourceName(),
-                ActionListener.wrap(isDownloaded -> {
-                    configs.get(0).setFullDefinition(isDownloaded);
+                configs.get(0),
+                false,  // missing docs are not an error
+                ActionListener.wrap(modelIdAndLength -> {
+                    configs.get(0).setFullDefinition(modelIdAndLength.v2() > 0);
                     listener.onResponse(responseBuilder.setModels(configs).build());
                 }, listener::onFailure)
             );
@@ -147,34 +143,5 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             Collections.emptySet(),
             idExpansionListener
         );
-    }
-
-    private void definitionStatus(Client client, String modelId, String index, ActionListener<Boolean> listener) {
-        client.prepareSearch(index)
-            .setQuery(
-                QueryBuilders.constantScoreQuery(
-                    QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                        .filter(
-                            QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME)
-                        )
-                        .filter(QueryBuilders.termQuery(TrainedModelDefinitionDoc.EOS.getPreferredName(), true))
-                )
-            )
-            .setFetchSource(false)
-            .setSize(1)
-            .setTrackTotalHits(false)
-            // eos field is not mapped, use a runtime mapping
-            .setRuntimeMappings(Map.of("eos", Map.of("type", "boolean")))
-            .execute(ActionListener.wrap(response -> {
-                listener.onResponse(response.getHits().getHits().length > 0);
-            }, e -> {
-                // if no parts have been uploaded the index may not exist
-                if (e instanceof IndexNotFoundException) {
-                    listener.onResponse(false);
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
     }
 }

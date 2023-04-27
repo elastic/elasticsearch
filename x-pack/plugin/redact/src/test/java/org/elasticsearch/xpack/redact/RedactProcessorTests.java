@@ -6,9 +6,14 @@
  */
 package org.elasticsearch.xpack.redact;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -18,17 +23,31 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.when;
 
 public class RedactProcessorTests extends ESTestCase {
+
+    private static XPackLicenseState mockLicenseState() {
+        MockLicenseState licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(RedactProcessor.REDACT_PROCESSOR_FEATURE)).thenReturn(true);
+        return licenseState;
+    }
+
+    private static XPackLicenseState mockNotAllowedLicenseState() {
+        MockLicenseState licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(RedactProcessor.REDACT_PROCESSOR_FEATURE)).thenReturn(false);
+        return licenseState;
+    }
 
     public void testMatchRedact() throws Exception {
         {
             var config = new HashMap<String, Object>();
             config.put("field", "to_redact");
             config.put("patterns", List.of("%{EMAILADDRESS:EMAIL}"));
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var groks = processor.getGroks();
 
             {
@@ -52,7 +71,7 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("field", "to_redact");
             config.put("patterns", List.of("%{CREDIT_CARD:CREDIT_CARD}"));
             config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\b(?:\\d[ -]*?){13,16}\\b"));
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var groks = processor.getGroks();
 
             {
@@ -82,7 +101,7 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("field", "to_redact");
             config.put("patterns", List.of("%{CREDIT_CARD:CREDIT_CARD}"));
             config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"));
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var grok = processor.getGroks().get(0);
 
             String input = "1001-1002-1003-1004 2001-1002-1003-1004 3001-1002-1003-1004 4001-1002-1003-1004";
@@ -96,7 +115,7 @@ public class RedactProcessorTests extends ESTestCase {
         config.put("field", "to_redact");
         config.put("patterns", List.of("%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}", "%{CREDIT_CARD:CREDIT_CARD}"));
         config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"));
-        var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+        var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
         var groks = processor.getGroks();
 
         {
@@ -111,7 +130,7 @@ public class RedactProcessorTests extends ESTestCase {
         config.put("field", "to_redact");
         config.put("patterns", List.of("%{EMAILADDRESS:EMAIL}", "%{IP:IP_ADDRESS}", "%{CREDIT_CARD:CREDIT_CARD}"));
         config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"));
-        var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+        var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
 
         {
             var ingestDoc = createIngestDoc(Map.of("to_redact", "This is ok nothing to redact"));
@@ -140,7 +159,7 @@ public class RedactProcessorTests extends ESTestCase {
         config.put("field", "to_redact");
         config.put("patterns", List.of("%{EMAILADDRESS:REDACTED}", "%{IP:REDACTED}", "%{CREDIT_CARD:REDACTED}"));
         config.put("pattern_definitions", Map.of("CREDIT_CARD", "\\d{4}[ -]\\d{4}[ -]\\d{4}[ -]\\d{4}"));
-        var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+        var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
 
         {
             var ingestDoc = createIngestDoc(Map.of("to_redact", "look a credit card number! 0001-0002-0003-0004 from david@email.com"));
@@ -157,7 +176,7 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("prefix", "?--");
             config.put("suffix", "}");
 
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var ingestDoc = createIngestDoc(Map.of("to_redact", "0.0.0.1 will be redacted"));
             var redacted = processor.execute(ingestDoc);
             assertEquals("?--IP_ADDRESS} will be redacted", redacted.getFieldValue("to_redact", String.class));
@@ -168,7 +187,7 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("patterns", List.of("%{IP:IP_ADDRESS}"));
             config.put("prefix", "?--");
 
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var ingestDoc = createIngestDoc(Map.of("to_redact", "0.0.0.1 will be redacted"));
             var redacted = processor.execute(ingestDoc);
             assertEquals("?--IP_ADDRESS> will be redacted", redacted.getFieldValue("to_redact", String.class));
@@ -179,7 +198,7 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("patterns", List.of("%{IP:IP_ADDRESS}"));
             config.put("suffix", "++");
 
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var ingestDoc = createIngestDoc(Map.of("to_redact", "0.0.0.1 will be redacted"));
             var redacted = processor.execute(ingestDoc);
             assertEquals("<IP_ADDRESS++ will be redacted", redacted.getFieldValue("to_redact", String.class));
@@ -191,7 +210,7 @@ public class RedactProcessorTests extends ESTestCase {
             var config = new HashMap<String, Object>();
             config.put("field", "to_redact");
             config.put("patterns", List.of("foo"));
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));
             var processed = processor.execute(ingestDoc);
             assertThat(ingestDoc, sameInstance(processed));
@@ -203,10 +222,53 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("patterns", List.of("foo"));
             config.put("ignore_missing", false);   // this time the missing field should error
 
-            var processor = new RedactProcessor.Factory(MatcherWatchdog.noop()).create(null, "t", "d", config);
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", config);
             var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDoc));
             assertThat(e.getMessage(), containsString("field [to_redact] is null or missing"));
+        }
+    }
+
+    public void testLicenseChecks() throws Exception {
+        var notAllowed = mockNotAllowedLicenseState();
+        {
+            var config = new HashMap<String, Object>();
+            config.put("field", "to_redact");
+            config.put("patterns", List.of("foo"));
+            config.put("ignore_missing", false); // usually, this would throw, but here it doesn't because of the license check
+            if (randomBoolean()) {
+                config.put("skip_if_unlicensed", true); // set the value to true (versus just using the default, also true)
+            }
+            var processor = new RedactProcessor.Factory(notAllowed, MatcherWatchdog.noop()).create(null, "t", "d", config);
+            assertThat(processor.getSkipIfUnlicensed(), equalTo(true));
+            var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));
+
+            // since skip_if_unlicensed is true, the same document is returned to us unchanged
+            var processed = processor.execute(ingestDoc);
+            assertThat(ingestDoc, sameInstance(processed));
+            assertEquals(ingestDoc, processed);
+        }
+        {
+            // bypassing the factory, because it won't construct a processor under these circumstances
+            var processor = new RedactProcessor(
+                "t",
+                "d",
+                GrokBuiltinPatterns.ecsV1Patterns(),
+                List.of("foo"),
+                "to_redact",
+                false, // set ignore_missing to false. usually, this would throw, but here it doesn't because of the license check
+                "<",
+                ">",
+                MatcherWatchdog.noop(),
+                notAllowed,
+                false // set skip_if_unlicensed to false, we do not want to skip, we do want to fail
+            );
+            assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
+            var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));
+
+            // since skip_if_unlicensed is false, and the license is not sufficient, we throw on execute
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> processor.execute(ingestDoc));
+            assertThat(e.getMessage(), containsString("current license is non-compliant for [redact_processor]"));
         }
     }
 

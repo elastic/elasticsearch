@@ -41,9 +41,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -366,12 +363,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         final var numberOfShards = between(1, 5);
         final var numberOfReplicas = between(0, 4);
         final var indexMetadata = IndexMetadata.builder("index")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas))
             .build();
         final var metadata = Metadata.builder().put(indexMetadata, true).build();
         final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
@@ -441,12 +433,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
         var indexMetadata = IndexMetadata.builder("index")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putInSyncAllocationIds(0, Set.copyOf(inSync))
             .build();
 
@@ -486,12 +473,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var inSync = randomList(2, 2, UUIDs::randomBase64UUID);
         var indexMetadata = IndexMetadata.builder("index")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 1))
             .putInSyncAllocationIds(0, Set.copyOf(inSync))
             .build();
 

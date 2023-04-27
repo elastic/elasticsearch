@@ -40,6 +40,10 @@ misconfigured allocation settings to lack of disk space.
 A cluster in which nodes leave unexpectedly is unstable and can create several 
 issues.
 
+<<hotspotting,Hot spotting>>::
+Hot spotting may occur in {es} when resource utilizations are unevenly
+distributed across nodes.
+
 include::common-issues/disk-usage-exceeded.asciidoc[]
 include::common-issues/circuit-breaker-errors.asciidoc[]
 include::common-issues/high-cpu-usage.asciidoc[]
@@ -48,3 +52,4 @@ include::common-issues/red-yellow-cluster-status.asciidoc[]
 include::common-issues/rejected-requests.asciidoc[]
 include::common-issues/task-queue-backlog.asciidoc[]
 include::common-issues/diagnose-unassigned-shards.asciidoc[]
+include::common-issues/hotspotting.asciidoc[]

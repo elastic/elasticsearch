@@ -405,14 +405,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = "noop-peer-recovery-test";
         int numberOfReplicas = between(1, 2);
         internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put("index.routing.rebalance.enable", "none")
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, numberOfReplicas).put("index.routing.rebalance.enable", "none").build());
         int iterations = between(1, 3);
         for (int iter = 0; iter < iterations; iter++) {
             indexRandom(
@@ -451,14 +444,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             2,
             clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet())
         );
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 1).put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
         indexRandom(
             randomBoolean(),
             randomBoolean(),
@@ -501,14 +487,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = "closed-index";
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         // allocate shard to first data node
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", dataNodes.get(0))
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", dataNodes.get(0)).build());
         indexRandom(
             randomBoolean(),
             randomBoolean(),

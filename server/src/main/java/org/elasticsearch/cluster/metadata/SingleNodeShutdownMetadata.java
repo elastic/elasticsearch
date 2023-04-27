@@ -34,6 +34,7 @@ import static org.elasticsearch.core.Strings.format;
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersion.V_7_16_0;
+    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersion.V_8_9_0;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -199,7 +200,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
+        if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
+            || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
         } else {
             out.writeEnum(type);
@@ -380,7 +382,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public enum Type {
         REMOVE,
         RESTART,
-        REPLACE;
+        REPLACE,
+        SIGTERM; // locally-initiated version of REMOVE
 
         public static Type parse(String type) {
             if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
@@ -389,6 +392,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
                 return RESTART;
             } else if ("replace".equals(type.toLowerCase(Locale.ROOT))) {
                 return REPLACE;
+            } else if ("sigterm".equals(type.toLowerCase(Locale.ROOT))) {
+                return SIGTERM;
             } else {
                 throw new IllegalArgumentException("unknown shutdown type: " + type);
             }

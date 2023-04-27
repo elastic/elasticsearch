@@ -329,12 +329,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {
         var name = shardRouting.getIndexName();
-        var settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .build();
-        metadataBuilder.put(IndexMetadata.builder(name).settings(settings));
+        metadataBuilder.put(IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0)));
         routingTableBuilder.add(IndexRoutingTable.builder(metadataBuilder.get(name).getIndex()).addShard(shardRouting));
     }
 

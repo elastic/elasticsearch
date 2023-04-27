@@ -910,7 +910,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".secrets*")
-                    .privileges("write","create_index")
+                    .privileges("write", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()

@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.coverage;
 import org.elasticsearch.gradle.internal.RepositoriesSetupPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.attributes.TestSuiteType;
 import org.gradle.api.reporting.ReportingExtension;
 import org.gradle.api.tasks.TaskProvider;
@@ -67,10 +66,6 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                         task.reports(reports -> reports.getXml().getRequired().set(true));
 
                         task.mustRunAfter(project.getTasks().named("test"));
-                        Task internalClusterTest = project.getTasks().findByName("internalClusterTest");
-                        if (internalClusterTest != null) {
-                            task.mustRunAfter(internalClusterTest);
-                        }
                     });
 
                     project.getRootProject().getTasks().named("testCodeCoverageReport").configure(t -> t.dependsOn(jacocoTestReport));

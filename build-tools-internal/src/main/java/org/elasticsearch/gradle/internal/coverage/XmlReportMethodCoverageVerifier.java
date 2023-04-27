@@ -77,10 +77,18 @@ public class XmlReportMethodCoverageVerifier {
     }
 
     private void parseMethod(JsonNode method, JsonNode clazz, Map<String, Tuple2<Integer, Integer>> classToMissedAndCovered) {
-        if (method.get("desc").textValue().contains(STREAM_INPUT_DESC) || method.get("desc").textValue().contains(STREAM_OUTPUT_DESC)) {
+        if (isConstructorWithStreamInput(method) || isWriteTo(method)) {
             JsonNode counters = method.path("counter");
             parseJsonNode(counters, c -> parseCounter(c, clazz, classToMissedAndCovered));
         }
+    }
+
+    private static boolean isConstructorWithStreamInput(JsonNode method) {
+        return method.get("desc").textValue().contains(STREAM_INPUT_DESC) && method.get("name").textValue().contains("init");
+    }
+
+    private static boolean isWriteTo(JsonNode method) {
+        return method.get("desc").textValue().contains(STREAM_OUTPUT_DESC) && method.get("name").textValue().equals("writeTo");
     }
 
     private void parseCounter(JsonNode counter, JsonNode clazz, Map<String, Tuple2<Integer, Integer>> classToMissedAndCovered) {

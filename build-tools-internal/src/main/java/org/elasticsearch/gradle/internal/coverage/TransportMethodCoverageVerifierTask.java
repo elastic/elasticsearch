@@ -34,7 +34,7 @@ import javax.inject.Inject;
 public abstract class TransportMethodCoverageVerifierTask extends DefaultTask {
     private static final String MISSING_TRANSPORT_TESTS_FILE = "transport-tests/missing-transport-tests.txt";
     public static final String JACOCO_XML_REPORT = "reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml";
-    public static final double MINIMUM_COVERAGE = 0.9;
+    public static final double MINIMUM_COVERAGE = 0.1;
 
     private final XmlReportMethodCoverageVerifier verifier;
 

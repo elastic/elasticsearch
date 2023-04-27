@@ -27,6 +27,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
+    requires org.elasticsearch.grok;
 
     requires com.sun.jna;
     requires hppc;
@@ -182,6 +183,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.component;
     exports org.elasticsearch.common.compress;
     exports org.elasticsearch.common.document;
+    exports org.elasticsearch.common.file;
     exports org.elasticsearch.common.filesystem;
     exports org.elasticsearch.common.geo;
     exports org.elasticsearch.common.hash;
@@ -341,6 +343,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
+    exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
@@ -356,7 +359,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.snapshots;
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
-    exports org.elasticsearch.timeseries.support;
     exports org.elasticsearch.tracing;
     exports org.elasticsearch.transport;
     exports org.elasticsearch.upgrades;
@@ -376,6 +378,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+    uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
     provides org.apache.lucene.codecs.PostingsFormat
         with

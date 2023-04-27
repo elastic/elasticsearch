@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -54,6 +57,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -298,6 +302,83 @@ public class DataLifecycleServiceTests extends ESTestCase {
         for (Index index : dataStream.getIndices()) {
             assertThat(dataLifecycleService.getErrorStore().getError(index.getName()), nullValue());
         }
+    }
+
+    public void testDefaultRolloverRequest() {
+        // test auto max_age and another concrete condition
+        {
+            RolloverConditions randomConcreteRolloverConditions = randomRolloverConditions(false);
+            RolloverRequest rolloverRequest = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
+                "my-data-stream",
+                null
+            );
+            assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
+            assertThat(
+                rolloverRequest.getConditions(),
+                equalTo(
+                    RolloverConditions.newBuilder(randomConcreteRolloverConditions)
+                        .addMaxIndexAgeCondition(TimeValue.timeValueDays(30))
+                        .build()
+                )
+            );
+            RolloverRequest rolloverRequestWithRetention = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
+                "my-data-stream",
+                TimeValue.timeValueDays(3)
+            );
+            assertThat(
+                rolloverRequestWithRetention.getConditions(),
+                equalTo(
+                    RolloverConditions.newBuilder(randomConcreteRolloverConditions)
+                        .addMaxIndexAgeCondition(TimeValue.timeValueDays(1))
+                        .build()
+                )
+            );
+        }
+        // test without any automatic conditions
+        {
+            RolloverConditions randomConcreteRolloverConditions = randomRolloverConditions(true);
+            RolloverRequest rolloverRequest = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions),
+                "my-data-stream",
+                null
+            );
+            assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
+            assertThat(rolloverRequest.getConditions(), equalTo(randomConcreteRolloverConditions));
+            RolloverRequest rolloverRequestWithRetention = DataLifecycleService.getDefaultRolloverRequest(
+                new RolloverConfiguration(randomConcreteRolloverConditions),
+                "my-data-stream",
+                TimeValue.timeValueDays(1)
+            );
+            assertThat(rolloverRequestWithRetention.getConditions(), equalTo(randomConcreteRolloverConditions));
+        }
+    }
+
+    private static RolloverConditions randomRolloverConditions(boolean includeMaxAge) {
+        ByteSizeValue maxSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long maxDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue maxAge = includeMaxAge && randomBoolean() ? TimeValue.timeValueMillis(randomMillisUpToYear9999()) : null;
+        Long maxPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
+        ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
+        Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
+        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
+
+        return RolloverConditions.newBuilder()
+            .addMaxIndexSizeCondition(maxSize)
+            .addMaxPrimaryShardSizeCondition(maxPrimaryShardSize)
+            .addMaxIndexAgeCondition(maxAge)
+            .addMaxIndexDocsCondition(maxDocs)
+            .addMaxPrimaryShardDocsCondition(maxPrimaryShardDocs)
+            .addMinIndexSizeCondition(minSize)
+            .addMinPrimaryShardSizeCondition(minPrimaryShardSize)
+            .addMinIndexAgeCondition(minAge)
+            .addMinIndexDocsCondition(minDocs)
+            .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
+            .build();
     }
 
     private static DiscoveryNodes.Builder buildNodes(String nodeId) {

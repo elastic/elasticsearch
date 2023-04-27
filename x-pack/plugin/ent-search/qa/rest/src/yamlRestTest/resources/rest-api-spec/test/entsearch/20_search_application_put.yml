@@ -44,6 +44,11 @@ teardown:
 
   - do:
       search_application.delete:
+        name: another-test-search-application
+        ignore: 404
+
+  - do:
+      search_application.delete:
         name: test-updated-search-application
         ignore: 404
 
@@ -82,22 +87,67 @@ teardown:
       search_application.get:
         name: test-search-application
   - match: { indices: [ "test-index1", "test-index2" ] }
-  - match:
-      template:
-        script:
-          source:
-            query:
-              query_string:
+  - match: {
+      template: {
+        script: {
+          source: {
+            query: {
+              query_string: {
                 query: "{{query_string}}"
-          lang: "mustache"
-          options:
+              }
+            }
+          },
+          lang: "mustache",
+          options: {
             content_type: "application/json;charset=utf-8"
-        dictionary:
-          query_string:
-            type: string
-
+          },
+          dictionary: {
+            query_string: {
+              type: string
+            }
+          }
+        }
+      }
+    }
 ---
-"Update Search Application":
+"Create Search Application with string encoded template script":
+  - do:
+      search_application.put:
+        name: another-test-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script: {
+              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
+              params: {
+                query_string: "elastic"
+              },
+              lang: "mustache"
+            }
+          },
+          dictionary: {
+            another_query_string: {
+              type: "string"
+            }
+          }
+
+  - do:
+      search_application.get:
+        name: another-test-search-application
+  - match: {
+    template: {
+      script: {
+        source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
+        params: {
+          query_string: "elastic"
+        },
+        lang: "mustache"
+      }
+    }
+  }
+  - match: { indices: [ "test-index1", "test-index2" ] }
+---
+"Update Search Application with null template, results in default template being applied":
   - do:
       search_application.put:
         name: test-updated-search-application
@@ -108,10 +158,7 @@ teardown:
               source:
                 query:
                   query_string:
-                    query: "{{another-query_string}}"
-            dictionary:
-              another_query_string:
-                type: string
+                    query: "{{query_string}}"
 
   - do:
       search_application.put:
@@ -120,6 +167,23 @@ teardown:
           indices: [ "test-index3", "test-index4" ]
           template: null
   - match: { result: "updated" }
+
+  - do:
+     search_application.get:
+       name: test-updated-search-application
+  - match: {
+    template: {
+      script: {
+        source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
+        params: {
+          query_string: "*",
+          default_field: "*"
+        },
+        lang: "mustache"
+      }
+    }
+  }
+  - match: { indices: [ "test-index3", "test-index4" ] }
 
   - do:
       search_application.get:
@@ -193,7 +257,7 @@ teardown:
   - do:
       catch: bad_request
       search_application.put:
-        name: test-error-search-application
+        name: test-error-template-language-search-application
         body:
           indices: [ "test-index1", "test-index-does-not-exist" ]
           template:
@@ -205,3 +269,24 @@ teardown:
                   total += doc['goals'][i];
                 }
                 return total;
+---
+"Create Search Application - Cluster State Template":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-error-cluster-state-template-search-application
+        body:
+          indices: [ "test-index1", "test-index2" ]
+          template:
+            script:
+              id: test-script
+  - match: { error.type: "x_content_parse_exception" }
+---
+"Create Search Application - Script missing from template":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-search-application-with-invalid-template
+        body:
+          indices: [ "test-index1" ]
+          template: {}

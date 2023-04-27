@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -109,7 +110,6 @@ public class RecoverySourceHandler {
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
-    private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
@@ -141,7 +141,6 @@ public class RecoverySourceHandler {
         this.threadPool = threadPool;
         this.recoveryPlannerService = recoveryPlannerService;
         this.request = request;
-        this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
@@ -200,7 +199,7 @@ public class RecoverySourceHandler {
                 retentionLeaseRef.set(
                     shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting))
                 );
-            }, shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ", shard, cancellableThreads);
+            }, shard, cancellableThreads);
             final Closeable retentionLock = shard.acquireHistoryRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
@@ -273,26 +272,13 @@ public class RecoverySourceHandler {
                         }
                     });
 
-                    final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
-                    runUnderPrimaryPermit(() -> {
-                        try {
-                            // If the target previously had a copy of this shard then a file-based recovery might move its global
-                            // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
-                            // new one later on in the recovery.
-                            shard.removePeerRecoveryRetentionLease(
-                                request.targetNode().getId(),
-                                new ThreadedActionListener<>(shard.getThreadPool().generic(), deleteRetentionLeaseStep)
-                            );
-                        } catch (RetentionLeaseNotFoundException e) {
-                            logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
-                            deleteRetentionLeaseStep.onResponse(null);
-                        }
-                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
-
-                    deleteRetentionLeaseStep.whenComplete(ignored -> {
+                    // If the target previously had a copy of this shard then a file-based recovery might move its global checkpoint
+                    // backwards. We must therefore remove any existing retention lease so that we can create a new one later on in the
+                    // recovery.
+                    deleteRetentionLease(ActionListener.wrap(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
                         phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
-                    }, onFailure);
+                    }, onFailure));
 
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
@@ -314,12 +300,7 @@ public class RecoverySourceHandler {
                  * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
                  * all documents up to maxSeqNo in phase2.
                  */
-                runUnderPrimaryPermit(
-                    () -> shard.initiateTracking(request.targetAllocationId()),
-                    shardId + " initiating tracking of " + request.targetAllocationId(),
-                    shard,
-                    cancellableThreads
-                );
+                runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()), shard, cancellableThreads);
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
@@ -397,7 +378,6 @@ public class RecoverySourceHandler {
 
     static void runUnderPrimaryPermit(
         CancellableThreads.Interruptible runnable,
-        String reason,
         IndexShard primary,
         CancellableThreads cancellableThreads
     ) {
@@ -406,19 +386,59 @@ public class RecoverySourceHandler {
             final var future = new PlainActionFuture<Releasable>();
             listener.addListener(future);
 
-            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME, reason);
+            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME);
             try (var ignored = FutureUtils.get(future)) {
-                // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
-                // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
-                if (primary.isRelocatedPrimary()) {
-                    throw new IndexShardRelocatedException(primary.shardId());
-                }
+                ensureNotRelocatedPrimary(primary);
                 runnable.run();
             } finally {
                 // add a listener to release the permit because we might have been interrupted while waiting (double-releasing is ok)
                 listener.addListener(ActionListener.wrap(Releasable::close, e -> {}));
             }
         });
+    }
+
+    /**
+     * Run {@code action} while holding a primary permit, checking for cancellation both before and after. Completing the listener passed to
+     * {@code action} releases the permit before passing the result through to {@code outerListener}.
+     */
+    static <T> void runUnderPrimaryPermit(
+        Consumer<ActionListener<T>> action,
+        IndexShard primary,
+        CancellableThreads cancellableThreads,
+        ActionListener<T> listener
+    ) {
+        primary.acquirePrimaryOperationPermit(listener.delegateFailure((l1, permit) -> ActionListener.run(new ActionListener<T>() {
+            @Override
+            public void onResponse(T result) {
+                ActionListener.completeWith(l1, () -> {
+                    try (permit) {
+                        cancellableThreads.checkForCancel();
+                    }
+                    return result;
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    Releasables.closeExpectNoException(permit);
+                } finally {
+                    l1.onFailure(e);
+                }
+            }
+        }, l2 -> {
+            cancellableThreads.checkForCancel();
+            ensureNotRelocatedPrimary(primary);
+            action.accept(l2);
+        })), ThreadPool.Names.GENERIC);
+    }
+
+    private static void ensureNotRelocatedPrimary(IndexShard indexShard) {
+        // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
+        // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
+        if (indexShard.isRelocatedPrimary()) {
+            throw new IndexShardRelocatedException(indexShard.shardId());
+        }
     }
 
     /**
@@ -928,8 +948,15 @@ public class RecoverySourceHandler {
         }
     }
 
-    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
-        runUnderPrimaryPermit(() -> {
+    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> outerListener) {
+        // NB we release the operation permit as soon as we have created the lease, but delay the outer listener until it is synced
+        final var leaseListener = new SubscribableListener<RetentionLease>();
+        final var delayedListener = new ThreadedActionListener<>(
+            shard.getThreadPool().generic(),
+            outerListener.<ReplicationResponse>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+        );
+
+        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
             // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
@@ -937,32 +964,44 @@ public class RecoverySourceHandler {
             // not enough, and fall back to a file-based recovery.
             //
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
-            logger.trace("cloning primary's retention lease");
+            final var targetNodeId = request.targetNode().getId();
+            logger.trace("cloning primary's retention lease for target node ID [{}]", targetNodeId);
             try {
-                final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
-                final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    new ThreadedActionListener<>(shard.getThreadPool().generic(), cloneRetentionLeaseStep)
-                );
+                final var clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, delayedListener);
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
+                return clonedLease;
             } catch (RetentionLeaseNotFoundException e) {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                 // recovery as a conservative estimate for the global checkpoint.
                 assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0)
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
-                final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
-                final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(shard.getThreadPool().generic(), addRetentionLeaseStep)
-                );
-                addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
+                final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, delayedListener);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
+                return newLease;
             }
-        }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads);
+        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
+    }
+
+    private void deleteRetentionLease(ActionListener<Void> outerListener) {
+        // NB we release the operation permit as soon as we have deleted the lease, but delay the outer listener until it is synced
+        final var leaseListener = new SubscribableListener<Void>();
+        final var delayedListener = new ThreadedActionListener<>(
+            shard.getThreadPool().generic(),
+            outerListener.<Void>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+        );
+
+        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
+            try {
+                shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), delayedListener.map(ignored -> null));
+            } catch (RetentionLeaseNotFoundException e) {
+                // this counts as success
+                logger.debug("no peer-recovery retention lease for [{}]", request.targetAllocationId());
+                leaseListener.addListener(outerListener);
+            }
+            return null;
+        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
@@ -1190,7 +1229,6 @@ public class RecoverySourceHandler {
          */
         runUnderPrimaryPermit(
             () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
-            shardId + " marking " + request.targetAllocationId() + " as in sync",
             shard,
             cancellableThreads
         );
@@ -1201,7 +1239,6 @@ public class RecoverySourceHandler {
         finalizeListener.whenComplete(r -> {
             runUnderPrimaryPermit(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
-                shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
                 shard,
                 cancellableThreads
             );
@@ -1394,7 +1431,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.checkForCancel();
                 logger.debug("checking integrity for file {} after remove corruption exception", md);
                 if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                    logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
+                    logger.warn("Corrupted file detected {} checksum mismatch", md);
                     if (localException == null) {
                         localException = corruptIndexException;
                     }
@@ -1410,12 +1447,7 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> format(
-                        "%s Remote file corruption on node %s, recovering %s. local checksum OK",
-                        shardId,
-                        request.targetNode(),
-                        mds
-                    ),
+                    () -> format("Remote file corruption on node %s, recovering %s. local checksum OK", request.targetNode(), mds),
                     corruptIndexException
                 );
                 throw remoteException;

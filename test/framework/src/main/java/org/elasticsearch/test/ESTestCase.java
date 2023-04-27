@@ -63,6 +63,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -899,6 +900,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomInt(max);
     }
 
+    /** A random byte size value. */
+    public static ByteSizeValue randomByteSizeValue() {
+        return ByteSizeValue.ofBytes(randomLongBetween(0L, Long.MAX_VALUE >> 16));
+    }
+
     /** Pick a random object from the given array. The array must not be empty. */
     @SafeVarargs
     @SuppressWarnings("varargs")
@@ -1280,6 +1286,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
     public static Settings.Builder indexSettings(Version indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
+    /** Return consistent index settings for the provided shard- and replica-count. */
+    public static Settings.Builder indexSettings(int shards, int replicas) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 

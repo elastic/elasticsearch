@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -20,7 +21,7 @@ import java.io.UncheckedIOException;
 public class CrossClusterAccessUser extends User {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
 
-    private static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] { "cross_cluster_access" },
         null,
@@ -56,23 +57,16 @@ public class CrossClusterAccessUser extends User {
         return INSTANCE.equals(user);
     }
 
-    public static CrossClusterAccessSubjectInfo subjectInfoWithRoleDescriptors(TransportVersion transportVersion, String nodeName) {
-        return subjectInfo(transportVersion, nodeName, new RoleDescriptorsIntersection(ROLE_DESCRIPTOR));
-    }
-
-    public static CrossClusterAccessSubjectInfo subjectInfoWithEmptyRoleDescriptors(TransportVersion transportVersion, String nodeName) {
-        return subjectInfo(transportVersion, nodeName, RoleDescriptorsIntersection.EMPTY);
-    }
-
-    private static CrossClusterAccessSubjectInfo subjectInfo(
-        TransportVersion transportVersion,
-        String nodeName,
-        RoleDescriptorsIntersection roleDescriptorsIntersection
-    ) {
+    /**
+     * The role descriptor intersection in the returned subject info is always empty. Because the privileges of the cross cluster access
+     * internal user are static, we set them during role reference resolution instead of needlessly deserializing the role descriptor
+     * intersection (see flow starting at {@link Subject#getRoleReferenceIntersection(AnonymousUser)})
+     */
+    public static CrossClusterAccessSubjectInfo subjectInfo(TransportVersion transportVersion, String nodeName) {
         try {
             return new CrossClusterAccessSubjectInfo(
                 Authentication.newInternalAuthentication(INSTANCE, transportVersion, nodeName),
-                roleDescriptorsIntersection
+                RoleDescriptorsIntersection.EMPTY
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

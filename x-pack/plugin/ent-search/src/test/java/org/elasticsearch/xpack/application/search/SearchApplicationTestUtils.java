@@ -65,8 +65,8 @@ public final class SearchApplicationTestUtils {
                 }
             }
             """, paramName);
-        final TemplateParamValidator templateParamValidator = new TemplateParamValidator(paramValidationSource);
-        return new SearchApplicationTemplate(script, templateParamValidator);
+        final TemplateParamValidator templateParamValidator = new TemplateParamValidator(paramValidationSource)
+        return new SearchApplicationTemplate(script);
     }
 
     public static Map<String, Object> randomSearchApplicationQueryParams() {

@@ -640,11 +640,13 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(
+        ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService
     ) throws IOException {
         return new MapperService(
+            clusterService,
             indexSettings,
             analysisRegistry.build(indexSettings),
             parserConfiguration,

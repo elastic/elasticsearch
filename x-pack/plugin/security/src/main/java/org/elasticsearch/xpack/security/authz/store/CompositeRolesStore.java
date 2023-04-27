@@ -407,6 +407,11 @@ public class CompositeRolesStore {
                 "the user [" + user.principal() + "] is the system user and we should never try to get its role descriptors"
             );
         }
+        if (CrossClusterAccessUser.is(user)) {
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the cross cluster access user and we should never try to get its role descriptors"
+            );
+        }
         if (XPackUser.is(user)) {
             return Optional.of(XPackUser.ROLE_DESCRIPTOR);
         }

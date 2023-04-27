@@ -7,7 +7,7 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to {es} 8.4.
 
-See also {ref-bare}/8.4/release-highlights.html[What's new in 8.4] and <<es-release-notes>>.
+See also <<release-highlights>> and <<es-release-notes>>.
 
 coming::[8.4.0]
 

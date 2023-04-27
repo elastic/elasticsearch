@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.search;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -84,10 +83,12 @@ public class SearchApplication implements Writeable, ToXContentObject {
 
         this.analyticsCollectionName = analyticsCollectionName;
         this.updatedAtMillis = updatedAtMillis;
-        this.searchApplicationTemplate = searchApplicationTemplate;
+        this.searchApplicationTemplate = searchApplicationTemplate != null
+            ? searchApplicationTemplate
+            : SearchApplicationTemplate.DEFAULT_TEMPLATE;
     }
 
-    public SearchApplication(StreamInput in) throws IOException, ValidationException {
+    public SearchApplication(StreamInput in) throws IOException {
         this.name = in.readString();
         this.indices = in.readStringArray();
         this.analyticsCollectionName = in.readOptionalString();
@@ -133,6 +134,7 @@ public class SearchApplication implements Writeable, ToXContentObject {
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField ANALYTICS_COLLECTION_NAME_FIELD = new ParseField("analytics_collection_name");
     public static final ParseField TEMPLATE_FIELD = new ParseField("template");
+    public static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
     public static final ParseField UPDATED_AT_MILLIS_FIELD = new ParseField("updated_at_millis");
     public static final ParseField BINARY_CONTENT_FIELD = new ParseField("binary_content");
 

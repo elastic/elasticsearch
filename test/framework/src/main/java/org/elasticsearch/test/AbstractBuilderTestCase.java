@@ -23,10 +23,12 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -65,6 +67,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -393,6 +396,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             PluginsService pluginsService;
             pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
+            ClusterService clusterService = new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null,
+                (TaskManager) null
+            );
+
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
                 new Class<?>[] { Client.class },
@@ -428,6 +438,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
+                clusterService,
                 idxSettings,
                 indexAnalyzers,
                 parserConfiguration,

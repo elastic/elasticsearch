@@ -187,11 +187,24 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException, ValidationException {
-        TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
-        in.setTransportVersion(version);
-        return new SearchApplication(in);
+    /**
+     * Gets the {@link SearchApplication} from the index if present, or delegate a {@link ResourceNotFoundException} failure to the provided
+     * listener if not.
+     *
+     * @param resourceName The resource name.
+     * @param listener The action listener to invoke on response/failure.
+     */
+    public void getSearchApplication(String resourceName, ActionListener<SearchApplication> listener) {
+        final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
+        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
+            if (getResponse.isExists() == false) {
+                l.onFailure(new ResourceNotFoundException(resourceName));
+                return;
+            }
+            final BytesReference source = getResponse.getSourceInternal();
+            final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
+            l.onResponse(res);
+        }));
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -271,7 +284,7 @@ public class SearchApplicationIndexService {
                     .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
                     .directFieldAsBase64(
                         SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
-                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().nodes().getMinNodeVersion())
+                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
                     )
                     .endObject();
             }
@@ -411,30 +424,6 @@ public class SearchApplicationIndexService {
         );
     }
 
-    /**
-     * Gets the {@link SearchApplication} from the index if present, or delegate a {@link ResourceNotFoundException} failure to the provided
-     * listener if not.
-     *
-     * @param resourceName The resource name.
-     * @param listener The action listener to invoke on response/failure.
-     */
-    public void getSearchApplication(String resourceName, ActionListener<SearchApplication> listener) {
-        final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
-        clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
-            if (getResponse.isExists() == false) {
-                l.onFailure(new ResourceNotFoundException(resourceName));
-                return;
-            }
-            try {
-                final BytesReference source = getResponse.getSourceInternal();
-                final SearchApplication res = parseSearchApplicationBinaryFromSource(source);
-                l.onResponse(res);
-            } catch (Exception e) {
-                l.onFailure(e);
-            }
-        }));
-    }
-
     private SearchApplication parseSearchApplicationBinaryFromSource(BytesReference source) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
@@ -470,12 +459,20 @@ public class SearchApplicationIndexService {
         }
     }
 
-    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, Version minNodeVersion) throws IOException {
+    static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in) throws IOException {
+        TransportVersion version = TransportVersion.readVersion(in);
+        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        in.setTransportVersion(version);
+        return new SearchApplication(in);
+    }
+
+    static void writeSearchApplicationBinaryWithVersion(SearchApplication app, OutputStream os, TransportVersion minTransportVersion)
+        throws IOException {
         // do not close the output
         os = Streams.noCloseStream(os);
-        TransportVersion.writeVersion(minNodeVersion.transportVersion, new OutputStreamStreamOutput(os));
+        TransportVersion.writeVersion(minTransportVersion, new OutputStreamStreamOutput(os));
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setTransportVersion(minNodeVersion.transportVersion);
+            out.setTransportVersion(minTransportVersion);
             app.writeTo(out);
         }
     }

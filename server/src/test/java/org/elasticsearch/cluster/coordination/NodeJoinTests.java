@@ -130,7 +130,6 @@ public class NodeJoinTests extends ESTestCase {
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
         FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService(
             "test_node",
-            "test",
             fakeThreadPool,
             deterministicTaskQueue::scheduleNow
         );

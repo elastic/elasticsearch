@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
@@ -50,7 +51,6 @@ import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.HttpResponse;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -95,6 +95,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;

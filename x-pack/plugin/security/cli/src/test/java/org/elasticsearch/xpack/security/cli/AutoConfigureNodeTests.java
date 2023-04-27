@@ -23,16 +23,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.internal.util.io.IOUtil;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
-import java.util.Comparator;
 import java.util.List;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;

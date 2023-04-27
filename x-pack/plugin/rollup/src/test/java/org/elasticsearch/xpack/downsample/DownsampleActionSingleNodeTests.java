@@ -436,13 +436,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(rollupIndex)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
-                .get()
-        );
+        assertAcked(client().admin().indices().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
@@ -465,14 +459,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .indices()
             .prepareCreate(sourceIndex)
             .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", numOfShards)
-                    .put("index.number_of_replicas", numOfReplicas)
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-                    .build()
             )
             .setMapping(
                 FIELD_TIMESTAMP,

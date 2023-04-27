@@ -25,7 +25,7 @@
 "Create index with dynamic_mappings, using lists for some match/unmatch sections":
   - skip:
       version: " - 8.8.99"
-      reason: introduced in 8.9
+      reason: Arrays in dynamic templates added in 8.9
   - do:
       indices.create:
         index: test_index

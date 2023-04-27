@@ -74,7 +74,7 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
         String repository = MachineLearningPackageLoader.MODEL_REPOSITORY.get(settings);
 
         String packagedModelId = request.getPackagedModelId();
-        logger.trace(() -> format("Fetch package manifest for [%s] from [%s]", packagedModelId, repository));
+        logger.debug(() -> format("Fetch package manifest for [%s] from [%s]", packagedModelId, repository));
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {

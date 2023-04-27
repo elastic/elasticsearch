@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -88,6 +89,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -121,6 +123,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         Translog.Operation[] operations = generateRandomOperations(6);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -182,6 +185,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
@@ -231,6 +235,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             objectStoreService
         );
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -289,6 +294,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -320,6 +326,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location location = new Translog.Location(0, 0, bytesArray.length());
@@ -349,6 +356,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         BytesArray bytesArray = new BytesArray(new byte[16]);
         Translog.Location finalLocation = new Translog.Location(0, 0, bytesArray.length());
@@ -407,6 +415,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -447,6 +456,8 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId1);
+        translogReplicator.register(shardId2);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -510,6 +521,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
         translogReplicator.doStart();
+        translogReplicator.register(shardId);
 
         Translog.Operation[] operations = generateRandomOperations(4);
         BytesReference[] operationsBytes = convertOperationsToBytes(operations);
@@ -533,6 +545,54 @@ public class TranslogReplicatorTests extends ESTestCase {
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
             new Translog.Operation[] { operations[0], operations[1], operations[3], operations[2] }
         );
+    }
+
+    public void testCompleteListenerWithExceptionWhenShardIsUnregistered() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        doAnswer(invocation -> {
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            invocation.<ActionListener<Void>>getArgument(2).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any());
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        translogReplicator.doStart();
+        translogReplicator.register(shardId);
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Location location = new Translog.Location(0, 0, operationsBytes[0].length());
+        translogReplicator.add(shardId, operationsBytes[0], 0, location);
+
+        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        if (randomBoolean()) {
+            translogReplicator.syncAll(shardId, future);
+        } else {
+            translogReplicator.sync(shardId, location, future);
+        }
+        translogReplicator.unregister(shardId);
+        latch.countDown();
+
+        expectThrows(AlreadyClosedException.class, future::actionGet);
+    }
+
+    public void testAddThrowsWhenShardUnregistered() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(threadPool, Settings.EMPTY, objectStoreService);
+        translogReplicator.doStart();
+        translogReplicator.register(shardId);
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        Translog.Location location = new Translog.Location(0, 0, operationsBytes[0].length());
+
+        translogReplicator.unregister(shardId);
+        expectThrows(AlreadyClosedException.class, () -> translogReplicator.add(shardId, operationsBytes[0], 0, location));
     }
 
     @SuppressWarnings("unchecked")

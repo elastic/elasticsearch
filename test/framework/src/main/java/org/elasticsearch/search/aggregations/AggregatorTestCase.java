@@ -679,7 +679,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         List<Releasable> aggContexts = new ArrayList<>();
-        List<C> aggregators = doCollection(indexSettings, searcher, breakerService,
+        List<C> aggregators = doCollection(
+            indexSettings,
+            searcher,
+            breakerService,
             (
                 IndexSearcher indexSearcher,
                 IndexSettings settings,
@@ -702,7 +705,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 aggContexts.add(ctx);
                 return ctx;
             },
-            aggTestConfig);
+            aggTestConfig
+        );
 
         List<CollectedAggregator> collectedAggregators = new ArrayList<>();
         for (C agg : aggregators) {
@@ -729,7 +733,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 pipelines
             );
 
-            A internalAgg = (A) collectedAggregators.get(0).reduce(collectedAggregators, reduceContext).convertToLegacy(0);
+            A internalAgg = (A) collectedAggregators.get(0).reduceTopLevel(collectedAggregators, reduceContext).convertToLegacy(0);
             assertRoundTrip(internalAgg);
 
             // NOCOMMIT - TODO: what do we do with pipelines in dense format land?

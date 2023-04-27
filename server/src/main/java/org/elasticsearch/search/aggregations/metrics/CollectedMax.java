@@ -14,6 +14,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
@@ -45,7 +46,16 @@ public class CollectedMax extends CollectedAggregator {
     }
 
     @Override
-    public CollectedAggregator reduce(List<CollectedAggregator> aggregations, AggregationReduceContext reduceContext) {
+    public CollectedAggregator reduceBuckets(CollectedAggregator reductionTarget, List<MultiBucketsAggregation.Bucket> buckets, AggregationReduceContext reduceContext) {
+        // Will ths be called once? or once per parent key?
+        // If this is called once per parent key, where do we create and store the BigArray for the holding the reduced values?
+        // I almost feel like we should create a new instance to hold the reduced values, and call this once on the new instance?
+
+        return null;
+    }
+
+    @Override
+    public CollectedAggregator reduceTopLevel(List<CollectedAggregator> aggregators, AggregationReduceContext reduceContext) {
         return null;
     }
 

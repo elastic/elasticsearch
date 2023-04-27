@@ -9,9 +9,13 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
@@ -20,13 +24,19 @@ import java.util.Map;
 
 public class CollectedDateHistogram extends CollectedAggregator {
 
-    public CollectedDateHistogram(String name, Map<String, Object> metadata) {
+    private final LongArray docCounts;
+
+    private final LongKeyedBucketOrds bucketOrds;
+
+    public CollectedDateHistogram(String name, Map<String, Object> metadata, LongArray docCounts, LongKeyedBucketOrds bucketOrds) {
         super(name, metadata);
+        this.bucketOrds = bucketOrds;
+        this.docCounts = docCounts;
     }
 
     @Override
     public void close() {
-
+        Releasables.close(docCounts, bucketOrds);
     }
 
     @Override
@@ -40,7 +50,12 @@ public class CollectedDateHistogram extends CollectedAggregator {
     }
 
     @Override
-    public CollectedAggregator reduce(List<CollectedAggregator> aggregations, AggregationReduceContext reduceContext) {
+    public CollectedAggregator reduceBuckets(CollectedAggregator reductionTarget, List<MultiBucketsAggregation.Bucket> buckets, AggregationReduceContext reduceContext) {
+        return null;
+    }
+
+    @Override
+    public CollectedAggregator reduceTopLevel(List<CollectedAggregator> aggregators, AggregationReduceContext reduceContext) {
         return null;
     }
 

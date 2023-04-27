@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 
@@ -44,7 +45,6 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
      * we just need to return in our response.
      */
     protected final Map<String, Object> metadata;
-
 
     /**
      * Constructs an aggregation result with a given name.  This constructor should be called on the data node
@@ -83,14 +83,24 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      *
+     * @param reductionTarget
+     * @param buckets         - List of compatible {@link CollectedAggregator} from the other data nodes
+     * @param reduceContext   - The current reduction context
      * @see #mustReduceOnSingleInternalAgg()
-     * @param aggregations - List of compatible {@link CollectedAggregator} from the other data nodes
-     * @param reduceContext - The current reduction context
      */
-    public abstract CollectedAggregator reduce(List<CollectedAggregator> aggregations, AggregationReduceContext reduceContext);
+    public abstract CollectedAggregator reduceBuckets(
+        CollectedAggregator reductionTarget,
+        List<MultiBucketsAggregation.Bucket> buckets,
+        AggregationReduceContext reduceContext
+    );
+
+    public abstract CollectedAggregator reduceTopLevel(
+        List<CollectedAggregator> aggregators,
+        AggregationReduceContext reduceContext
+    );
 
     /**
-     * Signal the framework if the {@linkplain CollectedAggregator#reduce(List, AggregationReduceContext)} phase needs to be called
+     * Signal the framework if the {@linkplain CollectedAggregator#reduceBuckets(CollectedAggregator, List, AggregationReduceContext)} phase needs to be called
      * when there is only one {@linkplain CollectedAggregator}.
      */
     // NOCOMMIT: does this still make sense in the new design?

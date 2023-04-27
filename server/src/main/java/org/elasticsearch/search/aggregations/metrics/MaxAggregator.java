@@ -19,6 +19,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -125,6 +126,13 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return Max.createEmptyMax(name, formatter, metadata());
+    }
+
+    @Override
+    public CollectedAggregator getDenseRepresentation() {
+        CollectedMax collectedMax = new CollectedMax(name, metadata(), maxes);
+        maxes = null; // We are delegating responsibility for closing it to the collected object
+        return collectedMax;
     }
 
     @Override

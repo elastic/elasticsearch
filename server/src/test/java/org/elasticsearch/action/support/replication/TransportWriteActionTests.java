@@ -175,7 +175,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 eq(indexShard),
                 any(),
                 refreshListener.capture(),
-                isNull()
+                eq(request.timeout())
             );
 
             // Now we can fire the listener manually and we'll get a response
@@ -216,7 +216,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 eq(indexShard),
                 any(),
                 refreshListener.capture(),
-                isNull()
+                eq(request.timeout())
             );
 
             // Now we can fire the listener manually and we'll get a response

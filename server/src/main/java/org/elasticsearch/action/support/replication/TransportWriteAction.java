@@ -450,7 +450,7 @@ public abstract class TransportWriteAction<
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
-            this.postWriteRefreshTimeout = request.timeout;
+            this.postWriteRefreshTimeout = request.timeout();
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
         }
 

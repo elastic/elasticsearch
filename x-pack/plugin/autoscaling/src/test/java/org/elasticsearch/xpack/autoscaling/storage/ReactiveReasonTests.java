@@ -44,10 +44,19 @@ public class ReactiveReasonTests extends ESTestCase {
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         DiscoveryNode discoveryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Map<ShardId, NodeDecisions> unassignedShardAllocationDecision = Map.of(
             unassignedShardIds.first(),
             new NodeDecisions(
-                List.of(new NodeDecision(discoveryNode, Decision.single(Decision.Type.NO, "no_label", "No space to allocate"))),
+                List.of(
+                    new NodeDecision(discoveryNode, Decision.single(Decision.Type.NO, "no_label", "No space to allocate")),
+                    new NodeDecision(
+                        discoveryNode2,
+                        new Decision.Multi().add(
+                            Decision.single(Decision.Type.YES, "data_tier", "Enough disk on this node for the shard to remain")
+                        ).add(Decision.single(Decision.Type.NO, "shards_limit", "Disallowed because of shard limits"))
+                    )
+                ),
                 null
             )
         );
@@ -108,15 +117,22 @@ public class ReactiveReasonTests extends ESTestCase {
 
             Map<String, Object> unassignedNodeDecisions = (Map<String, Object>) ((Map<String, Object>) map.get("unassigned_node_decisions"))
                 .get(unassignedShardIds.first().toString());
-            for (Map<String, Object> canAllocateDecision : (List<Map<String, Object>>) unassignedNodeDecisions.get(
+            List<Map<String, Object>> canAllocateDecisions = (List<Map<String, Object>>) unassignedNodeDecisions.get(
                 "can_allocate_decisions"
-            )) {
-                assertEquals("node1", canAllocateDecision.get("node_id"));
-                assertEquals(
-                    List.of(Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate")),
-                    canAllocateDecision.get("deciders")
-                );
-            }
+            );
+            assertEquals("node1", canAllocateDecisions.get(0).get("node_id"));
+            assertEquals(
+                List.of(Map.of("decision", "NO", "decider", "no_label", "explanation", "No space to allocate")),
+                canAllocateDecisions.get(0).get("deciders")
+            );
+            assertEquals("node2", canAllocateDecisions.get(1).get("node_id"));
+            assertEquals(
+                List.of(
+                    Map.of("decision", "YES", "decider", "data_tier", "explanation", "Enough disk on this node for the shard to remain"),
+                    Map.of("decision", "NO", "decider", "shards_limit", "explanation", "Disallowed because of shard limits")
+                ),
+                canAllocateDecisions.get(1).get("deciders")
+            );
             assertNull(unassignedNodeDecisions.get("can_remain_decision"));
 
             Map<String, Object> assignedNodeDecisions = (Map<String, Object>) ((Map<String, Object>) map.get("assigned_node_decisions"))

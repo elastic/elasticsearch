@@ -22,7 +22,7 @@ public abstract class TransportWriteActionTestHelper {
 
     public static void performPostWriteActions(
         final IndexShard indexShard,
-        final WriteRequest<?> request,
+        final ReplicatedWriteRequest<?> request,
         @Nullable final Translog.Location location,
         final Logger logger
     ) {

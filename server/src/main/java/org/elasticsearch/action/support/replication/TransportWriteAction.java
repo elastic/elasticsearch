@@ -427,7 +427,7 @@ public abstract class TransportWriteAction<
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
-            final WriteRequest<?> request,
+            final ReplicatedWriteRequest<?> request,
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
             final Logger logger,
@@ -451,7 +451,7 @@ public abstract class TransportWriteAction<
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
-            this.postWriteRefreshTimeout = request instanceof BulkShardRequest bsr ? bsr.timeout : null;
+            this.postWriteRefreshTimeout = request.timeout;
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
         }
 

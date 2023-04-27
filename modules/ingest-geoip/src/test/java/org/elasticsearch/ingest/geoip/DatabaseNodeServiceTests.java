@@ -369,13 +369,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             : GeoIpDownloader.DATABASES_INDEX;
         Index index = new Index(indexName, UUID.randomUUID().toString());
         IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put("index.uuid", index.getUUID())
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            );
+            .settings(indexSettings(Version.CURRENT, 1, 0).put("index.uuid", index.getUUID()));
         if (aliasGeoipDatabase) {
             idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
         }

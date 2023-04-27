@@ -23,8 +23,6 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.empty;
@@ -86,7 +84,7 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
     }
 
     private void createIndex(int shards, int replicas) {
-        createIndex(INDEX_NAME, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
+        createIndex(INDEX_NAME, indexSettings(shards, replicas).build());
     }
 
     private HealthIndicatorResult fetchShardsCapacityIndicatorResult(InternalTestCluster internalCluster) throws Exception {

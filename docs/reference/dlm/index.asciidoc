@@ -28,9 +28,12 @@ and backwards incompatible mapping changes.
 managed by {dlm-init}, then
 . it will rollover the write backing index of the data stream, given it fulfills the conditions defined by
 <<cluster-dlm-default-rollover,`cluster.dlm.default.rollover`>>,
-. it will apply retention to the remaining backing indices. This means that it will delete  the backing indices that
-have completed the retention period after they have been rolled over. The time after rollover is called `generation_time`
-and it ensures that all the data in this index are at least older than this time.
+. it will apply retention to the remaining backing indices. This means that it will delete the backing indices whose
+`generation_time` is longer than the retention period. The `generation_time` is only applicable to rolled over backing
+indices and it is either the time since the backing index got rolled over or the time since
+<<index-dlm-origination-date,`index.lifecycle.origination_date`>> (when defined). We use the `generation_time` instead
+of the creation time because this ensures that all data in the backing index have passed the retention period. As a result,
+the retention period is not the exact time data gets deleted, but the minimum time data will be stored.
 
 NOTE: The steps `2` and `3` apply only to backing indices managed by {dlm-init}, meaning that these indices either do
 not have an {ilm-init} policy defined, or if they do, they have <<index-dlm-prefer-ilm, `index.lifecycle.prefer_ilm`>>

@@ -23,8 +23,8 @@ PUT _data_stream/my-data-stream/_lifecycle
 { } <1>
 ----
 // TEST[setup:my_data_stream]
-<1> An empty payload means that your data stream is still managed in order to be able to better store your time series
-data like logs or metrics your data will never be deleted.
+<1> An empty payload means that your data stream is still managed but the data will never be deleted. Managing a time
+series data stream such as logs or metrics enables {es} to better store your data even if you do not use a retention period.
 
 * Or you can set the retention period of your choice. For example:
 +

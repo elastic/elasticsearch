@@ -40,7 +40,7 @@ for your older indices while reducing operating costs and maintaining search per
 you to easily:
 
 * Define the retention period of your data. The retention period is the minimum time your data will be stored in {es}.
-Data older than this period can be deleted by {es}.
+Data older than this period can be deleted by {es} at a later time.
 --
 
 include::ilm/index.asciidoc[]

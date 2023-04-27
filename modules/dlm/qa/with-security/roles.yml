@@ -5,8 +5,7 @@ manage_dlm:
   indices:
     - names: [ 'dlm-*' ]
       privileges:
-        - read
-        - write
+        - manage
         - view_index_metadata
 not_privileged:
   cluster:
@@ -14,6 +13,4 @@ not_privileged:
   indices:
     - names: [ 'dlm-*' ]
       privileges:
-        - read
-        - write
         - view_index_metadata

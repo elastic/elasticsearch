@@ -456,10 +456,15 @@ public class AuthorizationService {
                 if (result.isGranted() && request instanceof PrivilegesCheckRequest) {
                     var indices = ((PrivilegesCheckRequest) request).getPrivilegesToCheck().indices();
                     var indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("delete").build() };
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("manage").build() };
                     checkPrivileges(
                         authentication.getEffectiveSubject(),
-                        new AuthorizationEngine.PrivilegesToCheck(null, indicesPrivilegesToCheck, null, false),
+                        new AuthorizationEngine.PrivilegesToCheck(
+                            new String[] {},
+                            indicesPrivilegesToCheck,
+                            new RoleDescriptor.ApplicationResourcePrivileges[] {},
+                            false
+                        ),
                         Set.of(),
                         ActionListener.wrap(privilegesCheckResult -> {
                             if (privilegesCheckResult.allChecksSuccess()) {

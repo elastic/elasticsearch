@@ -26,14 +26,15 @@ and backwards incompatible mapping changes.
 
 . Checks if the data stream is managed by {dlm-init}, meaning it has a data lifecycle configured. If the data stream is
 managed by {dlm-init}, then
-. it will try to rollover the write backing index of the data stream, given that the backing index is
-also managed by {dlm-init},
-. it will apply retention to the remaining backing indices that are managed by {dlm-init}. This means that it will delete
-the backing indices that have completed the retention period after they have been rolled over. The time after rollover is
-called `generation_time` and it represents that all the data in this index are at least older than this time.
+. it will rollover the write backing index of the data stream, given it fulfills the conditions defined by
+<<cluster-dlm-default-rollover,`cluster.dlm.default.rollover`>>,
+. it will apply retention to the remaining backing indices. This means that it will delete  the backing indices that
+have completed the retention period after they have been rolled over. The time after rollover is called `generation_time`
+and it ensures that all the data in this index are at least older than this time.
 
-NOTE: A backing index of a data stream managed by {dlm-init} is also managed by {dlm-init}, if it doesn't have an
-{ilm-init} policy defined, or if it has <<index-dlm-prefer-ilm, `index.lifecycle.prefer_ilm`>> set to `false`.
+NOTE: The steps `2` and `3` apply only to backing indices managed by {dlm-init}, meaning that these indices either do
+not have an {ilm-init} policy defined, or if they do, they have <<index-dlm-prefer-ilm, `index.lifecycle.prefer_ilm`>>
+set to `false`.
 
 [discrete]
 [[dlm-configuration]]

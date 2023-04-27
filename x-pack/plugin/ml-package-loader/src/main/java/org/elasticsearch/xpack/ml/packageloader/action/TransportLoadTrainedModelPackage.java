@@ -136,28 +136,40 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                     client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
                 }
 
-                // get the last part, this time verify the checksum
+                // get the last part, this time verify the checksum and size
                 BytesArray definition = chunkIterator.next();
 
-                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256())) {
-                    PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
-                        modelId,
-                        definition,
-                        totalParts - 1,
-                        size,
-                        totalParts
-                    );
-
-                    client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
-                    logAndWriteNotificationAtDebug(modelId, format("finished uploading model using [%d] parts", totalParts));
-                } else {
+                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256()) == false) {
                     String message = format(
                         "Model sha256 checksums do not match, expected [%s] but got [%s]",
                         modelPackageConfig.getSha256(),
                         chunkIterator.getSha256()
                     );
                     logAndWriteNotificationAtError(modelId, message);
+                    return;
                 }
+
+                if (modelPackageConfig.getSize() != chunkIterator.getTotalBytesRead()) {
+                    String message = format(
+                        "Model size does not match, expected [%d] but got [%d]",
+                        modelPackageConfig.getSize(),
+                        chunkIterator.getTotalBytesRead()
+                    );
+                    logAndWriteNotificationAtError(modelId, message);
+                    return;
+                }
+
+                PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
+                    modelId,
+                    definition,
+                    totalParts - 1,
+                    size,
+                    totalParts
+                );
+
+                client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
+                logAndWriteNotificationAtDebug(modelId, format("finished uploading model using [%d] parts", totalParts));
+
             } catch (MalformedURLException e) {
                 logAndWriteNotificationAtError(modelId, format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {

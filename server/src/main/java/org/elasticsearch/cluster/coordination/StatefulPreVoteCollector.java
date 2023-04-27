@@ -49,7 +49,8 @@ public class StatefulPreVoteCollector extends PreVoteCollector {
         final Runnable startElection,
         final LongConsumer updateMaxTermSeen,
         final ElectionStrategy electionStrategy,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        LeaderHeartbeatService leaderHeartbeatService
     ) {
         this.transportService = transportService;
         this.startElection = startElection;

@@ -495,9 +495,9 @@ public class Security extends Plugin
     /**
      * Configurable cross cluster access is Enterprise feature.
      */
-    public static final LicensedFeature.Momentary CONFIGURABLE_CROSS_CLUSTER_ACCESS_FEATURE = LicensedFeature.momentary(
+    public static final LicensedFeature.Momentary ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE = LicensedFeature.momentary(
         null,
-        "configurable-cross-cluster-access",
+        "advanced-remote-cluster-security",
         License.OperationMode.ENTERPRISE
     );
 

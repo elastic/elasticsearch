@@ -513,9 +513,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
-        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
-        IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
-        IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

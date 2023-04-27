@@ -35,6 +35,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -84,6 +85,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
+    public static final ParseField RANK_FIELD = new ParseField("rank");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
@@ -132,6 +134,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private QueryBuilder postQueryBuilder;
 
     private List<KnnSearchBuilder> knnSearch = new ArrayList<>();
+
+    private RankBuilder rankBuilder = null;
 
     private int from = -1;
 
@@ -257,6 +261,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 knnSearch = in.readList(KnnSearchBuilder::new);
             }
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        }
     }
 
     @Override
@@ -338,6 +345,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 out.writeCollection(knnSearch);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalNamedWriteable(rankBuilder);
+        } else if (rankBuilder != null) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+        }
     }
 
     /**
@@ -388,6 +400,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public List<KnnSearchBuilder> knnSearch() {
         return Collections.unmodifiableList(knnSearch);
+    }
+
+    public SearchSourceBuilder rankBuilder(RankBuilder rankBuilder) {
+        this.rankBuilder = rankBuilder;
+        return this;
+    }
+
+    public RankBuilder rankBuilder() {
+        return rankBuilder;
     }
 
     /**
@@ -1127,6 +1148,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.minScore = minScore;
         rewrittenBuilder.postQueryBuilder = postQueryBuilder;
         rewrittenBuilder.knnSearch = knnSearch;
+        rewrittenBuilder.rankBuilder = rankBuilder;
         rewrittenBuilder.profile = profile;
         rewrittenBuilder.queryBuilder = queryBuilder;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
@@ -1259,6 +1281,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 } else if (KNN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
+                } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "expected a rank name, but found token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
+                        );
+                    }
+                    rankBuilder = parser.namedObject(RankBuilder.class, parser.currentName(), null);
+                    if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "expected token '}', but found token [" + token + "] for [" + RANK_FIELD.getPreferredName() + "]"
+                        );
+                    }
+                    parser.nextToken();
+                    searchUsage.trackSectionUsage("rank_" + rankBuilder.getWriteableName());
                 } else if (_SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                     if (fetchSourceContext.fetchSource() == false
@@ -1504,6 +1542,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 builder.endObject();
             }
             builder.endArray();
+        }
+
+        if (rankBuilder != null) {
+            builder.field(RANK_FIELD.getPreferredName(), rankBuilder);
         }
 
         if (minScore != null) {
@@ -1882,6 +1924,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             postQueryBuilder,
             queryBuilder,
             knnSearch,
+            rankBuilder,
             rescoreBuilders,
             scriptFields,
             size,
@@ -1926,6 +1969,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(postQueryBuilder, other.postQueryBuilder)
             && Objects.equals(queryBuilder, other.queryBuilder)
             && Objects.equals(knnSearch, other.knnSearch)
+            && Objects.equals(rankBuilder, other.rankBuilder)
             && Objects.equals(rescoreBuilders, other.rescoreBuilders)
             && Objects.equals(scriptFields, other.scriptFields)
             && Objects.equals(size, other.size)

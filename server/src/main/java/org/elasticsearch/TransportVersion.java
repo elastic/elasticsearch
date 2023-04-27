@@ -135,6 +135,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_7_0 = new TransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     public static final TransportVersion V_8_7_1 = new TransportVersion(8_07_01_99, "018de9d8-9e8b-4ac7-8f4b-3a6fbd0487fb");
     public static final TransportVersion V_8_8_0 = new TransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
+    public static final TransportVersion V_8_9_0 = new TransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here. Starts at ES major version 10 equivalent.
@@ -150,17 +151,23 @@ public class TransportVersion implements Comparable<TransportVersion> {
      */
 
     /** Reference to the current transport version */
-    public static final TransportVersion CURRENT = V_8_8_0;
+    public static final TransportVersion CURRENT = V_8_9_0;
 
     /** Reference to the earliest compatible transport version to this version of the codebase */
     // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
+    /**
+     * Reference to the minimum transport version that can be used with CCS.
+     * This should be the transport version used by the previous minor release.
+     */
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_7_0;
+
     static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
         Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
-        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
+        Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();

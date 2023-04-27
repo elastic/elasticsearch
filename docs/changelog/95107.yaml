@@ -1,5 +1,5 @@
 pr: 95107
-summary: Cache mtime of translog writer file which not be written anymore
+summary: Cache modification time of translog writer file
 area: Engine
 type: enhancement
 issues: []

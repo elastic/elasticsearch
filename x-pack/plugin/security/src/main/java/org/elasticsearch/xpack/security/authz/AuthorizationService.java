@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -140,6 +141,7 @@ public class AuthorizationService {
     public AuthorizationService(
         Settings settings,
         CompositeRolesStore rolesStore,
+        FieldPermissionsCache fieldPermissionsCache,
         ClusterService clusterService,
         AuditTrailService auditTrailService,
         AuthenticationFailureHandler authcFailureHandler,
@@ -165,6 +167,7 @@ public class AuthorizationService {
         this.rbacEngine = new RBACEngine(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
         );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
@@ -218,13 +221,16 @@ public class AuthorizationService {
                 + subject.getUser().principal()
                 + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
             assert false : message;
+            logger.warn(message);
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
 
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
-        assert authorizationInfo != null : "authorization info must be available in thread context";
+        // AuthZ info can be null for persistent tasks
+        if (threadContext.<AuthorizationInfo>getTransient(AUTHORIZATION_INFO_KEY) == null) {
+            logger.debug("authorization info not available in thread context, resolving it for subject [{}]", subject);
+        }
         authorizationEngine.resolveAuthorizationInfo(
             subject,
             wrapPreservingContext(

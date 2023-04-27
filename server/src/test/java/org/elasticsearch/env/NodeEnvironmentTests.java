@@ -254,11 +254,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         expectThrows(
             ShardLockObtainFailedException.class,
-            () -> env.deleteShardDirectorySafe(
-                new ShardId(index, 0),
-                idxSettings,
-                shardPaths -> { assert false : "should not be called " + shardPaths; }
-            )
+            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
+                assert false : "should not be called " + shardPaths;
+            })
         );
 
         for (Path path : env.indexPaths(index)) {
@@ -282,12 +280,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         expectThrows(
             ShardLockObtainFailedException.class,
-            () -> env.deleteIndexDirectorySafe(
-                index,
-                randomIntBetween(0, 10),
-                idxSettings,
-                indexPaths -> { assert false : "should not be called " + indexPaths; }
-            )
+            () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            })
         );
 
         fooLock.close();

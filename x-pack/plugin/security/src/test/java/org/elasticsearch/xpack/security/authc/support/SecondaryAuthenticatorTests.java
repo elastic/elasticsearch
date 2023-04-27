@@ -22,6 +22,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
@@ -65,7 +66,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -116,7 +116,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, null);
+        licenseState.update(new XPackLicenseStatus(License.OperationMode.PLATINUM, true, null));
 
         final Clock clock = Clock.systemUTC();
 
@@ -156,7 +156,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             serviceAccountService,
             OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE
         );
-        authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
+        authenticator = new SecondaryAuthenticator(securityContext, authenticationService, auditTrail);
     }
 
     @After
@@ -169,7 +169,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        assertThat(future.get(0, TimeUnit.MILLISECONDS), nullValue());
+        assertThat(future.result(), nullValue());
     }
 
     public void testAuthenticateRestRequestIsANoOpIfHeaderIsMissing() throws Exception {
@@ -177,7 +177,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticateAndAttachToContext(request, future);
 
-        assertThat(future.get(0, TimeUnit.MILLISECONDS), nullValue());
+        assertThat(future.result(), nullValue());
         assertThat(SecondaryAuthentication.readFromContext(securityContext), nullValue());
     }
 
@@ -187,10 +187,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> future.actionGet(0, TimeUnit.MILLISECONDS)
-        );
+        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionResult);
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
     }
@@ -201,10 +198,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticateAndAttachToContext(request, future);
 
-        final ElasticsearchSecurityException ex = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> future.actionGet(0, TimeUnit.MILLISECONDS)
-        );
+        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionResult);
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString("credentials")));
 
@@ -245,7 +239,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             future.onResponse(result);
         }, e -> future.onFailure(e)));
 
-        final SecondaryAuthentication secondaryAuthentication = future.get(0, TimeUnit.MILLISECONDS);
+        final SecondaryAuthentication secondaryAuthentication = future.result();
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser().principal(), equalTo(user));
@@ -288,10 +282,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             future.onFailure(e);
         }));
 
-        final ElasticsearchSecurityException ex = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> future.actionGet(0, TimeUnit.MILLISECONDS)
-        );
+        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionResult);
 
         assertThat(ex, TestMatchers.throwableWithMessage(Matchers.containsString("secondary user")));
         assertThat(ex.getCause(), TestMatchers.throwableWithMessage(Matchers.containsString(user)));
@@ -325,7 +316,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();
         authenticator.authenticate(AuthenticateAction.NAME, request, future);
 
-        final SecondaryAuthentication secondaryAuthentication = future.actionGet(0, TimeUnit.MILLISECONDS);
+        final SecondaryAuthentication secondaryAuthentication = future.actionResult();
         assertThat(secondaryAuthentication, Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication(), Matchers.notNullValue());
         assertThat(secondaryAuthentication.getAuthentication().getEffectiveSubject().getUser(), equalTo(user));

@@ -53,6 +53,7 @@ testClusters.configureEach {
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'slm.history_index_enabled', 'false'
   setting 'stack.templates.enabled', 'false'
+  setting 'xpack.ent_search.enabled', 'false'
   // To spice things up a bit, one of the nodes is not an ML node
   nodes.'javaRestTest-0'.setting 'node.roles', '["master","data","ingest"]'
   nodes.'javaRestTest-1'.setting 'node.roles', '["master","data","ingest","ml"]'

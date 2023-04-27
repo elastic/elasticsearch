@@ -44,6 +44,7 @@ types:
 ** <<date-nanos-synthetic-source,`date_nanos`>>
 ** <<dense-vector-synthetic-source,`dense_vector`>>
 ** <<numeric-synthetic-source,`double`>>
+** <<flattened-synthetic-source, `flattened`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
 ** <<numeric-synthetic-source,`half_float`>>

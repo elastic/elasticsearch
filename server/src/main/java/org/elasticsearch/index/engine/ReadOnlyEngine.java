@@ -47,8 +47,8 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * A basic read-only engine that allows switching a shard to be true read-only temporarily or permanently.
@@ -333,8 +333,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) {
-        return false;
+    public void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener) {
+        listener.accept(null);
     }
 
     @Override
@@ -361,7 +361,7 @@ public class ReadOnlyEngine extends Engine {
         boolean singleConsumer,
         boolean accessStats
     ) {
-        return newEmptySnapshot();
+        return Translog.Snapshot.EMPTY;
     }
 
     @Override
@@ -515,8 +515,8 @@ public class ReadOnlyEngine extends Engine {
     public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
-                translogRecoveryRunner.run(this, snapshot);
+            try {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
             } catch (final Exception e) {
                 throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
@@ -541,23 +541,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean refreshNeeded() {
         return false;
-    }
-
-    private static Translog.Snapshot newEmptySnapshot() {
-        return new Translog.Snapshot() {
-            @Override
-            public void close() {}
-
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-        };
     }
 
     @Override

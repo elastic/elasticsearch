@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -90,8 +91,20 @@ public class PublicationTests extends ESTestCase {
                 }
 
                 @Override
-                protected Optional<ApplyCommitRequest> handlePublishResponse(DiscoveryNode sourceNode, PublishResponse publishResponse) {
-                    return coordinationState.handlePublishResponse(sourceNode, publishResponse);
+                protected Optional<SubscribableListener<ApplyCommitRequest>> handlePublishResponse(
+                    DiscoveryNode sourceNode,
+                    PublishResponse publishResponse
+                ) {
+                    return coordinationState.handlePublishResponse(sourceNode, publishResponse).map(applyCommitRequest -> {
+                        final var future = new SubscribableListener<ApplyCommitRequest>();
+                        future.onResponse(applyCommitRequest);
+                        return future;
+                    });
+                }
+
+                @Override
+                protected <T> ActionListener<T> wrapListener(ActionListener<T> listener) {
+                    return listener;
                 }
             };
             currentPublication.start(faultyNodes);

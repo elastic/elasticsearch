@@ -57,7 +57,9 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         nonInputProperties.systemProperty('tests.clustername', baseName)
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      onlyIf { project.bwc_tests_enabled }
+      systemProperty 'tests.rest.blacklist', ['tsdb/140_routing_path/missing routing path field',
+                                              'tsdb/140_routing_path/multi-value routing path field'].join(',')
+      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

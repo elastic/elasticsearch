@@ -165,6 +165,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
                         )
                     );
+                    return;
                 }
             }
         }
@@ -256,9 +257,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (dimensionFields.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
-            }
-            if (metricFields.isEmpty()) {
-                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

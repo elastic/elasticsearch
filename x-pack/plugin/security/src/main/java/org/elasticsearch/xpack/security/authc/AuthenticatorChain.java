@@ -240,7 +240,7 @@ class AuthenticatorChain {
             logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
-        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
+        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableHttpRequest) {
             throw context.getRequest().tamperedRequest();
         }
         return authentication;

@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -541,7 +541,7 @@ public class RefreshListenersTests extends ESTestCase {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field idField = new Field(uid.field(), uid.bytes(), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new StringField(uid.field(), uid.bytes(), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);

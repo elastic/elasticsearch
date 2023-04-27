@@ -176,7 +176,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             String secondaryUri = settings.getStorageEndpoint().secondaryURI();
             if (secondaryUri == null) {
                 throw new IllegalArgumentException(
-                    "Unable to configure an AzureClient using a secondary location without a secondary " + "endpoint"
+                    "Unable to configure an AzureClient using a secondary location without a secondary endpoint"
                 );
             }
 

@@ -53,7 +53,7 @@ public class CompoundProcessor implements Processor {
         this.processors = List.copyOf(processors);
         this.onFailureProcessors = List.copyOf(onFailureProcessors);
         this.relativeTimeProvider = relativeTimeProvider;
-        this.processorsWithMetrics = processors.stream().map(p -> new Tuple<>(p, new IngestMetric())).toList();
+        this.processorsWithMetrics = List.copyOf(processors.stream().map(p -> new Tuple<>(p, new IngestMetric())).toList());
         this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
     }
 
@@ -141,7 +141,7 @@ public class CompoundProcessor implements Processor {
 
     void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
         assert currentProcessor <= processorsWithMetrics.size();
-        if (currentProcessor == processorsWithMetrics.size()) {
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -150,7 +150,9 @@ public class CompoundProcessor implements Processor {
         Processor processor;
         IngestMetric metric;
         // iteratively execute any sync processors
-        while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
+        while (currentProcessor < processorsWithMetrics.size()
+            && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false
+            && ingestDocument.isReroute() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
@@ -176,7 +178,7 @@ public class CompoundProcessor implements Processor {
         }
 
         assert currentProcessor <= processorsWithMetrics.size();
-        if (currentProcessor == processorsWithMetrics.size()) {
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
             handler.accept(ingestDocument, null);
             return;
         }

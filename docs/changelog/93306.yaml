@@ -1,5 +1,0 @@
-pr: 93306
-summary: Allowed indices matcher supports nested limited roles
-area: Authorization
-type: enhancement
-issues: []

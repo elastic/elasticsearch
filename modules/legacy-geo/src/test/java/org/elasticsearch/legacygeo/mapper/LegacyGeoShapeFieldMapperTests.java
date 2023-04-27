@@ -639,8 +639,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        IndexableField[] fields = document.docs().get(0).getFields("field");
-        assertThat(fields.length, equalTo(2));
+        List<IndexableField> fields = document.docs().get(0).getFields("field");
+        assertThat(fields.size(), equalTo(2));
         assertFieldWarnings("tree", "strategy");
     }
 

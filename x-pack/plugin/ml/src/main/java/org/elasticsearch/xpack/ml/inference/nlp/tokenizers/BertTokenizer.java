@@ -45,15 +45,15 @@ public class BertTokenizer extends NlpTokenizer {
 
     private final WordPieceAnalyzer wordPieceAnalyzer;
     protected final List<String> originalVocab;
-    // TODO Not sure this needs to be a sorted map
-    private final SortedMap<String, Integer> vocab;
     protected final boolean withSpecialTokens;
     private final int maxSequenceLength;
-    protected final int sepTokenId;
+    private final int sepTokenId;
     private final int clsTokenId;
     private final String padToken;
-    protected final int padTokenId;
+    private final int padTokenId;
     private final String maskToken;
+    private final OptionalInt maskTokenId;
+
     private final String unknownToken;
 
     protected BertTokenizer(
@@ -107,7 +107,6 @@ public class BertTokenizer extends NlpTokenizer {
             unknownToken
         );
         this.originalVocab = originalVocab;
-        this.vocab = vocab;
         this.withSpecialTokens = withSpecialTokens;
         this.maxSequenceLength = maxSequenceLength;
         if (vocab.containsKey(unknownToken) == false) {
@@ -131,6 +130,8 @@ public class BertTokenizer extends NlpTokenizer {
         }
         this.padToken = padToken;
         this.maskToken = maskToken;
+        this.maskTokenId = vocab.containsKey(maskToken) ? OptionalInt.of(vocab.get(maskToken)) : OptionalInt.empty();
+
         this.unknownToken = unknownToken;
     }
 
@@ -164,22 +165,12 @@ public class BertTokenizer extends NlpTokenizer {
 
     @Override
     public OptionalInt getPadTokenId() {
-        Integer pad = vocab.get(this.padToken);
-        if (pad != null) {
-            return OptionalInt.of(pad);
-        } else {
-            return OptionalInt.empty();
-        }
+        return OptionalInt.of(padTokenId);
     }
 
     @Override
     public OptionalInt getMaskTokenId() {
-        Integer pad = vocab.get(this.maskToken);
-        if (pad != null) {
-            return OptionalInt.of(pad);
-        } else {
-            return OptionalInt.empty();
-        }
+        return maskTokenId;
     }
 
     @Override
@@ -188,8 +179,13 @@ public class BertTokenizer extends NlpTokenizer {
     }
 
     @Override
+    public List<String> getVocabulary() {
+        return originalVocab;
+    }
+
+    @Override
     public TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations) {
-        return new BertTokenizationResult(originalVocab, tokenizations, vocab.get(this.padToken));
+        return new BertTokenizationResult(originalVocab, tokenizations, padTokenId);
     }
 
     TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {

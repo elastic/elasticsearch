@@ -96,6 +96,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(request);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95360")
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -132,6 +133,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95501")
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -154,7 +156,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-                assertThatTrainedModelAssignmentMetadataIsEmpty("upgrade-deployment-test-stop-mixed-cluster");
+                assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
 
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

@@ -93,7 +93,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "metrics-*",
                     "traces-*",
                     ".logs-endpoint.diagnostic.collection-*",
-                    ".logs-endpoint.action.responses-*"
+                    ".logs-endpoint.action.responses-*",
+                    "profiling-*"
                   ],
                   "privileges": [
                     "write",

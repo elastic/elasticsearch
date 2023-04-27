@@ -446,8 +446,6 @@ class Elasticsearch {
         var es = INSTANCE;
         try {
             IOUtils.close(es.node, es.spawner);
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
             if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException(
                     "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
@@ -459,6 +457,9 @@ class Elasticsearch {
             LogManager.getLogger(Elasticsearch.class).warn("Thread got interrupted while waiting for the node to shutdown.");
             Thread.currentThread().interrupt();
         } finally {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+
             es.keepAliveLatch.countDown();
         }
     }

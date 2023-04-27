@@ -15,10 +15,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -87,19 +83,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
             .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
-        if (iterator == null) {
-            return null;
-        }
-        // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
-        // implemented for search shards.
-        if (DiscoveryNode.isStateless(clusterService.getSettings())) {
-            return new PlainShardIterator(
-                iterator.shardId(),
-                iterator.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
-            );
-        } else {
-            return iterator;
-        }
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(iterator);
     }
 
     @Override

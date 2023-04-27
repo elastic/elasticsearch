@@ -637,11 +637,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     }
 
     @Override
-    public Number nextKey(Number key) {
-        return bucketInfo.roundingInfos[bucketInfo.roundingIdx].rounding.nextRoundingValue(key.longValue());
-    }
-
-    @Override
     public InternalAggregation createAggregation(List<MultiBucketsAggregation.Bucket> buckets) {
         // convert buckets to the right type
         List<Bucket> buckets2 = new ArrayList<>(buckets.size());

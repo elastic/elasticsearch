@@ -423,7 +423,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }"""));
 
         assertNull(parsedDocument.dynamicMappingsUpdate());
-        IndexableField[] fields = parsedDocument.rootDoc().getFields("obj.sub.string");
-        assertEquals(1, fields.length);
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields("obj.sub.string");
+        assertEquals(1, fields.size());
     }
 }

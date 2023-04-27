@@ -152,16 +152,15 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
 
-        import org.elasticsearch.gradle.internal.BwcVersions.VersionPair
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
         Version currentVersion = Version.fromString("8.1.0")
         def versionList = [
-          new VersionPair(Version.fromString("$bugfix"), Version.fromString("$bugfixLucene")),
-          new VersionPair(Version.fromString("$staged"), Version.fromString("$stagedLucene")),
-          new VersionPair(Version.fromString("$minor"), Version.fromString("$minorLucene")),
-          new VersionPair(currentVersion, Version.fromString("9.0.0"))
+          Version.fromString("$bugfix"),
+          Version.fromString("$staged"),
+          Version.fromString("$minor"),
+          currentVersion
         ]
 
         BwcVersions versions = new BwcVersions(currentVersion, versionList)

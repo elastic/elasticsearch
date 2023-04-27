@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -65,6 +64,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -91,6 +91,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
@@ -112,6 +113,7 @@ import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
+import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
@@ -520,7 +522,8 @@ public class Node implements Closeable {
                 scriptService,
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
-                client
+                client,
+                IngestService.createGrokThreadWatchdog(this.environment, threadPool)
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -612,7 +615,7 @@ public class Node implements Closeable {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
                 xContentRegistry,
                 clusterService.getClusterSettings(),
-                threadPool::relativeTimeInMillis
+                threadPool
             );
 
             // collect engine factory providers from plugins
@@ -649,6 +652,7 @@ public class Node implements Closeable {
 
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexManager(systemIndices, client));
+                clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
             }
 
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -789,6 +793,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
+                actionModule::copyRequestHeadersToThreadContext,
                 clusterService.getClusterSettings(),
                 tracer
             );
@@ -798,6 +803,7 @@ public class Node implements Closeable {
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
                 settings,
+                clusterService,
                 xContentRegistry,
                 indicesModule.getMapperRegistry(),
                 settingsModule.getIndexScopedSettings(),
@@ -1226,6 +1232,7 @@ public class Node implements Closeable {
             )
         );
         serverHealthIndicatorServices.add(new DiskHealthIndicatorService(clusterService));
+        serverHealthIndicatorServices.add(new ShardsCapacityHealthIndicatorService(clusterService));
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
@@ -1280,7 +1287,7 @@ public class Node implements Closeable {
     private PersistedClusterStateService newPersistedClusterStateService(
         NamedXContentRegistry xContentRegistry,
         ClusterSettings clusterSettings,
-        LongSupplier relativeTimeMillisSupplier
+        ThreadPool threadPool
     ) {
         final List<ClusterCoordinationPlugin.PersistedClusterStateServiceFactory> persistedClusterStateServiceFactories = pluginsService
             .filterPlugins(ClusterCoordinationPlugin.class)
@@ -1295,10 +1302,10 @@ public class Node implements Closeable {
 
         if (persistedClusterStateServiceFactories.size() == 1) {
             return persistedClusterStateServiceFactories.get(0)
-                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool);
         }
 
-        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, relativeTimeMillisSupplier);
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis);
     }
 
     protected TransportService newTransportService(
@@ -1402,7 +1409,8 @@ public class Node implements Closeable {
             injector.getInstance(PersistedClusterStateService.class),
             pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
         );
-        if (Assertions.ENABLED) {
+        // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
+        if (Assertions.ENABLED && DiscoveryNode.isStateless(settings()) == false) {
             try {
                 assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(

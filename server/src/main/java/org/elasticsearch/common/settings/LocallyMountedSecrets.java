@@ -76,8 +76,8 @@ public class LocallyMountedSecrets implements SecureSettings {
      * Direct constructor to be used by the CLI
      */
     public LocallyMountedSecrets(Environment environment) {
-        var secretsDirPath = environment.configFile().toAbsolutePath().resolve(SECRETS_DIRECTORY);
-        var secretsFilePath = secretsDirPath.resolve(SECRETS_FILE_NAME);
+        var secretsDirPath = resolveSecretsDir(environment);
+        var secretsFilePath = resolveSecretsFile(environment);
         secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), SECRETS_FIELD);
         secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
         if (Files.exists(secretsDirPath) && Files.exists(secretsFilePath)) {
@@ -91,6 +91,24 @@ public class LocallyMountedSecrets implements SecureSettings {
         }
         this.secretsDir = secretsDirPath.toString();
         this.secretsFile = secretsFilePath.toString();
+    }
+
+    /**
+     * Resolve a secrets directory path given an environment
+     * @param environment Elasticsearch environment
+     * @return Secrets directory within an Elasticsearch environment
+     */
+    public static Path resolveSecretsDir(Environment environment) {
+        return environment.configFile().toAbsolutePath().resolve(SECRETS_DIRECTORY);
+    }
+
+    /**
+     * Resolve a secure settings file path given an environment
+     * @param environment Elasticsearch environment
+     * @return Secure settings file within an Elasticsearch environment
+     */
+    public static Path resolveSecretsFile(Environment environment) {
+        return resolveSecretsDir(environment).resolve(SECRETS_FILE_NAME);
     }
 
     /**

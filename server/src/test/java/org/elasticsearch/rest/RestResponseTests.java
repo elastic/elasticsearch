@@ -263,10 +263,10 @@ public class RestResponseTests extends ESTestCase {
             case 3 -> {
                 TransportAddress address = buildNewFakeTransportAddress();
                 original = new RemoteTransportException(
-                        "remote",
-                        address,
-                        "action",
-                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
+                    "remote",
+                    address,
+                    "action",
+                    new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
                 );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
@@ -278,8 +278,8 @@ public class RestResponseTests extends ESTestCase {
             }
             case 4 -> {
                 original = new RemoteTransportException(
-                        "ElasticsearchWrapperException with a cause that has a special treatment",
-                        new IllegalArgumentException("wrong")
+                    "ElasticsearchWrapperException with a cause that has a special treatment",
+                    new IllegalArgumentException("wrong")
                 );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {

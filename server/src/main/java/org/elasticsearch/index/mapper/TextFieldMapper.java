@@ -792,7 +792,8 @@ public class TextFieldMapper extends FieldMapper {
             Query tq = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
             if (method == null
                 || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
                 return new ConstantScoreQuery(tq);
             }
             return tq;

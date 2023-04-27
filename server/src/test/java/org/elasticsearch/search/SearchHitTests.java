@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -76,6 +77,8 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         if (frequently()) {
             if (rarely()) {
                 hit.score(Float.NaN);
+            } else if (rarely()) {
+                hit.setRank(randomInt());
             } else {
                 hit.score(randomFloat());
             }
@@ -105,9 +108,9 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            String[] matchedQueries = new String[size];
+            Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAlphaOfLength(5);
+                matchedQueries.put(randomAlphaOfLength(5), Float.NaN);
             }
             hit.matchedQueries(matchedQueries);
         }
@@ -223,6 +226,15 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("""
             {"_id":"id1","_score":1.5}""", Strings.toString(builder));
+    }
+
+    public void testRankToXContent() throws IOException {
+        SearchHit searchHit = new SearchHit(1, "id1");
+        searchHit.setRank(1);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals("""
+            {"_id":"id1","_score":null,"_rank":1}""", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {

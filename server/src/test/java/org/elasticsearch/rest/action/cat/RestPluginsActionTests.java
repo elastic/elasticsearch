@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -62,8 +63,10 @@ public class RestPluginsActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
+                    TransportVersion.CURRENT,
                     null,
                     node(i),
+                    null,
                     null,
                     null,
                     null,

@@ -104,7 +104,7 @@ public final class RefCountingListener implements Releasable {
     }
 
     /**
-     * Release the original reference to this object, which commpletes the delegate {@link ActionListener} if there are no other references.
+     * Release the original reference to this object, which completes the delegate {@link ActionListener} if there are no other references.
      *
      * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
      * otherwise. This deviates from the contract of {@link java.io.Closeable}.
@@ -224,5 +224,13 @@ public final class RefCountingListener implements Releasable {
     @Override
     public String toString() {
         return "refCounting[" + delegate + "]";
+    }
+
+    /**
+     * @return {@code true} if at least one acquired listener has completed exceptionally, which means that the delegate listener will also
+     *         complete exceptionally once all acquired listeners are completed.
+     */
+    public boolean isFailing() {
+        return exceptionRef.get() != null;
     }
 }

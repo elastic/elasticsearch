@@ -36,7 +36,7 @@ class GitInfoPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File rootDir = Util.locateElasticsearchWorkspace(project);
+        File rootDir = Util.locateElasticsearchWorkspace(project.getGradle());
         gitInfo = objectFactory.property(GitInfo.class).value(factory.provider(() ->
             GitInfo.gitInfo(rootDir)
         ));

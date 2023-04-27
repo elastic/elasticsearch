@@ -52,7 +52,7 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             project.getRepositories().mavenCentral();
 
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
-                File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project);
+                File elasticsearchWorkspace = Util.locateElasticsearchWorkspace(project.getGradle());
                 String importOrderPath = "build-conventions/elastic.importorder";
                 String formatterConfigPath = "build-conventions/formatterConfig.xml";
 

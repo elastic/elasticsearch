@@ -13,6 +13,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.initialization.IncludedBuild;
+import org.gradle.api.invocation.Gradle;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -118,24 +119,31 @@ public class Util {
         return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
-    public static File locateElasticsearchWorkspace(Project project) {
-        File rootDir = project.getRootProject().getRootDir();
-        if (versionFileExists(rootDir)) {
-            return rootDir;
+        public static File locateElasticsearchWorkspace(Gradle gradle) {
+            if(gradle.getRootProject().getName().startsWith("build-tools")) {
+                File buildToolsParent = gradle.getRootProject().getRootDir().getParentFile();
+                if(versionFileExists(buildToolsParent)) {
+                    return buildToolsParent;
+                }
+                return buildToolsParent;
+            }
+            if (gradle.getParent() == null) {
+                // See if any of these included builds is the Elasticsearch gradle
+                for (IncludedBuild includedBuild : gradle.getIncludedBuilds()) {
+                    if (versionFileExists(includedBuild.getProjectDir())) {
+                        return includedBuild.getProjectDir();
+                    }
+                }
+
+                // Otherwise assume this gradle is the root elasticsearch workspace
+                return gradle.getRootProject().getRootDir();
+            } else {
+                // We're an included build, so keep looking
+                return locateElasticsearchWorkspace(gradle.getParent());
+            }
         }
-        File parentDir = rootDir.getParentFile();
-        if (versionFileExists(parentDir)) {
-            return parentDir;
-        }
-        File elasticsearchIncluded = new File(rootDir, "elasticsearch");
-        if (versionFileExists(elasticsearchIncluded)) {
-            return elasticsearchIncluded;
-        }
-        throw new IllegalStateException("Cannot resolve elasticsearch workspace");
-    }
 
     private static boolean versionFileExists(File rootDir) {
-        File versionProperties = new File(rootDir, "build-tools-internal/version.properties");
-        return versionProperties.exists();
+        return new File(rootDir, "build-tools-internal/version.properties").exists();
     }
 }

@@ -206,7 +206,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTable).build();
-        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(routingTable.allShards().size()));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo((int) routingTable.allShards().count()));
         List<DiscoveryNode> nodes = new ArrayList<>();
         int nodeIdx = 0;
         int iters = scaledRandomIntBetween(10, 100);

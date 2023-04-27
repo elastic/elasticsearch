@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.test;
 
+import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
 import org.gradle.api.logging.Logger;
@@ -257,7 +258,8 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     }
 
     private boolean isDumpOutputEnabled() {
-        Object errorReportingEnabled = testTask.getExtensions().getExtraProperties().get("dumpOutputOnFailure");
-        return errorReportingEnabled == null || (boolean) errorReportingEnabled;
+        return (Boolean) testTask.getInputs()
+            .getProperties()
+            .getOrDefault(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
     }
 }

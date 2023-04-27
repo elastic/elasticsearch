@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
@@ -43,9 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -124,13 +122,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
         final int primaryTerm = 1 + randomInt(200);
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            )
+            .settings(indexSettings(Version.CURRENT, 1, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .primaryTerm(0, primaryTerm)
             .timestampRange(
                 primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
@@ -228,13 +220,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(randomFrom(nodes));
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            )
+            .settings(indexSettings(Version.CURRENT, numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -275,13 +261,7 @@ public class ClusterStateCreationUtils {
         int currentNodeToAssign = 0;
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
-                .settings(
-                    Settings.builder()
-                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(SETTING_NUMBER_OF_SHARDS, numberOfPrimaries)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-                )
+                .settings(indexSettings(Version.CURRENT, numberOfPrimaries, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
                 .build();
 
             IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -321,13 +301,7 @@ public class ClusterStateCreationUtils {
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            )
+            .settings(indexSettings(Version.CURRENT, numberOfShards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .build();
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
@@ -387,11 +361,10 @@ public class ClusterStateCreationUtils {
         for (String index : indices) {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    Settings.builder()
-                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(SETTING_NUMBER_OF_REPLICAS, replicaRoles.size())
-                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                    indexSettings(Version.CURRENT, numberOfShards, replicaRoles.size()).put(
+                        SETTING_CREATION_DATE,
+                        System.currentTimeMillis()
+                    )
                 )
                 .timestampRange(IndexLongFieldRange.UNKNOWN)
                 .build();
@@ -496,6 +469,24 @@ public class ClusterStateCreationUtils {
     }
 
     /**
+     * Creates a cluster state where local node and master node can be specified
+     *
+     * @param localNode  node in allNodes that is the local node
+     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param allNodes   all nodes in the cluster
+     * @param transportVersion  the transport version used by the cluster
+     * @return cluster state
+     */
+    public static ClusterState state(
+        DiscoveryNode localNode,
+        DiscoveryNode masterNode,
+        DiscoveryNode[] allNodes,
+        TransportVersion transportVersion
+    ) {
+        return state(localNode, masterNode, null, allNodes, transportVersion);
+    }
+
+    /**
      * Creates a cluster state where local node, master and health node can be specified
      *
      * @param localNode  node in allNodes that is the local node
@@ -510,6 +501,26 @@ public class ClusterStateCreationUtils {
         DiscoveryNode healthNode,
         DiscoveryNode... allNodes
     ) {
+        return state(localNode, masterNode, healthNode, allNodes, TransportVersion.CURRENT);
+    }
+
+    /**
+     * Creates a cluster state where local node, master and health node can be specified
+     *
+     * @param localNode  node in allNodes that is the local node
+     * @param masterNode node in allNodes that is the master node. Can be null if no master exists
+     * @param healthNode node in allNodes that is the health node. Can be null if no health node exists
+     * @param allNodes   all nodes in the cluster
+     * @param transportVersion  the transport version used by the cluster
+     * @return cluster state
+     */
+    public static ClusterState state(
+        DiscoveryNode localNode,
+        DiscoveryNode masterNode,
+        DiscoveryNode healthNode,
+        DiscoveryNode[] allNodes,
+        TransportVersion transportVersion
+    ) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
             discoBuilder.add(node);
@@ -522,6 +533,10 @@ public class ClusterStateCreationUtils {
 
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
+        for (DiscoveryNode node : allNodes) {
+            state.putTransportVersion(node.getId(), transportVersion);
+        }
+
         Metadata.Builder metadataBuilder = Metadata.builder().generateClusterUuidIfNeeded();
         if (healthNode != null) {
             addHealthNode(metadataBuilder, healthNode);

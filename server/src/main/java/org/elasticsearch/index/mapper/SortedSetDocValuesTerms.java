@@ -105,22 +105,22 @@ class SortedSetDocValuesTerms extends Terms {
 
     @Override
     public boolean hasFreqs() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public boolean hasOffsets() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public boolean hasPositions() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
     @Override
     public boolean hasPayloads() {
-        throw new UnsupportedOperationException();
+        return false;
     }
 
 }

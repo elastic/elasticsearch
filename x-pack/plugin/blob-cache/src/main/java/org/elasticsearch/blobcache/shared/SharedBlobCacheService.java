@@ -10,7 +10,6 @@ package org.elasticsearch.blobcache.shared;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -109,7 +109,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     public static final Setting<RelativeByteSizeValue> SHARED_CACHE_SIZE_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
         (settings) -> {
-            if (DiscoveryNode.isDedicatedFrozenNode(settings) || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)) {
+            if (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings)) {
                 return "90%";
             } else {
                 return ByteSizeValue.ZERO.getStringRep();
@@ -132,9 +132,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     @SuppressWarnings("unchecked")
                     final List<DiscoveryNodeRole> roles = (List<DiscoveryNodeRole>) settings.get(NodeRoleSettings.NODE_ROLES_SETTING);
                     final var rolesSet = Set.copyOf(roles);
-                    if (DataTier.isFrozenNode(rolesSet) == false && rolesSet.contains(DiscoveryNodeRole.SEARCH_ROLE) == false) {
+                    if (DataTier.isFrozenNode(rolesSet) == false
+                        && rolesSet.contains(DiscoveryNodeRole.SEARCH_ROLE) == false
+                        && rolesSet.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                         throw new SettingsException(
-                            "setting [{}] to be positive [{}] is only permitted on nodes with the data_frozen role, roles are [{}]",
+                            "Setting [{}] to be positive [{}] is only permitted on nodes with the data_frozen, search, or indexing role."
+                                + " Roles are [{}]",
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
@@ -164,11 +167,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
+    private static boolean isSearchOrIndexingNode(Settings settings) {
+        return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE)
+            || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+    }
+
     public static final Setting<ByteSizeValue> SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
         (settings) -> {
             if (SHARED_CACHE_SIZE_SETTING.exists(settings) == false
-                && (DiscoveryNode.isDedicatedFrozenNode(settings) || DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE))) {
+                && (DiscoveryNode.isDedicatedFrozenNode(settings) || isSearchOrIndexingNode(settings))) {
                 return "100GB";
             }
 
@@ -622,7 +630,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
     }
 
-    private record RegionKey<KeyType> (KeyType file, int region) {
+    private record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';

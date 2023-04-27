@@ -103,7 +103,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        return new IndexAnalyzers(
+        return IndexAnalyzers.of(
             Map.of(
                 "default",
                 new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
@@ -111,9 +111,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()),
                 "whitespace",
                 new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer())
-            ),
-            Map.of(),
-            Map.of()
+            )
         );
     }
 
@@ -158,10 +156,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
         final DocumentMapper documentMapper = mapperService.documentMapper();
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> { throw new IllegalArgumentException(); })
-        );
+        expectThrows(IllegalArgumentException.class, () -> documentMapper.mappers().indexAnalyzer("non_existing_field", f -> {
+            throw new IllegalArgumentException();
+        }));
 
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -328,7 +325,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         int max;
         Settings settings;
         if (randomBoolean()) {
-            max = 16; // By default no more than 16 dimensions per document are supported
+            max = 21; // By default no more than 21 dimensions per document are supported
             settings = getIndexSettings();
         } else {
             max = between(1, 10000);

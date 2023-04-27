@@ -1,6 +1,0 @@
-pr: 91698
-summary: Option to delete user-added annotations for the reset/delete job APIs
-area: Machine Learning
-type: enhancement
-issues:
- - 74310

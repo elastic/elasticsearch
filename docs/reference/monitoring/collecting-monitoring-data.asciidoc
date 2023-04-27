@@ -8,7 +8,7 @@
 include::{es-ref-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-deprecation-notice]
 
 This method for collecting metrics about {es} involves sending the metrics to
-the monitoring cluster by using exporters. For the recommended method, see <<configuring-metricbeat>>.
+the monitoring cluster by using exporters.
 
 Advanced monitoring settings enable you to control how frequently data is
 collected, configure timeouts, and set the retention period for locally-stored

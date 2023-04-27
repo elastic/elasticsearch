@@ -282,7 +282,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             assertThat(forecastDataStream.getIndices().subList(0, indices), Matchers.equalTo(dataStream.getIndices()));
 
             RoutingTable forecastRoutingTable = forecast.state().routingTable();
-            assertThat(forecastRoutingTable.allShards().size(), Matchers.equalTo((expectedIndices) * shardCopies));
+            assertThat(forecastRoutingTable.allShards().count(), Matchers.equalTo((long) (expectedIndices) * shardCopies));
 
             forecastDataStream.getIndices()
                 .forEach(index -> assertThat(forecastRoutingTable.allShards(index.getName()).size(), Matchers.equalTo(shardCopies)));
@@ -380,7 +380,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterInfo randomClusterInfo(ClusterState state) {
         Map<String, Long> shardSizes = state.routingTable()
             .allShards()
-            .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         Map<String, DiskUsage> diskUsage = new HashMap<>();

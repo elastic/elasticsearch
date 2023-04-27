@@ -189,7 +189,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
             final LoginContext lc = callbackHandler.login();
             Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
                 lc.getSubject(),
-                (PrivilegedExceptionAction<Response>) () -> { return restClient.performRequest(request); },
+                (PrivilegedExceptionAction<Response>) () -> {
+                    return restClient.performRequest(request);
+                },
                 accessControlContext
             );
 

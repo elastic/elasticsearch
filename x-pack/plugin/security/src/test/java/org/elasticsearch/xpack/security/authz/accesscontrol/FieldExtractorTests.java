@@ -129,10 +129,9 @@ public class FieldExtractorTests extends ESTestCase {
 
     public void testUnsupported() {
         Set<String> fields = new HashSet<>();
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> { FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields); }
-        );
+        expectThrows(UnsupportedOperationException.class, () -> {
+            FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields);
+        });
     }
 
     public void testIndexOrDocValuesQuery() {

@@ -256,7 +256,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         Map<String, Long> shardSize = new HashMap<>();
         IntStream.range(0, randomInt(10))
-            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards()))
+            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards().toList()))
             .filter(s -> s.shardId().getId() != shardId)
             .forEach(s -> shardSize.put(shardIdentifier(s), randomNonNegativeLong()));
 
@@ -440,7 +440,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         Map<InternalSnapshotsInfoService.SnapshotShard, Long> shardSizeBuilder = new HashMap<>();
         IntStream.range(0, randomInt(10))
-            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards()))
+            .mapToObj(i -> randomFrom(clusterState.routingTable().allShards().toList()))
             .filter(s -> s.shardId().getId() != shardId)
             .forEach(s -> shardSizeBuilder.put(snapshotShardSizeKey(recoverySource, s), randomNonNegativeLong()));
 

@@ -58,6 +58,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 "field",
                 true,
                 true,
+                randomBoolean(),
                 Orientation.RIGHT,
                 null,
                 null,
@@ -91,6 +92,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 "field",
                 true,
                 true,
+                randomBoolean(),
                 Orientation.RIGHT,
                 null,
                 null,
@@ -120,6 +122,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 "field",
                 true,
                 true,
+                randomBoolean(),
                 Orientation.RIGHT,
                 null,
                 null,
@@ -158,6 +161,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 "field",
                 true,
                 true,
+                randomBoolean(),
                 Orientation.RIGHT,
                 null,
                 null,
@@ -169,10 +173,9 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                IllegalArgumentException exception = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType)); }
-                );
+                IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+                    searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
+                });
                 assertThat(exception.getMessage(), startsWith("Unknown geometry type"));
             }
         }
@@ -223,6 +226,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 "field",
                 true,
                 true,
+                randomBoolean(),
                 Orientation.RIGHT,
                 null,
                 null,

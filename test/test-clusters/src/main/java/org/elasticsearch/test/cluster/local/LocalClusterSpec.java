@@ -83,6 +83,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
         private final Map<String, String> systemProperties;
+        private final Map<String, String> secrets;
         private Version version;
 
         public LocalNodeSpec(
@@ -102,7 +103,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> keystoreFiles,
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
-            Map<String, String> systemProperties
+            Map<String, String> systemProperties,
+            Map<String, String> secrets
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -121,6 +123,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
             this.systemProperties = systemProperties;
+            this.secrets = secrets;
         }
 
         void setVersion(Version version) {
@@ -177,6 +180,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public Map<String, String> getSystemProperties() {
             return systemProperties;
+        }
+
+        public Map<String, String> getSecrets() {
+            return secrets;
         }
 
         public boolean isSecurityEnabled() {
@@ -287,7 +294,8 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystoreFiles,
                         n.keystorePassword,
                         n.extraConfigFiles,
-                        n.systemProperties
+                        n.systemProperties,
+                        n.secrets
                     )
                 )
                 .toList();

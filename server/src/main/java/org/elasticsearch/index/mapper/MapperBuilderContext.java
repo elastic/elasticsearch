@@ -29,10 +29,9 @@ public class MapperBuilderContext {
      * A context to use to build metadata fields.
      */
     public static MapperBuilderContext forMetadata() {
-        return new MapperBuilderContext(
-            null,
-            () -> { throw new UnsupportedOperationException("metadata fields can't check if _source is synthetic"); }
-        );
+        return new MapperBuilderContext(null, () -> {
+            throw new UnsupportedOperationException("metadata fields can't check if _source is synthetic");
+        });
     }
 
     private final String path;

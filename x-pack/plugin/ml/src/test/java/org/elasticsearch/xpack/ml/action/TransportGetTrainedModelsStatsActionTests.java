@@ -93,7 +93,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
             factoryMap.put(
                 InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client, parameters.ingestService.getClusterService(), Settings.EMPTY)
+                new InferenceProcessor.Factory(parameters.client, parameters.ingestService.getClusterService(), Settings.EMPTY, true)
             );
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
@@ -125,7 +125,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             )
         );
         clusterService = new ClusterService(settings, clusterSettings, tp, null);
-        ingestService = new IngestService(clusterService, tp, null, null, null, Collections.singletonList(SKINNY_INGEST_PLUGIN), client);
+        ingestService = new IngestService(
+            clusterService,
+            tp,
+            null,
+            null,
+            null,
+            Collections.singletonList(SKINNY_INGEST_PLUGIN),
+            client,
+            null
+        );
     }
 
     public void testInferenceIngestStatsByModelId() {

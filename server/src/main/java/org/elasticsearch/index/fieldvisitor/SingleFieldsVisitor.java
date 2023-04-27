@@ -46,7 +46,7 @@ public final class SingleFieldsVisitor extends StoredFieldVisitor {
     }
 
     private void addValue(Object value) {
-        destination.add(field.valueForDisplay(value));
+        destination.add(value);
     }
 
     @Override

@@ -14,8 +14,10 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests.randomMeta;
 import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests.randomValidId;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -59,6 +61,9 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
         if (randomBoolean()) {
             builder.setMaxNumThreads(randomIntBetween(1, 20));
         }
+        if (randomBoolean()) {
+            builder.setMeta(randomMeta());
+        }
         return builder.build();
     }
 
@@ -69,6 +74,24 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
         assertThat(
             update.mergeWithConfig(config).build(),
             is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setDescription("new description").build()))
+        );
+    }
+
+    public void testMergeWithConfig_UpdatedMeta() {
+        String id = randomValidId();
+        Map<String, Object> oldMeta = randomMeta();
+        Map<String, Object> newMeta;
+        // There's a limitation that you cannot completely remove a _meta field in an update.
+        // The best you can do is set it to an empty object. The test needs to reflect this limitation.
+        // (custom_settings on anomaly detection jobs have the same limitation.)
+        do {
+            newMeta = randomMeta();
+        } while (newMeta == null);
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id).setMeta(oldMeta).build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setMeta(newMeta).build();
+        assertThat(
+            update.mergeWithConfig(config).build(),
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setMeta(newMeta).build()))
         );
     }
 
@@ -252,6 +275,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractXContentSeriali
         return (update.getDescription() == null || Objects.equals(config.getDescription(), update.getDescription()))
             && (update.getModelMemoryLimit() == null || Objects.equals(config.getModelMemoryLimit(), update.getModelMemoryLimit()))
             && (update.isAllowLazyStart() == null || Objects.equals(config.isAllowLazyStart(), update.isAllowLazyStart()))
-            && (update.getMaxNumThreads() == null || Objects.equals(config.getMaxNumThreads(), update.getMaxNumThreads()));
+            && (update.getMaxNumThreads() == null || Objects.equals(config.getMaxNumThreads(), update.getMaxNumThreads()))
+            && (update.getMeta() == null || Objects.equals(config.getMeta(), update.getMeta()));
     }
 }

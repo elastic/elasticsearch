@@ -169,10 +169,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
         indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        final Settings settings = indexSettings(1, 0).build();
         final RolloverResponse response = client().admin()
             .indices()
             .prepareRolloverIndex("test_alias")

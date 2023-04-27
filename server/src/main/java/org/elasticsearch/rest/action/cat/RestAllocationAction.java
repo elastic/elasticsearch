@@ -99,16 +99,13 @@ public class RestAllocationAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
         final Map<String, Integer> allocs = new HashMap<>();
 
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             String nodeId = "UNASSIGNED";
-
             if (shard.assignedToNode()) {
                 nodeId = shard.currentNodeId();
             }
-
             allocs.merge(nodeId, 1, Integer::sum);
         }
-
         Table table = getTableWithHeader(request);
 
         for (NodeStats nodeStats : stats.getNodes()) {

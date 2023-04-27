@@ -285,7 +285,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 prefixLength,
                 128,
                 transpositions,
-                MultiTermQuery.CONSTANT_SCORE_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
             );
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
             return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);

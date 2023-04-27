@@ -1,0 +1,5 @@
+pr: 94916
+summary: Use applied state after `DiskThresholdMonitor` reroute
+area: Allocation
+type: bug
+issues: []

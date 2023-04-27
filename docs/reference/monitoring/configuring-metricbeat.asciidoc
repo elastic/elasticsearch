@@ -9,7 +9,9 @@
 
 In 6.5 and later, you can use {metricbeat} to collect data about {es} 
 and ship it to the monitoring cluster, rather than routing it through exporters 
-as described in <<collecting-monitoring-data>>. 
+as described in <<collecting-monitoring-data>>.
+
+Want to use {agent} instead? Refer to <<configuring-elastic-agent>>.
 
 image::monitoring/images/metricbeat.png[Example monitoring architecture]
 

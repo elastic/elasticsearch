@@ -181,7 +181,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();
-        for (ShardRouting shard : state.routingTable().allShards()) {
+        for (ShardRouting shard : state.routingTable().allShardsIterator()) {
             String dataPath = info.getDataPath(shard);
             assertNotNull(dataPath);
 
@@ -325,12 +325,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         RoutingTable routingTable = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
-        for (ShardRouting shard : routingTable.allShards()) {
+        for (ShardRouting shard : routingTable.allShardsIterator()) {
             assertTrue(
                 infoAfterRecovery.getReservedSpace(shard.currentNodeId(), infoAfterRecovery.getDataPath(shard))
                     .containsShardId(shard.shardId())
             );
         }
-
     }
 }

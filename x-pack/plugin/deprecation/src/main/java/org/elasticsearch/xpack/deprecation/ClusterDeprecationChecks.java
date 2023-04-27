@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Locale;
 
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+
 public class ClusterDeprecationChecks {
     /**
      * Upgrading can require the addition of one or more small indices. This method checks that based on configuration we have the room
@@ -24,10 +26,16 @@ public class ClusterDeprecationChecks {
         // Make sure we have room to add a small non-frozen index if needed
         final int shardsInFutureNewSmallIndex = 5;
         final int replicasForFutureIndex = 1;
-        if (ShardLimitValidator.canAddShardsToCluster(shardsInFutureNewSmallIndex, replicasForFutureIndex, clusterState)) {
+        final int maxConfiguredShardsPerNode = SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(clusterState.getMetadata().settings());
+        ShardLimitValidator.Result shardLimitsResult = ShardLimitValidator.checkShardLimitForNormalNodes(
+            maxConfiguredShardsPerNode,
+            shardsInFutureNewSmallIndex,
+            replicasForFutureIndex,
+            clusterState
+        );
+        if (shardLimitsResult.canAddShards()) {
             return null;
         } else {
-            final int totalShardsToAdd = shardsInFutureNewSmallIndex * (1 + replicasForFutureIndex);
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 "The cluster has too many shards to be able to upgrade",
@@ -37,7 +45,7 @@ public class ClusterDeprecationChecks {
                     "Upgrading requires adding a small number of new shards. There is not enough room for %d more "
                         + "shards. Increase the cluster.max_shards_per_node setting, or remove indices "
                         + "to clear up resources.",
-                    totalShardsToAdd
+                    shardLimitsResult.totalShardsToAdd()
                 ),
                 false,
                 null

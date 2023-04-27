@@ -52,11 +52,13 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.base",
         "org.elasticsearch.cli",
         "org.elasticsearch.geo",
+        "org.elasticsearch.grok",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.pluginclassloader",
+        "org.elasticsearch.preallocate",
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
         "org.elasticsearch.xcontent"

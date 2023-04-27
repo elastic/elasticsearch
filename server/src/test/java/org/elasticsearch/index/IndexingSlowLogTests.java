@@ -74,7 +74,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         IndexingSlowLog log = new IndexingSlowLog(settings);
 
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
         Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);// (0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false);
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
@@ -148,7 +148,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         );
         IndexingSlowLog log2 = new IndexingSlowLog(index2Settings);
 
-        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
         Engine.IndexResult result = Mockito.mock(Engine.IndexResult.class);
         Mockito.when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);

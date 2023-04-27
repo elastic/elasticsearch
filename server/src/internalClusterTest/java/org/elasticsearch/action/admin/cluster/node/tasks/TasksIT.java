@@ -456,7 +456,7 @@ public class TasksIT extends ESIntegTestCase {
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
             index = new Thread(() -> {
                 IndexResponse indexResponse = client().prepareIndex("test").setSource("test", "test").get();
-                assertArrayEquals(ReplicationResponse.EMPTY, indexResponse.getShardInfo().getFailures());
+                assertArrayEquals(ReplicationResponse.NO_FAILURES, indexResponse.getShardInfo().getFailures());
             });
             index.start();
             assertTrue(taskRegistered.await(10, TimeUnit.SECONDS)); // waiting for at least one task to be registered
@@ -488,14 +488,12 @@ public class TasksIT extends ESIntegTestCase {
             if (index != null) {
                 index.join();
             }
-            assertBusy(
-                () -> {
-                    assertEquals(
-                        emptyList(),
-                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
-                    );
-                }
-            );
+            assertBusy(() -> {
+                assertEquals(
+                    emptyList(),
+                    client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
+                );
+            });
         }
     }
 
@@ -532,6 +530,7 @@ public class TasksIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95325")
     public void testTasksUnblocking() throws Exception {
         // Start blocking test task
         TestTaskPlugin.NodesRequest request = new TestTaskPlugin.NodesRequest("test");

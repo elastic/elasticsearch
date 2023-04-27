@@ -99,13 +99,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
         assertFalse(indicesService.awaitClose(0, TimeUnit.MILLISECONDS));
@@ -120,13 +114,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
 
         assertEquals(2, indicesService.indicesRefCount.refCount());
 
@@ -149,13 +137,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
         assertEquals(1, indicesService.indicesRefCount.refCount());
 
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         node.client().prepareIndex("test").setId("1").setSource(Collections.emptyMap()).get();
         ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());
 
@@ -183,12 +165,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
                 .admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put(SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
-                )
+                .setSettings(indexSettings(1, 0).put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true))
         );
         node.client().prepareIndex("test").setId("1").setSource(Collections.singletonMap("foo", 3L)).get();
         ElasticsearchAssertions.assertAllSuccessful(node.client().admin().indices().prepareRefresh("test").get());

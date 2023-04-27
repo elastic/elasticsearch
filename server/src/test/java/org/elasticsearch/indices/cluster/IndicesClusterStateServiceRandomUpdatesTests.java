@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -468,7 +469,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    state = cluster.addNode(state, createNode());
+                    state = cluster.addNode(state, createNode(), TransportVersion.CURRENT);
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -481,7 +482,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        state = cluster.addNode(state, discoveryNode);
+                        state = cluster.addNode(state, discoveryNode, TransportVersion.CURRENT);
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }

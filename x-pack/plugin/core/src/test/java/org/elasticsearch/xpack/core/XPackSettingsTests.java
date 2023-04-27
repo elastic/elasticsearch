@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.security.NoSuchAlgorithmException;
@@ -20,6 +21,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
@@ -131,6 +133,48 @@ public class XPackSettingsTests extends ESTestCase {
             "xpack.security.remote_cluster_client.ssl.key_passphrase",
             "xpack.security.remote_cluster_client.ssl.truststore.password"
         ).forEach(key -> assertThat(remoteClusterSslSettingKeys, not(hasItem(key))));
+    }
+
+    public void testSecurityMustBeEnableForRemoteClusterServer() {
+        // Security on, remote cluster server off
+        final Settings.Builder builder1 = Settings.builder();
+        if (randomBoolean()) {
+            builder1.put("xpack.security.enabled", "true");
+        }
+        if (randomBoolean()) {
+            builder1.put("remote_cluster_server.enabled", "false");
+        }
+        assertThat(XPackSettings.SECURITY_ENABLED.get(builder1.build()), is(true));
+
+        // Security off, remote cluster server off
+        final Settings.Builder builder2 = Settings.builder().put("xpack.security.enabled", "false");
+        if (randomBoolean()) {
+            builder2.put("remote_cluster_server.enabled", "false");
+        }
+        assertThat(XPackSettings.SECURITY_ENABLED.get(builder2.build()), is(false));
+
+        // Security on, remote cluster server on
+        final Settings.Builder builder3 = Settings.builder().put("remote_cluster_server.enabled", "true");
+        if (randomBoolean()) {
+            builder3.put("xpack.security.enabled", "true");
+        }
+        final Settings settings3 = builder3.build();
+        assertThat(XPackSettings.SECURITY_ENABLED.get(settings3), is(true));
+        assertThat(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.get(settings3), is(true));
+
+        // Security off, remote cluster server on
+        final Settings settings4 = Settings.builder()
+            .put("remote_cluster_server.enabled", "true")
+            .put("xpack.security.enabled", "false")
+            .build();
+        final IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> XPackSettings.SECURITY_ENABLED.get(settings4)
+        );
+        assertThat(
+            e4.getMessage(),
+            containsString("Security [xpack.security.enabled] must be enabled to use the remote cluster server feature")
+        );
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

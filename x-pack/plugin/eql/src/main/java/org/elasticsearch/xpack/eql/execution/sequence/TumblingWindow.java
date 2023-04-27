@@ -639,7 +639,7 @@ public class TumblingWindow implements Executable {
                         int keySize = originalKeys.length;
                         partial.add(new Object[keySize]);
                         for (int i = 0; i < keySize; i++) {
-                            if (originalKeys[i]instanceof List<?> possibleValues) {
+                            if (originalKeys[i] instanceof List<?> possibleValues) {
                                 List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
                                 for (Object possibleValue : possibleValues) {
                                     for (Object[] partialKey : partial) {

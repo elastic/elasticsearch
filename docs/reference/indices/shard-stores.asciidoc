@@ -93,6 +93,16 @@ regardless of health status.
 Defaults to `yellow,red`.
 --
 
+`max_concurrent_shard_requests`::
++
+--
+(Optional, integer)
+Maximum number of concurrent shard-level requests sent by the coordinating
+node. Defaults to `100`. Larger values may yield a quicker response to requests
+that target many shards, but may also cause a larger impact on other cluster
+operations.
+--
+
 [[index-shard-stores-api-example]]
 ==== {api-examples-title}
 

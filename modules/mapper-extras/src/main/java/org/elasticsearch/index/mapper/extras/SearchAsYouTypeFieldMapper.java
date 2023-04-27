@@ -351,7 +351,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final Query query = prefixField.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
                     return new ConstantScoreQuery(query);
                 } else {
                     return query;
@@ -611,7 +612,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final Query query = prefixFieldType.prefixQuery(value, method, caseInsensitive, context);
                 if (method == null
                     || method == MultiTermQuery.CONSTANT_SCORE_REWRITE
-                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE) {
+                    || method == MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE
+                    || method == MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE) {
                     return new ConstantScoreQuery(query);
                 } else {
                     return query;

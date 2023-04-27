@@ -294,7 +294,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             mlMemoryTracker,
             client,
             TestIndexNameExpressionResolver.newInstance(),
-            licenseState
+            licenseState,
+            true
         );
     }
 }

@@ -415,7 +415,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         if (snapshotIndices.isEmpty() == false) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
             Map<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = new HashMap<>();
-            for (ShardRouting shard : routingTable.allShards()) {
+            for (ShardRouting shard : routingTable.allShardsIterator()) {
                 if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     final ShardId shardId = shard.shardId();
                     restoreShards.put(shardId, new RestoreInProgress.ShardRestoreStatus(node1.getId(), RestoreInProgress.State.INIT));

@@ -10,7 +10,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
@@ -45,10 +44,5 @@ public class QueryShardException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 }

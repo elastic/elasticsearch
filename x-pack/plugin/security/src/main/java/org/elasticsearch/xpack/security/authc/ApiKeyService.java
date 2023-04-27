@@ -53,7 +53,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -127,7 +126,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -138,6 +136,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -301,12 +300,12 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final Version version = getMinNodeVersion();
-            if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
-                    new IllegalStateException(
+                    new IllegalArgumentException(
                         "all nodes must have version ["
-                            + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
@@ -411,12 +410,12 @@ public class ApiKeyService {
         }
 
         final Version version = getMinNodeVersion();
-        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
-                new IllegalStateException(
+                new IllegalArgumentException(
                     "all nodes must have version ["
-                        + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -517,14 +516,15 @@ public class ApiKeyService {
      * This method removes remote indices privileges from the given role descriptors
      * when we are in a mixed cluster in which some of the nodes do not support remote indices.
      * Storing these roles would cause parsing issues on old nodes
-     * (i.e. nodes running on version before {@link Authentication#VERSION_API_KEYS_WITH_REMOTE_INDICES}).
+     * (i.e. nodes running on version before
+     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
         final Version version,
         final String... apiKeyIds
     ) {
-        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+        if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
@@ -1003,10 +1003,14 @@ public class ApiKeyService {
                                 // move on
                                 validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                listener.onResponse(
+                                    AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                                );
                             }
                         } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         } else {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
                             validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
@@ -1019,7 +1023,9 @@ public class ApiKeyService {
                             // move on
                             validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         }
                     }, listener::onFailure));
                 }
@@ -1029,7 +1035,9 @@ public class ApiKeyService {
                         // move on
                         validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        listener.onResponse(
+                            AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                        );
                     }
                 }, listener::onFailure));
             }
@@ -1038,7 +1046,7 @@ public class ApiKeyService {
 
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
-        return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+        return apiKeyAuthCache == null ? null : apiKeyAuthCache.get(id).result();
     }
 
     // pkg private for testing
@@ -1878,7 +1886,7 @@ public class ApiKeyService {
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (authentication.isApiKey() || authentication.isRemoteAccess()) {
+        if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
             return (String) authentication.getEffectiveSubject().getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             // TODO we should use the effective subject realm here but need to handle the failed lookup scenario, in which the realm may be

@@ -389,7 +389,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     }
 
-    public TransformPersistentTasksExecutor buildTaskExecutor() {
+    private TransformPersistentTasksExecutor buildTaskExecutor() {
         ClusterService clusterService = mock(ClusterService.class);
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);

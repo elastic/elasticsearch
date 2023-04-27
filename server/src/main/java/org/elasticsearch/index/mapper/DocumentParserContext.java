@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
@@ -332,7 +333,7 @@ public abstract class DocumentParserContext {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
             // NOTE: we don't support nested fields in tsdb so it's safe to assume the standard id mapper.
-            doc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
@@ -435,7 +436,7 @@ public abstract class DocumentParserContext {
      * @param fieldName the name of the field
      * @param matchType the expecting matchType of the field
      * @return the matching template; otherwise returns null
-     * @throws MapperParsingException if the given field has a dynamic template name specified, but no template matches that name.
+     * @throws DocumentParsingException if the given field has a dynamic template name specified, but no template matches that name.
      */
     public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
         final String pathAsString = path().pathAsText(fieldName);
@@ -446,7 +447,8 @@ public abstract class DocumentParserContext {
             }
         }
         if (matchTemplateName != null) {
-            throw new MapperParsingException(
+            throw new DocumentParsingException(
+                parser().getTokenLocation(),
                 "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]"
             );
         }

@@ -52,8 +52,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.hamcrest.Matchers.contains;
@@ -568,7 +566,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repoName, "mock");
 
         final String testIndex = "index-one";
-        createIndex(testIndex, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex(testIndex, 1, 1);
         ensureYellow(testIndex);
         indexDoc(testIndex, "some_id", "foo", "bar");
 

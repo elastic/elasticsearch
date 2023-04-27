@@ -80,7 +80,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     private static void ackAndMaybeReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
         boolean shouldReroute = switch (request.getType()) {
-            case REMOVE, REPLACE -> true;
+            case REMOVE, SIGTERM, REPLACE -> true;
             default -> false;
         };
 

@@ -26,6 +26,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.common.notifications.Level;
+import org.elasticsearch.xpack.core.ml.action.AuditMlNotificationAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
@@ -40,6 +42,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -86,6 +89,9 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
+                final long relativeStartNanos = System.nanoTime();
+                logAndWriteNotificationAtInfo(modelId, "starting model upload");
+
                 URI uri = new URI(repository).resolve(packagedModelId + ModelLoaderUtils.MODEL_FILE_EXTENSION);
 
                 // Uploading other artefacts of the model first, that way the model is last and a simple search can be used to check if the
@@ -101,7 +107,11 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                         vocabularyAndMerges.v2()
                     );
                     client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
-                    logger.debug(() -> format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile()));
+
+                    logAndWriteNotificationAtDebug(
+                        modelId,
+                        format("uploaded model vocabulary [%s]", modelPackageConfig.getVocabularyFile())
+                    );
                 }
 
                 InputStream modelInputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
@@ -114,8 +124,9 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                 // simple round up
                 int totalParts = (int) ((size + DEFAULT_CHUNK_SIZE - 1) / DEFAULT_CHUNK_SIZE);
 
-                for (int part = 0; part < totalParts; ++part) {
+                for (int part = 0; part < totalParts - 1; ++part) {
                     BytesArray definition = chunkIterator.next();
+
                     PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
                         modelId,
                         definition,
@@ -126,17 +137,79 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
                     client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
                 }
-                logger.debug(() -> format("finished uploading model using [%d] parts", totalParts));
+
+                // get the last part, this time verify the checksum and size
+                BytesArray definition = chunkIterator.next();
+
+                if (modelPackageConfig.getSha256().equals(chunkIterator.getSha256()) == false) {
+                    String message = format(
+                        "Model sha256 checksums do not match, expected [%s] but got [%s]",
+                        modelPackageConfig.getSha256(),
+                        chunkIterator.getSha256()
+                    );
+                    logAndWriteNotificationAtError(modelId, message);
+                    return;
+                }
+
+                if (modelPackageConfig.getSize() != chunkIterator.getTotalBytesRead()) {
+                    String message = format(
+                        "Model size does not match, expected [%d] but got [%d]",
+                        modelPackageConfig.getSize(),
+                        chunkIterator.getTotalBytesRead()
+                    );
+                    logAndWriteNotificationAtError(modelId, message);
+                    return;
+                }
+
+                PutTrainedModelDefinitionPartAction.Request r = new PutTrainedModelDefinitionPartAction.Request(
+                    modelId,
+                    definition,
+                    totalParts - 1,
+                    size,
+                    totalParts
+                );
+
+                client.execute(PutTrainedModelDefinitionPartAction.INSTANCE, r).actionGet();
+                logger.debug(format("finished uploading model [%s] using [%d] parts", modelId, totalParts));
+
+                final long totalRuntimeNanos = System.nanoTime() - relativeStartNanos;
+                logAndWriteNotificationAtInfo(
+                    modelId,
+                    format("finished model upload after [%d] seconds", TimeUnit.NANOSECONDS.toSeconds(totalRuntimeNanos))
+                );
             } catch (MalformedURLException e) {
-                logger.error(format("Invalid URL [%s]", e));
+                logAndWriteNotificationAtError(modelId, format("Invalid URL [%s]", e));
             } catch (URISyntaxException e) {
-                logger.error(format("Invalid URL syntax [%s]", e));
+                logAndWriteNotificationAtError(modelId, format("Invalid URL syntax [%s]", e));
             } catch (IOException e) {
-                logger.error(format("IOException [%s]", e));
+                logAndWriteNotificationAtError(modelId, format("IOException [%s]", e));
             }
         });
 
         listener.onResponse(AcknowledgedResponse.TRUE);
+    }
+
+    private void logAndWriteNotificationAtError(String modelId, String message) {
+        writeNotification(modelId, message, Level.ERROR);
+        logger.error(format("[%s] %s", modelId, message));
+    }
+
+    private void logAndWriteNotificationAtDebug(String modelId, String message) {
+        writeNotification(modelId, message, Level.INFO); // info is the lowest level
+        logger.debug(() -> format("[%s] %s", modelId, message));
+    }
+
+    private void logAndWriteNotificationAtInfo(String modelId, String message) {
+        writeNotification(modelId, message, Level.INFO);
+        logger.info(format("[%s] %s", modelId, message));
+    }
+
+    private void writeNotification(String modelId, String message, Level level) {
+        client.execute(
+            AuditMlNotificationAction.INSTANCE,
+            new AuditMlNotificationAction.Request(AuditMlNotificationAction.AuditType.INFERENCE, modelId, message, level),
+            ActionListener.noop()
+        );
     }
 
     @Override

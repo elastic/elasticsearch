@@ -6,6 +6,8 @@ setup:
       indices.create:
         index: locations
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               location:
@@ -43,6 +45,8 @@ setup:
       indices.create:
         index: shapes
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               shape:
@@ -114,9 +118,6 @@ setup:
 
 ---
 "Test cartesian_centroid aggregation on cartesian shape shapes":
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/95147"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -208,9 +209,6 @@ setup:
 
 ---
 "Test cartesian_centroid aggregation on cartesian shape shapes with grouping":
-  - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/95147"
   - do:
       search:
         rest_total_hits_as_int: true

@@ -91,8 +91,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             new AuditTrailService(null, null),
-            restHandler,
-            false
+            restHandler
         );
     }
 
@@ -165,8 +164,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             mock(AuditTrailService.class),
-            restHandler,
-            false
+            restHandler
         );
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
@@ -181,8 +179,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             mock(AuditTrailService.class),
-            restHandler,
-            false
+            restHandler
         );
         testProcessAuthenticationFailed(
             randomBoolean()
@@ -312,8 +309,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             authcService,
             secondaryAuthenticator,
             new AuditTrailService(auditTrail, licenseState),
-            restHandler,
-            false
+            restHandler
         );
 
         filter.handleRequest(restRequest, channel, null);

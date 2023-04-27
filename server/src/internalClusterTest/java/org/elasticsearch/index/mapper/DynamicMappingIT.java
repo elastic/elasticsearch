@@ -61,7 +61,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         return Collections.singleton(InternalSettingsPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95047")
     public void testConflictingDynamicMappings() {
         // we don't use indexRandom because the order of requests is important here
         createIndex("index");
@@ -72,7 +71,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         } catch (DocumentParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
             assertThat(e.getMessage(), Matchers.containsString("failed to parse field [foo] of type [long]"));
-        } catch (MapperParsingException e) {
+        } catch (IllegalArgumentException e) {
             // rare case: the node that processes the index request doesn't have the mappings
             // yet and sends a mapping update to the master node to map "bar" as "text". This
             // fails as it had been already mapped as a long by the previous index request.

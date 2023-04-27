@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.AbstractHttpServerTransport;
@@ -328,7 +329,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, headerValidator);
+        return new HttpChannelHandler(
+            this,
+            handlingSettings,
+            tlsConfig,
+            threadPool.getThreadContext(),
+            acceptChannelPredicate,
+            headerValidator
+        );
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -339,6 +347,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final Netty4HttpServerTransport transport;
         private final HttpHandlingSettings handlingSettings;
         private final TLSConfig tlsConfig;
+        private final ThreadContext threadContext;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
         private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator;
 
@@ -346,12 +355,14 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
+            final ThreadContext threadContext,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
             @Nullable final TriConsumer<HttpRequest, Channel, ActionListener<Void>> headerValidator
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
+            this.threadContext = threadContext;
             this.acceptChannelPredicate = acceptChannelPredicate;
             this.headerValidator = headerValidator;
         }
@@ -386,7 +397,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (headerValidator != null) {
                 // runs a validation function on the first HTTP message piece which contains all the headers
                 // if validation passes, the pieces of that particular request are forwarded, otherwise they are discarded
-                ch.pipeline().addLast("header_validator", new Netty4HttpHeaderValidator(headerValidator));
+                ch.pipeline().addLast("header_validator", new Netty4HttpHeaderValidator(headerValidator, threadContext));
             }
             // combines the HTTP message pieces into a single full HTTP request (with headers and body)
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());

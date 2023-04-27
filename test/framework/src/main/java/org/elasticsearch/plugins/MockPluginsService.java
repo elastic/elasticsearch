@@ -66,7 +66,7 @@ public class MockPluginsService extends PluginsService {
             }
             pluginsLoaded.add(new LoadedPlugin(pluginInfo, plugin, pluginClass.getClassLoader(), ModuleLayer.boot()));
         }
-
+        loadExtensions(pluginsLoaded);
         this.classpathPlugins = List.copyOf(pluginsLoaded);
     }
 

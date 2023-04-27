@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -235,7 +235,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             /**
              * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream.
              */
-            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+            public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
                 throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
@@ -251,7 +251,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConditions);
+                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -326,22 +326,22 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         private final List<DataStreamInfo> dataStreams;
         @Nullable
-        private final RolloverConditions rolloverConditions;
+        private final RolloverConfiguration rolloverConfiguration;
 
         public Response(List<DataStreamInfo> dataStreams) {
             this(dataStreams, null);
         }
 
-        public Response(List<DataStreamInfo> dataStreams, @Nullable RolloverConditions rolloverConditions) {
+        public Response(List<DataStreamInfo> dataStreams, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.dataStreams = dataStreams;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Response(StreamInput in) throws IOException {
             this(
                 in.readList(DataStreamInfo::new),
                 in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()
-                    ? in.readOptionalWriteable(RolloverConditions::new)
+                    ? in.readOptionalWriteable(RolloverConfiguration::new)
                     : null
             );
         }
@@ -351,15 +351,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         @Nullable
-        public RolloverConditions getRolloverConditions() {
-            return rolloverConditions;
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(dataStreams);
             if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                out.writeOptionalWriteable(rolloverConditions);
+                out.writeOptionalWriteable(rolloverConfiguration);
             }
         }
 
@@ -368,7 +368,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, params, rolloverConditions);
+                dataStream.toXContent(builder, params, rolloverConfiguration);
             }
             builder.endArray();
             builder.endObject();
@@ -380,12 +380,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return dataStreams.equals(response.dataStreams) && Objects.equals(rolloverConditions, response.rolloverConditions);
+            return dataStreams.equals(response.dataStreams) && Objects.equals(rolloverConfiguration, response.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreams, rolloverConditions);
+            return Objects.hash(dataStreams, rolloverConfiguration);
         }
     }
 

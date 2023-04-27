@@ -101,10 +101,12 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
@@ -132,6 +134,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
     );
+    private static final BytesArray TRANSLOG_OPERATION_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
     private final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
     private final ClusterSettings service = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final RecoveryPlannerService recoveryPlannerService = PeerOnlyRecoveryPlannerService.INSTANCE;
@@ -705,15 +708,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
-                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                indexSettings(VersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    UUIDs.randomBase64UUID(random())
+                )
             );
         if (randomBoolean()) {
             indexMetadata.state(IndexMetadata.State.CLOSE);
@@ -783,8 +785,29 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         assertFalse(phase2Called.get());
     }
 
-    @SuppressWarnings("unchecked")
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
+        runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, shard, cancellableThreads);
+        });
+    }
+
+    public void testCancellationsDoesNotLeakPrimaryPermitsAsync() throws Exception {
+        runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
+            PlainActionFuture.<Void, RuntimeException>get(
+                future -> RecoverySourceHandler.runUnderPrimaryPermit(
+                    listener -> listener.onResponse(null),
+                    shard,
+                    cancellableThreads,
+                    future
+                ),
+                10,
+                TimeUnit.SECONDS
+            );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void runPrimaryPermitsLeakTest(BiConsumer<IndexShard, CancellableThreads> acquireAndReleasePermit) throws Exception {
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
@@ -793,12 +816,12 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
         try {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
+            acquireAndReleasePermit.accept(shard, cancellableThreads);
         } catch (CancellableThreads.ExecutionCancelledException e) {
             // expected.
         }
@@ -1120,13 +1143,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
             final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                        .build()
-                )
+                .settings(indexSettings(Version.CURRENT, 1, 0))
                 .build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             when(shard.indexSettings()).thenReturn(indexSettings);
@@ -1955,29 +1972,33 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         };
     }
 
+    public static Translog.Operation generateOperation(long seqNo) {
+        final Translog.Operation op;
+        if (randomBoolean()) {
+            op = new Translog.Index(
+                "id",
+                seqNo,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                TRANSLOG_OPERATION_SOURCE,
+                randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
+                randomNonNegativeLong()
+            );
+        } else if (randomBoolean()) {
+            op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+        } else {
+            op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
+        }
+        return op;
+    }
+
     private static List<Translog.Operation> generateOperations(int numOps) {
         final List<Translog.Operation> operations = new ArrayList<>(numOps);
         final BytesArray source = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
         final Set<Long> seqNos = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
-            final Translog.Operation op;
-            if (randomBoolean()) {
-                op = new Translog.Index(
-                    "id",
-                    seqNo,
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    source,
-                    randomBoolean() ? randomAlphaOfLengthBetween(1, 5) : null,
-                    randomNonNegativeLong()
-                );
-            } else if (randomBoolean()) {
-                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
-            } else {
-                op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
-            }
-            operations.add(op);
+            operations.add(generateOperation(seqNo));
         }
         return operations;
     }

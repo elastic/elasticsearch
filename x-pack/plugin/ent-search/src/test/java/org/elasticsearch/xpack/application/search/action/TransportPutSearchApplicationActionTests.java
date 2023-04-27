@@ -52,7 +52,8 @@ public class TransportPutSearchApplicationActionTests extends ESTestCase {
             "my-search-app",
             new String[] { "index1" },
             "my-analytics-collection",
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            null
         );
         PutSearchApplicationAction.Request request = new PutSearchApplicationAction.Request(app, true);
 

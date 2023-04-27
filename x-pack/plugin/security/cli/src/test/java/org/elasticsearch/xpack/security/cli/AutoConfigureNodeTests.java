@@ -17,11 +17,13 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.internal.util.io.IOUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -294,9 +296,6 @@ public class AutoConfigureNodeTests extends ESTestCase {
 
     @SuppressForbidden(reason = "We need to interact with the file system in order to test auto configuration")
     private void deleteDirectory(Path directory) throws IOException {
-        Files.walk(directory)
-            .sorted(Comparator.reverseOrder()) // Ensures directory contents are deleted first
-            .map(Path::toFile)
-            .map(File::delete);
+        IOUtils.rm(directory);
     }
 }

@@ -38,6 +38,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     private final String id;
     private String name;
+    private ApiKey.Type type = ApiKey.Type.REST;
     private TimeValue expiration;
     private Map<String, Object> metadata;
     private List<RoleDescriptor> roleDescriptors = Collections.emptyList();
@@ -108,6 +109,14 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public ApiKey.Type getType() {
+        return type;
+    }
+
+    public void setType(ApiKey.Type type) {
+        this.type = type;
     }
 
     public TimeValue getExpiration() {

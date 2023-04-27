@@ -637,11 +637,29 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private record IndicesPrivilegesWithOptionalRemoteClusters(IndicesPrivileges indicesPrivileges, String[] remoteClusters) {}
 
+    public static IndicesPrivileges parseIndexWithPrivileges(final String roleName, String[] privileges, XContentParser parser)
+        throws IOException {
+        final IndicesPrivilegesWithOptionalRemoteClusters indicesPrivilegesWithOptionalRemoteClusters =
+            parseIndexWithOptionalRemoteClusters(roleName, parser, false, false, privileges);
+        assert indicesPrivilegesWithOptionalRemoteClusters.remoteClusters == null;
+        return indicesPrivilegesWithOptionalRemoteClusters.indicesPrivileges;
+    }
+
     private static IndicesPrivilegesWithOptionalRemoteClusters parseIndexWithOptionalRemoteClusters(
         final String roleName,
         final XContentParser parser,
         final boolean allow2xFormat,
         final boolean allowRemoteClusters
+    ) throws IOException {
+        return parseIndexWithOptionalRemoteClusters(roleName, parser, allow2xFormat, allowRemoteClusters, null);
+    }
+
+    private static IndicesPrivilegesWithOptionalRemoteClusters parseIndexWithOptionalRemoteClusters(
+        final String roleName,
+        final XContentParser parser,
+        final boolean allow2xFormat,
+        final boolean allowRemoteClusters,
+        String[] privileges
     ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
@@ -656,7 +674,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String currentFieldName = null;
         String[] names = null;
         BytesReference query = null;
-        String[] privileges = null;
         String[] grantedFields = null;
         String[] deniedFields = null;
         boolean allowRestrictedIndices = false;
@@ -780,7 +797,15 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     );
                 }
             } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
-                privileges = readStringArray(roleName, parser, true);
+                if (privileges == null) {
+                    privileges = readStringArray(roleName, parser, true);
+                } else {
+                    throw new ElasticsearchParseException(
+                        "failed to parse indices privileges for role [{}]. [{}] field must not present",
+                        roleName,
+                        Fields.PRIVILEGES.getPreferredName()
+                    );
+                }
             } else if (Fields.FIELD_PERMISSIONS_2X.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (allow2xFormat) {
                     grantedFields = readStringArray(roleName, parser, true);

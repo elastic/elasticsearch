@@ -300,16 +300,27 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final Version version = getMinNodeVersion();
-            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
-                // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
-                listener.onFailure(
-                    new IllegalArgumentException(
-                        "all nodes must have version ["
-                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-                            + "] or higher to support remote indices privileges for API keys"
-                    )
-                );
-                return;
+            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+                if (hasRemoteIndices(request.getRoleDescriptors())) {
+                    // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "all nodes must have version ["
+                                + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                                + "] or higher to support remote indices privileges for API keys"
+                        )
+                    );
+                    return;
+                }
+                if (request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "all nodes must have version ["
+                                + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                                + "] or higher to support creating cross cluster API keys"
+                        )
+                    );
+                }
             }
 
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
@@ -351,6 +362,7 @@ public class ApiKeyService {
                     created,
                     expiration,
                     request.getRoleDescriptors(),
+                    request.getType(),
                     version,
                     request.getMetadata()
                 )
@@ -608,12 +620,14 @@ public class ApiKeyService {
         Instant created,
         Instant expiration,
         List<RoleDescriptor> keyRoleDescriptors,
+        ApiKey.Type type,
         Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
+            .field("type", type.value())
             .field("creation_time", created.toEpochMilli())
             .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
             .field("api_key_invalidated", false);

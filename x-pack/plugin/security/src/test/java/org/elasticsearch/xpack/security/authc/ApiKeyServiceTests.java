@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
@@ -722,6 +723,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Instant.now(),
             Instant.now().plus(expiry),
             keyRoles,
+            randomFrom(ApiKey.Type.values()),
             Version.CURRENT,
             metadata
         );
@@ -1855,6 +1857,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                         Instant.now(),
                         randomBoolean() ? null : Instant.now(),
                         oldKeyRoles,
+                        randomFrom(ApiKey.Type.values()),
                         oldVersion,
                         oldMetadata
                     )
@@ -2141,6 +2144,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Instant.now(),
                 Instant.now().plus(Duration.ofSeconds(3600)),
                 keyRoles,
+                randomFrom(ApiKey.Type.values()),
                 Version.CURRENT,
                 randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
             );

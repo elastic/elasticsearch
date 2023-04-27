@@ -32,7 +32,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -47,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1698,10 +1696,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             )
         );
 
-        TestUtils.assetNoException((Callable<Void>) () -> {
-            innerRemoveComponentTemplate(cs, "non-required*");
-            return null;
-        }, "component templates specified as 'ignore_missing_component_templates' can be removed");
+        // This removal should succeed
+        innerRemoveComponentTemplate(cs, "non-required*");
     }
 
     /**

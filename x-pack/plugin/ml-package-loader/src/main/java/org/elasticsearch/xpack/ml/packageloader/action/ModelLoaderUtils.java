@@ -161,6 +161,8 @@ final class ModelLoaderUtils {
     @SuppressForbidden(reason = "we need socket connection to download")
     private static InputStream getHttpOrHttpsInputStream(URI uri) throws IOException {
 
+        assert uri.getUserInfo() == null : "URI's with credentials are not supported";
+
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());

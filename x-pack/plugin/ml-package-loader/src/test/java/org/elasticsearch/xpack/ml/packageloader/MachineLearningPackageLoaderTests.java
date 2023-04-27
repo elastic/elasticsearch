@@ -69,5 +69,15 @@ public class MachineLearningPackageLoaderTests extends ESTestCase {
             "xpack.ml.model_repository must be configured with one of the following schemes: \"http\", \"https\", \"file\"",
             e.getMessage()
         );
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearningPackageLoader.validateModelRepository(
+                "http://user:pass@localhost",
+                PathUtils.get("/home/elk/elasticsearch")
+            )
+        );
+
+        assertEquals("xpack.ml.model_repository does not support authentication", e.getMessage());
     }
 }

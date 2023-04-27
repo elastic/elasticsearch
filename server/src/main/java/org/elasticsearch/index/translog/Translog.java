@@ -987,6 +987,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public interface Snapshot extends Closeable {
 
+        Snapshot EMPTY = new Snapshot() {
+            @Override
+            public void close() {}
+
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Operation next() {
+                return null;
+            }
+        };
+
         /**
          * The total estimated number of operations in the snapshot.
          */

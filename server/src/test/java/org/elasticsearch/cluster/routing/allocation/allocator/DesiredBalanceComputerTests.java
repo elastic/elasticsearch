@@ -63,9 +63,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -993,14 +990,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             discoveryNodes.add(createDiscoveryNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         }
 
-        var indexMetadata = IndexMetadata.builder(TEST_INDEX)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 2)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
-            .build();
+        var indexMetadata = IndexMetadata.builder(TEST_INDEX).settings(indexSettings(Version.CURRENT, 2, 1)).build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes.masterNodeId("master").localNodeId("master"))

@@ -407,11 +407,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final String nonMasterId = internalCluster().clusterService(nonMasterNode).localNode().getId();
 
         final int numShards = scaledRandomIntBetween(2, 10);
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
         ensureGreen("test");
 
         waitNoPendingTasksOnAll();

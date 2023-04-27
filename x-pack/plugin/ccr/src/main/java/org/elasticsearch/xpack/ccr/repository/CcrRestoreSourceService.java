@@ -144,7 +144,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             logger.debug("could not get session [{}] because session not found", sessionUUID);
             throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
         }
-        // Ensure no file system traversal is possible by only allow file names known to the restore session
+        // Ensure no file system traversal is possible by only allowing file names known to the restore session
         if (false == restore.fileNames.contains(fileName)) {
             throw new IllegalArgumentException("invalid file name [" + fileName + "]");
         }

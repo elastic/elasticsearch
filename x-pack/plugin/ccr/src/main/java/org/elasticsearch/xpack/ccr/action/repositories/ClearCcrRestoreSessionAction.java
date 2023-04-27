@@ -59,7 +59,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
 
-        // We don't enforce any validation for by default so that the internal action stays the same for BWC reasons
+        // We don't enforce any validation by default so that the internal action stays the same for BWC reasons
         protected void validate(ClearCcrRestoreSessionRequest request) {}
     }
 

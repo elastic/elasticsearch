@@ -309,7 +309,8 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     void blockForbiddenVersions(TransportVersion joiningTransportVersion) {
         if (FORBIDDEN_VERSIONS.contains(joiningTransportVersion)) {
-            throw new IllegalStateException("A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
+            throw new IllegalStateException(
+                "A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
             );
         }
     }

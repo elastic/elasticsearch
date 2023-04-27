@@ -8,15 +8,12 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.sandbox.search.ProfilerCollector;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.ScoreMode;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
@@ -27,56 +24,13 @@ import java.util.Objects;
  *
  * InternalProfiler facilitates the linking of the Collector graph
  */
-public class InternalProfileCollector implements Collector {
+public class InternalProfileCollector extends ProfilerCollector {
 
-    /**
-     * A more friendly representation of the Collector's class name
-     */
-    private final String collectorName;
-
-    /**
-     * A "hint" to help provide some context about this Collector
-     */
-    private final String reason;
-
-    /** The wrapped collector */
-    private final ProfileCollector collector;
-
-    /**
-     * An array of "embedded" children collectors
-     */
     private final InternalProfileCollector[] children;
 
-    public InternalProfileCollector(Collector collector, String reason, Collector... children) {
-        this.collector = new ProfileCollector(collector);
-        this.reason = reason;
-        this.collectorName = deriveCollectorName(collector);
-        Objects.requireNonNull(children, "children collectors cannot be null");
-        this.children = new InternalProfileCollector[children.length];
-        for (int i = 0; i < children.length; i++) {
-            this.children[i] = (InternalProfileCollector) Objects.requireNonNull(children[i], "child collector cannot be null");
-        }
-    }
-
-    /**
-     * @return the profiled time for this collector (inclusive of children)
-     */
-    public long getTime() {
-        return collector.getTime();
-    }
-
-    /**
-     * @return a human readable "hint" about what this collector was used for
-     */
-    public String getReason() {
-        return this.reason;
-    }
-
-    /**
-     * @return the lucene class name of the collector
-     */
-    public String getName() {
-        return this.collectorName;
+    public InternalProfileCollector(Collector collector, String reason, InternalProfileCollector... children) {
+        super(collector, reason, Arrays.asList(children));
+        this.children = children;
     }
 
     /**
@@ -88,7 +42,8 @@ public class InternalProfileCollector implements Collector {
      * @param c The Collector to derive a name from
      * @return  A (hopefully) prettier name
      */
-    private String deriveCollectorName(Collector c) {
+    @Override
+    protected String deriveCollectorName(Collector c) {
         String s = c.getClass().getSimpleName();
 
         // MutiCollector which wraps multiple BucketCollectors is generated
@@ -99,32 +54,18 @@ public class InternalProfileCollector implements Collector {
         }
 
         // Aggregation collector toString()'s include the user-defined agg name
-        if (reason.equals(CollectorResult.REASON_AGGREGATION) || reason.equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
-            s += ": [" + c.toString() + "]";
+        if (getReason().equals(CollectorResult.REASON_AGGREGATION) || getReason().equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
+            s += ": [" + c + "]";
         }
         return s;
     }
 
-    @Override
-    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        return collector.getLeafCollector(context);
-    }
-
-    @Override
-    public ScoreMode scoreMode() {
-        return collector.scoreMode();
-    }
-
     public CollectorResult getCollectorTree() {
-        return InternalProfileCollector.doGetCollectorTree(this);
-    }
-
-    private static CollectorResult doGetCollectorTree(InternalProfileCollector collector) {
-        List<CollectorResult> childResults = new ArrayList<>(collector.children.length);
-        for (InternalProfileCollector child : collector.children) {
-            CollectorResult result = doGetCollectorTree(child);
+        List<CollectorResult> childResults = new ArrayList<>(children.length);
+        for (InternalProfileCollector child : children) {
+            CollectorResult result = child.getCollectorTree();
             childResults.add(result);
         }
-        return new CollectorResult(collector.getName(), collector.getReason(), collector.getTime(), childResults);
+        return new CollectorResult(getName(), getReason(), getTime(), childResults);
     }
 }

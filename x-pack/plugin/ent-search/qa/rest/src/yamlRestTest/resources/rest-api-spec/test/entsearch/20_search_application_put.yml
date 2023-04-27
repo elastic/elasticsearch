@@ -242,3 +242,12 @@ teardown:
             script:
               id: test-script
   - match: { error.type: "x_content_parse_exception" }
+---
+"Create Search Application - Script missing from template":
+  - do:
+      catch: bad_request
+      search_application.put:
+        name: test-search-application-with-invalid-template
+        body:
+          indices: [ "test-index1" ]
+          template: {}

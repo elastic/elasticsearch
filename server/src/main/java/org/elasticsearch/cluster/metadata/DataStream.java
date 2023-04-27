@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
@@ -677,13 +678,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * This is the raw defintion of an index being managed by DLM. It's currently quite a shallow method
-     * but more logic will land here once we'll have a setting to control if ILM takes precedence or not.
+     * This is the raw defintion of an index being managed by DLM. An index is managed by DLM if it's part of a data stream
+     * that has a DLM lifecycle configured and depending on the value of {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING}
+     * having an ILM policy configured will play into the decision.
      * This method also skips any validation to make sure the index is part of this data stream, hence the private
      * access method.
      */
     private boolean isIndexManagedByDLM(IndexMetadata indexMetadata) {
-        return indexMetadata.getLifecyclePolicyName() == null && lifecycle != null;
+        boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null) {
+            // when both ILM and DLM are configured, choose depending on the configured preference for this backing index
+            return preferIlm == false;
+        }
+        return lifecycle != null;
     }
 
     /**

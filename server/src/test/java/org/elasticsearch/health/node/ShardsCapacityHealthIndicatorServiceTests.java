@@ -45,9 +45,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -421,11 +418,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     private static IndexMetadata.Builder createIndex(int shards, String group) {
         return IndexMetadata.builder("index-" + randomAlphaOfLength(20))
             .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, shards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                indexSettings(Version.CURRENT, shards, 1).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                     .put(INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), group)
             );
     }

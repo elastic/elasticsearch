@@ -327,7 +327,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * Returns true if the cluster state contains all of the component templates needed by the composable template
      */
     private static boolean componentTemplatesExist(ClusterState state, ComposableIndexTemplate indexTemplate) {
-        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.composedOf());
+        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.getRequiredComponentTemplates());
     }
 
     private void putLegacyTemplate(final IndexTemplateConfig config, final AtomicBoolean creationCheck) {

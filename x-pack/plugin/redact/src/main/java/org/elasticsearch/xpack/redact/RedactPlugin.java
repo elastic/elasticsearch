@@ -25,7 +25,7 @@ public class RedactPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(RedactProcessor.TYPE, new RedactProcessor.Factory(parameters.matcherWatchdog));
+        return Map.of(RedactProcessor.TYPE, new RedactProcessor.Factory(getLicenseState(), parameters.matcherWatchdog));
     }
 
     protected XPackLicenseState getLicenseState() {

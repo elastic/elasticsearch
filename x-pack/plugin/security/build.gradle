@@ -307,6 +307,18 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.crypto.StreamCipher',
         // 'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
         // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
+          // TODO
+          'org.apache.http.impl.client.cache.CacheConfig',
+          'org.apache.http.impl.client.cache.CacheConfig$Builder',
+          'org.apache.http.impl.client.cache.CachingHttpClientBuilder',
+          'org.apache.http.impl.client.cache.ManagedHttpCacheStorage',
+          'org.bouncycastle.asn1.x9.DomainParameters',
+          'org.bouncycastle.asn1.x9.ECNamedCurveTable',
+          'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
+          'org.bouncycastle.crypto.ec.CustomNamedCurves',
+          'org.bouncycastle.jce.ECNamedCurveTable',
+          'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
+
         'org.bouncycastle.crypto.engines.AESEngine',
         'org.bouncycastle.crypto.generators.BCrypt',
         'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',

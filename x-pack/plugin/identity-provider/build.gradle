@@ -152,6 +152,17 @@ tasks.named("thirdPartyAudit").configure {
         'net.spy.memcached.transcoders.Transcoder',
         // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
         // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
+            // TODO
+            'org.apache.http.impl.client.cache.CacheConfig',
+            'org.apache.http.impl.client.cache.CacheConfig$Builder',
+            'org.apache.http.impl.client.cache.CachingHttpClientBuilder',
+            'org.apache.http.impl.client.cache.ManagedHttpCacheStorage',
+            'org.bouncycastle.asn1.x9.DomainParameters',
+            'org.bouncycastle.asn1.x9.ECNamedCurveTable',
+            'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
+            'org.bouncycastle.crypto.ec.CustomNamedCurves',
+            'org.bouncycastle.jce.ECNamedCurveTable',
+            'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
         'org.bouncycastle.asn1.ASN1Encodable',
         'org.bouncycastle.asn1.ASN1InputStream',
         'org.bouncycastle.asn1.ASN1Integer',

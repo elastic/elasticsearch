@@ -77,9 +77,6 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.ESAllocationTestCase.startInitializingShardsAndReroute;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -1015,14 +1012,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
 
     public void testDoNotRebalanceToTheNodeThatNoLongerExists() {
 
-        var indexMetadata = IndexMetadata.builder("index-1")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
-            .build();
+        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(Version.CURRENT, 1, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
@@ -1187,12 +1177,10 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     private static IndexMetadata randomPriorityIndex(String name, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(name)
             .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                    .put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), between(1, 5))
-                    .put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates))
+                indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+                    IndexMetadata.INDEX_PRIORITY_SETTING.getKey(),
+                    between(1, 5)
+                ).put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates))
             )
             .system(randomBoolean())
             .build();

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Tuple;
@@ -43,10 +44,13 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -142,12 +146,19 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         responseBuilder.setId(concreteModelId);
 
         TrainedModelAssignmentMetadata trainedModelAssignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
-
-        if (trainedModelAssignmentMetadata.isAssigned(concreteModelId)) {
-            // It is important to use the resolved model ID here as the alias could change between transport calls.
-            inferAgainstAllocatedModel(trainedModelAssignmentMetadata, request, concreteModelId, responseBuilder, parentTaskId, listener);
+        TrainedModelAssignment assignment = trainedModelAssignmentMetadata.getDeploymentAssignment(concreteModelId);
+        List<TrainedModelAssignment> assignments;
+        if (assignment == null) {
+            // look up by model
+            assignments = trainedModelAssignmentMetadata.getDeploymentsUsingModel(concreteModelId);
         } else {
+            assignments = List.of(assignment);
+        }
+
+        if (assignments.isEmpty()) {
             getModelAndInfer(request, responseBuilder, parentTaskId, (CancellableTask) task, listener);
+        } else {
+            inferAgainstAllocatedModel(assignments, request, responseBuilder, parentTaskId, listener);
         }
     }
 
@@ -215,17 +226,16 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private void inferAgainstAllocatedModel(
-        TrainedModelAssignmentMetadata assignmentMeta,
+        List<TrainedModelAssignment> assignments,
         Request request,
-        String deploymentId,
         Response.Builder responseBuilder,
         TaskId parentTaskId,
         ActionListener<Response> listener
     ) {
-        TrainedModelAssignment assignment = assignmentMeta.getDeploymentAssignment(deploymentId);
+        TrainedModelAssignment assignment = pickAssignment(assignments);
 
-        if (assignment.getAssignmentState() == AssignmentState.STOPPING) {
-            String message = "Trained model [" + request.getId() + "] is STOPPING";
+        if (assignment.getAssignmentState() == AssignmentState.STOPPING || assignment.getAssignmentState() == AssignmentState.FAILED) {
+            String message = "Trained model [" + assignment.getDeploymentId() + "] is [" + assignment.getAssignmentState() + "]";
             listener.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
@@ -234,7 +244,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         // documents for each node.
         var nodes = assignment.selectRandomStartedNodesWeighedOnAllocationsForNRequests(request.numberOfDocuments());
         if (nodes.isEmpty()) {
-            logger.trace(() -> format("[%s] model deployment not allocated to any node", deploymentId));
+            logger.trace(() -> format("[%s] model deployment not allocated to any node", assignment.getDeploymentId()));
             listener.onFailure(
                 ExceptionsHelper.conflictStatusException("Trained model deployment [" + request.getId() + "] is not allocated to any nodes")
             );
@@ -254,14 +264,14 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             InferTrainedModelDeploymentAction.Request deploymentRequest;
             if (request.getTextInput() == null) {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forDocs(
-                    deploymentId,
+                    assignment.getDeploymentId(),
                     request.getUpdate(),
                     request.getObjectsToInfer().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
                 );
             } else {
                 deploymentRequest = InferTrainedModelDeploymentAction.Request.forTextInput(
-                    deploymentId,
+                    assignment.getDeploymentId(),
                     request.getUpdate(),
                     request.getTextInput().subList(startPos, startPos + node.v2()),
                     request.getInferenceTimeout()
@@ -283,6 +293,32 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
             slot++;
         }
+    }
+
+    static TrainedModelAssignment pickAssignment(List<TrainedModelAssignment> assignments) {
+        assert assignments.isEmpty() == false;
+
+        if (assignments.size() == 1) {
+            return assignments.get(0);
+        }
+
+        var map = assignments.stream().collect(Collectors.groupingBy(TrainedModelAssignment::getAssignmentState));
+
+        Random rng = Randomness.get();
+        for (var assignmentStat : new AssignmentState[] {
+            AssignmentState.STARTED,
+            AssignmentState.STARTING,
+            AssignmentState.STOPPING,
+            AssignmentState.FAILED }) {
+            List<TrainedModelAssignment> bestPick = map.get(assignmentStat);
+            if (bestPick != null) {
+                Collections.shuffle(bestPick, rng);
+                return bestPick.get(0);
+            }
+        }
+
+        // should never hit this
+        throw new IllegalStateException();
     }
 
     private ActionListener<InferTrainedModelDeploymentAction.Response> collectingListener(

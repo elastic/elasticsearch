@@ -20,6 +20,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,7 +55,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -64,7 +65,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
 
         // Either there's no heartbeat or is stale
         if (randomBoolean()) {
-            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(leaderNode, 1, fakeClock.get()), f));
+            PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
         }
 
@@ -89,7 +90,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -97,7 +98,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             }
         };
 
-        PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(leaderNode, 1, fakeClock.get()), f));
+        PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
 
         var startElection = new AtomicBoolean();
         var preVoteCollector = new AtomicRegisterPreVoteCollector(heartbeatService, () -> startElection.set(true));
@@ -124,7 +125,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         var startElection = new AtomicBoolean();

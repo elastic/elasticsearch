@@ -58,7 +58,7 @@ Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
 `time_series_metric`::
-preview:[] (Optional, string)
+(Optional, string)
 include::numeric.asciidoc[tag=time_series_metric]
 +
 .Valid `time_series_metric` values for `aggregate_metric_double` fields

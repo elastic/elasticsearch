@@ -361,7 +361,7 @@ public class ReadOnlyEngine extends Engine {
         boolean singleConsumer,
         boolean accessStats
     ) {
-        return newEmptySnapshot();
+        return Translog.Snapshot.EMPTY;
     }
 
     @Override
@@ -515,8 +515,8 @@ public class ReadOnlyEngine extends Engine {
     public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
-                translogRecoveryRunner.run(this, snapshot);
+            try {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
             } catch (final Exception e) {
                 throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
@@ -541,23 +541,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean refreshNeeded() {
         return false;
-    }
-
-    private static Translog.Snapshot newEmptySnapshot() {
-        return new Translog.Snapshot() {
-            @Override
-            public void close() {}
-
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-        };
     }
 
     @Override

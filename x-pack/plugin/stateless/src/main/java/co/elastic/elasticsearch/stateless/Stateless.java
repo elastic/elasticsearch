@@ -261,17 +261,21 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     public void onIndexModule(IndexModule indexModule) {
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
-            StatelessCommitService statelessCommitService = commitService.get();
+            var statelessCommitService = commitService.get();
+            var localTranslogReplicator = translogReplicator.get();
+
             indexModule.addIndexEventListener(new IndexEventListener() {
 
                 @Override
                 public void afterIndexShardCreated(IndexShard indexShard) {
                     statelessCommitService.register(indexShard.shardId());
+                    localTranslogReplicator.register(indexShard.shardId());
                 }
 
                 @Override
                 public void onStoreClosed(ShardId shardId) {
                     statelessCommitService.unregister(shardId);
+                    localTranslogReplicator.unregister(shardId);
                 }
             });
             indexModule.setIndexCommitListener(createIndexCommitListener());

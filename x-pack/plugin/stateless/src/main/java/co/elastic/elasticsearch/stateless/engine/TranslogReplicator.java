@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RetryableAction;
@@ -88,7 +89,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private volatile BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
     private final ObjectStoreService objectStoreService;
     private final ThreadPool threadPool;
-    private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStateByShardId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ShardId, ShardSyncState> shardSyncStates = new ConcurrentHashMap<>();
     private final Object generateFlushLock = new Object();
     private final AtomicLong fileName = new AtomicLong(0);
 
@@ -121,7 +122,10 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             @Override
             protected void doRun() throws IOException {
                 if (isFlushIntervalReached() || isFlushSizeReached()) {
-                    flush();
+                    var translog = createCompoundTranslog();
+                    if (translog != null) {
+                        uploadCompoundTranslog(translog);
+                    }
                 }
             }
 
@@ -145,13 +149,24 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
-        shardSyncStateByShardId.values().forEach(ShardSyncState::close);
-        // TODO: Finish listeners
+        shardSyncStates.values().forEach(ShardSyncState::close);
+    }
+
+    public void register(ShardId shardId) {
+        var previous = shardSyncStates.put(shardId, new ShardSyncState(shardId));
+        assert previous == null;
+    }
+
+    public void unregister(ShardId shardId) {
+        var unregistered = shardSyncStates.remove(shardId);
+        assert unregistered != null;
+        unregistered.close();
     }
 
     public void add(final ShardId shardId, final BytesReference data, final long seqNo, final Translog.Location location) {
         try {
-            shardSyncStateByShardId.computeIfAbsent(shardId, (s) -> new ShardSyncState()).writeToBuffer(data, seqNo, location);
+            ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
+            shardSyncState.writeToBuffer(data, seqNo, location);
         } catch (IOException e) {
             // TODO: IOException is required by the interface of BytesReference#write. However, it should never throw. If it were to throw,
             // this exception would propogate to the TranslogWriter and I think fail the engine. However, we should discuss whether this is
@@ -162,24 +177,26 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public boolean isSyncNeeded(final ShardId shardId) {
-        ShardSyncState shardSyncState = shardSyncStateByShardId.get(shardId);
-        return shardSyncState != null && (shardSyncState.currentBufferSize() > 0L || shardSyncState.ongoingSyncs.isEmpty() == false);
+        ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
+        return shardSyncState.currentBufferSize() > 0L || shardSyncState.ongoingSyncs.isEmpty() == false;
     }
 
     public void sync(final ShardId shardId, Translog.Location location, ActionListener<Void> listener) {
-        shardSyncStateByShardId.computeIfAbsent(shardId, (k) -> new ShardSyncState())
-            .ensureSynced(new Translog.Location(location.generation, location.translogLocation + location.size, 0), listener);
+        ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
+        shardSyncState.ensureSynced(new Translog.Location(location.generation, location.translogLocation + location.size, 0), listener);
     }
 
     public void syncAll(final ShardId shardId, ActionListener<Void> listener) {
-        shardSyncStateByShardId.computeIfAbsent(shardId, (k) -> new ShardSyncState()).waitForAllSynced(listener);
+        ShardSyncState shardSyncState = getShardSyncStateSafe(shardId);
+        shardSyncState.waitForAllSynced(listener);
     }
 
-    private void flush() throws IOException {
-        var translog = createCompoundTranslog();
-        if (translog != null) {
-            uploadCompoundTranslog(translog);
+    private ShardSyncState getShardSyncStateSafe(ShardId shardId) {
+        ShardSyncState shardSyncState = shardSyncStates.get(shardId);
+        if (shardSyncState == null) {
+            throw alreadyClosedException(shardId);
         }
+        return shardSyncState;
     }
 
     private long getCurrentTimeMillis() {
@@ -188,7 +205,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private long getCurrentBufferSize() {
         long size = 0;
-        for (ShardSyncState state : shardSyncStateByShardId.values()) {
+        for (ShardSyncState state : shardSyncStates.values()) {
             size += state.currentBufferSize();
         }
         return size;
@@ -206,7 +223,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             onComplete.add(compoundTranslog);
             onComplete.add(header);
 
-            for (var entry : shardSyncStateByShardId.entrySet()) {
+            for (var entry : shardSyncStates.entrySet()) {
                 ShardId shardId = entry.getKey();
                 ShardSyncState state = entry.getValue();
                 BufferState buffer = state.pollBufferForSync();
@@ -318,11 +335,17 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private class ShardSyncState implements Releasable {
 
-        private final Object bufferLock = new Object();
+        private final ShardId shardId;
         private final TreeMap<Translog.Location, Boolean> ongoingSyncs = new TreeMap<>();
         private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
         private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
+        private final Object bufferLock = new Object();
         private BufferState bufferState = null;
+        private volatile boolean isClosed = false;
+
+        ShardSyncState(ShardId shardId) {
+            this.shardId = shardId;
+        }
 
         private synchronized void markSyncStarting(Translog.Location location) {
             synchronized (ongoingSyncs) {
@@ -353,16 +376,22 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             if (location != null) {
                 ensureSynced(location, listener);
             } else {
-                // TODO: Error Handling
-                listener.onResponse(null);
+                if (isClosed) {
+                    listener.onFailure(alreadyClosedException(shardId));
+                } else {
+                    listener.onResponse(null);
+                }
             }
         }
 
         private void ensureSynced(Translog.Location location, ActionListener<Void> listener) {
             boolean completeListener = true;
+            boolean alreadyClosed = false;
             if (location.compareTo(syncedLocation) > 0) {
                 synchronized (listeners) {
-                    if (location.compareTo(syncedLocation) > 0) {
+                    if (isClosed) {
+                        alreadyClosed = true;
+                    } else if (location.compareTo(syncedLocation) > 0) {
                         ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
                             .wrapPreservingContext(listener, threadPool.getThreadContext());
                         listeners.add(new SyncListener(location, contextPreservingActionListener));
@@ -372,8 +401,11 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
 
             if (completeListener) {
-                // TODO: Error Handling
-                listener.onResponse(null);
+                if (alreadyClosed) {
+                    listener.onFailure(alreadyClosedException(shardId));
+                } else {
+                    listener.onResponse(null);
+                }
             }
         }
 
@@ -403,7 +435,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
 
             if (completeListeners) {
-                ArrayList<SyncListener> toComplete = new ArrayList<>();
+                var toComplete = new ArrayList<ActionListener<Void>>();
                 synchronized (listeners) {
                     SyncListener listener;
                     while ((listener = listeners.peek()) != null && syncedLocation.compareTo(listener.location) >= 0) {
@@ -411,16 +443,15 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                         listeners.poll();
                     }
                 }
-                for (SyncListener listener : toComplete) {
-                    // TODO: Error handling
-                    listener.listener().onResponse(null);
-                }
+                ActionListener.onResponse(toComplete, null);
             }
-
         }
 
         public void writeToBuffer(BytesReference data, long seqNo, Translog.Location location) throws IOException {
             synchronized (bufferLock) {
+                if (isClosed) {
+                    throw alreadyClosedException(shardId);
+                }
                 if (bufferState == null) {
                     bufferState = new BufferState(new ReleasableBytesStreamOutput(bigArrays));
                 } else {
@@ -446,15 +477,43 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void close() {
-            Releasables.close(bufferState);
+            final ArrayList<ActionListener<Void>> toComplete;
+            isClosed = true;
+            synchronized (listeners) {
+                toComplete = new ArrayList<>(listeners);
+                listeners.clear();
+            }
+            synchronized (bufferLock) {
+                Releasables.close(bufferState);
+                bufferState = null;
+            }
+
+            ActionListener.onFailure(toComplete, alreadyClosedException(shardId));
         }
 
-        private record SyncListener(Translog.Location location, ActionListener<Void> listener) implements Comparable<SyncListener> {
+        private record SyncListener(Translog.Location location, ActionListener<Void> listener)
+            implements
+                ActionListener<Void>,
+                Comparable<SyncListener> {
+
+            @Override
+            public void onResponse(Void unused) {
+                listener.onResponse(unused);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
 
             @Override
             public int compareTo(SyncListener o) {
                 return location.compareTo(o.location);
             }
         }
+    }
+
+    private static AlreadyClosedException alreadyClosedException(ShardId shardId) {
+        return new AlreadyClosedException("The translog for shard [" + shardId + "] is already closed.");
     }
 }

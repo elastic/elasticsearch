@@ -320,6 +320,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         request.setJsonEntity("""
             {
               "query": {"term": {"type": "enrich_coordinator_stats"}},
+              "sort": [{"timestamp": "desc"}],
               "size": 5
             }
             """);

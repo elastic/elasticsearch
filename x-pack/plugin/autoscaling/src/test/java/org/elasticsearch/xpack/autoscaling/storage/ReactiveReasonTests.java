@@ -134,7 +134,7 @@ public class ReactiveReasonTests extends ESTestCase {
                 ),
                 canAllocateDecisions.get(1).get("deciders")
             );
-            assertNull(unassignedNodeDecisions.get("can_remain_decision"));
+            assertFalse(unassignedNodeDecisions.containsKey("can_remain_decision"));
 
             Map<String, Object> assignedNodeDecisions = (Map<String, Object>) ((Map<String, Object>) map.get("assigned_node_decisions"))
                 .get(assignedShardIds.first().toString());

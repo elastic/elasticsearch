@@ -62,6 +62,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -949,7 +950,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     @SuppressForbidden(reason = "We need to interact with the file system in order to perform auto configuration")
     private void moveDirectory(Path srcDir, Path dstDir) throws IOException {
-        Files.move(srcDir, dstDir);
+        try {
+            Files.move(srcDir, dstDir, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(srcDir, dstDir);
+        }
     }
 
     private GeneralNames getSubjectAltNames(Settings settings) throws IOException {

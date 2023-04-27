@@ -21,9 +21,9 @@ How often {dlm} checks what is the next action for all managed data streams. Def
 `cluster.dlm.default.rollover`::
 (<<dynamic-cluster-setting,Dynamic>>, string)
 This property accepts a key value pair formatted string and configures the conditions that would trigger a data stream
-to <<index-rollover,rollover>> when managed by {dlm-init}. Defaults to
-`max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000`, this means that your
-data stream will rollover if any of the following conditions are met:
+to <<index-rollover,rollover>> when managed by {dlm-init}. This property is an implementation detail and subjects to
+change. Currently, it defaults to `max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000`,
+this means that your data stream will rollover if any of the following conditions are met:
 
 * Either any primary shard reaches the size of 50GB,
 * or any primary shard contains 200.000.000 documents

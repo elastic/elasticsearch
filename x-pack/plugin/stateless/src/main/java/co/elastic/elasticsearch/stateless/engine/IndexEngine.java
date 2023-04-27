@@ -17,11 +17,15 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.TimeValue;
@@ -34,6 +38,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -54,16 +59,18 @@ public class IndexEngine extends InternalEngine {
     );
 
     private final TranslogReplicator translogReplicator;
+    private final ObjectStoreService objectStoreService;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final AtomicLong lastFlushNanos;
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
 
-    public IndexEngine(EngineConfig engineConfig, TranslogReplicator translogReplicator) {
+    public IndexEngine(EngineConfig engineConfig, TranslogReplicator translogReplicator, ObjectStoreService objectStoreService) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
         this.translogReplicator = translogReplicator;
+        this.objectStoreService = objectStoreService;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
@@ -203,4 +210,52 @@ public class IndexEngine extends InternalEngine {
         cancellableFlushTask.cancel();
         super.close();
     }
+
+    @Override
+    protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        SearchDirectory searchDirectory = SearchDirectory.unwrapDirectory(this.store.directory());
+        Optional<String> nodeEphemeralId = searchDirectory.getCurrentMetadataNodeEphemeralId();
+        if (nodeEphemeralId.isPresent()) {
+            logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());
+            BlobContainer translogBlobContainer = objectStoreService.getTranslogBlobContainer(nodeEphemeralId.get());
+            TranslogReplicatorReader reader = new TranslogReplicatorReader(translogBlobContainer, shardId, fromSeqNo, toSeqNo);
+            return new Translog.Snapshot() {
+                @Override
+                public int totalOperations() {
+                    return reader.totalOperations();
+                }
+
+                @Override
+                public Translog.Operation next() throws IOException {
+                    Translog.Operation next = reader.next();
+                    if (next != null) {
+                        advanceMaxSeqNoOfUpdatesOrDeletes(next.seqNo());
+                    }
+                    return next;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    reader.close();
+                }
+            };
+        } else {
+            // TODO: Use org.elasticsearch.index.engine.ReadOnlyEngine.newEmptySnapshot() instead
+            return new Translog.Snapshot() {
+                @Override
+                public void close() {}
+
+                @Override
+                public int totalOperations() {
+                    return 0;
+                }
+
+                @Override
+                public Translog.Operation next() {
+                    return null;
+                }
+            };
+        }
+    }
+
 }

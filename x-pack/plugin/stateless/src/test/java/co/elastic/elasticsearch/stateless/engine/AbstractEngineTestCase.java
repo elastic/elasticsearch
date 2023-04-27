@@ -8,6 +8,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -132,7 +133,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
-        var indexEngine = new IndexEngine(indexConfig, translogReplicator) {
+        return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class));
+    }
+
+    protected IndexEngine newIndexEngine(
+        final EngineConfig indexConfig,
+        final TranslogReplicator translogReplicator,
+        final ObjectStoreService objectStoreService
+    ) {
+        var indexEngine = new IndexEngine(indexConfig, translogReplicator, objectStoreService) {
             @Override
             public void close() throws IOException {
                 try {

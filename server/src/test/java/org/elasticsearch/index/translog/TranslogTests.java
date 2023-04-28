@@ -1600,7 +1600,7 @@ public class TranslogTests extends ESTestCase {
             mtime = lastMtime;
             mtimeCache = lastMtimeCache;
             // add ops
-            int count = randomInt(100);
+            int count = randomIntBetween(1, 100);
             for (int i = 0; i < count; i++) {
                 translog.add(indexOp(randomAlphaOfLength(128), i, primaryTerm.get()));
             }

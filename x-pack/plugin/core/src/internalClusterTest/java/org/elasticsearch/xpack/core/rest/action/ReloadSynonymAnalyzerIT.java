@@ -76,10 +76,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate("test")
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", cluster().numDataNodes() * 2)
-                        .put("index.number_of_replicas", 1)
-                        .put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
+                    indexSettings(cluster().numDataNodes() * 2, 1).put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
                         .put("analysis.analyzer.my_synonym_analyzer.filter", "my_synonym_filter")
                         .put("analysis.filter.my_synonym_filter.type", "synonym")
                         .put("analysis.filter.my_synonym_filter.updateable", "true")

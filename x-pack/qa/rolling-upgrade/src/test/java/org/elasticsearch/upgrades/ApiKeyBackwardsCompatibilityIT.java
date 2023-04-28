@@ -336,7 +336,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(Set.of("all", "monitor", "none")).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3, Set.of("cross_cluster_replication", "cross_cluster_replication_internal")),
             RoleDescriptorTests.randomApplicationPrivileges(),
             null,
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),

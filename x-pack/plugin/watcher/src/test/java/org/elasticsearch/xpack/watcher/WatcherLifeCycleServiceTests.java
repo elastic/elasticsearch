@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -649,12 +650,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return new DiscoveryNode(
-            nodeName,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            version
-        );
+        return TestDiscoveryNode.create(nodeName, ESTestCase.buildNewFakeTransportAddress(), version);
     }
 }

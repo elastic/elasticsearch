@@ -67,6 +67,8 @@ PUT /my-time-series-index-0/_bulk
 --------------------------------------------------
 // NOTCONSOLE
 
+//////////////////////////
+
 To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed"
 is true, each bucket is given a unique key.
 
@@ -83,20 +85,18 @@ GET /_search
 --------------------------------------------------
 // NOTCONSOLE
 
+//////////////////////////
+
 This will return all results in the time series, however a more typical query will use sub aggregations to reduce the
 date returned to something more relevant.
 
-//////////////////////////
-
-[[search-aggregations-time-series-aggregation-size]]
+[[search-aggregations-bucket-time-series-aggregation-size]]
 ==== Size
 
 By default, `time series` aggregations return 10000 results. The "size" parameter can be used to limit the results
 further. Alternatively, using sub aggregations can limit the amount of values returned as a time series aggregation.
 
-//////////////////////////
-
-[[search-aggregations-time-series-aggregation-keyed]]
+[[search-aggregations-bucket-time-series-aggregation-keyed]]
 ==== Keyed
 
 The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed`

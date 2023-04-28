@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -709,13 +710,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = new DiscoveryNode(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            VersionUtils.randomVersion(random())
-        );
+        DiscoveryNode node = TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
             final Index indexTest = new Index("test", "_na_");

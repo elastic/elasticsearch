@@ -316,20 +316,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
         final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES);
-        final DiscoveryNode oldNode1 = new DiscoveryNode(
-            "oldNode1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
-        final DiscoveryNode oldNode2 = new DiscoveryNode(
-            "oldNode2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
+        final DiscoveryNode oldNode1 = TestDiscoveryNode.create("oldNode1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
+        final DiscoveryNode oldNode2 = TestDiscoveryNode.create("oldNode2", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
         AllocationId allocationId1P = AllocationId.newInitializing();
         AllocationId allocationId1R = AllocationId.newInitializing();
         AllocationId allocationId2P = AllocationId.newInitializing();
@@ -427,20 +415,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
         final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES);
-        final DiscoveryNode oldNode1 = new DiscoveryNode(
-            "oldNode1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
-        final DiscoveryNode oldNode2 = new DiscoveryNode(
-            "oldNode2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            VersionUtils.getPreviousVersion()
-        );
+        final DiscoveryNode oldNode1 = TestDiscoveryNode.create("oldNode1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
+        final DiscoveryNode oldNode2 = TestDiscoveryNode.create("oldNode2", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
 
         final Snapshot snapshot = new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID()));
         final IndexId indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));

@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -104,13 +105,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
     private static NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = new DiscoveryNode(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            VersionUtils.randomVersion(random())
-        );
+        DiscoveryNode node = TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
         if (randomBoolean()) {

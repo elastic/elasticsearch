@@ -413,6 +413,9 @@ teardown:
 
 ---
 "Post search_click analytics event - Document Only":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/95629"
   - do:
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
@@ -478,6 +481,9 @@ teardown:
 
 ---
 "Post analytics event - Event type does not exist":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/95629"
   - do:
       catch: "bad_request"
       search_application.post_behavioral_analytics_event:
@@ -495,6 +501,9 @@ teardown:
 
 ---
 "Post page_view analytics event - Missing session.id":
+  - skip:
+      version: all
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/95629"
   - do:
       catch: "bad_request"
       search_application.post_behavioral_analytics_event:

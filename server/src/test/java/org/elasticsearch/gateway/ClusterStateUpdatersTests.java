@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -106,14 +107,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
 
     private IndexMetadata createIndexMetadata(final String name, final Settings settings) {
         return IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(settings)
-            )
+            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).put(settings))
             .build();
     }
 
@@ -288,7 +282,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             Version.CURRENT
         );
 
-        final ClusterState updatedState = setLocalNode(initialState, localNode);
+        final ClusterState updatedState = setLocalNode(initialState, localNode, TransportVersion.CURRENT);
 
         assertMetadataEquals(initialState, updatedState);
         assertThat(updatedState.nodes().getLocalNode(), equalTo(localNode));
@@ -338,7 +332,7 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             Version.CURRENT
         );
         final ClusterState updatedState = Function.<ClusterState>identity()
-            .andThen(state -> setLocalNode(state, localNode))
+            .andThen(state -> setLocalNode(state, localNode, TransportVersion.CURRENT))
             .andThen(ClusterStateUpdaters::recoverClusterBlocks)
             .apply(initialState);
 

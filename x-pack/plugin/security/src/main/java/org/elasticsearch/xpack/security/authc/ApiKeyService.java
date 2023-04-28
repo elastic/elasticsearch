@@ -136,6 +136,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -299,12 +300,12 @@ public class ApiKeyService {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
             final Version version = getMinNodeVersion();
-            if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
                         "all nodes must have version ["
-                            + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
@@ -409,12 +410,12 @@ public class ApiKeyService {
         }
 
         final Version version = getMinNodeVersion();
-        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES) && hasRemoteIndices(request.getRoleDescriptors())) {
+        if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES
+                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -515,14 +516,15 @@ public class ApiKeyService {
      * This method removes remote indices privileges from the given role descriptors
      * when we are in a mixed cluster in which some of the nodes do not support remote indices.
      * Storing these roles would cause parsing issues on old nodes
-     * (i.e. nodes running on version before {@link Authentication#VERSION_API_KEYS_WITH_REMOTE_INDICES}).
+     * (i.e. nodes running on version before
+     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
         final Version version,
         final String... apiKeyIds
     ) {
-        if (version.before(Authentication.VERSION_API_KEYS_WITH_REMOTE_INDICES)) {
+        if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {
@@ -1001,10 +1003,14 @@ public class ApiKeyService {
                                 // move on
                                 validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
-                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                                listener.onResponse(
+                                    AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                                );
                             }
                         } else if (result.verify(credentials.getKey())) { // same key, pass the same result
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         } else {
                             apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
                             validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);
@@ -1017,7 +1023,9 @@ public class ApiKeyService {
                             // move on
                             validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
-                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            listener.onResponse(
+                                AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                            );
                         }
                     }, listener::onFailure));
                 }
@@ -1027,7 +1035,9 @@ public class ApiKeyService {
                         // move on
                         validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        listener.onResponse(
+                            AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
+                        );
                     }
                 }, listener::onFailure));
             }

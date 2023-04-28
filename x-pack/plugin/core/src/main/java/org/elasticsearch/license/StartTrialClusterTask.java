@@ -62,10 +62,9 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         ClusterStateTaskExecutor.TaskContext<StartTrialClusterTask> taskContext
     ) {
         assert taskContext.getTask() == this;
-        final var listener = ActionListener.runBefore(
-            this.listener,
-            () -> { logger.debug("started self generated trial license: {}", currentLicensesMetadata); }
-        );
+        final var listener = ActionListener.runBefore(this.listener, () -> {
+            logger.debug("started self generated trial license: {}", currentLicensesMetadata);
+        });
         if (request.isAcknowledged() == false) {
             taskContext.success(
                 () -> listener.onResponse(

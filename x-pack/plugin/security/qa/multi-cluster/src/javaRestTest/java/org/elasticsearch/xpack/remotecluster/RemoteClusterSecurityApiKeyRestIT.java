@@ -58,12 +58,17 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
-                        [
-                          {
-                            "names": ["index*", "not_found_index"],
-                            "privileges": ["read", "read_cross_cluster"]
+                        {
+                          "role": {
+                            "cluster": ["cross_cluster_access"],
+                            "index": [
+                              {
+                                "names": ["index*", "not_found_index"],
+                                "privileges": ["read", "read_cross_cluster"]
+                              }
+                            ]
                           }
-                        ]""");
+                        }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
@@ -77,7 +82,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
     public void testCrossClusterSearchWithApiKey() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
         final String remoteAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // Fulfilling cluster
@@ -313,18 +318,21 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
 
             // Check that authentication fails if we use a non-existent cross cluster access API key
             updateClusterSettings(
-                Settings.builder()
-                    .put("cluster.remote.invalid_remote.mode", "proxy")
-                    .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                    .build()
+                randomBoolean()
+                    ? Settings.builder()
+                        .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+                    : Settings.builder()
+                        .put("cluster.remote.invalid_remote.mode", "proxy")
+                        .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
             );
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithApiKey(new Request("GET", "/invalid_remote:index1/_search"), apiKeyEncoded)
             );
-            // TODO: improve the error code and message
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-            assertThat(exception4.getMessage(), containsString("Unable to open any proxy connections to cluster [invalid_remote]"));
+            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception4.getMessage(), containsString("unable to authenticate user "));
         }
     }
 

@@ -96,13 +96,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testUnmappedMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(singletonList(doubleField("s", 1.0))); },
-            true,
-            numberFieldType(NumberType.DOUBLE, "s")
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(singletonList(doubleField("s", 1.0)));
+        }, true, numberFieldType(NumberType.DOUBLE, "s"));
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
@@ -110,13 +106,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingValueForDoubleMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(singletonList(doubleField("s", 1.0))); },
-            true,
-            doubleFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(singletonList(doubleField("s", 1.0)));
+        }, true, doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1.0)));
@@ -124,13 +116,9 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMissingValueForLongMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(singletonList(longField("s", 1))); },
-            true,
-            longFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(singletonList(longField("s", 1)));
+        }, true, longFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), hasSize(1));
         assertThat(result.getTopMetrics().get(0).getSortValue(), equalTo(SortValue.from(1)));
@@ -138,25 +126,17 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testActualValueForDoubleMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0))); },
-            true,
-            doubleFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(Arrays.asList(doubleField("s", 1.0), doubleField("m", 2.0)));
+        }, true, doubleFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1.0, 2.0))));
     }
 
     public void testActualValueForLongMetric() throws IOException {
-        InternalTopMetrics result = collect(
-            simpleBuilder(),
-            new MatchAllDocsQuery(),
-            writer -> { writer.addDocument(Arrays.asList(longField("s", 1), longField("m", 2))); },
-            true,
-            longFields()
-        );
+        InternalTopMetrics result = collect(simpleBuilder(), new MatchAllDocsQuery(), writer -> {
+            writer.addDocument(Arrays.asList(longField("s", 1), longField("m", 2)));
+        }, true, longFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1, 2))));
     }

@@ -556,7 +556,9 @@ public class SearchModuleTests extends ESTestCase {
         public static final ConstructingObjectParser<TestPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
             "test",
             false,
-            (args, name) -> { return new TestPipelineAggregationBuilder(name, (String) args[0]); }
+            (args, name) -> {
+                return new TestPipelineAggregationBuilder(name, (String) args[0]);
+            }
         );
         static {
             PARSER.declareString(constructorArg(), PipelineAggregator.Parser.BUCKETS_PATH);

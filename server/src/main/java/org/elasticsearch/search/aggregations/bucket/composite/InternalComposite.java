@@ -41,7 +41,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     private final int size;
     private final List<InternalBucket> buckets;
     private final CompositeKey afterKey;
-    private final Map<String, Object> formattedAfterKey;
     private final int[] reverseMuls;
     private final MissingOrder[] missingOrders;
     private final List<String> sourceNames;
@@ -70,7 +69,26 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.reverseMuls = reverseMuls;
         this.missingOrders = missingOrders;
         this.earlyTerminated = earlyTerminated;
-        this.formattedAfterKey = afterKey == null ? null : new ArrayMap(sourceNames, formats, afterKey.values());
+    }
+
+    /**
+     * Checks that the afterKey formatting does not result in loss of information
+     *
+     * Only called when a new InternalComposite() is built after a reduce.  We can't validate afterKeys from
+     * InternalComposites built from a StreamInput because they may be coming from nodes that do not
+     * do validation, and errors thrown during StreamInput deserialization can kill a node.  However,
+     * InternalComposites that come from remote nodes will always be reduced on the co-ordinator, and
+     * this will always create a new InternalComposite by calling the standard constructor.
+     */
+    private void validateAfterKey() {
+        if (afterKey != null) {
+            if (this.formats.size() != this.afterKey.size()) {
+                throw new IllegalArgumentException("Cannot format afterkey [" + this.afterKey + "] - wrong number of formats");
+            }
+            for (int i = 0; i < this.afterKey.size(); i++) {
+                formatObject(this.afterKey.get(i), this.formats.get(i));
+            }
+        }
     }
 
     public InternalComposite(StreamInput in) throws IOException {
@@ -91,7 +109,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls, missingOrders));
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
         this.earlyTerminated = in.getTransportVersion().onOrAfter(TransportVersion.V_7_6_0) ? in.readBoolean() : false;
-        this.formattedAfterKey = afterKey == null ? null : new ArrayMap(sourceNames, formats, afterKey.values());
     }
 
     @Override
@@ -174,7 +191,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
     @Override
     public Map<String, Object> afterKey() {
-        return formattedAfterKey;
+        if (afterKey != null) {
+            return new ArrayMap(sourceNames, formats, afterKey.values());
+        }
+        return null;
     }
 
     // Visible for tests
@@ -240,7 +260,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             lastKey = lastBucket.getRawKey();
         }
         reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        return new InternalComposite(
+        InternalComposite reduced = new InternalComposite(
             name,
             size,
             sourceNames,
@@ -252,6 +272,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             earlyTerminated,
             metadata
         );
+        reduced.validateAfterKey();
+        return reduced;
     }
 
     @Override
@@ -528,11 +550,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseLong(
-                formatted.toString(),
-                false,
-                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
-            );
+            parsed = format.parseLong(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
             if (parsed.equals(((Number) obj).longValue()) == false) {
                 throw new IllegalArgumentException(
                     "Format ["
@@ -556,11 +576,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseDouble(
-                formatted.toString(),
-                false,
-                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
-            );
+            parsed = format.parseDouble(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
             if (parsed.equals(((Number) obj).doubleValue()) == false) {
                 throw new IllegalArgumentException(
                     "Format ["
@@ -584,16 +602,13 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
         final Comparable<?>[] values;
-        final List<Object> formattedValues;
+        final List<DocValueFormat> formats;
 
         ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable<?>[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
+            this.formats = formats;
             this.values = values;
-            this.formattedValues = new ArrayList<>();
-            for (int i = 0; i < values.length; i++) {
-                this.formattedValues.add(formatObject(values[i], formats.get(i)));
-            }
         }
 
         @Override
@@ -605,7 +620,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return formattedValues.get(i);
+                    return formatObject(values[i], formats.get(i));
                 }
             }
             return null;
@@ -613,10 +628,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         @Override
         public Set<Entry<String, Object>> entrySet() {
-            return new AbstractSet<>() {
+            return new AbstractSet<Entry<String, Object>>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
-                    return new Iterator<>() {
+                    return new Iterator<Entry<String, Object>>() {
                         int pos = 0;
 
                         @Override
@@ -626,7 +641,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
                         @Override
                         public Entry<String, Object> next() {
-                            SimpleEntry<String, Object> entry = new SimpleEntry<>(keys.get(pos), formattedValues.get(pos));
+                            SimpleEntry<String, Object> entry = new SimpleEntry<>(
+                                keys.get(pos),
+                                formatObject(values[pos], formats.get(pos))
+                            );
                             ++pos;
                             return entry;
                         }

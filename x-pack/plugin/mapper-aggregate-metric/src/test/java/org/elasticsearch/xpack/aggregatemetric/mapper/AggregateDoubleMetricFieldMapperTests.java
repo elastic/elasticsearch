@@ -59,33 +59,19 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck(
-            DEFAULT_METRIC,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min"); }
-            )
-        );
+        checker.registerConflictCheck(DEFAULT_METRIC, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "min");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> { b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max"); }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max");
+        }));
 
-        checker.registerConflictCheck(
-            METRICS_FIELD,
-            fieldMapping(this::minimalMapping),
-            fieldMapping(
-                b -> {
-                    b.field("type", CONTENT_TYPE)
-                        .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
-                        .field(DEFAULT_METRIC, "min");
-                }
-            )
-        );
+        checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", CONTENT_TYPE)
+                .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
+                .field(DEFAULT_METRIC, "min");
+        }));
     }
 
     @Override

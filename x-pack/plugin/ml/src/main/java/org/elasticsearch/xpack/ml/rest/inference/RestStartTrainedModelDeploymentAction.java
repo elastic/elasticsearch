@@ -13,6 +13,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -31,6 +33,7 @@ import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeployment
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.TIMEOUT;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.WAIT_FOR;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
 
     @Override
@@ -54,11 +57,16 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
+        String deploymentId = restRequest.param(StartTrainedModelDeploymentAction.Request.DEPLOYMENT_ID.getPreferredName(), modelId);
         StartTrainedModelDeploymentAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
-            request = StartTrainedModelDeploymentAction.Request.parseRequest(modelId, restRequest.contentOrSourceParamParser());
+            request = StartTrainedModelDeploymentAction.Request.parseRequest(
+                modelId,
+                deploymentId,
+                restRequest.contentOrSourceParamParser()
+            );
         } else {
-            request = new StartTrainedModelDeploymentAction.Request(modelId);
+            request = new StartTrainedModelDeploymentAction.Request(modelId, deploymentId);
             if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
                 TimeValue openTimeout = restRequest.paramAsTime(
                     TIMEOUT.getPreferredName(),

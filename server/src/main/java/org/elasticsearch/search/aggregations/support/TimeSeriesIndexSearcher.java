@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -46,14 +48,26 @@ public class TimeSeriesIndexSearcher {
 
     // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
-    private final IndexSearcher searcher;
+    private final ContextIndexSearcher searcher;
     private final List<Runnable> cancellations;
     private final boolean tsidReverse;
     private final boolean timestampReverse;
 
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
-        this.searcher = searcher;
+        try {
+            this.searcher = new ContextIndexSearcher(
+                searcher.getIndexReader(),
+                searcher.getSimilarity(),
+                searcher.getQueryCache(),
+                searcher.getQueryCachingPolicy(),
+                false
+            );
+        } catch (IOException e) {
+            // IOException from wrapping the index searcher which should never happen.
+            throw new RuntimeException(e);
+        }
         this.cancellations = cancellations;
+        cancellations.forEach(cancellation -> this.searcher.addQueryCancellation(cancellation));
 
         assert TIME_SERIES_SORT.length == 2;
         assert TIME_SERIES_SORT[0].getField().equals(TimeSeriesIdFieldMapper.NAME);
@@ -118,6 +132,12 @@ public class TimeSeriesIndexSearcher {
                 }
             } while (queue.size() > 0);
             tsidOrd[0]++;
+        }
+    }
+
+    public void setProfiler(SearchContext context) {
+        if ((context.getProfilers() != null) && (context.getProfilers().getCurrentQueryProfiler() != null)) {
+            searcher.setProfiler(context.getProfilers().getCurrentQueryProfiler());
         }
     }
 

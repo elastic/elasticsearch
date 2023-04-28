@@ -10,10 +10,10 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 
@@ -28,12 +28,8 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      */
     public void testNoDelayedTimeout() throws Exception {
         internalCluster().startNodes(3);
-        prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
-        ).get();
+        prepareCreate("test").setSettings(indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0))
+            .get();
         ensureGreen("test");
         indexRandomData();
         internalCluster().stopNode(findNodeWithShard());
@@ -50,10 +46,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationNodeLeavesAndComesBack() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -78,10 +71,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationTimesOut() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100))
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -102,13 +92,14 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * allocation to a very small value, it kicks the allocation of the unassigned shard
      * even though the node it was hosted on will not come back.
      */
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator:TRACE",
+        reason = "https://github.com/elastic/elasticsearch/issues/93470"
+    )
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -120,6 +111,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
             )
         );
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1));
+        logger.info("Setting shorter allocation delay");
         updateIndexSettings(
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(100)),
             "test"
@@ -136,10 +128,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
     public void testDelayedAllocationChangeWithSettingTo0() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
         ).get();
         ensureGreen("test");
         indexRandomData();

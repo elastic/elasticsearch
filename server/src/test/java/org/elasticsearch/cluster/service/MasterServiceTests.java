@@ -890,11 +890,9 @@ public class MasterServiceTests extends ESTestCase {
             masterService.submitUnbatchedStateUpdateTask("block", blockMasterTask);
             executionBarrier.await(10, TimeUnit.SECONDS); // wait for the master service to be blocked
 
-            masterService.setClusterStatePublisher(
-                (clusterStatePublicationEvent, publishListener, ackListener) -> {
-                    throw new AssertionError("should not publish any states");
-                }
-            );
+            masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
+                throw new AssertionError("should not publish any states");
+            });
 
             for (int i = 0; i < taskCount; i++) {
                 try (ThreadContext.StoredContext ignored = threadContext.newStoredContext()) {
@@ -2104,16 +2102,9 @@ public class MasterServiceTests extends ESTestCase {
 
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var threadPoolExecutor = EsExecutors.newScaling(
-            "Rejecting",
-            1,
-            1,
-            1,
-            TimeUnit.SECONDS,
-            true,
-            r -> { throw new AssertionError("should not create new threads"); },
-            threadPool.getThreadContext()
-        );
+        final var threadPoolExecutor = EsExecutors.newScaling("Rejecting", 1, 1, 1, TimeUnit.SECONDS, true, r -> {
+            throw new AssertionError("should not create new threads");
+        }, threadPool.getThreadContext());
         threadPoolExecutor.shutdown();
 
         try (var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)) {
@@ -2128,7 +2119,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
                     if ((e instanceof FailedToCommitClusterStateException
-                        && e.getCause()instanceof EsRejectedExecutionException esre
+                        && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);
                     }
@@ -2136,11 +2127,9 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
 
-            final var queue = masterService.createTaskQueue(
-                "queue",
-                randomFrom(Priority.values()),
-                batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
-            );
+            final var queue = masterService.createTaskQueue("queue", randomFrom(Priority.values()), batchExecutionContext -> {
+                throw new AssertionError("should not execute batch");
+            });
 
             try (var ignored = threadPool.getThreadContext().stashContext()) {
                 threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));
@@ -2260,7 +2249,7 @@ public class MasterServiceTests extends ESTestCase {
                 public void onFailure(Exception e) {
                     assertEquals(expectedHeader, threadPool.getThreadContext().getHeader(testHeader));
                     if ((e instanceof FailedToCommitClusterStateException
-                        && e.getCause()instanceof EsRejectedExecutionException esre
+                        && e.getCause() instanceof EsRejectedExecutionException esre
                         && esre.isExecutorShutdown()) == false) {
                         throw new AssertionError("unexpected exception", e);
                     }
@@ -2268,11 +2257,9 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
 
-            final var queue = masterService.createTaskQueue(
-                "queue",
-                randomFrom(Priority.values()),
-                batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
-            );
+            final var queue = masterService.createTaskQueue("queue", randomFrom(Priority.values()), batchExecutionContext -> {
+                throw new AssertionError("should not execute batch");
+            });
 
             while (true) {
                 try (var ignored = threadPool.getThreadContext().stashContext()) {
@@ -2372,11 +2359,9 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
 
-            final var queue = masterService.createTaskQueue(
-                "queue",
-                Priority.NORMAL,
-                batchExecutionContext -> { throw new AssertionError("should not execute batch"); }
-            );
+            final var queue = masterService.createTaskQueue("queue", Priority.NORMAL, batchExecutionContext -> {
+                throw new AssertionError("should not execute batch");
+            });
 
             try (var ignored = threadPool.getThreadContext().stashContext()) {
                 threadPool.getThreadContext().putHeader(testHeader, randomAlphaOfLength(10));

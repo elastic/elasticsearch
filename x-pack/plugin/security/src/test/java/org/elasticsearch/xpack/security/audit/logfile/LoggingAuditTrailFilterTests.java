@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -878,7 +879,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingUser) {
             assertThat("Anonymous rest request: not filtered out by the missing user filter", logOutput.size(), is(0));
         } else {
@@ -888,7 +889,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authenticationFailed
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingUser) {
             assertThat("AuthenticationFailed no token rest request: not filtered out by the missing user filter", logOutput.size(), is(0));
         } else {
@@ -916,12 +917,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), unfilteredToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), unfilteredToken, getHttpRequest());
         assertThat("AuthenticationFailed rest request: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), filteredToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), filteredToken, getHttpRequest());
         assertThat("AuthenticationFailed rest request: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -936,12 +937,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", unfilteredToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", unfilteredToken, getHttpRequest());
         assertThat("AuthenticationFailed realm rest request: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", filteredToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", filteredToken, getHttpRequest());
         assertThat("AuthenticationFailed realm rest request: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1035,7 +1036,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // tamperedRequest
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingUser) {
             assertThat("Tampered rest: is not filtered out by the missing user filter", logOutput.size(), is(0));
         } else {
@@ -1129,12 +1130,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), unfilteredAuthentication, getRestRequest(), authzInfo(new String[] { "role1" }));
+        auditTrail.runAsDenied(randomAlphaOfLength(8), unfilteredAuthentication, getHttpRequest(), authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied rest request: unfiltered user is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), filteredAuthentication, getRestRequest(), authzInfo(new String[] { "role1" }));
+        auditTrail.runAsDenied(randomAlphaOfLength(8), filteredAuthentication, getHttpRequest(), authzInfo(new String[] { "role1" }));
         assertThat("RunAsDenied rest request: filtered user is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1231,7 +1232,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingRealm) {
             assertThat("Anonymous rest request: not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {
@@ -1241,7 +1242,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authenticationFailed
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingRealm) {
             assertThat("AuthenticationFailed no token rest request: not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {
@@ -1268,7 +1269,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getHttpRequest());
         if (filterMissingRealm) {
             assertThat("AuthenticationFailed rest request: not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {
@@ -1287,12 +1288,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), unfilteredRealm, authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), unfilteredRealm, authToken, getHttpRequest());
         assertThat("AuthenticationFailed realm rest request: unfiltered realm is filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), filteredRealm, authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), filteredRealm, authToken, getHttpRequest());
         assertThat("AuthenticationFailed realm rest request: filtered realm is not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -1496,7 +1497,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // tamperedRequest
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingRealm) {
             assertThat("Tampered rest: is not filtered out by the missing realm filter", logOutput.size(), is(0));
         } else {
@@ -1621,7 +1622,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
             createAuthentication(user, authUser, filteredRealm),
-            getRestRequest(),
+            getHttpRequest(),
             authzInfo(new String[] { "role1" })
         );
         assertThat("RunAsDenied rest request: filtered realm is not filtered out", logOutput.size(), is(0));
@@ -1631,7 +1632,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
             createAuthentication(user, authUser, unfilteredRealm),
-            getRestRequest(),
+            getHttpRequest(),
             authzInfo(new String[] { "role1" })
         );
         assertThat("RunAsDenied rest request: unfiltered realm is filtered out", logOutput.size(), is(1));
@@ -1738,7 +1739,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingRoles) {
             assertThat("Anonymous rest request: not filtered out by the missing roles filter", logOutput.size(), is(0));
         } else {
@@ -1748,7 +1749,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authenticationFailed
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingRoles) {
             assertThat("AuthenticationFailed no token rest request: not filtered out by the missing roles filter", logOutput.size(), is(0));
         } else {
@@ -1775,7 +1776,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getHttpRequest());
         if (filterMissingRoles) {
             assertThat("AuthenticationFailed rest request: not filtered out by the missing roles filter", logOutput.size(), is(0));
         } else {
@@ -1793,7 +1794,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", authToken, getHttpRequest());
         if (filterMissingRoles) {
             assertThat("AuthenticationFailed realm rest request: not filtered out by the missing roles filter", logOutput.size(), is(0));
         } else {
@@ -1948,12 +1949,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), authzInfo(unfilteredRoles));
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getHttpRequest(), authzInfo(unfilteredRoles));
         assertThat("RunAsDenied rest request: unfiltered roles filtered out", logOutput.size(), is(1));
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), authzInfo(filteredRoles));
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getHttpRequest(), authzInfo(filteredRoles));
         assertThat("RunAsDenied rest request: filtered roles not filtered out", logOutput.size(), is(0));
         logOutput.clear();
         threadContext.stashContext();
@@ -2065,7 +2066,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingIndices) {
             assertThat("Anonymous rest request: not filtered out by the missing indices filter", logOutput.size(), is(0));
         } else {
@@ -2075,7 +2076,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authenticationFailed
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingIndices) {
             assertThat(
                 "AuthenticationFailed no token rest request: not filtered out by the missing indices filter",
@@ -2144,7 +2145,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getHttpRequest());
         if (filterMissingIndices) {
             assertThat("AuthenticationFailed rest request: not filtered out by the missing indices filter", logOutput.size(), is(0));
         } else {
@@ -2188,7 +2189,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), "_realm", authToken, getHttpRequest());
         if (filterMissingIndices) {
             assertThat("AuthenticationFailed realm rest request: not filtered out by the missing indices filter", logOutput.size(), is(0));
         } else {
@@ -2427,7 +2428,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getRestRequest(), authzInfo(new String[] { "role1" }));
+        auditTrail.runAsDenied(randomAlphaOfLength(8), authentication, getHttpRequest(), authzInfo(new String[] { "role1" }));
         if (filterMissingIndices) {
             assertThat("RunAsDenied rest request: not filtered out by missing indices filter", logOutput.size(), is(0));
         } else {
@@ -2522,7 +2523,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.anonymousAccessDenied(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingAction) {
             assertThat("Anonymous rest request: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2532,7 +2533,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // authenticationFailed
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingAction) {
             assertThat("AuthenticationFailed: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2551,7 +2552,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), authToken, getHttpRequest());
         if (filterMissingAction) {
             assertThat("AuthenticationFailed rest request: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2570,7 +2571,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        auditTrail.authenticationFailed(randomAlphaOfLength(8), "realm", authToken, getRestRequest());
+        auditTrail.authenticationFailed(randomAlphaOfLength(8), "realm", authToken, getHttpRequest());
         if (filterMissingAction) {
             assertThat("AuthenticationFailed realm rest request: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2605,7 +2606,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // tamperedRequest
-        auditTrail.tamperedRequest(randomAlphaOfLength(8), getRestRequest());
+        auditTrail.tamperedRequest(randomAlphaOfLength(8), getHttpRequest());
         if (filterMissingAction) {
             assertThat("Tampered rest: not filtered out by the missing action filter", logOutput.size(), is(0));
         } else {
@@ -2698,7 +2699,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         auditTrail.runAsDenied(
             randomAlphaOfLength(8),
             createAuthentication(user, authUser, "realm"),
-            getRestRequest(),
+            getHttpRequest(),
             authzInfo(new String[] { "role1" })
         );
         if (filterMissingAction) {
@@ -2970,6 +2971,10 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         builder.withRemoteAddress(new InetSocketAddress(InetAddress.getByAddress("_hostname", address), 9200));
         builder.withParams(Collections.emptyMap());
         return builder.build();
+    }
+
+    private HttpRequest getHttpRequest() throws IOException {
+        return getRestRequest().getHttpRequest();
     }
 
     private static class MockToken implements AuthenticationToken {

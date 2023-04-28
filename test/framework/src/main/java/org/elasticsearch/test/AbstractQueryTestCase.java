@@ -750,7 +750,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             ).getPreferredName();
         } else {
             rewrite = randomFrom(QueryParsers.TOP_TERMS, QueryParsers.TOP_TERMS_BOOST, QueryParsers.TOP_TERMS_BLENDED_FREQS)
-                .getPreferredName() + "1";
+                .getPreferredName()
+                + "1";
         }
         return rewrite;
     }

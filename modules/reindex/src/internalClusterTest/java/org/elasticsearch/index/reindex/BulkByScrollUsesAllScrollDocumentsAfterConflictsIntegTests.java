@@ -108,7 +108,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             updateByQuery(),
             true,
-            (bulkByScrollResponse, updatedDocCount) -> { assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount)); }
+            (bulkByScrollResponse, updatedDocCount) -> {
+                assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount));
+            }
         );
     }
 
@@ -130,7 +132,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             reindexRequestBuilder,
             false,
-            (bulkByScrollResponse, reindexDocCount) -> { assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount)); }
+            (bulkByScrollResponse, reindexDocCount) -> {
+                assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
+            }
         );
     }
 
@@ -142,7 +146,9 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             false,
             deleteByQuery(),
             true,
-            (bulkByScrollResponse, deletedDocCount) -> { assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount)); }
+            (bulkByScrollResponse, deletedDocCount) -> {
+                assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount));
+            }
         );
     }
 

@@ -270,11 +270,6 @@ public class JavadocExtractor {
             builder.endObject();
             return builder;
         }
-
-        @Override
-        public boolean isFragment() {
-            return true;
-        }
     }
 
     public static ParsedJavadoc clean(Javadoc javadoc) {

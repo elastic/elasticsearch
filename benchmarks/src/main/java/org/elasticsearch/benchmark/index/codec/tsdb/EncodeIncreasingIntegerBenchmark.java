@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class EncodeIncreasingIntegerBenchmark {
     private static final int SEED = 17;
     private static final int BLOCK_SIZE = 128;
-    @Param({ "4", "8", "12", "16", "24", "28", "32", "36", "40", "44", "48", "52", "56", "64" })
+    @Param({ "4", "8", "12", "16", "20", "24", "28", "32", "36", "40", "44", "48", "52", "56", "60", "64" })
     private int bitsPerValue;
 
     private final AbstractDocValuesForUtilBenchmark encode;

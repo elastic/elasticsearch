@@ -2515,7 +2515,24 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+        assertThat(
+            e1.getMessage(),
+            equalTo("the user [" + SystemUser.NAME + "] is the system user and we should never try to get its role descriptors")
+        );
+
+        when(subject.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
+        assertThat(
+            e2.getMessage(),
+            equalTo(
+                "the user ["
+                    + CrossClusterAccessUser.NAME
+                    + "] is the cross cluster access user and we should never try to get its role descriptors"
+            )
+        );
 
         for (var userAndDescriptor : List.of(
             new Tuple<>(XPackUser.INSTANCE, XPackUser.ROLE_DESCRIPTOR),

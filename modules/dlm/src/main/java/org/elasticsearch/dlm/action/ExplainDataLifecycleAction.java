@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.dlm.ExplainIndexDataLifecycle;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -137,31 +137,31 @@ public class ExplainDataLifecycleAction extends ActionType<ExplainDataLifecycleA
         public static final ParseField INDICES_FIELD = new ParseField("indices");
         private List<ExplainIndexDataLifecycle> indices;
         @Nullable
-        private final RolloverConditions rolloverConditions;
+        private final RolloverConfiguration rolloverConfiguration;
 
-        public Response(List<ExplainIndexDataLifecycle> indices, @Nullable RolloverConditions rolloverConditions) {
+        public Response(List<ExplainIndexDataLifecycle> indices, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.indices = indices;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.indices = in.readList(ExplainIndexDataLifecycle::new);
-            this.rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
+            this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
         }
 
         public List<ExplainIndexDataLifecycle> getIndices() {
             return indices;
         }
 
-        public RolloverConditions getRolloverConditions() {
-            return rolloverConditions;
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(indices);
-            out.writeOptionalWriteable(rolloverConditions);
+            out.writeOptionalWriteable(rolloverConfiguration);
         }
 
         @Override
@@ -173,12 +173,12 @@ public class ExplainDataLifecycleAction extends ActionType<ExplainDataLifecycleA
                 return false;
             }
             Response response = (Response) o;
-            return Objects.equals(indices, response.indices) && Objects.equals(rolloverConditions, response.rolloverConditions);
+            return Objects.equals(indices, response.indices) && Objects.equals(rolloverConfiguration, response.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, rolloverConditions);
+            return Objects.hash(indices, rolloverConfiguration);
         }
 
         @Override
@@ -186,7 +186,7 @@ public class ExplainDataLifecycleAction extends ActionType<ExplainDataLifecycleA
             final Iterator<? extends ToXContent> indicesIterator = indices.stream()
                 .map(explainIndexDataLifecycle -> (ToXContent) (builder, params) -> {
                     builder.field(explainIndexDataLifecycle.getIndex());
-                    explainIndexDataLifecycle.toXContent(builder, params, rolloverConditions);
+                    explainIndexDataLifecycle.toXContent(builder, params, rolloverConfiguration);
                     return builder;
                 })
                 .iterator();

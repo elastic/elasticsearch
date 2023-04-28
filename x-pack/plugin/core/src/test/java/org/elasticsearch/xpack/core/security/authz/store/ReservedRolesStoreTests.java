@@ -936,7 +936,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Hidden data indices for endpoint package
             ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(3, 8),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(3, 8),
-            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8)
+            ".logs-endpoint.actions-" + randomAlphaOfLengthBetween(3, 8),
+            "profiling-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -980,7 +981,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith("synthetics-icmp-*")
                 || indexName.startsWith("synthetics-browser-*")
                 || indexName.startsWith("synthetics-browser.network-*")
-                || indexName.startsWith("synthetics-browser.screenshot-*");
+                || indexName.startsWith("synthetics-browser.screenshot-*")
+                || indexName.startsWith("profiling-*");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 
@@ -1043,6 +1045,65 @@ public class ReservedRolesStoreTests extends ESTestCase {
             // Deny deleting documents and rollover
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
+        });
+
+        // Test allow permissions on Threat Intel (ti*) dest indices created by latest transform : "create_index", "delete_index", "read",
+        // "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME
+        Arrays.asList("logs-ti_recordedfuture_latest.threat", "logs-ti_anomali_latest.threatstream").forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            // Allow search and indexing
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(indexAbstraction), is(true));
+            // Allow create and delete index, modifying aliases, and updating index settings
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesAliasesAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+
+            // Allow deleting documents
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(true));
+
+            // Implied by the overall view_index_metadata and monitor privilege
+            assertViewIndexMetadata(kibanaRole, indexName);
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
+                is(true)
+            );
+        });
+
+        // Test allow permissions on Threat Intel (ti*) source indices required by latest transform : "read", "view_index_metadata",
+        // IndicesAliasesAction.NAME, PutMappingAction.NAME, UpdateSettingsAction.NAME, "delete_index"
+        Arrays.asList(
+            "logs-ti_recordedfuture.threat-default",
+            "logs-ti_anomali.threatstream-default",
+            "logs-ti_recordedfuture.threat-default" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-ti_anomali.threatstream-default" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            // Allow read-only
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(indexAbstraction), is(true));
+
+            // Implied by the overall view_index_metadata and monitor privilege
+            assertViewIndexMetadata(kibanaRole, indexName);
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
+                is(true)
+            );
         });
 
         Arrays.asList(
@@ -1433,6 +1494,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 ),
             is(false)
         );
+
+        final String metricsPrefix = "metrics-";
+        assertNoAccessAllowed(monitoringUserRole, metricsPrefix + "system.cpu-default");
+        assertNoAccessAllowed(monitoringUserRole, metricsPrefix + "elastic_agent.filebeat-default");
+
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch");
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch.stack_monitoring.cluster_stats-default");
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "elasticsearch.ingest_pipeline-default");
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "kibana.stack_monitoring.stats-default");
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "logstash.stack_monitoring.node_stats-default");
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "beats.stack_monitoring.stats-default");
+        assertOnlyReadAllowed(monitoringUserRole, metricsPrefix + "enterprisesearch.stack_monitoring.health-default");
     }
 
     public void testRemoteMonitoringAgentRole() {

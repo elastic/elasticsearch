@@ -84,7 +84,9 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             trainedModelProvider,
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), true),
-            (ex) -> { throw new ElasticsearchException(ex); },
+            (ex) -> {
+                throw new ElasticsearchException(ex);
+            },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
@@ -111,6 +113,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -153,7 +156,9 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             trainedModelProvider,
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), false),
-            (ex) -> { throw new ElasticsearchException(ex); },
+            (ex) -> {
+                throw new ElasticsearchException(ex);
+            },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
@@ -180,6 +185,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();

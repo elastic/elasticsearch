@@ -145,7 +145,9 @@ public class FsBlobContainerTests extends ESTestCase {
                         )
                     )
                 );
-                case 4 -> {/* no-op */}
+                case 4 -> {
+                    /* no-op */
+                }
             }
 
             final var newValue = randomLong();

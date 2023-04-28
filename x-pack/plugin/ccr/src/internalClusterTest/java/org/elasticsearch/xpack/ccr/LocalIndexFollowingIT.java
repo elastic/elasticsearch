@@ -62,14 +62,12 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> {
-                assertThat(
-                    client().prepareSearch("follower").get().getHits().getTotalHits().value,
-                    equalTo(firstBatchNumDocs + secondBatchNumDocs)
-                );
-            }
-        );
+        assertBusy(() -> {
+            assertThat(
+                client().prepareSearch("follower").get().getHits().getTotalHits().value,
+                equalTo(firstBatchNumDocs + secondBatchNumDocs)
+            );
+        });
 
         PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
         client().execute(PauseFollowAction.INSTANCE, pauseRequest);

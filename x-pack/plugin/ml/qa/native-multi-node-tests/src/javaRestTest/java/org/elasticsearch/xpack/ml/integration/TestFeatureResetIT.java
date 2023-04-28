@@ -68,6 +68,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     private final Set<String> jobIds = new HashSet<>();
     private final Set<String> datafeedIds = new HashSet<>();
     private static final String TRAINED_MODEL_ID = "trained-model-to-reset";
+    private static final String DEPLOYMENT_ID = "deployment-to-reset";
 
     void cleanupDatafeed(String datafeedId) {
         try {
@@ -214,8 +215,10 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 List.of()
             )
         ).actionGet();
-        client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))
-            .actionGet();
+        client().execute(
+            StartTrainedModelDeploymentAction.INSTANCE,
+            new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID, DEPLOYMENT_ID)
+        ).actionGet();
     }
 
     private boolean isResetMode() {

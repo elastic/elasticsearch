@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.xcontent;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -22,6 +23,9 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_NAME_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentUtilsTests extends ESTestCase {
@@ -52,7 +56,7 @@ public class XContentUtilsTests extends ESTestCase {
         String apiKeyName = randomAlphaOfLengthBetween(1, 16);
         AuthenticationTestBuilder builder = AuthenticationTestHelper.builder()
             .apiKey(apiKeyId)
-            .metadata(Map.of(AuthenticationField.API_KEY_NAME_KEY, apiKeyName));
+            .metadata(Map.of(API_KEY_NAME_KEY, apiKeyName));
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         assertThat(json, equalTo("{\"authorization\":{\"api_key\":{\"id\":\"" + apiKeyId + "\",\"name\":\"" + apiKeyName + "\"}}}"));
@@ -65,6 +69,45 @@ public class XContentUtilsTests extends ESTestCase {
         Authentication authentication = builder.build();
         String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
         assertThat(json, equalTo("{\"authorization\":{\"service_account\":\"" + account + "\"}}"));
+    }
+
+    public void testAddAuthorizationInfoWithCrossClusterAccess() throws IOException {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
+        final var apiKeyName = (String) authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_NAME_KEY);
+        final var innerAuthentication = (Authentication) authentication.getAuthenticatingSubject()
+            .getMetadata()
+            .get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+
+        // Rely on the target function itself to generate the json string for inner authentication.
+        // This is OK because other subject variants are tested elsewhere. We are only interested in the cross cluster variant here.
+        String innerAuthenticationString = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, innerAuthentication.encode()));
+        innerAuthenticationString = innerAuthenticationString.replace("{\"authorization\":", "");
+        innerAuthenticationString = innerAuthenticationString.substring(0, innerAuthenticationString.length() - 1);
+
+        String json = generateJson(Map.of(AuthenticationField.AUTHENTICATION_KEY, authentication.encode()));
+        assertThat(
+            json,
+            equalTo(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                              "authorization": {
+                                "cross_cluster_access": {
+                                  "api_key": {
+                                    "id": "%s"%s
+                                  },
+                                  "remote_authorization": %s
+                                }
+                              }
+                            }""",
+                        authentication.getAuthenticatingSubject().getMetadata().get(API_KEY_ID_KEY),
+                        apiKeyName == null ? "" : ",\"name\":\"" + apiKeyName + "\"",
+                        innerAuthenticationString
+                    )
+                )
+            )
+        );
     }
 
     public void testAddAuthorizationInfoWithCorruptData() throws IOException {

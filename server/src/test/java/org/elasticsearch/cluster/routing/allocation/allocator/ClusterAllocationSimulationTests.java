@@ -119,11 +119,10 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 metadataBuilder.put(
                     IndexMetadata.builder(indexName)
                         .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier", tier)
+                            indexSettings(Version.CURRENT, shardCount, replicaCount).put(
+                                IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier",
+                                tier
+                            )
                         )
                         .indexWriteLoadForecast(indexWriteLoad)
                         .shardSizeInBytesForecast(shardSize)
@@ -240,7 +239,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 1,
                 1,
                 TimeUnit.SECONDS,
-                r -> { throw new AssertionError("should not create new threads"); },
+                r -> {
+                    throw new AssertionError("should not create new threads");
+                },
                 null,
                 null
             ) {

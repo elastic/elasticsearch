@@ -296,12 +296,9 @@ public class TransportActionProxyTests extends ESTestCase {
         });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
-        serviceC.registerRequestHandler(
-            "internal:test",
-            ThreadPool.Names.SAME,
-            SimpleTestRequest::new,
-            (request, channel, task) -> { throw new ElasticsearchException("greetings from TS_C"); }
-        );
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
+            throw new ElasticsearchException("greetings from TS_C");
+        });
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);

@@ -106,8 +106,9 @@ with the time filter.
 [[esql-limitations]]
 === Limitations
 
-ESQL currently supports only the following <<mapping-types,field types>>:
+ESQL currently supports the following <<mapping-types,field types>>:
 
+- alias
 - boolean
 - dates
 - ip

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
@@ -85,28 +86,35 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             return;
         }
 
-        try {
-            ListSearchApplicationAction.Response resp = clientWithOrigin.execute(
-                ListSearchApplicationAction.INSTANCE,
-                new ListSearchApplicationAction.Request(null, new PageParams(0, 0))
-            ).get();
-            listener.onResponse(
-                new XPackUsageFeatureResponse(
-                    new EnterpriseSearchFeatureSetUsage(
-                        enabled,
-                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                        Map.of("count", resp.queryPage().count())
+        Map<String, Object> searchApplicationsUsage = new HashMap<>();
+
+        ActionListener<ListSearchApplicationAction.Response> searchApplicationsCountListener = ActionListener.wrap(
+            respnose ->
+                listener.onResponse(
+                    new XPackUsageFeatureResponse(
+                        new EnterpriseSearchFeatureSetUsage(
+                            enabled,
+                            LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                            searchApplicationsUsage
+                        )
                     )
-                )
-            );
-        } catch (Exception e) {
-            logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
-            EnterpriseSearchFeatureSetUsage usage = new EnterpriseSearchFeatureSetUsage(
-                LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                enabled,
-                Collections.emptyMap()
-            );
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+                ),
+            e -> {
+                logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
+                listener.onResponse(
+                    new XPackUsageFeatureResponse(
+                        new EnterpriseSearchFeatureSetUsage(
+                            enabled,
+                            LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                            searchApplicationsUsage
+                        )
+                    )
+                );
+            }
+        );
+
+
+        ListSearchApplicationAction.Request searchApplicationsCountRequest = new ListSearchApplicationAction.Request(null, new PageParams(0, 0));
+        clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
     }
 }

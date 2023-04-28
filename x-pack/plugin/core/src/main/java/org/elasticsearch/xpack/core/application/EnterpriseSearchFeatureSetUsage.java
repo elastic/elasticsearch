@@ -21,22 +21,22 @@ import java.util.Objects;
 public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public static final String SEARCH_APPLICATIONS = "search_applications";
-    private final Map<String, Object> searchApplicationsStats;
+    private final Map<String, Object> searchApplicationsUsage;
 
-    public EnterpriseSearchFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> searchApplicationsStats) {
+    public EnterpriseSearchFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> searchApplicationsUsage) {
         super(XPackField.ENTERPRISE_SEARCH, available, enabled);
-        this.searchApplicationsStats = Objects.requireNonNull(searchApplicationsStats);
+        this.searchApplicationsUsage = Objects.requireNonNull(searchApplicationsUsage);
     }
 
     public EnterpriseSearchFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.searchApplicationsStats = in.readMap();
+        this.searchApplicationsUsage = in.readMap();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeGenericMap(searchApplicationsStats);
+        out.writeGenericMap(searchApplicationsUsage);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        builder.field(SEARCH_APPLICATIONS, searchApplicationsStats);
+        builder.field(SEARCH_APPLICATIONS, searchApplicationsUsage);
     }
 
     @Override
@@ -55,15 +55,15 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnterpriseSearchFeatureSetUsage that = (EnterpriseSearchFeatureSetUsage) o;
-        return Objects.equals(searchApplicationsStats, that.searchApplicationsStats);
+        return Objects.equals(searchApplicationsUsage, that.searchApplicationsUsage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchApplicationsStats);
+        return Objects.hash(searchApplicationsUsage);
     }
 
     public Map<String, Object> getSearchApplicationsStats() {
-        return searchApplicationsStats;
+        return searchApplicationsUsage;
     }
 }

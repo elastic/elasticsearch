@@ -1,5 +1,6 @@
 pr: 95286
-summary: Bump `TransportVersion`
+summary: Bump `TransportVersion` to the first non-release version number
+description: This is the first commit to use a transport version number separate to the release version. In the future, the inter-node transport protocol will be versioned independently of the release version.
 area: Infra/Transport API
 type: upgrade
 issues: []

@@ -65,6 +65,7 @@ dependencies {
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
   runtimeOnly 'com.google.guava:guava:31.1-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
@@ -253,9 +254,13 @@ tasks.named("thirdPartyAudit").configure {
     'net.spy.memcached.CASResponse',
     'net.spy.memcached.CASValue',
     'net.spy.memcached.MemcachedClient',
+    'net.spy.memcached.MemcachedClientIF',
     'net.spy.memcached.CachedData',
     'net.spy.memcached.internal.OperationFuture',
     'net.spy.memcached.transcoders.Transcoder',
+    // [missing classes] Http Client cache has optional ehcache support
+    'net.sf.ehcache.Ehcache',
+    'net.sf.ehcache.Element',
         // Bouncycastle is an optional dependency for apache directory, cryptacular and opensaml packages. We
         // acknowledge them here instead of adding bouncy castle as a compileOnly dependency
         'org.bouncycastle.asn1.ASN1Encodable',
@@ -292,33 +297,23 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.asn1.x509.PolicyInformation',
         'org.bouncycastle.asn1.x509.SubjectKeyIdentifier',
         'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
-        // 'org.bouncycastle.asn1.x9.DomainParameters',
-        // 'org.bouncycastle.asn1.x9.ECNamedCurveTable',
+        'org.bouncycastle.asn1.x9.DomainParameters',
+        'org.bouncycastle.asn1.x9.ECNamedCurveTable',
         'org.bouncycastle.asn1.x9.X9ECParameters',
         'org.bouncycastle.cert.X509v3CertificateBuilder',
         'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
         'org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils',
         'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
+        'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
         'org.bouncycastle.crypto.BlockCipher',
         'org.bouncycastle.crypto.BufferedBlockCipher',
         'org.bouncycastle.crypto.CipherParameters',
         'org.bouncycastle.crypto.Digest',
+        'org.bouncycastle.crypto.ec.CustomNamedCurves',
         'org.bouncycastle.crypto.PBEParametersGenerator',
         'org.bouncycastle.crypto.StreamCipher',
         // 'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
         // 'org.bouncycastle.crypto.ec.CustomNamedCurves',
-          // TODO
-          'org.apache.http.impl.client.cache.CacheConfig',
-          'org.apache.http.impl.client.cache.CacheConfig$Builder',
-          'org.apache.http.impl.client.cache.CachingHttpClientBuilder',
-          'org.apache.http.impl.client.cache.ManagedHttpCacheStorage',
-          'org.bouncycastle.asn1.x9.DomainParameters',
-          'org.bouncycastle.asn1.x9.ECNamedCurveTable',
-          'org.bouncycastle.crypto.agreement.kdf.ConcatenationKDFGenerator',
-          'org.bouncycastle.crypto.ec.CustomNamedCurves',
-          'org.bouncycastle.jce.ECNamedCurveTable',
-          'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
-
         'org.bouncycastle.crypto.engines.AESEngine',
         'org.bouncycastle.crypto.generators.BCrypt',
         'org.bouncycastle.crypto.generators.OpenSSLPBEParametersGenerator',
@@ -358,8 +353,8 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.jcajce.provider.asymmetric.rsa.KeyPairGeneratorSpi',
         'org.bouncycastle.jcajce.provider.asymmetric.util.EC5Util',
         'org.bouncycastle.jcajce.provider.asymmetric.util.ECUtil',
-        // 'org.bouncycastle.jce.ECNamedCurveTable',
-        // 'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
+        'org.bouncycastle.jce.ECNamedCurveTable',
+        'org.bouncycastle.jce.spec.ECNamedCurveParameterSpec',
         'org.bouncycastle.math.ec.ECFieldElement',
         'org.bouncycastle.math.ec.ECPoint',
         'org.bouncycastle.openssl.jcajce.JcaPEMWriter',

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -65,13 +66,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
+
                 @Override
-                public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
-                        throw new EngineException(shardId, "simulated IO");
+                        listener.onFailure(new EngineException(shardId, "simulated IO"));
                     }
-                    return super.flush(force, waitIfOngoing);
                 }
             });
         }

@@ -16,6 +16,8 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 
 import java.io.IOException;
@@ -88,7 +90,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the provided decoder (could be geo or cartesian)
      */
-    protected abstract static class ShapeValue {
+    protected abstract static class ShapeValue implements ToXContentFragment {
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final CoordinateEncoder encoder;
@@ -179,6 +181,11 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
          */
         public double getX() throws IOException {
             return encoder.decodeX(reader.getCentroidX());
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new IllegalArgumentException("cannot write xcontent for geo_shape doc value");
         }
     }
 

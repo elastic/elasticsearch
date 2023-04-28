@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -459,6 +460,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public void addDocumentFields(Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
         this.documentFields.putAll(docFields);
         this.metaFields.putAll(metaFields);
+    }
+
+    public SearchHit validateDocumentFields(XContentBuilder builder) throws IOException {
+        builder.startObject();
+        for (var field : documentFields.values()) {
+            field.getValidValuesWriter().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        builder.endObject();
+        return this;
     }
 
     /**

@@ -102,7 +102,7 @@ public class SearchTemplateResponse extends ActionResponse implements StatusToXC
         return builder;
     }
 
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
             ChunkedToXContent.wrapAsToXContent(p -> response.innerToXContentChunked(p)).toXContent(builder, params);
         } else {

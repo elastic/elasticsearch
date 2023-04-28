@@ -934,11 +934,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
-        client().admin()
-            .indices()
-            .prepareCreate(INDEX)
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
-            .get();
+        client().admin().indices().prepareCreate(INDEX).setSettings(indexSettings(2, 0)).get();
         ensureGreen();
         AcknowledgedResponse putMappingResponse = client().admin()
             .indices()

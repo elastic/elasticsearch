@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.application.search;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
@@ -43,8 +42,6 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     private static final JsonSchema META_SCHEMA = SCHEMA_FACTORY.getSchema(
         TemplateParamValidator.class.getResourceAsStream("json-schema-draft-07.json")
     );
-    private static final String PROPERTIES_NODE = "properties";
-
     private final JsonSchema jsonSchema;
 
     public TemplateParamValidator(StreamInput in) throws IOException {
@@ -54,8 +51,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     public TemplateParamValidator(String dictionaryContent) throws ValidationException {
         try {
             // Create a new Schema with "properties" node based on the dictionary content
-            final ObjectNode schemaJsonNode = OBJECT_MAPPER.createObjectNode();
-            schemaJsonNode.set(PROPERTIES_NODE, OBJECT_MAPPER.readTree(dictionaryContent));
+            final JsonNode schemaJsonNode = OBJECT_MAPPER.readTree(dictionaryContent);
             validateWithSchema(META_SCHEMA, schemaJsonNode);
 
             this.jsonSchema = SCHEMA_FACTORY.getSchema(schemaJsonNode);
@@ -99,7 +95,7 @@ public class TemplateParamValidator implements ToXContentObject, Writeable {
     }
 
     private String getSchemaPropertiesAsString() {
-        return jsonSchema.getSchemaNode().get(PROPERTIES_NODE).toString();
+        return jsonSchema.getSchemaNode().toString();
     }
 
     @Override

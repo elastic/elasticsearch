@@ -71,8 +71,11 @@ teardown:
                   query_string:
                     query: "{{query_string}}"
             dictionary:
-              query_string:
-                type: string
+              additionalProperties: false
+              required: [ "query_string" ]
+              properties:
+                query_string:
+                  type: string
 
   - match: { result: "created" }
 
@@ -87,28 +90,22 @@ teardown:
       search_application.get:
         name: test-search-application
   - match: { indices: [ "test-index1", "test-index2" ] }
-  - match: {
-      template: {
-        script: {
-          source: {
-            query: {
-              query_string: {
+  - match:
+      template:
+        script:
+          source:
+            query:
+              query_string:
                 query: "{{query_string}}"
-              }
-            }
-          },
-          lang: "mustache",
-          options: {
+          lang: "mustache"
+          options:
             content_type: "application/json;charset=utf-8"
-          }
-        },
-        dictionary: {
-          query_string: {
-            type: string
-          }
-        }
-      }
-    }
+        dictionary:
+          additionalProperties: false
+          required: [ "query_string" ]
+          properties:
+            query_string:
+              type: string
 
 ---
 "Create Search Application with string encoded template script":
@@ -124,8 +121,9 @@ teardown:
                 query_string: "elastic"
               lang: "mustache"
             dictionary:
-              another_query_string:
-                type: "string"
+              properties:
+                another_query_string:
+                  type: "string"
 
   - do:
       search_application.get:
@@ -139,8 +137,9 @@ teardown:
             query_string: "elastic"
           lang: "mustache"
         dictionary:
-          another_query_string:
-            type: "string"
+          properties:
+            another_query_string:
+              type: "string"
 
   - match: { indices: [ "test-index1", "test-index2" ] }
 
@@ -164,23 +163,22 @@ teardown:
         body:
           indices: [ "test-index3", "test-index4" ]
           template: null
+
   - match: { result: "updated" }
 
   - do:
-     search_application.get:
-       name: test-updated-search-application
-  - match: {
-    template: {
-      script: {
-        source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n",
-        params: {
-          query_string: "*",
-          default_field: "*"
-        },
-        lang: "mustache"
-      }
-    }
-  }
+      search_application.get:
+        name: test-updated-search-application
+
+  - match:
+      template:
+        script:
+          source: "{\n  \"query\": {\n    \"query_string\": {\n        \"query\": \"{{query_string}}\",\n        \"default_field\": \"{{default_field}}\"\n        }\n    }\n}\n"
+          lang: "mustache"
+          params:
+            query_string: "*"
+            default_field: "*"
+
   - match: { indices: [ "test-index3", "test-index4" ] }
 
 ---
@@ -198,8 +196,9 @@ teardown:
                   query_string:
                     query: "{{query_string}}"
             dictionary:
-              query_string:
-                type: notValidType
+              properties:
+                query_string:
+                  type: notValidType
 
 ---
 "Create Search Application - Index does not exist":

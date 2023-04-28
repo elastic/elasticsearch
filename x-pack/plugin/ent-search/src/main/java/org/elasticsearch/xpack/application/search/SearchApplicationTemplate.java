@@ -61,6 +61,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         this.script = in.readOptionalWriteable(Script::new);
         this.templateParamValidator = in.readOptionalWriteable(TemplateParamValidator::new);
     }
+
     private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "search_template",
         p -> new SearchApplicationTemplate((Script) p[0], (TemplateParamValidator) p[1])

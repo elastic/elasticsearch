@@ -38,7 +38,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -943,12 +942,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    @SuppressForbidden(reason = "We need to interact with the file system in order to perform auto configuration")
     private void deleteDirectory(Path directory) throws IOException {
         IOUtils.rm(directory);
     }
 
-    @SuppressForbidden(reason = "We need to interact with the file system in order to perform auto configuration")
     private void moveDirectory(Path srcDir, Path dstDir) throws IOException {
         try {
             Files.move(srcDir, dstDir, StandardCopyOption.ATOMIC_MOVE);

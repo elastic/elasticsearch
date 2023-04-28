@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -291,7 +290,6 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return (X509Certificate) httpKeystore.getCertificate("http");
     }
 
-    @SuppressForbidden(reason = "We need to interact with the file system in order to test auto configuration")
     private void deleteDirectory(Path directory) throws IOException {
         IOUtils.rm(directory);
     }

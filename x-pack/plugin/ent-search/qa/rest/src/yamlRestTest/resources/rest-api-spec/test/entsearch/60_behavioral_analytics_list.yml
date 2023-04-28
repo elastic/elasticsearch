@@ -16,7 +16,7 @@ teardown:
 
   - do:
       search_application.delete_behavioral_analytics:
-        name: my-test-analytics-collection
+        name: my-test-analytics-collection2
         ignore: 404
 
 ---

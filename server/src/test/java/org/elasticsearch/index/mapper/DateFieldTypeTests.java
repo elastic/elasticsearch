@@ -169,11 +169,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
         SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
@@ -224,11 +220,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() throws IOException {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
         SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
@@ -297,12 +289,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQueryWithIndexSort() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.sort.field", "field")
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
 
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);

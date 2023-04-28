@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -42,7 +41,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+            .setSettings(indexSettings(numShards, numberOfReplicas))
             .setMapping("loc", "type=geo_point", "test", "type=text")
             .get();
         ensureGreen();

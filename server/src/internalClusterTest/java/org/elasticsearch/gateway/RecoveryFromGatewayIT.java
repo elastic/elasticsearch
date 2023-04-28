@@ -58,7 +58,6 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -194,11 +193,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         );
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards()).put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-            ).setMapping(mapping)
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(numberOfShards(), randomIntBetween(0, 1))).setMapping(mapping));
 
         int value1Docs;
         int value2Docs;
@@ -698,14 +693,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             3,
             Settings.builder().put(ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING.getKey(), "2ms").build()
         );
-        createIndex(
-            "test",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
-                .build()
-        );
+        createIndex("test", indexSettings(1, 0).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms").build());
         ensureGreen("test");
         internalCluster().fullRestart();
         ensureGreen("test");

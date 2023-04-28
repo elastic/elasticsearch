@@ -57,7 +57,6 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
 
                     project.getPluginManager().apply(JacocoPlugin.class);
 
-
                     // support for java 20
                     project.getExtensions().getByType(JacocoPluginExtension.class).setToolVersion("0.8.9");
 

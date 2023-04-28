@@ -820,9 +820,7 @@ public class CoordinationStateTests extends ESTestCase {
         assertTrue(voteCollection.isEmpty());
 
         assertFalse(
-            voteCollection.addVote(
-                new DiscoveryNode("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
-            )
+            voteCollection.addVote(TestDiscoveryNode.create("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
         );
         assertTrue(voteCollection.isEmpty());
 

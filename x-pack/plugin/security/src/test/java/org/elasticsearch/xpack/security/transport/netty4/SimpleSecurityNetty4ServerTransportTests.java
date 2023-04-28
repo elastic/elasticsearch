@@ -168,13 +168,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try {
             connectToNode(
                 serviceA,
-                new DiscoveryNode(
-                    "C",
-                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(),
-                    emptySet(),
-                    Version.CURRENT
-                )
+                TestDiscoveryNode.create("C", new TransportAddress(InetAddress.getByName("localhost"), 9876), emptyMap(), emptySet())
             );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {

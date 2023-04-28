@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -314,13 +315,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
-        final DiscoveryNode newNode = new DiscoveryNode(
-            "newNode",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            Version.CURRENT
-        );
+        final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES);
         final DiscoveryNode oldNode1 = new DiscoveryNode(
             "oldNode1",
             buildNewFakeTransportAddress(),
@@ -431,13 +426,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
-        final DiscoveryNode newNode = new DiscoveryNode(
-            "newNode",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            MASTER_DATA_ROLES,
-            Version.CURRENT
-        );
+        final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES);
         final DiscoveryNode oldNode1 = new DiscoveryNode(
             "oldNode1",
             buildNewFakeTransportAddress(),

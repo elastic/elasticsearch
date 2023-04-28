@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -341,12 +342,11 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         if (currentDataNode) {
             nodes.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "current-data-node-with-transform-disabled",
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)
                 )
             );
         }

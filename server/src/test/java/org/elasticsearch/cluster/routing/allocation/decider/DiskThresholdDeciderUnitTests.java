@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -508,7 +509,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         RoutingNode node = RoutingNodesHelper.routingNode(
             "node1",
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
             test_0,
             test_1.getTargetRelocatingShard(),
             test_2
@@ -543,7 +544,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         node = RoutingNodesHelper.routingNode(
             "node1",
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
             test_0,
             test_1.getTargetRelocatingShard(),
             test_2,
@@ -612,14 +613,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             }
         }
 
-        DiscoveryNode node = new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode anotherNode = new DiscoveryNode(
-            anotherNodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode node = TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode anotherNode = TestDiscoveryNode.create(anotherNodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(

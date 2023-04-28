@@ -37,12 +37,7 @@ public class TestDiscoveryNode {
         return new DiscoveryNode("", id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
-    public static DiscoveryNode create(
-        String id,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles
-    ) {
+    public static DiscoveryNode create(String id, TransportAddress address, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode("", id, address, attributes, roles, null);
     }
 

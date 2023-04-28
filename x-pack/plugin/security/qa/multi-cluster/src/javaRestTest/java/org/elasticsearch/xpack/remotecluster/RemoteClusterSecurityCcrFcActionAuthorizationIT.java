@@ -78,9 +78,7 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
             {
               "role": {
                 "cluster": [
-                  "cross_cluster_search",
-                  "cluster:monitor/state",
-                  "cluster:monitor/xpack/info"
+                  "cross_cluster_replication"
                 ],
                 "index": [
                   {

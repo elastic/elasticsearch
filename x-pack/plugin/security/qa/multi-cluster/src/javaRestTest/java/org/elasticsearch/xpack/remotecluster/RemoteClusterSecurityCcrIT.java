@@ -79,9 +79,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
               "role_descriptors": {
                 "role": {
                   "cluster": [
-                    "cross_cluster_search",
-                    "cluster:monitor/state",
-                    "cluster:monitor/xpack/info"
+                    "cross_cluster_replication"
                   ],
                   "index": [
                     {

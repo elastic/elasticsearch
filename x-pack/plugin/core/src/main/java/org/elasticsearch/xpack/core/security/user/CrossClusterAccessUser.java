@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -25,10 +24,7 @@ public class CrossClusterAccessUser extends User {
 
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
-        new String[] {
-            "cross_cluster_search",
-            // TODO: add a named cluster privilege to cover the CCR cluster actions
-            ClusterStateAction.NAME },
+        new String[] { "cross_cluster_search", "cross_cluster_replication" },
         // Needed for CCR background jobs (with system user)
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()

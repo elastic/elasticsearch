@@ -1047,7 +1047,11 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {
-        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max);
+        return randomRemoteIndicesPrivileges(min, max, Set.of());
+    }
+
+    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
+        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max, excludedPrivileges);
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
             new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
         for (int i = 0; i < remoteIndexPrivileges.length; i++) {

@@ -675,10 +675,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testInvalidateIndicesRequestCacheWhenRollbackEngine() throws Exception {
-        createIndex(
-            "test",
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1).build()
-        );
+        createIndex("test", indexSettings(1, 0).put("index.refresh_interval", -1).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexShard shard = indicesService.getShardOrNull(new ShardId(resolveIndex("test"), 0));
@@ -728,10 +725,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public void testShardChangesWithDefaultDocType() throws Exception {
-        Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.translog.flush_threshold_size", "512mb") // do not flush
+        Settings settings = indexSettings(1, 0).put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
         IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
@@ -760,7 +754,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
      */
     public void testNoOpEngineFactoryTakesPrecedence() {
         final String indexName = "closed-index";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen();
 
         assertAcked(client().admin().indices().prepareClose(indexName));

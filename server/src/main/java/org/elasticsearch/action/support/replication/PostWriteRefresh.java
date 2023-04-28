@@ -17,10 +17,12 @@ import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRe
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
@@ -37,7 +39,8 @@ public class PostWriteRefresh {
         WriteRequest.RefreshPolicy policy,
         IndexShard indexShard,
         @Nullable Translog.Location location,
-        ActionListener<Boolean> listener
+        ActionListener<Boolean> listener,
+        @Nullable TimeValue postWriteRefreshTimeout
     ) {
         switch (policy) {
             case NONE -> listener.onResponse(false);
@@ -45,7 +48,7 @@ public class PostWriteRefresh {
                 @Override
                 public void onResponse(Boolean forced) {
                     if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && location != null) {
-                        refreshUnpromotables(indexShard, location, listener, forced);
+                        refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);
                     }
@@ -60,7 +63,7 @@ public class PostWriteRefresh {
                 @Override
                 public void onResponse(Engine.RefreshResult refreshResult) {
                     if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0) {
-                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener);
+                        sendUnpromotableRequests(indexShard, refreshResult.generation(), true, listener, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(true);
                     }
@@ -102,7 +105,13 @@ public class PostWriteRefresh {
         }
     }
 
-    private void refreshUnpromotables(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener, boolean forced) {
+    private void refreshUnpromotables(
+        IndexShard indexShard,
+        Translog.Location location,
+        ActionListener<Boolean> listener,
+        boolean forced,
+        @Nullable TimeValue postWriteRefreshTimeout
+    ) {
         Engine engineOrNull = indexShard.getEngineOrNull();
         if (engineOrNull == null) {
             listener.onFailure(new AlreadyClosedException("Engine closed during refresh."));
@@ -117,7 +126,7 @@ public class PostWriteRefresh {
                         .getThreadContext()
                         .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
                 ) {
-                    sendUnpromotableRequests(indexShard, generation, forced, listener);
+                    sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
                 }
             }
 
@@ -128,7 +137,13 @@ public class PostWriteRefresh {
         });
     }
 
-    private void sendUnpromotableRequests(IndexShard indexShard, long generation, boolean wasForced, ActionListener<Boolean> listener) {
+    private void sendUnpromotableRequests(
+        IndexShard indexShard,
+        long generation,
+        boolean wasForced,
+        ActionListener<Boolean> listener,
+        @Nullable TimeValue postWriteRefreshTimeout
+    ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
             generation
@@ -137,6 +152,7 @@ public class PostWriteRefresh {
             transportService.getLocalNode(),
             TransportUnpromotableShardRefreshAction.NAME,
             unpromotableReplicaRequest,
+            TransportRequestOptions.timeout(postWriteRefreshTimeout),
             new ActionListenerResponseHandler<>(
                 listener.delegateFailure((l, r) -> l.onResponse(wasForced)),
                 (in) -> ActionResponse.Empty.INSTANCE,

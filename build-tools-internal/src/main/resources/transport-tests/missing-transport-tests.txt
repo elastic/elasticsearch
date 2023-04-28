@@ -665,3 +665,10 @@ org/elasticsearch/xpack/watcher/notification/NotificationService$1
 org/elasticsearch/index/query/functionscore/LinearDecayFunctionBuilder
 org/elasticsearch/action/search/SearchTransportService$SearchFreeContextRequest
 org/elasticsearch/snapshots/SnapshotMissingException
+org/elasticsearch/search/aggregations/metrics/PercentilesConfig$TDigest
+org/elasticsearch/repositories/RepositoryStatsSnapshot
+org/elasticsearch/repositories/RepositoryInfo
+org/elasticsearch/search/sort/MinAndMax
+org/elasticsearch/indices/breaker/CircuitBreakerStats
+org/elasticsearch/xpack/core/security/action/user/GetUserPrivilegesResponse$RemoteIndices
+org/elasticsearch/discovery/DiscoveryStats

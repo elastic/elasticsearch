@@ -873,7 +873,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         transportAddressConnector.reachableNodes.clear();
-        final DiscoveryNode rebootedOtherNode = new DiscoveryNode("rebooted-node", otherNode.getAddress(), Version.CURRENT);
+        final DiscoveryNode rebootedOtherNode = TestDiscoveryNode.create("rebooted-node", otherNode.getAddress());
         transportAddressConnector.addReachableNode(rebootedOtherNode);
 
         connectedNodes.remove(otherNode);

@@ -354,15 +354,13 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testBuildConnectionLookup() {
-        Function<String, DiscoveryNode> localNodes = (nodeId) -> new DiscoveryNode(
+        Function<String, DiscoveryNode> localNodes = (nodeId) -> TestDiscoveryNode.create(
             "local-" + nodeId,
-            new TransportAddress(TransportAddress.META_ADDRESS, 1024),
-            Version.CURRENT
+            new TransportAddress(TransportAddress.META_ADDRESS, 1024)
         );
-        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> new DiscoveryNode(
+        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> TestDiscoveryNode.create(
             "remote-" + nodeId,
-            new TransportAddress(TransportAddress.META_ADDRESS, 2048),
-            Version.CURRENT
+            new TransportAddress(TransportAddress.META_ADDRESS, 2048)
         );
         BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection = (clusterAlias, node) -> new Transport.Connection() {
             @Override

@@ -228,7 +228,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
-                var node = new DiscoveryNode(
+                var node = TestDiscoveryNode.create(
                     "node-" + allNodes.size(),
                     buildNewFakeTransportAddress(),
                     VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
@@ -361,7 +361,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var completed = new AtomicBoolean();
 
         final var localNode = TestDiscoveryNode.create("localNode");
-        final var otherNode = new DiscoveryNode(
+        final var otherNode = TestDiscoveryNode.create(
             "otherNode",
             buildNewFakeTransportAddress(),
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)

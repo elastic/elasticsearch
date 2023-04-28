@@ -150,7 +150,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     public void testLogsFullConnectionFailureAfterSuccessfulHandshake() throws Exception {
 
         final var remoteNodeAddress = buildNewFakeTransportAddress();
-        remoteNode = new DiscoveryNode("remote-node", remoteNodeAddress, Version.CURRENT);
+        remoteNode = TestDiscoveryNode.create("remote-node", remoteNodeAddress);
         remoteClusterName = "local-cluster";
         discoveryAddress = buildNewFakeTransportAddress();
 

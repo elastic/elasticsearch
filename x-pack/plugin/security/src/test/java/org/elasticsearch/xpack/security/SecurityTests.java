@@ -370,7 +370,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode node = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
@@ -397,7 +397,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode node = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT)
@@ -455,7 +455,7 @@ public class SecurityTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
+        DiscoveryNode existingOtherNode = TestDiscoveryNode.create("bar", buildNewFakeTransportAddress(), version);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -469,7 +469,7 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = TestDiscoveryNode.create("foo");
-        DiscoveryNode existingOtherNode = new DiscoveryNode(
+        DiscoveryNode existingOtherNode = TestDiscoveryNode.create(
             "bar",
             buildNewFakeTransportAddress(),
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)

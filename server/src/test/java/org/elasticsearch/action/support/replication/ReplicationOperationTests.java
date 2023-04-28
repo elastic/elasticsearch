@@ -10,7 +10,6 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -202,7 +201,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 exception = new RemoteTransportException("remote", cause);
             } else {
                 TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-                DiscoveryNode node = new DiscoveryNode("replica", address, Version.CURRENT);
+                DiscoveryNode node = TestDiscoveryNode.create("replica", address);
                 cause = new ConnectTransportException(node, "broken");
                 exception = cause;
             }

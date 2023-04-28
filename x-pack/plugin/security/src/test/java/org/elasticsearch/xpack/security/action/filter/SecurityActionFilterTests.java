@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
@@ -97,7 +96,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(TestDiscoveryNode.create("id1"))
-            .add(new DiscoveryNode("id2", buildNewFakeTransportAddress(), Version.CURRENT.minimumCompatibilityVersion()))
+            .add(TestDiscoveryNode.create("id2", buildNewFakeTransportAddress(), Version.CURRENT.minimumCompatibilityVersion()))
             .build();
         when(state.nodes()).thenReturn(nodes);
 

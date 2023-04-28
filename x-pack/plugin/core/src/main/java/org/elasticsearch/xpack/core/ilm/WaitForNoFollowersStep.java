@@ -19,7 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.util.Arrays;
@@ -55,14 +55,11 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
         xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
-        getClient().execute(XPackInfoAction.INSTANCE, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
-            XPackInfoResponse.FeatureSetsInfo featureSetsInfo = xPackInfoResponse.getFeatureSetsInfo();
-            if (featureSetsInfo != null) {
-                XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = featureSetsInfo.getFeatureSets().get(CCR_LEASE_KEY);
-                if (featureSet != null && featureSet.enabled() == false) {
-                    listener.onResponse(true, null);
-                    return;
-                }
+        getClient().execute(XPackInfoFeatureAction.CCR, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
+            XPackInfoResponse.FeatureSetsInfo.FeatureSet featureSet = xPackInfoResponse.getInfo();
+            if (featureSet != null && featureSet.enabled() == false) {
+                listener.onResponse(true, null);
+                return;
             }
             leaderIndexCheck(metadata, index, listener, masterTimeout);
         }, listener::onFailure));

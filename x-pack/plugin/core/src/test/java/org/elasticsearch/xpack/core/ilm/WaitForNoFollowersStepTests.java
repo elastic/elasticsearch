@@ -25,13 +25,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.mockito.Mockito;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep.CCR_LEASE_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -258,16 +257,13 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         Mockito.doAnswer(invocationOnMock -> {
 
             @SuppressWarnings("unchecked")
-            ActionListener<XPackInfoResponse> listener = (ActionListener<XPackInfoResponse>) invocationOnMock.getArguments()[2];
-
-            Set<XPackInfoResponse.FeatureSetsInfo.FeatureSet> featureSets = new HashSet<>();
-            featureSets.add(new XPackInfoResponse.FeatureSetsInfo.FeatureSet("ccr", available, enabled));
-            XPackInfoResponse.FeatureSetsInfo featureInfos = new XPackInfoResponse.FeatureSetsInfo(featureSets);
-            XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
-
-            listener.onResponse(xpackInfo);
+            ActionListener<XPackInfoFeatureResponse> listener = (ActionListener<XPackInfoFeatureResponse>) invocationOnMock
+                .getArguments()[2];
+            var featureSet = new XPackInfoResponse.FeatureSetsInfo.FeatureSet("ccr", available, enabled);
+            XPackInfoFeatureResponse xPackInfoFeatureResponse = new XPackInfoFeatureResponse(featureSet);
+            listener.onResponse(xPackInfoFeatureResponse);
             return null;
-        }).when(client).execute(Mockito.same(XPackInfoAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(client).execute(Mockito.same(XPackInfoFeatureAction.CCR), Mockito.any(), Mockito.any());
     }
 
     private void mockIndexStatsCall(String expectedIndexName, IndexStats indexStats) {

@@ -55,7 +55,7 @@ public final class LongLongHash extends AbstractHash {
     }
 
     /**
-     * Return the second key at {@code 0 &lt;= index &lt;= capacity()}. The
+     * Return the second key at {@code 0 <= index <= capacity()}. The
      * result is undefined if the slot is unused.
      */
     public long getKey2(long id) {

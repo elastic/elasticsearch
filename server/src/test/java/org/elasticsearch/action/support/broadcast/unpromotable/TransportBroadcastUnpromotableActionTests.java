@@ -329,6 +329,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 );
         }
 
+        Mockito.reset(shardStateAction);
         // If we are unable to mark a shard as stale, then the request fails
         Mockito.doAnswer(invocation -> {
             Exception exception = invocation.getArgument(5);

@@ -11,9 +11,11 @@ package org.elasticsearch;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,28 +23,42 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
  * <p>
- * Prior to 8.7.0, the node {@link Version} was used everywhere. This class separates the wire protocol version
- * from the running node version. Each node version has a reference to a specific transport version used by that node.
+ * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version
+ * from the release version.
  * <p>
- * Each transport version constant has an id number, which for versions prior to 8.7.0 is the same as the node version
- * for backwards compatibility.
- * There is also a unique id string. This is not actually used in the protocol, but is there to ensure each protocol version
- * is only added to the source file once. This string needs to be unique (here, a UUID, but can be any other unique nonempty string).
- * If two concurrent PRs added the same protocol version, the unique string causes a git conflict, ensuring the second PR to be merged
- * must be updated with the next free version. Without the unique id string, git will happily merge the two versions together,
- * causing problems when you try to upgrade between those two PRs.
+ * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version
+ * for backwards compatibility. In 8.9.0 this is changed to an incrementing number, disconnected from the release version.
  * <p>
- * When adding new transport versions, it is recommended to leave a gap in the id number (say, 100)
- * to leave space for any intermediate fixes that may be needed in the future.
- * <p>
- * The earliest compatible version is hardcoded at {@link #MINIMUM_COMPATIBLE}. Previously, this was dynamically calculated
+ * Each version constant has a unique id string. This is not actually used in the binary protocol, but is there to ensure
+ * each protocol version is only added to the source file once. This string needs to be unique (normally a UUID,
+ * but can be any other unique nonempty string).
+ * If two concurrent PRs add the same transport version, the different unique ids cause a git conflict, ensuring the second PR to be merged
+ * must be updated with the next free version first. Without the unique id string, git will happily merge the two versions together,
+ * resulting in the same transport version being used across multiple commits,
+ * causing problems when you try to upgrade between those two merged commits.
+ * <h2>Version compatibility</h2>
+ * The earliest compatible version is hardcoded in the {@link #MINIMUM_COMPATIBLE} field. Previously, this was dynamically calculated
  * from the major/minor versions of {@link Version}, but {@code TransportVersion} does not have separate major/minor version numbers.
- * So the minimum compatible version needs to be hard-coded as the transport version of the minimum compatible node version.
- * That variable should be updated appropriately whenever we do a major version release.
+ * So the minimum compatible version is hard-coded as the transport version used by the highest minor release of the previous major version.
+ * {@link #MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
+ * <p>
+ * The earliest CCS compatible version is hardcoded at {@link #MINIMUM_CCS_VERSION}, as the transport version used by the
+ * previous minor release. This should be updated appropriately whenever a minor release happens.
+ * <h2>Adding a new version</h2>
+ * A new transport version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes.
+ * Each transport version should only be used in a single merged commit (apart from BwC versions copied from {@link Version}).
+ * <p>
+ * To add a new transport version, add a new constant at the bottom of the list that is one greater than the current highest version,
+ * ensure it has a unique id, and update the {@link #CURRENT} constant to point to the new version.
+ * <h2>Reverting a transport version</h2>
+ * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version
+ * representing the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
  */
 public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
@@ -138,23 +154,19 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_9_0 = new TransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
-     * Detached transport versions added below here. Starts at ES major version 10 equivalent.
-     */
-    // NOTE: DO NOT UNCOMMENT until all transport code uses TransportVersion
-    // public static final TransportVersion V_10_000_000 = new TransportVersion(10_000_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
-    /*
-     * When adding a new transport version, ensure there is a gap (say, 100) between versions
-     * This is to make it possible to add intermediate versions for any bug fixes that may be required.
-     *
-     * When adding versions for patch fixes, add numbers in the middle of the gap. This is to ensure there is always some space
-     * for patch fixes between any two versions.
+     * Detached transport versions added below here.
      */
 
-    /** Reference to the current transport version */
+    /**
+     * Reference to the most recent transport version.
+     * This should be the transport version with the highest id.
+     */
     public static final TransportVersion CURRENT = V_8_9_0;
 
-    /** Reference to the earliest compatible transport version to this version of the codebase */
-    // TODO: can we programmatically calculate or check this? Don't want to introduce circular ref between Version/TransportVersion
+    /**
+     * Reference to the earliest compatible transport version to this version of the codebase.
+     * This should be the transport version used by the highest minor version of the previous major.
+     */
     public static final TransportVersion MINIMUM_COMPATIBLE = V_7_17_0;
 
     /**
@@ -164,32 +176,78 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion MINIMUM_CCS_VERSION = V_8_7_0;
 
     static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+        Map<Integer, String> versionIdFields = new HashMap<>();
+        Map<String, String> uniqueIdFields = new HashMap<>();
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
-        Map<String, TransportVersion> uniqueIds = new HashMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
+        Pattern bwcVersionField = Pattern.compile("^V_(\\d_\\d{1,2}_\\d{1,2})$");
+        Pattern transportVersionField = Pattern.compile("^V_(\\d+_\\d{3}_\\d{3})$");
+
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
                 if (ignore.contains(fieldName)) {
                     continue;
                 }
+
+                // check the field modifiers
+                if (declaredField.getModifiers() != (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL)) {
+                    assert false : "Version field [" + fieldName + "] should be public static final";
+                    continue;
+                }
+
+                TransportVersion version;
                 try {
-                    TransportVersion version = (TransportVersion) declaredField.get(null);
-
-                    TransportVersion maybePrevious = builder.put(version.id, version);
-                    assert maybePrevious == null
-                        : "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
-
-                    TransportVersion sameUniqueId = uniqueIds.put(version.uniqueId, version);
-                    assert sameUniqueId == null
-                        : "Versions "
-                            + version
-                            + " and "
-                            + sameUniqueId
-                            + " have the same unique id. Each TransportVersion should have a different unique id";
+                    version = (TransportVersion) declaredField.get(null);
                 } catch (IllegalAccessException e) {
-                    assert false : "Version field [" + fieldName + "] should be public";
+                    // should not happen, checked above
+                    throw new AssertionError(e);
+                }
+                builder.put(version.id, version);
+
+                if (Assertions.ENABLED) {
+                    // check the version number is unique
+                    var sameVersionNumber = versionIdFields.put(version.id, fieldName);
+                    assert sameVersionNumber == null
+                        : "Versions ["
+                            + sameVersionNumber
+                            + "] and ["
+                            + fieldName
+                            + "] have the same version number ["
+                            + version.id
+                            + "]. Each TransportVersion should have a different version number";
+
+                    // check the name matches the version number
+                    try {
+                        int fieldNumber;
+                        int idNumber = version.id;
+                        Matcher matcher = bwcVersionField.matcher(fieldName);
+                        if (matcher.matches()) {
+                            // match single digits _\d_ or _\d$ to put a 0 in front, but do not actually capture the _ or $
+                            fieldNumber = Integer.parseInt(matcher.group(1).replaceAll("_(\\d)(?=_|$)", "_0$1").replace("_", ""));
+                            idNumber /= 100;    // remove the extra '99'
+                        } else if ((matcher = transportVersionField.matcher(fieldName)).matches()) {
+                            fieldNumber = Integer.parseInt(matcher.group(1).replace("_", ""));
+                        } else {
+                            assert false : "Version [" + fieldName + "] does not have the correct name format";
+                            continue;
+                        }
+
+                        assert fieldNumber == idNumber : "Version [" + fieldName + "] does not match its version number [" + idNumber + "]";
+                    } catch (NumberFormatException e) {
+                        assert false : "Version [" + fieldName + "] does not have the correct name format";
+                        continue;
+                    }
+
+                    // check the id is unique
+                    var sameUniqueId = uniqueIdFields.put(version.uniqueId, fieldName);
+                    assert sameUniqueId == null
+                        : "Versions ["
+                            + fieldName
+                            + "] and ["
+                            + sameUniqueId
+                            + "] have the same unique id. Each TransportVersion should have a different unique id";
                 }
             }
         }
@@ -197,11 +255,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
         return Collections.unmodifiableNavigableMap(builder);
     }
 
-    private static final NavigableMap<Integer, TransportVersion> VERSION_IDS;
-
-    static {
-        VERSION_IDS = getAllVersionIds(TransportVersion.class);
-    }
+    private static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersion.class);
 
     static Collection<TransportVersion> getAllVersions() {
         return VERSION_IDS.values();

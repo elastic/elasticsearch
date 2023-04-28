@@ -285,7 +285,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
-        Settings.Builder indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        Settings.Builder indexSettings = indexSettings(1, 0);
         if (randomBoolean()) {
             indexSettings.put("index.soft_deletes.enabled", true);
         }

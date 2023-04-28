@@ -22,7 +22,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@ServerlessScope(Scope.PUBLIC)
 public class RestGetScriptLanguageAction extends BaseRestHandler {
 
     @Override

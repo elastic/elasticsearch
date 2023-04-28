@@ -212,13 +212,6 @@ public class CompositeRolesStore {
         final User user = subject.getUser();
         if (User.isInternal(user)) {
             Role r = getInternalUserRole(user);
-            if (r == null) {
-                throw new IllegalArgumentException(
-                    "the user [" + user.principal() + "] is an internal user without a role and we should never try to get its roles"
-                );
-            } else {
-                return r;
-            }
         }
         return null;
     }
@@ -226,7 +219,11 @@ public class CompositeRolesStore {
     // Accessible for testing
     protected Role getInternalUserRole(User user) {
         String name = InternalUsers.getInternalUserName(user);
-        return this.internalUserRoles.get(name);
+        final Role role = this.internalUserRoles.get(name);
+        if (role == null) {
+            throw new IllegalArgumentException("the internal user [" + user.principal() + "] should never have its roles resolved");
+        }
+        return role;
     }
 
     public void buildRoleFromRoleReference(RoleReference roleReference, ActionListener<Role> roleActionListener) {

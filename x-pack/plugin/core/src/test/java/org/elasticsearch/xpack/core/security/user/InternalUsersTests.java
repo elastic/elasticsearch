@@ -21,10 +21,7 @@ public class InternalUsersTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> InternalUsers.getRoleDescriptor(SystemUser.INSTANCE)
         );
-        assertThat(
-            e,
-            throwableWithMessage("the user [_system] is the [_system] internal user and we should never try to get its role descriptors")
-        );
+        assertThat(e, throwableWithMessage("should never try to get the roles for internal user [_system]"));
     }
 
     public void testXPackUser() {
@@ -58,12 +55,13 @@ public class InternalUsersTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> InternalUsers.getRoleDescriptor(CrossClusterAccessUser.INSTANCE)
         );
-        assertThat(
-            e,
-            throwableWithMessage(
-                "the user [_cross_cluster_access] is the [_cross_cluster_access] internal user"
-                    + " and we should never try to get its role descriptors"
-            )
-        );
+        assertThat(e, throwableWithMessage("should never try to get the roles for internal user [_cross_cluster_access]"));
     }
+
+    public void testRegularUser() {
+        var username = randomAlphaOfLengthBetween(4, 12);
+        expectThrows(IllegalStateException.class, () -> InternalUsers.getUser(username));
+        // Can't test other methods because they have an assert that the provided user is internal
+    }
+
 }

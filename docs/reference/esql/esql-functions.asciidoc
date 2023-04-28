@@ -80,9 +80,39 @@ FROM employees
 | SORT year_hired
 ----
 
+[[esql-is_finite]]
+=== `IS_FINITE`
+Returns a boolean that indicates whether its input is a finite number.
+
+[source,esql]
+----
+ROW d = 1.0 
+| EVAL s = IS_FINITE(d/0)
+----
+
+[[esql-is_infinite]]
+=== `IS_INFINITE`
+Returns a boolean that indicates whether its input is infinite.
+
+[source,esql]
+----
+ROW d = 1.0 
+| EVAL s = IS_INFINITE(d/0)
+----
+
+[[esql-is_nan]]
+=== `IS_NAN`
+Returns a boolean that indicates whether its input is not a number.
+
+[source,esql]
+----
+ROW d = 1.0 
+| EVAL s = IS_NAN(d)
+----
+
 [[esql-is_null]]
 === `IS_NULL`
-Returns a boolean than indicates whether its input is `null`.  
+Returns a boolean than indicates whether its input is `null`.
 
 [source,esql]
 ----
@@ -107,6 +137,17 @@ Returns the character length of a string.
 FROM employees
 | PROJECT first_name, last_name, height
 | EVAL fn_length = LENGTH(first_name)
+----
+
+[[esql-pow]]
+=== `POW`
+Returns the the value of a base (first argument) raised to a power (second 
+argument).
+
+[source,esql]
+----
+ROW base = 2.0, exponent = 2.0 
+| EVAL s = POW(base, exponent)
 ----
 
 [[esql-round]]

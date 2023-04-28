@@ -62,12 +62,9 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             }
         };
 
-        final MasterService masterService = new FakeThreadPoolMasterService(
-            "test",
-            "masterService",
-            threadPool,
-            r -> { fail("master service should not run any tasks"); }
-        );
+        final MasterService masterService = new FakeThreadPoolMasterService("test", threadPool, r -> {
+            fail("master service should not run any tasks");
+        });
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
 
@@ -105,6 +102,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             setFlagOnSuccess(becameMaster2)
         );
         runUntilFlag(deterministicTaskQueue, becameMaster2);
+        deterministicTaskQueue.runAllRunnableTasks();
 
         for (int i = 0; i < 3; i++) {
             final int initialRequestCount = client.requestCount;

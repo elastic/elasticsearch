@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -56,7 +57,7 @@ public class RolloverStep extends AsyncActionStep {
         IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
             if (dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {

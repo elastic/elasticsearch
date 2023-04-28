@@ -722,7 +722,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                     shardId,
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                    ShardRouting.Role.DEFAULT
                 );
             }
 

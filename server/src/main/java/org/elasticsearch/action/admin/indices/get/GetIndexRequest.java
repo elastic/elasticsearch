@@ -14,12 +14,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -160,5 +164,10 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         out.writeArray((o, f) -> o.writeByte(f.id), features);
         out.writeBoolean(humanReadable);
         out.writeBoolean(includeDefaults);
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 }

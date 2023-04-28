@@ -67,7 +67,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
-        return clusterService.operationRouting()
+        ShardIterator iterator = clusterService.operationRouting()
             .getShards(
                 clusterService.state(),
                 request.concreteIndex(),
@@ -75,6 +75,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.request().routing(),
                 request.request().preference()
             );
+        return clusterService.operationRouting().useOnlyPromotableShardsForStateless(iterator);
     }
 
     @Override
@@ -116,7 +117,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.realtime(),
                 request.version(),
                 request.versionType(),
-                request.fetchSourceContext()
+                request.fetchSourceContext(),
+                request.isForceSyntheticSource()
             );
         return new GetResponse(result);
     }

@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -72,20 +72,20 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
     @Override
     protected EmptyResult readShardResult(final StreamInput in) {
-        return EmptyResult.readEmptyResultFrom(in);
+        return EmptyResult.INSTANCE;
     }
 
     @Override
-    protected BroadcastResponse newResponse(
-        final ForgetFollowerAction.Request request,
-        final int totalShards,
-        final int successfulShards,
-        final int failedShards,
-        List<EmptyResult> emptyResults,
-        final List<DefaultShardOperationFailedException> shardFailures,
-        final ClusterState clusterState
+    protected ResponseFactory<BroadcastResponse, EmptyResult> getResponseFactory(
+        ForgetFollowerAction.Request request,
+        ClusterState clusterState
     ) {
-        return new BroadcastResponse(totalShards, successfulShards, failedShards, shardFailures);
+        return (totalShards, successfulShards, failedShards, emptyResults, shardFailures) -> new BroadcastResponse(
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -111,7 +111,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
 
         final IndexShard indexShard = indicesService.indexServiceSafe(leaderIndex).getShard(shardRouting.shardId().id());
 
-        indexShard.acquirePrimaryOperationPermit(new ActionListener.Delegating<>(listener) {
+        indexShard.acquirePrimaryOperationPermit(new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(Releasable releasable) {
                 try {
@@ -133,7 +133,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
                     onFailure(e);
                 }
             }
-        }, ThreadPool.Names.SAME, request);
+        }, ThreadPool.Names.SAME);
     }
 
     @Override

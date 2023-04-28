@@ -53,6 +53,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -318,7 +319,8 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
             new Sort(sortField)
         );
-        assertEquals(numDocs, topDocs.totalHits.value);
+
+        assertThat(topDocs.totalHits.value, lessThanOrEqualTo((long) numDocs));
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");

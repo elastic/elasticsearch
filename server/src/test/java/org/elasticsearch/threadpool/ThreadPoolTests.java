@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +26,8 @@ import java.util.concurrent.ExecutorService;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
+import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -327,5 +330,22 @@ public class ThreadPoolTests extends ESTestCase {
         } finally {
             assertTrue(terminate(threadPool));
         }
+    }
+
+    public void testGetMaxSnapshotCores() {
+        int allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(400)),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(749)),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(750)), equalTo(10));
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
     }
 }

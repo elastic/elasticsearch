@@ -25,4 +25,9 @@ public class StatsRequestTests extends AbstractWireSerializingTestCase<FollowSta
         }
         return statsRequest;
     }
+
+    @Override
+    protected FollowStatsAction.StatsRequest mutateInstance(FollowStatsAction.StatsRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

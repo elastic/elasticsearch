@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
@@ -27,13 +28,14 @@ import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
-import org.elasticsearch.plugins.PluginType;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,6 +72,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
         compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(RemoteClusterServerInfo.class), readNodeInfo.getInfo(RemoteClusterServerInfo.class));
         compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
         compareJsonOutput(nodeInfo.getInfo(ProcessInfo.class), readNodeInfo.getInfo(ProcessInfo.class));
         compareJsonOutput(nodeInfo.getSettings(), readNodeInfo.getSettings());
@@ -112,7 +115,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         OsInfo osInfo = null;
         if (randomBoolean()) {
             int availableProcessors = randomIntBetween(1, 64);
-            int allocatedProcessors = randomIntBetween(1, availableProcessors);
+            Processors allocatedProcessors = Processors.of((double) randomIntBetween(1, availableProcessors));
             long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
             String name = randomAlphaOfLengthBetween(3, 10);
             String arch = randomAlphaOfLengthBetween(3, 10);
@@ -140,6 +143,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomNonNegativeLong());
+        RemoteClusterServerInfo remoteClusterServerInfo = randomBoolean() ? null : new RemoteClusterServerInfo(dummyBoundTransportAddress);
 
         PluginsAndModules pluginsAndModules = null;
         if (randomBoolean()) {
@@ -157,8 +161,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
@@ -177,8 +181,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
@@ -222,10 +226,11 @@ public class NodeInfoStreamingTests extends ESTestCase {
         ByteSizeValue indexingBuffer = null;
         if (randomBoolean()) {
             // pick a random long that sometimes exceeds an int:
-            indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L << 40) - 1));
+            indexingBuffer = ByteSizeValue.ofBytes(random().nextLong() & ((1L << 40) - 1));
         }
         return new NodeInfo(
             VersionUtils.randomVersion(random()),
+            TransportVersionUtils.randomVersion(random()),
             build,
             node,
             settings,
@@ -235,6 +240,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             threadPoolInfo,
             transport,
             httpInfo,
+            remoteClusterServerInfo,
             pluginsAndModules,
             ingestInfo,
             aggregationInfo,

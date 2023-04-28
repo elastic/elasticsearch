@@ -21,6 +21,8 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
@@ -29,6 +31,7 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestNodeAttrsAction extends AbstractCatAction {
 
     @Override

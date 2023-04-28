@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
-  testImplementation(xpackProject('plugin:sql:qa:jdbc'))
+  testImplementation(project(':x-pack:plugin:sql:qa:jdbc'))
   // We use the shadowjar for testing since that's the actual artifact we deliver to users
   testCompileOnly project(path: xpackModule('sql:jdbc'), configuration: 'shadow')
 }

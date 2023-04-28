@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 
@@ -18,6 +20,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalLong;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -121,13 +124,15 @@ public interface BlobContainer {
     /**
      * Write a blob by providing a consumer that will write its contents to an output stream. This method allows serializing a blob's
      * contents directly to the blob store without having to materialize the serialized version in full before writing.
+     * This method is only used for streaming serialization of repository metadata that is known to be of limited size
+     * at any point in time and across all concurrent invocations of this method.
      *
      * @param blobName            the name of the blob to write
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      * @param atomic              whether the write should be atomic in case the implementation supports it
      * @param writer              consumer for an output stream that will write the blob contents to the stream
      */
-    void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+    void writeMetadataBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
         throws IOException;
 
     /**
@@ -191,4 +196,43 @@ public interface BlobContainer {
      * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException;
+
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
+     *
+     * @param key      key of the value to update
+     * @param expected the expected value
+     * @param updated  the new value
+     * @param listener a listener, completed with the value read from the register (before it was updated) or {@code OptionalLong#empty}
+     *                 if the value could not be read due to concurrent activity.
+     */
+    void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener);
+
+    /**
+     * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
+     * Keys not yet used start at initial value 0.
+     *
+     * @param key      key of the value to update
+     * @param expected the expected value
+     * @param updated  the new value
+     * @param listener a listener which is completed with {@link Boolean#TRUE} if successful, {@link Boolean#FALSE} if the expected value
+     *                 did not match the updated value
+     */
+    default void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+        compareAndExchangeRegister(key, expected, updated, listener.map(witness -> witness.isPresent() && witness.getAsLong() == expected));
+    }
+
+    /**
+     * Gets the value set by {@link #compareAndSetRegister(String, long, long, ActionListener)} for a given key.
+     * If a key has not yet been used, the initial value is 0.
+     *
+     * @param key      key of the value to get
+     * @param listener a listener, completed with the value read from the register or {@code null} if the value could not be read due to
+     *                 concurrent activity.
+     */
+    default void getRegister(String key, ActionListener<OptionalLong> listener) {
+        compareAndExchangeRegister(key, 0, 0, listener);
+    }
+
 }

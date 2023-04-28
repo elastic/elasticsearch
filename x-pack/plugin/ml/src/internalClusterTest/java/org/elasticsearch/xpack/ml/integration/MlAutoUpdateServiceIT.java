@@ -80,7 +80,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            listener -> datafeedConfigProvider.getDatafeedConfig("farequote-datafeed-with-old-agg", listener),
+            listener -> datafeedConfigProvider.getDatafeedConfig("farequote-datafeed-with-old-agg", null, listener),
             getConfigHolder,
             exceptionHolder
         );

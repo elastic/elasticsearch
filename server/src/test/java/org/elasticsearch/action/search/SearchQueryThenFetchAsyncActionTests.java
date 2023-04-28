@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -183,7 +182,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -271,7 +270,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard = routingNewVersionShard.initialize(newVersionNode.getId(), "p0", 0);
         routingNewVersionShard.started();
@@ -281,7 +281,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 1),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p1", 0);
         routingOldVersionShard.started();
@@ -312,7 +313,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -369,7 +370,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard = routingNewVersionShard.initialize(newVersionNode.getId(), "p0", 0);
         routingNewVersionShard.started();
@@ -379,7 +381,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 1),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p1", 0);
         routingOldVersionShard.started();
@@ -453,7 +456,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -511,7 +514,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 0),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard1 = routingNewVersionShard1.initialize(newVersionNode1.getId(), "p0", 0);
         routingNewVersionShard1.started();
@@ -521,7 +525,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 1),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         routingNewVersionShard2 = routingNewVersionShard2.initialize(newVersionNode2.getId(), "p1", 0);
         routingNewVersionShard2.started();
@@ -595,7 +600,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
-            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
@@ -621,7 +626,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new ShardId(new Index("idx", "_na_"), 2),
             true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+            ShardRouting.Role.DEFAULT
         );
         SearchShardIterator shardIt = new SearchShardIterator(
             null,

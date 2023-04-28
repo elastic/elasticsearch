@@ -162,7 +162,7 @@ RUN yes no | dpkg-reconfigure dash && \\
       "      ${package_manager} update && \n" +
       "      ${package_manager} upgrade -y && \n" +
       "      ${package_manager} install -y --no-install-recommends \n" +
-      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "        ca-certificates curl netcat p11-kit unzip zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
       "      ${package_manager} clean && \n" +
       "      rm -rf /var/lib/apt/lists/*"
   ) %>
@@ -289,7 +289,7 @@ ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 CMD ["eswrapper"]
 <% } %>
 
-USER elasticsearch:root
+USER 1000:0
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1

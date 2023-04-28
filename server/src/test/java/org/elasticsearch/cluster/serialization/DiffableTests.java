@@ -149,7 +149,7 @@ public class DiffableTests extends ESTestCase {
      * @param <T> map type
      * @param <V> value type
      */
-    public abstract class MapDriver<T, V> {
+    public abstract class MapDriver<T extends Map<Integer, V>, V> {
         protected final Set<Integer> keys = randomPositiveIntSet();
         protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);

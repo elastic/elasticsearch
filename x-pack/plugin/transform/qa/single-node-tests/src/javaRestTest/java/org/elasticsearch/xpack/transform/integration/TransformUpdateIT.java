@@ -14,10 +14,10 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -70,9 +70,9 @@ public class TransformUpdateIT extends TransformRestTestCase {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
         setupDataAccessRole(DATA_ACCESS_ROLE_2, REVIEWS_INDEX_NAME);
 
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_user", DATA_ACCESS_ROLE));
-        setupUser(TEST_ADMIN_USER_NAME_1, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
-        setupUser(TEST_ADMIN_USER_NAME_2, Arrays.asList("transform_admin", DATA_ACCESS_ROLE_2));
+        setupUser(TEST_USER_NAME, List.of("transform_user", DATA_ACCESS_ROLE));
+        setupUser(TEST_ADMIN_USER_NAME_1, List.of("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_ADMIN_USER_NAME_2, List.of("transform_admin", DATA_ACCESS_ROLE_2));
         setupUser(TEST_ADMIN_USER_NAME_NO_DATA, List.of("transform_admin"));
         createReviewsIndex();
     }
@@ -88,7 +88,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -113,16 +113,13 @@ public class TransformUpdateIT extends TransformRestTestCase {
                 },
                 "max_page_search_size": 555
               }
-            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
+            }""", transformDest, REVIEWS_INDEX_NAME);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
-        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(1, XContentMapValues.extractValue("count", transforms));
-        Map<String, Object> transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms)).get(0);
+
+        Map<String, Object> transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
         assertThat(XContentMapValues.extractValue("pivot.max_page_search_size", transform), equalTo(555));
 
         final Request updateRequest = createRequestWithAuth(
@@ -137,10 +134,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", updateResponse));
         assertThat(XContentMapValues.extractValue("settings.max_page_search_size", updateResponse), equalTo(555));
 
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
-        transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(1, XContentMapValues.extractValue("count", transforms));
-        transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms)).get(0);
+        transform = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_USER);
 
         assertNull(XContentMapValues.extractValue("pivot.max_page_search_size", transform));
         assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(555));
@@ -182,7 +176,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
             )
             : createRequestWithAuth("PUT", getTransformEndpoint() + transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
 
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -206,15 +200,15 @@ public class TransformUpdateIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
+            }""", transformDest, REVIEWS_INDEX_NAME);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
-        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+
+        Map<String, Object> transformConfig = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
+        // Confirm the roles were recorded as expected in the stored headers
+        assertThat(transformConfig.get("authorization"), equalTo(Map.of("roles", List.of("transform_admin", DATA_ACCESS_ROLE_2))));
 
         // create a 2nd, identical one
         createTransformRequest_2.setJsonEntity(config);
@@ -227,16 +221,14 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
         // getting the transform with the just deleted admin 2 user should fail
         try {
-            client().performRequest(getRequest);
+            getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
             fail("request should have failed");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         }
 
         // get the transform with admin 1
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
-        transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        transformConfig = getTransformConfig(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
 
         // start using admin 1, but as the header is still admin 2
         // This fails as the stored header is still admin 2
@@ -274,9 +266,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertOK(client().performRequest(updateRequest));
 
         // get should still work
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
-        transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        getTransformConfig(transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
 
         // start with updated configuration should succeed
         if (useSecondaryAuthHeaders) {

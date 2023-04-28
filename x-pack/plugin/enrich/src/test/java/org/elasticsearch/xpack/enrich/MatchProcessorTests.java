@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -51,8 +52,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.co")
         );
@@ -106,8 +107,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
@@ -153,8 +154,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", "elastic.com")
         );
@@ -201,7 +202,7 @@ public class MatchProcessorTests extends ESTestCase {
                 "domain",
                 1
             );
-            IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
+            IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
 
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(5));
             IngestDocument[] holder = new IngestDocument[1];
@@ -222,7 +223,7 @@ public class MatchProcessorTests extends ESTestCase {
                 "domain",
                 1
             );
-            IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
+            IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of());
             IngestDocument[] resultHolder = new IngestDocument[1];
             Exception[] exceptionHolder = new Exception[1];
             processor.execute(ingestDocument, (result, e) -> {
@@ -250,7 +251,7 @@ public class MatchProcessorTests extends ESTestCase {
             1
         );
 
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")), Map.of());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(new HashMap<>(Map.of("domain", "elastic.co", "tld", "tld")));
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {
@@ -280,7 +281,7 @@ public class MatchProcessorTests extends ESTestCase {
         Map<String, Object> source = new HashMap<>();
         source.put("domain", "elastic.co");
         source.put("tld", null);
-        IngestDocument ingestDocument = new IngestDocument(source, Map.of());
+        IngestDocument ingestDocument = TestIngestDocument.withDefaultVersion(source);
         IngestDocument[] resultHolder = new IngestDocument[1];
         Exception[] exceptionHolder = new Exception[1];
         processor.execute(ingestDocument, (result, e) -> {
@@ -306,7 +307,7 @@ public class MatchProcessorTests extends ESTestCase {
             "domain",
             1
         );
-        IngestDocument ingestDocument = new IngestDocument("_index", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of("domain", 2));
+        IngestDocument ingestDocument = new IngestDocument("_index", "_id", 1L, "_routing", VersionType.INTERNAL, Map.of("domain", 2));
 
         // Execute
         IngestDocument[] holder = new IngestDocument[1];
@@ -346,8 +347,8 @@ public class MatchProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(
             "_index",
             "_id",
-            "_routing",
             1L,
+            "_routing",
             VersionType.INTERNAL,
             Map.of("domain", List.of("1", "2"))
         );

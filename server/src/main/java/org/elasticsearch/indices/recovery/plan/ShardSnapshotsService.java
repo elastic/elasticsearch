@@ -75,7 +75,7 @@ public class ShardSnapshotsService {
     }
 
     public void fetchLatestSnapshotsForShard(ShardId shardId, ActionListener<Optional<ShardSnapshot>> listener) {
-        assert shardId != null : "SharId was null but a value was expected";
+        assert shardId != null : "ShardId was null but a value was expected";
 
         final RepositoriesMetadata currentReposMetadata = clusterService.state()
             .metadata()
@@ -104,24 +104,30 @@ public class ShardSnapshotsService {
         client.execute(
             GetShardSnapshotAction.INSTANCE,
             request,
-            new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(this::fetchSnapshotFiles), false)
+            new ThreadedActionListener<>(
+                threadPool.generic(),
+                listener.map(shardSnapshotResponse -> fetchSnapshotFiles(shardId, shardSnapshotResponse))
+            )
         );
     }
 
-    private Optional<ShardSnapshot> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+    private Optional<ShardSnapshot> fetchSnapshotFiles(ShardId shardId, GetShardSnapshotResponse shardSnapshotResponse) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         final Optional<ShardSnapshotInfo> latestShardSnapshotOpt = shardSnapshotResponse.getLatestShardSnapshot();
         if (latestShardSnapshotOpt.isEmpty()) {
+            logger.debug("{} no latest shard snapshot found", shardId);
             return Optional.empty();
         }
 
         final ShardSnapshotInfo latestShardSnapshot = latestShardSnapshotOpt.get();
         try {
             final Snapshot snapshot = latestShardSnapshot.getSnapshot();
+            logger.debug("{} considering recovery from [{}][{}]", shardId, snapshot.getRepository(), snapshot.getSnapshotId());
 
             final Repository repository = repositoriesService.repository(snapshot.getRepository());
             if (repository instanceof BlobStoreRepository == false) {
+                logger.debug("{} not recovering from snapshot in non-blobstore repository [{}]", shardId, snapshot.getRepository());
                 return Optional.empty();
             }
 

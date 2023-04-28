@@ -1,0 +1,140 @@
+[[prevalidate-node-removal-api]]
+=== Prevalidate node removal API
+++++
+<titleabbrev>Prevalidate node removal</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Prevalidate node removal.
+
+[[prevalidate-node-removal-api-request]]
+==== {api-request-title}
+
+`POST /_internal/prevalidate_node_removal`
+
+[[prevalidate-node-removal-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[prevalidate-node-removal-api-desc]]
+==== {api-description-title}
+
+This API checks whether attempting to remove the specified node(s) from the cluster is likely to succeed or not. For a cluster with no unassigned shards, removal of any node is considered safe which means the removal of the nodes is likely to succeed.
+
+In case the cluster has a <<cluster-health,`red` cluster health status>>, it verifies that the removal of the node(s) would not risk removing the last remaining copy of an unassigned shard. If there are red indices in the cluster, the API checks whether the red indices are <<searchable-snapshots, Searchable Snapshot>> indices, and if not, it sends a request to each of nodes specified in the API call to verify whether the nodes might contain local shard copies of the red indices that are not Searchable Snapshot indices. This request is processed on each receiving node, by checking whether the node has a shard directory for any of the red index shards.
+
+The response includes the overall safety of the removal of the specified nodes, and a detailed response for each node. The node-specific part of the response also includes more details on why removal of that node might not succeed.
+
+Note that only one of the query parameters (`names`, `ids`, or `external_ids`) must be used to specify the set of nodes.
+
+Note that if the prevalidation result for a set of nodes returns `true` (i.e. it is likely to succeed), this does not mean that all those nodes could be successfully removed at once, but rather removal of each individual node would potentially be successful. The actual node removal could be handled via the <<node-lifecycle-api,Node lifecycle API>>.
+
+[[prevalidate-node-removal-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+`names`::
+(Optional, string) Comma-separated list of node names.
+
+`ids`::
+(Optional, string) Comma-separated list of node IDs.
+
+`external_ids`::
+(Optional, string) Comma-separated list of node external IDs.
+
+[[prevalidate-node-removal-api-response-body]]
+==== {api-response-body-title}
+
+`is_safe`::
+    (boolean) Whether the removal of all the provided nodes is safe or not.
+
+`message`::
+    (string) A message providing more detail on why the operation is considered safe or not.
+
+`nodes`::
+    (object) Prevalidation result for the removal of each of the provided nodes.
++
+.Properties of `nodes`
+[%collapsible%open]
+====
+`<node>`::
+    (object) Contains information about the removal prevalidation of a specific node.
++
+.Properties of `<node>`
+[%collapsible%open]
+=======
+`id`::
+    (string) node ID
+`name`::
+    (string) node name
+`external_id`::
+    (string) node external ID
+`result`::
+    (object) Contains removal prevalidation result of the node.
++
+.Properties of `result`
+[%collapsible%open]
+========
+`is_safe`::
+    (boolean) Whether the removal of the node is considered safe or not.
+`reason`::
+    (string) A string that specifies the reason why the prevalidation result is considered safe or not. It can be one of the following values:
++
+--
+    * `no_problems`: The prevalidation did not find any issues that could prevent the node from being safely removed.
+    * `no_red_shards_except_searchable_snapshots`: The node can be safely removed as all red indices are searchable snapshot indices and therefore removing a node does not risk removing the last copy of that index from the cluster.
+    * `no_red_shards_on_node`: The node does not contain any copies of the red non-searchable-snapshot index shards.
+    * `red_shards_on_node`: The node might contain shard copies of some non-searchable-snapshot red indices. The list of the shards that might be on the node are specified in the `message` field.
+    * `unable_to_verify_red_shards`: Contacting the node failed or timed out. More details is provided in the `message` field.
+--
+`message`::
+    (Optional, string) Detailed information about the removal prevalidation result.
+========
+=======
+====
+
+[[prevalidate-node-removal-api-example]]
+==== {api-examples-title}
+
+This example validates whether it is safe to remove the nodes `node1` and `node2`. The response indicates that it is safe to remove `node1`, but it might not be safe to remove `node2` as it might contain copies of the specified red shards. Therefore, the overall prevalidation of the removal of the two nodes returns `false`.
+
+[source,console]
+--------------------------------------------------
+POST /_internal/prevalidate_node_removal?names=node1,node2
+--------------------------------------------------
+// TEST[skip:doc tests run with only a single node]
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "is_safe": false,
+  "message": "removal of the following nodes might not be safe: [node2-id]",
+  "nodes": [
+    {
+      "id": "node1-id",
+      "name" : "node1",
+      "external_id" : "node1-externalId",
+      "result" : {
+        "is_safe": true,
+        "reason": "no_red_shards_on_node",
+        "message": ""
+      }
+    },
+    {
+      "id": "node2-id",
+      "name" : "node2",
+      "external_id" : "node2-externalId",
+      "result" : {
+        "is_safe": false,
+        "reason": "red_shards_on_node",
+        "message": "node contains copies of the following red shards: [[indexName][0]]"
+      }
+    }
+  ]
+}
+--------------------------------------------------

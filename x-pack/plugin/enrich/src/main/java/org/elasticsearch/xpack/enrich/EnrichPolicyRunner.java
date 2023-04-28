@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -61,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -85,7 +85,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final ClusterService clusterService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LongSupplier nowSupplier;
+    private final String enrichIndexName;
     private final int fetchSize;
     private final int maxForceMergeAttempts;
 
@@ -97,7 +97,7 @@ public class EnrichPolicyRunner implements Runnable {
         ClusterService clusterService,
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        LongSupplier nowSupplier,
+        String enrichIndexName,
         int fetchSize,
         int maxForceMergeAttempts
     ) {
@@ -108,7 +108,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = wrapClient(client, policyName, task, clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        this.nowSupplier = Objects.requireNonNull(nowSupplier);
+        this.enrichIndexName = enrichIndexName;
         this.fetchSize = fetchSize;
         this.maxForceMergeAttempts = maxForceMergeAttempts;
     }
@@ -262,7 +262,7 @@ public class EnrichPolicyRunner implements Runnable {
         List<Map<String, String>> matchFieldMappings = mappings.stream()
             .map(map -> ObjectPath.<Map<String, String>>eval(matchFieldPath, map))
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
 
         Set<String> types = matchFieldMappings.stream().map(map -> map.get("type")).collect(Collectors.toSet());
         if (types.size() == 1) {
@@ -371,8 +371,6 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
-        long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = EnrichPolicy.getIndexName(policyName, nowTimestamp);
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -423,7 +421,7 @@ public class EnrichPolicyRunner implements Runnable {
         reindexRequest.getDestination().routing("discard");
         reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
 
-        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new ActionListener.Delegating<>(listener) {
+        client.execute(EnrichReindexAction.INSTANCE, reindexRequest, new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
@@ -510,7 +508,7 @@ public class EnrichPolicyRunner implements Runnable {
     protected void ensureSingleSegment(final String destinationIndexName, final int attempt) {
         enrichOriginClient().admin()
             .indices()
-            .segments(new IndicesSegmentsRequest(destinationIndexName), new ActionListener.Delegating<>(listener) {
+            .segments(new IndicesSegmentsRequest(destinationIndexName), new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(IndicesSegmentResponse indicesSegmentResponse) {
                     IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(destinationIndexName);

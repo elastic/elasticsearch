@@ -117,7 +117,7 @@ public class RelocationIT extends ESIntegTestCase {
         final String node_1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate("test", indexSettings(1, 0)).get();
 
         logger.info("--> index 10 docs");
         for (int i = 0; i < 10; i++) {
@@ -180,7 +180,7 @@ public class RelocationIT extends ESIntegTestCase {
         nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
-        prepareCreate("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", numberOfReplicas)).get();
+        prepareCreate("test", indexSettings(1, numberOfReplicas)).get();
 
         for (int i = 2; i <= numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i);
@@ -295,10 +295,7 @@ public class RelocationIT extends ESIntegTestCase {
         prepareCreate(
             "test",
             // set refresh_interval because we want to control refreshes
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", numberOfReplicas)
-                .put("index.refresh_interval", -1)
+            indexSettings(1, numberOfReplicas).put("index.refresh_interval", -1)
         ).get();
 
         for (int i = 1; i < numberOfNodes; i++) {
@@ -401,10 +398,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         final String p_node = internalCluster().startNode();
 
-        prepareCreate(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
 
         internalCluster().startNode();
         internalCluster().startNode();
@@ -431,24 +425,11 @@ public class RelocationIT extends ESIntegTestCase {
                 );
             }
         }
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .get();
-
+        setReplicaCount(1, indexName);
         corruptionCount.await();
 
         logger.info("--> stopping replica assignment");
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                )
-        );
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
         assertBusy(() -> {
@@ -535,12 +516,10 @@ public class RelocationIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
 
         logger.info(" --> moving index to new nodes");
-        Settings build = Settings.builder()
-            .put("index.routing.allocation.exclude.color", "red")
-            .put("index.routing.allocation.include.color", "blue")
-            .build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).execute().actionGet();
-
+        updateIndexSettings(
+            Settings.builder().put("index.routing.allocation.exclude.color", "red").put("index.routing.allocation.include.color", "blue"),
+            "test"
+        );
         // index while relocating
         logger.info(" --> indexing [{}] more docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
@@ -573,9 +552,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> creating test index ...");
         prepareCreate(
             "test",
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
+            indexSettings(1, 0)
                 // we want to control refreshes
                 .put("index.refresh_interval", -1)
         ).get();
@@ -632,7 +609,7 @@ public class RelocationIT extends ESIntegTestCase {
         prepareCreate(
             "test",
             // we want to control refreshes
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).put("index.refresh_interval", -1)
+            indexSettings(1, 0).put("index.refresh_interval", -1)
         ).get();
 
         logger.info("--> index 10 docs");
@@ -725,11 +702,7 @@ public class RelocationIT extends ESIntegTestCase {
         ensureGreen("test");
         assertBusy(() -> assertAllShardsOnNodes(indexName, blueNodes));
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.include.color", "red"))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include.color", "red"), indexName);
         assertBusy(() -> assertAllShardsOnNodes(indexName, redNodes));
         ensureGreen("test");
         assertActiveCopiesEstablishedPeerRecoveryRetentionLeases();

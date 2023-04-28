@@ -124,7 +124,9 @@ public abstract class AggregationBuilder
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
         if (rewritten != this) {
-            return rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
+            return getMetadata() == null
+                ? rewritten.subAggregations(rewrittenSubAggs)
+                : rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
         } else if (rewrittenSubAggs != factoriesBuilder) {
             return shallowCopy(rewrittenSubAggs, getMetadata());
         } else {

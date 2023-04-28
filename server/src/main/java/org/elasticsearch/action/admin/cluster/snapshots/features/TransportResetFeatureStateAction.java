@@ -73,11 +73,11 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
 
         final int features = systemIndices.getFeatures().size();
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> groupedActionListener = new GroupedActionListener<>(
+            systemIndices.getFeatures().size(),
             listener.map(responses -> {
                 assert features == responses.size();
                 return new ResetFeatureStateResponse(new ArrayList<>(responses));
-            }),
-            systemIndices.getFeatures().size()
+            })
         );
 
         for (SystemIndices.Feature feature : systemIndices.getFeatures()) {

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
@@ -27,7 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1066,14 +1066,7 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(indexSettings)
-            .build();
-        IndexMetadata metadata = IndexMetadata.builder(name).settings(build).build();
-        return metadata;
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0).put(indexSettings)).build();
     }
 
     public void testKeyPattern() {
@@ -1173,7 +1166,7 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testOverlappingComplexMatchSettings() {
-        Set<Setting<?>> settings = new LinkedHashSet<>(2);
+        Set<Setting<?>> settings = Sets.newLinkedHashSetWithExpectedSize(2);
         final boolean groupFirst = randomBoolean();
         final Setting<?> groupSetting = Setting.groupSetting("foo.", Property.NodeScope);
         final Setting<?> listSetting = Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Property.NodeScope);

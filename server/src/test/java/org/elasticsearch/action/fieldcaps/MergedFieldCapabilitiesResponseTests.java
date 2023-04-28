@@ -8,15 +8,11 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTestCase<FieldCapabilitiesResponse> {
+public class MergedFieldCapabilitiesResponseTests extends AbstractChunkedSerializingTestCase<FieldCapabilitiesResponse> {
 
     @Override
     protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
@@ -103,11 +99,6 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
 
     public void testToXContent() throws IOException {
         FieldCapabilitiesResponse response = createSimpleResponse();
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-        String generatedResponse = BytesReference.bytes(builder).utf8ToString();
         assertEquals("""
             {
               "indices": [ "index1", "index2", "index3", "index4" ],
@@ -155,7 +146,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                   }
                 }
               ]
-            }""".replaceAll("\\s+", ""), generatedResponse);
+            }""".replaceAll("\\s+", ""), Strings.toString(response));
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
@@ -175,7 +166,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                 true,
                 false,
                 false,
-                TimeSeriesParams.MetricType.counter,
+                TimeSeriesParams.MetricType.COUNTER,
                 new String[] { "index1", "index2" },
                 null,
                 new String[] { "index1" },
@@ -211,5 +202,14 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
         );
         return new FieldCapabilitiesResponse(new String[] { "index1", "index2", "index3", "index4" }, responses, failureMap);
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            FieldCapabilitiesResponseTests.createResponseWithFailures(),
+            instance -> instance.getFailures().isEmpty() ? 2 : (3 + instance.get().size() + instance.getFailures().size())
+        );
+
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> 2 + instance.get().size());
     }
 }

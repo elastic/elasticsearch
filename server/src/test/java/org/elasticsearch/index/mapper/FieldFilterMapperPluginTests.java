@@ -20,7 +20,6 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
@@ -43,7 +42,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(FieldFilterPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(FieldFilterPlugin.class);
     }
 
     @Before
@@ -189,7 +188,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         Map<String, Object> addressProperties = (Map<String, Object>) address.get("properties");
         assertNotNull(addressProperties);
         assertEquals(1, addressProperties.size());
-        assertLeafs(addressProperties, "area_visible");
+        assertLeafs(addressProperties, "location_visible");
 
         Map<String, Object> properties = (Map<String, Object>) typeProperties.get("properties");
         assertNotNull(properties);
@@ -234,7 +233,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         Map<String, Object> addressProperties = (Map<String, Object>) address.get("properties");
         assertNotNull(addressProperties);
         assertEquals(3, addressProperties.size());
-        assertLeafs(addressProperties, "street", "location", "area_visible");
+        assertLeafs(addressProperties, "street", "location", "location_visible");
 
         Map<String, Object> properties = (Map<String, Object>) typeProperties.get("properties");
         assertNotNull(properties);
@@ -262,7 +261,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         "age_visible",
         "address.street",
         "address.location",
-        "address.area_visible",
+        "address.location_visible",
         "properties.key_visible",
         "properties.key_visible.keyword",
         "properties.value",
@@ -274,7 +273,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     private static final Collection<String> FILTERED_FLAT_FIELDS = Arrays.asList(
         "name.last_visible",
         "age_visible",
-        "address.area_visible",
+        "address.location_visible",
         "properties.key_visible",
         "properties.value.keyword_visible"
     );
@@ -314,8 +313,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
                     "location": {
                       "type": "geo_point"
                     },
-                    "area_visible": {
-                      "type": "geo_shape"
+                    "location_visible": {
+                      "type": "geo_point"
                     }
                   }
                 },

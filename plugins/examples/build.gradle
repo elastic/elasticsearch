@@ -29,6 +29,14 @@ subprojects {
         }
       }
     }
+    if (gradle.includedBuilds.isEmpty()) {
+      maven {
+        url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
+        mavenContent {
+          includeModule 'org.elasticsearch', 'elasticsearch'
+        }
+      }
+    }
 
     // Same for Lucene, add the snapshot repo based on the currently used Lucene version
     def luceneVersion = VersionProperties.getLucene()

@@ -236,14 +236,9 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                  * any.
                  */
                 Map<String, Object> runtimeFields = emptyMap();
-                final SearchExecutionContext context = indexService.newSearchExecutionContext(
-                    shardId.id(),
-                    0,
-                    searcher,
-                    () -> { throw new UnsupportedOperationException(); },
-                    null,
-                    runtimeFields
-                );
+                final SearchExecutionContext context = indexService.newSearchExecutionContext(shardId.id(), 0, searcher, () -> {
+                    throw new UnsupportedOperationException();
+                }, null, runtimeFields);
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
@@ -269,7 +264,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             }
                             return context.getFieldType(field);
                         });
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), Map.of(), Map.of());
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
                         hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                         hits[j] = hit;
                     }

@@ -43,15 +43,19 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,7 +74,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.GroupPrincipal;
@@ -86,6 +89,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -124,6 +128,7 @@ public class InstallPluginActionTests extends ESTestCase {
     private MockTerminal terminal;
     private Tuple<Path, Environment> env;
     private Path pluginDir;
+    private NamedComponentScanner namedComponentScanner;
 
     private final boolean isPosix;
     private final boolean isReal;
@@ -131,6 +136,8 @@ public class InstallPluginActionTests extends ESTestCase {
 
     @SuppressForbidden(reason = "sets java.io.tmpdir")
     public InstallPluginActionTests(FileSystem fs, Function<String, Path> temp) {
+        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
+
         this.temp = temp;
         this.isPosix = fs.supportedFileAttributeViews().contains("posix");
         this.isReal = fs == PathUtils.getDefaultFileSystem();
@@ -152,6 +159,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 // no jarhell check
             }
         };
+
         defaultAction = new InstallPluginAction(terminal, env.v2(), false);
     }
 
@@ -199,7 +207,9 @@ public class InstallPluginActionTests extends ESTestCase {
         return configuration.toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
     }
 
-    /** Creates a test environment with bin, config and plugins directories. */
+    /**
+     * Creates a test environment with bin, config and plugins directories.
+     */
     static Tuple<Path, Environment> createEnv(Function<String, Path> temp) throws IOException {
         Path home = temp.apply("install-plugin-command-tests");
         Files.createDirectories(home.resolve("bin"));
@@ -216,7 +226,9 @@ public class InstallPluginActionTests extends ESTestCase {
         return temp.apply("pluginDir");
     }
 
-    /** creates a fake jar file with empty class files */
+    /**
+     * creates a fake jar file with empty class files
+     */
     static void writeJar(Path jar, String... classes) throws IOException {
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(jar))) {
             for (String clazz : classes) {
@@ -237,13 +249,47 @@ public class InstallPluginActionTests extends ESTestCase {
         return zip;
     }
 
-    /** creates a plugin .zip and returns the url for testing */
+    /**
+     * creates a plugin .zip and returns the url for testing
+     */
     static InstallablePlugin createPluginZip(String name, Path structure, String... additionalProps) throws IOException {
         return createPlugin(name, structure, additionalProps);
     }
 
+    static void writeStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
+        throws IOException {
+        String[] properties = pluginProperties(name, additionalProps, true);
+        PluginTestUtil.writeStablePluginProperties(structure, properties);
+
+        if (hasNamedComponentFile) {
+            PluginTestUtil.writeNamedComponentsFile(structure, namedComponentsJSON());
+        }
+        Path jar = structure.resolve("plugin.jar");
+
+        JarUtils.createJarWithEntries(jar, Map.of("p/A.class", InMemoryJavaCompiler.compile("p.A", """
+            package p;
+            import org.elasticsearch.plugin.*;
+            import org.elasticsearch.plugins.cli.test_model.*;
+            @NamedComponent("a_component")
+            public class A implements ExtensibleInterface{}
+            """), "p/B.class", InMemoryJavaCompiler.compile("p.B", """
+            package p;
+            import org.elasticsearch.plugin.*;
+            import org.elasticsearch.plugins.cli.test_model.*;
+            @NamedComponent("b_component")
+            public class B implements ExtensibleInterface{}
+            """)));
+    }
+
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
-        String[] properties = Stream.concat(
+        String[] properties = pluginProperties(name, additionalProps, false);
+        PluginTestUtil.writePluginProperties(structure, properties);
+        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
+        writeJar(structure.resolve("plugin.jar"), className);
+    }
+
+    private static String[] pluginProperties(String name, String[] additionalProps, boolean isStable) {
+        return Stream.of(
             Stream.of(
                 "description",
                 "fake desc",
@@ -254,15 +300,12 @@ public class InstallPluginActionTests extends ESTestCase {
                 "elasticsearch.version",
                 Version.CURRENT.toString(),
                 "java.version",
-                System.getProperty("java.specification.version"),
-                "classname",
-                "FakePlugin"
+                System.getProperty("java.specification.version")
+
             ),
+            isStable ? Stream.empty() : Stream.of("classname", "FakePlugin"),
             Arrays.stream(additionalProps)
-        ).toArray(String[]::new);
-        PluginTestUtil.writePluginProperties(structure, properties);
-        String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
-        writeJar(structure.resolve("plugin.jar"), className);
+        ).flatMap(Function.identity()).toArray(String[]::new);
     }
 
     static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
@@ -274,6 +317,12 @@ public class InstallPluginActionTests extends ESTestCase {
         }
         securityPolicyContent.append("\n};\n");
         Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
+        throws IOException {
+        writeStablePlugin(name, structure, hasNamedComponentFile, additionalProps);
+        return new InstallablePlugin(name, writeZip(structure, null).toUri().toURL().toString());
     }
 
     static InstallablePlugin createPlugin(String name, Path structure, String... additionalProps) throws IOException {
@@ -308,6 +357,11 @@ public class InstallPluginActionTests extends ESTestCase {
         assertPluginInternal(name, environment.pluginsFile(), original);
         assertConfigAndBin(name, original, environment);
         assertInstallCleaned(environment);
+    }
+
+    void assertNamedComponentFile(String name, Path pluginDir, String expectedContent) throws IOException {
+        Path namedComponents = pluginDir.resolve(name).resolve(PluginDescriptor.NAMED_COMPONENTS_FILENAME);
+        assertThat(Files.readString(namedComponents), equalTo(expectedContent));
     }
 
     void assertPluginInternal(String name, Path pluginsFile, Path originalPlugin) throws IOException {
@@ -506,8 +560,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final Path removing = env.v2().pluginsFile().resolve(".removing-failed");
         Files.createDirectory(removing);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip));
-        final String expected = String.format(
-            Locale.ROOT,
+        final String expected = Strings.format(
             "found file [%s] from a failed attempt to remove the plugin [failed]; execute [elasticsearch-plugin remove failed]",
             removing
         );
@@ -770,13 +823,13 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testMissingDescriptor() throws Exception {
         Files.createFile(pluginDir.resolve("fake.yml"));
         String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip));
-        assertThat(e.getMessage(), containsString("plugin-descriptor.properties"));
+        var e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip));
+        assertThat(e.getMessage(), containsString("missing a descriptor properties file"));
         assertInstallCleaned(env.v2());
     }
 
     public void testContainsIntermediateDirectory() throws Exception {
-        Files.createFile(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES));
+        Files.createFile(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME));
         String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
@@ -1503,9 +1556,47 @@ public class InstallPluginActionTests extends ESTestCase {
      * instead simply print a message to the terminal.
      */
     public void testInstallMigratedPlugins() throws Exception {
-        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3", "ingest-attachment")) {
             installPlugin(id);
             assertThat(terminal.getErrorOutput(), containsString("[" + id + "] is no longer a plugin"));
         }
+    }
+
+    public void testStablePluginWithNamedComponentsFile() throws Exception {
+        InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, true);
+        installPlugins(List.of(stablePluginZip), env.v1());
+        assertPlugin("stable1", pluginDir, env.v2());
+        assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStablePluginWithoutNamedComponentsFile() throws Exception {
+        // named component will have to be generated upon install
+        InstallablePlugin stablePluginZip = createStablePlugin("stable1", pluginDir, false);
+
+        installPlugins(List.of(stablePluginZip), env.v1());
+
+        assertPlugin("stable1", pluginDir, env.v2());
+        assertNamedComponentFile("stable1", env.v2().pluginsFile(), namedComponentsJSON());
+    }
+
+    private Map<String, Map<String, String>> namedComponentsMap() {
+        Map<String, Map<String, String>> result = new LinkedHashMap<>();
+        Map<String, String> extensibles = new LinkedHashMap<>();
+        extensibles.put("a_component", "p.A");
+        extensibles.put("b_component", "p.B");
+        result.put("org.elasticsearch.plugins.cli.test_model.ExtensibleInterface", extensibles);
+        return result;
+    }
+
+    private static String namedComponentsJSON() {
+        return """
+            {
+              "org.elasticsearch.plugins.cli.test_model.ExtensibleInterface": {
+                "a_component": "p.A",
+                "b_component": "p.B"
+              }
+            }
+            """.replaceAll("[\n\r\s]", "");
     }
 }

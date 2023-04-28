@@ -263,6 +263,40 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {}, terms -> { assertTrue(terms.getBuckets().isEmpty()); });
     }
 
+    public void testOnePoint() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
+            .subAggregation(lineAggregationBuilder);
+        double lon = GeoEncodingUtils.decodeLongitude(randomInt());
+        double lat = GeoEncodingUtils.decodeLatitude(randomInt());
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new LatLonDocValuesField("value_field", lat, lon),
+                    new SortedNumericDocValuesField("sort_field", NumericUtils.doubleToSortableLong(randomDouble())),
+                    new SortedDocValuesField("group_id", new BytesRef("groupOrd"))
+                )
+            );
+        }, terms -> {
+            assertEquals(1, terms.getBuckets().size());
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertNotNull(geoLine);
+            Map<String, Object> geojson = geoLine.geoJSONGeometry();
+            assertEquals("Point", geojson.get("type"));
+            assertTrue(geojson.get("coordinates") instanceof double[]);
+            double[] coordinates = (double[]) geojson.get("coordinates");
+            assertEquals(2, coordinates.length);
+            assertEquals(lon, coordinates[0], 1e-6);
+            assertEquals(lat, coordinates[1], 1e-6);
+        });
+    }
+
     private void testAggregator(SortOrder sortOrder) throws IOException {
         int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
@@ -289,13 +323,19 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 int encodedLon = GeoEncodingUtils.encodeLongitude(point.getLon());
                 long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
                 points[i] = lonLat;
-                sortValues[i] = SortOrder.ASC.equals(sortOrder) ? i : numPoints - i;
+                sortValues[i] = i;
             }
             int lineSize = Math.min(numPoints, size);
             // re-sort line to be ascending
             long[] linePoints = Arrays.copyOf(points, lineSize);
             double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
-            new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
+            // When we combine sort DESC with limit (size less than number of points), we actually truncate off the beginning of the data
+            if (lineSize < points.length && sortOrder == SortOrder.DESC) {
+                int offset = points.length - lineSize;
+                System.arraycopy(points, offset, linePoints, 0, lineSize);
+                System.arraycopy(sortValues, offset, lineSorts, 0, lineSize);
+            }
+            new PathArraySorter(linePoints, lineSorts, sortOrder).sort();
 
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name", linePoints, lineSorts, null, complete, true, sortOrder, size));
 
@@ -377,14 +417,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             MappedFieldType groupFieldType = new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap());
             MappedFieldType fieldType2 = new NumberFieldMapper.NumberFieldType("sort_field", fieldNumberType);
 
-            Terms terms = searchAndReduce(
-                indexSearcher,
-                new MatchAllDocsQuery(),
-                aggregationBuilder,
-                fieldType,
-                fieldType2,
-                groupFieldType
-            );
+            Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType, fieldType2, groupFieldType));
             verify.accept(terms);
         } finally {
             indexReader.close();

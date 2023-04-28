@@ -247,13 +247,15 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (IndexMetadata index : previousMetadata.indices().values()) {
-            IndexMetadata current = currentMetadata.index(index.getIndex());
-            if (current == null) {
-                if (deleted == null) {
-                    deleted = new HashSet<>();
+        if (currentMetadata.indices() != previousMetadata.indices()) {
+            for (IndexMetadata index : previousMetadata.indices().values()) {
+                IndexMetadata current = currentMetadata.index(index.getIndex());
+                if (current == null) {
+                    if (deleted == null) {
+                        deleted = new HashSet<>();
+                    }
+                    deleted.add(index.getIndex());
                 }
-                deleted.add(index.getIndex());
             }
         }
 

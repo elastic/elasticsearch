@@ -12,6 +12,7 @@ import com.unboundid.util.Base64;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -197,7 +198,7 @@ public class InferenceDefinitionTests extends ESTestCase {
     }
 
     public static String getClassificationDefinition(boolean customPreprocessor) {
-        return """
+        return Strings.format("""
             {
                 "preprocessors": [
                     {
@@ -327,6 +328,6 @@ public class InferenceDefinitionTests extends ESTestCase {
                         ]
                     }
                 }
-            }""".formatted(customPreprocessor);
+            }""", customPreprocessor);
     }
 }

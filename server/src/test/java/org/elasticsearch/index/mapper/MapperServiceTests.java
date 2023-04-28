@@ -8,8 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -68,6 +70,13 @@ public class MapperServiceTests extends MapperServiceTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(mapperService, mapping(b -> b.startObject("newfield").field("type", "long").endObject()))
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
+
+        // adding one more runtime field should trigger exception
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, runtimeMapping(b -> b.startObject("newfield").field("type", "long").endObject()))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [" + totalFieldsLimit + "] has been exceeded"));
     }
@@ -273,12 +282,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         {
             IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            Settings settings = Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 1)
-                .put("index.version.created", Version.CURRENT)
-                .build();
-            builder.settings(settings);
+            builder.settings(indexSettings(Version.CURRENT, 1, 0));
 
             // Text fields are not stored by default, so an incoming update that is identical but
             // just has `stored:false` should not require an update
@@ -289,12 +293,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         {
             IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            Settings settings = Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", 1)
-                .put("index.version.created", Version.CURRENT)
-                .build();
-            builder.settings(settings);
+            builder.settings(indexSettings(Version.CURRENT, 1, 0));
 
             // However, an update that really does need a rebuild will throw an exception
             builder.putMapping("""
@@ -353,4 +352,68 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertFalse(mapperService.isMultiField("object.subfield1"));
     }
 
+    public void testMergeObjectSubfieldWhileParsing() throws IOException {
+        /*
+        If we are parsing mappings that hold the definition of the same field twice, the two are merged together. This can happen when
+        mappings have the same field specified using the object notation as well as the dot notation, as well as when applying index
+        templates, in which case the two definitions may come from separate index templates that end up in the same map (through
+        XContentHelper#mergeDefaults, see MetadataCreateIndexService#parseV1Mappings).
+        We had a bug (https://github.com/elastic/elasticsearch/issues/88573) triggered by this scenario that caused the merged leaf fields
+        to get the wrong path (missing the first portion).
+         */
+        MapperService mapperService = createMapperService("""
+            {
+              "_doc": {
+                "properties": {
+                  "obj": {
+                    "properties": {
+                      "sub": {
+                        "properties": {
+                          "string": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "obj.sub.string" : {
+                    "type" : "keyword"
+                  }
+                }
+              }
+            }
+            """);
+
+        assertNotNull(mapperService.mappingLookup().getMapper("obj.sub.string"));
+        MappedFieldType fieldType = mapperService.mappingLookup().getFieldType("obj.sub.string");
+        assertNotNull(fieldType);
+        assertEquals("""
+            {
+              "_doc" : {
+                "properties" : {
+                  "obj" : {
+                    "properties" : {
+                      "sub" : {
+                        "properties" : {
+                          "string" : {
+                            "type" : "keyword"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""", Strings.toString(mapperService.documentMapper().mapping(), true, true));
+
+        // check that with the resulting mappings a new document has the previously merged field indexed properly
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("""
+            {
+              "obj.sub.string" : "value"
+            }"""));
+
+        assertNull(parsedDocument.dynamicMappingsUpdate());
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields("obj.sub.string");
+        assertEquals(1, fields.size());
+    }
 }

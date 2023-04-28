@@ -32,7 +32,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     CloseIndexResponse(StreamInput in) throws IOException {
         super(in, true);
-        indices = List.copyOf(in.readList(IndexResult::new));
+        indices = in.readImmutableList(IndexResult::new);
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {

@@ -4,16 +4,14 @@
 <titleabbrev>Geoshape</titleabbrev>
 ++++
 
-Filter documents indexed using the `geo_shape` or `geo_point` type.
+Filter documents indexed using either the <<geo-shape,`geo_shape`>> or the
+<<geo-point,`geo_point`>> type.
 
-Requires the <<geo-shape,`geo_shape` mapping>> or the
-<<geo-point,`geo_point` mapping>>.
-
-The `geo_shape` query uses the same grid square representation as the
-`geo_shape` mapping to find documents that have a shape that is related
-to the query shape, using a specified spatial relationship: either intersects,
+The `geo_shape` query uses the same <<geoshape-indexing-approach, index>> as
+the `geo_shape` or `geo_point` mapping to find documents that have a shape that
+is related to the query shape, using a specified
+<<geo-shape-spatial-relations, spatial relationship>>: either intersects,
 contained, within or disjoint.
-It will also use the same Prefix Tree configuration as defined for the field mapping.
 
 The query supports two ways of defining the query shape, either by
 providing a whole shape definition, or by referencing the name of a shape
@@ -21,7 +19,7 @@ pre-indexed in another index. Both formats are defined below with
 examples.
 
 
-==== Inline Shape Definition
+==== Inline shape definition
 
 Similar to the `geo_point` type, the `geo_shape` query uses
 http://geojson.org[GeoJSON] to represent shapes.
@@ -169,7 +167,7 @@ GET /example_points/_search
 // TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 
 
-==== Pre-Indexed Shape
+==== Pre-indexed shape
 
 The query also supports using a shape which has already been indexed in another
 index. This is particularly useful for when you have a pre-defined list of
@@ -229,7 +227,8 @@ GET /example/_search
 --------------------------------------------------
 
 
-==== Spatial Relations
+[[geo-shape-spatial-relations]]
+==== Spatial relations
 
 The following is a complete list of spatial relation operators available when
 searching a geo field:
@@ -244,7 +243,7 @@ geometry. Line geometries are not supported.
 geometry.
 
 [discrete]
-==== Ignore Unmapped
+==== Ignore unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
 and will not match any documents for this query. This can be useful when

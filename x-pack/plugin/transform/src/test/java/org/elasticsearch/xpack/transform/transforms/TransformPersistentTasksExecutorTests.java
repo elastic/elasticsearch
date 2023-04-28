@@ -32,9 +32,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -236,7 +237,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
             routingTable.add(
@@ -261,12 +263,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
+            indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0));
             metadata.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
@@ -274,10 +271,11 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            shardRouting = shardRouting.moveToStarted();
+            shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             routingTable.add(
                 IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
             );
@@ -433,7 +431,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         return csBuilder.build();
     }
 
-    public TransformPersistentTasksExecutor buildTaskExecutor() {
+    private TransformPersistentTasksExecutor buildTaskExecutor() {
         ClusterService clusterService = mock(ClusterService.class);
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
@@ -443,10 +441,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             client,
             xContentRegistry()
         );
+        Clock clock = Clock.systemUTC();
+        ThreadPool threadPool = mock(ThreadPool.class);
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
-            Clock.systemUTC(),
+            clock,
             Settings.EMPTY,
-            new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null,
+                (TaskManager) null
+            ),
             transformsConfigManager,
             mockAuditor
         );
@@ -454,7 +459,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformsConfigManager,
             transformCheckpointService,
             mockAuditor,
-            mock(SchedulerEngine.class)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
@@ -464,7 +469,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         return new TransformPersistentTasksExecutor(
             client,
             transformServices,
-            mock(ThreadPool.class),
+            threadPool,
             clusterService,
             Settings.EMPTY,
             TestIndexNameExpressionResolver.newInstance()

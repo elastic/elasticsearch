@@ -12,9 +12,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -68,11 +68,11 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Unknown join name
-        MapperException exc = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException exc = expectThrows(
+            DocumentParsingException.class,
             () -> docMapper.parse(source(b -> b.field("join_field", "unknown")))
         );
-        assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
+        assertThat(exc.getCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 
     public void testParentIdSpecifiedAsNumber() throws Exception {
@@ -119,18 +119,18 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Doc child missing parent
-        MapperParsingException exc = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException exc = expectThrows(
+            DocumentParsingException.class,
             () -> docMapper.parse(source("2", b -> b.field("join_field", "child"), "1"))
         );
-        assertThat(exc.getRootCause().getMessage(), containsString("[parent] is missing for join field [join_field]"));
+        assertThat(exc.getCause().getMessage(), containsString("[parent] is missing for join field [join_field]"));
 
         // Doc child missing routing
         exc = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> docMapper.parse(source(b -> b.startObject("join_field").field("name", "child").field("parent", "1").endObject()))
         );
-        assertThat(exc.getRootCause().getMessage(), containsString("[routing] is missing for join field [join_field]"));
+        assertThat(exc.getCause().getMessage(), containsString("[routing] is missing for join field [join_field]"));
 
         // Doc grand_child
         doc = docMapper.parse(
@@ -141,7 +141,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
 
         // Unknown join name
         exc = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> docMapper.parse(
                 new SourceToParse(
                     "1",
@@ -150,7 +150,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 )
             )
         );
-        assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
+        assertThat(exc.getCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 
     public void testUpdateRelations() throws Exception {

@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -282,14 +283,14 @@ public class DockerTests extends PackagingTestCase {
             for (boolean useConfigFile : List.of(true, false)) {
                 mockServer.clearExpectations();
 
-                final String config = """
+                final String config = String.format(Locale.ROOT, """
                     plugins:
                         # This is the new plugin to install. We don't use an official plugin because then Elasticsearch
                         # will attempt an SSL connection and that just makes everything more complicated.
                       - id: my-plugin
                         location: http://example.com/my-plugin.zip
                     %s
-                    """.formatted(useConfigFile ? "proxy: mockserver:" + mockServer.getPort() : "");
+                    """, useConfigFile ? "proxy: mockserver:" + mockServer.getPort() : "");
 
                 final String filename = "elasticsearch-plugins.yml";
                 final Path pluginsConfigPath = tempDir.resolve(filename);
@@ -1097,6 +1098,23 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Ensure that it is possible to apply CLI options when running the image.
+     */
+    public void test171AdditionalCliOptionsAreForwarded() throws Exception {
+        assumeTrue(
+            "Does not apply to Cloud images, because they don't use the default entrypoint",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+        );
+
+        runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        final JsonNode node = getJson("/", "elastic", PASSWORD, ServerUtils.getCaCert(installation));
+
+        assertThat(node.get("cluster_name").textValue(), equalTo("kimchy"));
+    }
+
+    /**
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
@@ -1193,7 +1211,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that readiness listener works
      */
-    public void testReadiness001() throws Exception {
+    public void test500Readiness() throws Exception {
         assertFalse(readinessProbe(9399));
         // Disabling security so we wait for green
         installation = runContainer(
@@ -1202,5 +1220,22 @@ public class DockerTests extends PackagingTestCase {
         );
         waitForElasticsearch(installation);
         assertTrue(readinessProbe(9399));
+    }
+
+    public void test600Interrupt() {
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+        final Result containerLogs = getContainerLogs();
+
+        assertThat("Container logs should contain starting ...", containerLogs.stdout(), containsString("starting ..."));
+
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
+        final int maxPid = infos.stream().map(i -> i.pid()).max(Integer::compareTo).get();
+
+        sh.run("bash -c 'kill -int " + maxPid + "'"); // send ctrl+c to all java processes
+        final Result containerLogsAfter = getContainerLogs();
+
+        assertThat("Container logs should contain stopping ...", containerLogsAfter.stdout(), containsString("stopping ..."));
+        assertThat("No errors stdout", containerLogsAfter.stdout(), not(containsString("java.security.AccessControlException:")));
+        assertThat("No errors stderr", containerLogsAfter.stderr(), not(containsString("java.security.AccessControlException:")));
     }
 }

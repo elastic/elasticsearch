@@ -9,14 +9,16 @@ your application to {es} ${majorDotMinor}.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 <% if (isElasticsearchSnapshot) { %>
-coming::[${version}]
+coming::[${majorDotMinorDotRevision}]
 <% } %>
 
 [discrete]
 [[breaking-changes-${majorDotMinor}]]
 === Breaking changes
 <% if (breakingByNotabilityByArea.isEmpty()) { %>
+// tag::notable-breaking-changes[]
 There are no breaking changes in {es} ${majorDotMinor}.
+// end::notable-breaking-changes[]
 <% } else { %>
 The following changes in {es} ${majorDotMinor} might affect your applications
 and prevent them from operating normally.
@@ -24,6 +26,12 @@ Before upgrading to ${majorDotMinor}, review these changes and take the describe
 to mitigate the impact.
 
 <%
+    if (breakingByNotabilityByArea.getOrDefault(true, []).isEmpty()) { %>
+// tag::notable-breaking-changes[]
+There are no notable breaking changes in {es} ${majorDotMinor}.
+// end::notable-breaking-changes[]
+But there are some less critical breaking changes.
+<%  }
     [true, false].each { isNotable ->
         def breakingByArea = breakingByNotabilityByArea.getOrDefault(isNotable, [])
         if (breakingByArea.isEmpty() == false) {
@@ -70,7 +78,7 @@ if (deprecationsByNotabilityByArea.isEmpty() == false) { %>
 The following functionality has been deprecated in {es} ${majorDotMinor}
 and will be removed in a future version.
 While this won't have an immediate impact on your applications,
-we strongly encourage you take the described steps to update your code
+we strongly encourage you to take the described steps to update your code
 after upgrading to ${majorDotMinor}.
 
 To find out if you are using any deprecated functionality,

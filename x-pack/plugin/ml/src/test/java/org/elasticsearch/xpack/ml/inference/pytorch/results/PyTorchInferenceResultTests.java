@@ -30,8 +30,6 @@ public class PyTorchInferenceResultTests extends AbstractXContentTestCase<PyTorc
     }
 
     public static PyTorchInferenceResult createRandom() {
-        String id = randomAlphaOfLength(6);
-
         int rows = randomIntBetween(1, 10);
         int columns = randomIntBetween(1, 10);
         int depth = randomIntBetween(1, 10);
@@ -43,6 +41,6 @@ public class PyTorchInferenceResultTests extends AbstractXContentTestCase<PyTorc
                 }
             }
         }
-        return new PyTorchInferenceResult(id, arr, randomLong());
+        return new PyTorchInferenceResult(arr);
     }
 }

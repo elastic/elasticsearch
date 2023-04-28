@@ -46,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -690,17 +691,13 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                             .entry("delegate", "FilterByFilterAggregator")
                             .entry(
                                 "delegate_debug",
-                                matchesMap().entry("segments_with_deleted_docs", 0)
+                                matchesMap().entry("segments_with_deleted_docs", greaterThanOrEqualTo(0))
                                     .entry("segments_with_doc_count_field", 0)
                                     .entry("segments_counted", 0)
                                     .entry("segments_collected", greaterThan(0))
                                     .entry(
                                         "filters",
-                                        matchesList().item(
-                                            matchesMap().entry("query", "*:*")
-                                                .entry("segments_counted_in_constant_time", 0)
-                                                .entry("specialized_for", "match_all")
-                                        )
+                                        matchesList().item(matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0))
                                     )
                             )
                     )
@@ -709,12 +706,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDateHistogramFilterByFilterDisabled() throws InterruptedException, IOException {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false))
-        );
+        updateClusterSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false));
         try {
             assertAcked(
                 client().admin()
@@ -786,12 +778,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()))
-            );
+            updateClusterSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()));
         }
     }
 }

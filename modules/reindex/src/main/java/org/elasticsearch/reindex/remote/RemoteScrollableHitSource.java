@@ -33,9 +33,9 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -192,7 +192,10 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             // EMPTY is safe here because we don't call namedObject
                             try (
                                 XContentParser xContentParser = xContentType.xContent()
-                                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)
+                                    .createParser(
+                                        XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                                        content
+                                    )
                             ) {
                                 parsedResponse = parser.apply(xContentParser, xContentType);
                             } catch (XContentParseException e) {

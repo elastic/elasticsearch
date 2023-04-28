@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
@@ -208,15 +207,10 @@ public class AnalyticsProcessManager {
         } catch (Exception e) {
             if (task.isStopping()) {
                 // Errors during task stopping are expected but we still want to log them just in case.
-                String errorMsg = new ParameterizedMessage(
-                    "[{}] Error while processing data [{}]; task is stopping",
-                    config.getId(),
-                    e.getMessage()
-                ).getFormattedMessage();
+                String errorMsg = format("[%s] Error while processing data [%s]; task is stopping", config.getId(), e.getMessage());
                 LOGGER.debug(errorMsg, e);
             } else {
-                String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
-                    .getFormattedMessage();
+                String errorMsg = format("[%s] Error while processing data [%s]", config.getId(), e.getMessage());
                 LOGGER.error(errorMsg, e);
                 processContext.setFailureReason(errorMsg);
             }
@@ -365,8 +359,7 @@ public class AnalyticsProcessManager {
                 LOGGER.info("[{}] Closed process", configId);
             } else {
                 LOGGER.error("[" + configId + "] Error closing data frame analyzer process", e);
-                String errorMsg = new ParameterizedMessage("[{}] Error closing data frame analyzer process [{}]", configId, e.getMessage())
-                    .getFormattedMessage();
+                String errorMsg = format("[%s] Error closing data frame analyzer process [%s]", configId, e.getMessage());
                 processContext.setFailureReason(errorMsg);
             }
         }

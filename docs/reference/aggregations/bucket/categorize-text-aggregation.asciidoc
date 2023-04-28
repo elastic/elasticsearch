@@ -4,8 +4,6 @@
 <titleabbrev>Categorize text</titleabbrev>
 ++++
 
-experimental::[]
-
 A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed
 using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted
 text values. This aggregation works best with machine generated text like system logs. Only the first 100 analyzed
@@ -106,6 +104,46 @@ Larger values will increase memory usage and create narrower categories.
 (Optional, integer, default: `10`)
 The number of buckets to return.
 
+[[bucket-categorize-text-agg-response]]
+==== Response body
+
+`key`::
+(string)
+Consists of the tokens (extracted by the `categorization_analyzer`)
+that are common to all values of the input field included in the category.
+
+`doc_count`::
+(integer)
+Number of documents matching the category.
+
+`max_matching_length`::
+(integer)
+Categories from short messages containing few tokens may also match
+categories containing many tokens derived from much longer messages.
+`max_matching_length` is an indication of the maximum length of messages
+that should be considered to belong to the category. When searching for
+messages that match the category, any messages longer than
+`max_matching_length` should be excluded. Use this field to prevent a
+search for members of a category of short messages from matching much longer
+ones.
+
+`regex`::
+(string)
+A regular expression that will match all values of the input field included
+in the category. It is possible that the `regex` does not incorporate every
+term in `key`, if ordering varies between the values included in the
+category. However, in simple cases the `regex` will be the ordered terms
+concatenated into a regular expression that allows for arbitrary sections
+in between them. It is not recommended to use the `regex` as the primary
+mechanism for searching for the original documents that were categorized.
+Search using a regular expression is very slow. Instead the terms in the
+`key` field should be used to search for matching documents, as a terms
+search can use the inverted index and hence be much faster. However, there
+may be situations where it is useful to use the `regex` field to test whether
+a small set of messages that have not been indexed match the category, or to
+confirm that the terms in the `key` occur in the correct order in all the
+matched documents.
+
 ==== Basic use
 
 WARNING: Re-analyzing _large_ result sets will require a lot of time and memory. This aggregation should be
@@ -142,21 +180,25 @@ Response:
         {
           "doc_count" : 3,
           "key" : "Node shutting down",
+          "regex" : ".*?Node.+?shutting.+?down.*?",
           "max_matching_length" : 49
         },
         {
           "doc_count" : 1,
           "key" : "Node starting up",
+          "regex" : ".*?Node.+?starting.+?up.*?",
           "max_matching_length" : 47
         },
         {
           "doc_count" : 1,
           "key" : "User foo_325 logging on",
+          "regex" : ".*?User.+?foo_325.+?logging.+?on.*?",
           "max_matching_length" : 52
         },
         {
           "doc_count" : 1,
           "key" : "User foo_864 logged off",
+          "regex" : ".*?User.+?foo_864.+?logged.+?off.*?",
           "max_matching_length" : 52
         }
       ]
@@ -198,21 +240,25 @@ category results
         {
           "doc_count" : 3,
           "key" : "Node shutting down",
+          "regex" : ".*?Node.+?shutting.+?down.*?",
           "max_matching_length" : 49
         },
         {
           "doc_count" : 1,
           "key" : "Node starting up",
+          "regex" : ".*?Node.+?starting.+?up.*?",
           "max_matching_length" : 47
         },
         {
           "doc_count" : 1,
           "key" : "User logged off",
+          "regex" : ".*?User.+?logged.+?off.*?",
           "max_matching_length" : 52
         },
         {
           "doc_count" : 1,
           "key" : "User logging on",
+          "regex" : ".*?User.+?logging.+?on.*?",
           "max_matching_length" : 52
         }
       ]
@@ -266,11 +312,13 @@ The resulting categories are now very broad, merging the log groups.
         {
           "doc_count" : 4,
           "key" : "Node",
+          "regex" : ".*?Node.*?",
           "max_matching_length" : 49
         },
         {
           "doc_count" : 2,
           "key" : "User",
+          "regex" : ".*?User.*?",
           "max_matching_length" : 52
         }
       ]
@@ -330,6 +378,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 2,
                 "key" : "Node shutting down",
+                "regex" : ".*?Node.+?shutting.+?down.*?",
                 "max_matching_length" : 49,
                 "hit" : {
                   "hits" : {
@@ -357,6 +406,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "Node starting up",
+                "regex" : ".*?Node.+?starting.+?up.*?",
                 "max_matching_length" : 47,
                 "hit" : {
                   "hits" : {
@@ -393,6 +443,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "Node shutting down",
+                "regex" : ".*?Node.+?shutting.+?down.*?",
                 "max_matching_length" : 49,
                 "hit" : {
                   "hits" : {
@@ -420,6 +471,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "User logged off",
+                "regex" : ".*?User.+?logged.+?off.*?",
                 "max_matching_length" : 52,
                 "hit" : {
                   "hits" : {
@@ -447,6 +499,7 @@ POST log-messages/_search?filter_path=aggregations
               {
                 "doc_count" : 1,
                 "key" : "User logging on",
+                "regex" : ".*?User.+?logging.+?on.*?",
                 "max_matching_length" : 52,
                 "hit" : {
                   "hits" : {

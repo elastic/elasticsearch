@@ -1,5 +1,0 @@
-pr: 86926
-summary: "Fix: check field existence before trying to merge running stats"
-area: Aggregations
-type: bug
-issues: []

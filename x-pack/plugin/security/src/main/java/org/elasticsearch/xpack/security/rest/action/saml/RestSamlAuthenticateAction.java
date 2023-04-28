@@ -13,11 +13,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -36,6 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger(RestSamlAuthenticateAction.class);
 
@@ -106,7 +108,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
                             builder.field("authentication", response.getAuthentication());
                         }
                         builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 });
             };

@@ -8,9 +8,12 @@
 
 package org.elasticsearch.test.gateway;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.gateway.AsyncShardFetch;
@@ -28,6 +31,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.assignedShardsIn;
+
 /**
  * A gateway allocator implementation that keeps an in memory list of started shard allocation
  * that are used as replies to the, normally async, fetch data requests. The in memory list
@@ -44,6 +49,8 @@ import java.util.stream.Collectors;
  * not have all the infrastructure required to use it.
  */
 public class TestGatewayAllocator extends GatewayAllocator {
+
+    private static final Logger LOGGER = LogManager.getLogger(TestGatewayAllocator.class);
 
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
@@ -92,7 +99,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     @Override
     public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
         currentNodes = allocation.nodes();
-        allocation.routingNodes().shards(ShardRouting::active).forEach(this::addKnownAllocation);
+        assignedShardsIn(allocation.routingNodes()).filter(ShardRouting::active).forEach(this::addKnownAllocation);
     }
 
     @Override
@@ -124,6 +131,19 @@ public class TestGatewayAllocator extends GatewayAllocator {
     ) {
         currentNodes = allocation.nodes();
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
+    }
+
+    @Override
+    public AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
+        assert unassignedShard.unassigned();
+        assert routingAllocation.debugDecision();
+        if (unassignedShard.primary()) {
+            assert primaryShardAllocator != null;
+            return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, LOGGER);
+        } else {
+            assert replicaShardAllocator != null;
+            return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, LOGGER);
+        }
     }
 
     /**

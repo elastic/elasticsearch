@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.PhaseCacheManagement;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
@@ -42,12 +41,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class PolicyStepsRegistry {
     private static final Logger logger = LogManager.getLogger(PolicyStepsRegistry.class);
@@ -149,7 +150,7 @@ public class PolicyStepsRegistry {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
                     final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
                     for (Step step : policyAsSteps) {
-                        assert ErrorStep.NAME.equals(step.getKey().getName()) == false : "unexpected error step in policy";
+                        assert ErrorStep.NAME.equals(step.getKey().name()) == false : "unexpected error step in policy";
                         stepMapForPolicy.put(step.getKey(), step);
                     }
                     logger.trace(
@@ -224,7 +225,7 @@ public class PolicyStepsRegistry {
     public Step.StepKey getFirstStepForPhase(ClusterState state, Index index, String phase) {
         return getAllStepsForIndex(state, index).stream()
             .map(Step::getKey)
-            .filter(stepKey -> phase.equals(stepKey.getPhase()))
+            .filter(stepKey -> phase.equals(stepKey.phase()))
             .findFirst()
             .orElse(null);
     }
@@ -237,21 +238,58 @@ public class PolicyStepsRegistry {
     public Step.StepKey getFirstStepForPhaseAndAction(ClusterState state, Index index, String phase, String action) {
         return getAllStepsForIndex(state, index).stream()
             .map(Step::getKey)
-            .filter(stepKey -> phase.equals(stepKey.getPhase()))
-            .filter(stepKey -> action.equals(stepKey.getAction()))
+            .filter(stepKey -> phase.equals(stepKey.phase()))
+            .filter(stepKey -> action.equals(stepKey.action()))
             .findFirst()
             .orElse(null);
     }
 
     /*
      * Parses the step keys from the {@code phaseDef} for the given phase.
+     * ILM makes use of some implicit steps that belong to actions that we automatically inject
+     * (eg. unfollow and migrate) or special purpose steps like the phase `complete` step.
+     *
+     * The {@code phaseDef} is *mostly* a valid json we store in the lifecycle execution state. However,
+     * we have a few of exceptional cases:
+     * - null is treated as the `new` phase (see {@code InitializePolicyContextStep})
+     * - the `new` phase is not stored as json but ... "new"
+     * - there's a legacy step, the {@code TerminalPolicyStep} which is also not stored as json but as "completed"
+     * (note: this step exists only for BWC reasons as these days we move to the {@code PhaseCompleteStep} when reaching
+     * the end of the phase)
+     *
+     * This method returns **all** the steps that are part of the phase definition including the implicit steps.
+     *
      * Returns null if there's a parsing error.
      */
     @Nullable
-    public Set<Step.StepKey> parseStepKeysFromPhase(String phaseDef, String currentPhase) {
-        return PhaseCacheManagement.readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
+    public Set<Step.StepKey> parseStepKeysFromPhase(String policy, String currentPhase, String phaseDef) {
+        try {
+            String phaseDefNonNull = Objects.requireNonNullElse(phaseDef, InitializePolicyContextStep.INITIALIZATION_PHASE);
+            return parseStepsFromPhase(policy, currentPhase, phaseDefNonNull).stream().map(Step::getKey).collect(Collectors.toSet());
+        } catch (IOException e) {
+            logger.trace(
+                () -> String.format(
+                    Locale.ROOT,
+                    "unable to parse steps for policy [{}], phase [{}], and phase definition [{}]",
+                    policy,
+                    currentPhase,
+                    phaseDef
+                ),
+                e
+            );
+            return null;
+        }
     }
 
+    /**
+     * The {@code phaseDef} is *mostly* a valid json we store in the lifecycle execution state. However,
+     * we have a few of exceptional cases:
+     * - null is treated as the `new` phase (see {@code InitializePolicyContextStep})
+     * - the `new` phase is not stored as json but ... "new"
+     * - there's a legacy step, the {@code TerminalPolicyStep} which is also not stored as json but as "completed"
+     * (note: this step exists only for BWC reasons as these days we move to the {@code PhaseCompleteStep} when reaching
+     * the end of the phase)
+     */
     private List<Step> parseStepsFromPhase(String policy, String currentPhase, String phaseDef) throws IOException {
         final PhaseExecutionInfo phaseExecutionInfo;
         LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policy);
@@ -290,7 +328,7 @@ public class PolicyStepsRegistry {
         if (steps == null) {
             phaseSteps = List.of();
         } else {
-            phaseSteps = steps.stream().filter(e -> e.getKey().getPhase().equals(currentPhase)).toList();
+            phaseSteps = steps.stream().filter(e -> e.getKey().phase().equals(currentPhase)).toList();
         }
         logger.trace(
             "parsed steps for policy [{}] in phase [{}], definition: [{}], steps: [{}]",
@@ -328,11 +366,11 @@ public class PolicyStepsRegistry {
             return cachedStep;
         }
 
-        if (ErrorStep.NAME.equals(stepKey.getName())) {
-            return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
+        if (ErrorStep.NAME.equals(stepKey.name())) {
+            return new ErrorStep(new Step.StepKey(stepKey.phase(), stepKey.action(), ErrorStep.NAME));
         }
 
-        final String phase = stepKey.getPhase();
+        final String phase = stepKey.phase();
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final Index index = indexMetadata.getIndex();
 
@@ -341,8 +379,10 @@ public class PolicyStepsRegistry {
         }
 
         // parse phase steps from the phase definition in the index settings
-        final String phaseJson = Optional.ofNullable(indexMetadata.getLifecycleExecutionState().phaseDefinition())
-            .orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
+        final String phaseJson = Objects.requireNonNullElse(
+            indexMetadata.getLifecycleExecutionState().phaseDefinition(),
+            InitializePolicyContextStep.INITIALIZATION_PHASE
+        );
 
         final List<Step> phaseSteps;
         try {
@@ -357,7 +397,7 @@ public class PolicyStepsRegistry {
             );
         }
 
-        assert phaseSteps.stream().allMatch(step -> step.getKey().getPhase().equals(phase))
+        assert phaseSteps.stream().allMatch(step -> step.getKey().phase().equals(phase))
             : "expected phase steps loaded from phase definition for ["
                 + index.getName()
                 + "] to be in phase ["

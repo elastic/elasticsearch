@@ -25,8 +25,9 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 [[ml-update-datafeed-desc]]
 == {api-description-title}
 
-If you update a {dfeed} property, you must stop and start the {dfeed} for the
-change to be applied.
+You can only update a {dfeed} property while the {dfeed} is stopped.
+However, it is possible to stop a {dfeed}, update one of its properties,
+and restart it without closing the associated job.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the user who updated it had at the time of update and runs the query
@@ -159,16 +160,16 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 
 [source,console]
 --------------------------------------------------
-POST _ml/datafeeds/datafeed-total-requests/_update
+POST _ml/datafeeds/datafeed-test-job/_update
 {
   "query": {
     "term": {
-      "level": "error"
+      "geo.src": "US"
     }
   }
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_datafeed]
+// TEST[skip:setup sample web logs]
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with
 the updated values:
@@ -176,22 +177,36 @@ the updated values:
 [source,console-result]
 ----
 {
-  "datafeed_id": "datafeed-total-requests",
-  "job_id": "total-requests",
-  "query_delay": "83474ms",
-  "indices": ["server-metrics"],
-  "query": {
-    "term": {
-      "level": {
-        "value": "error",
-        "boost": 1.0
-      }
+  "datafeed_id" : "datafeed-test-job",
+  "job_id" : "test-job",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "query_delay" : "64489ms",
+  "chunking_config" : {
+    "mode" : "auto"
+  },
+  "indices_options" : {
+    "expand_wildcards" : [
+      "open"
+    ],
+    "ignore_unavailable" : false,
+    "allow_no_indices" : true,
+    "ignore_throttled" : true
+  },
+  "query" : {
+    "term" : {
+      "geo.src" : "US"
     }
   },
-  "scroll_size": 1000,
-  "chunking_config": {
-    "mode": "auto"
+  "indices" : [
+    "kibana_sample_data_logs"
+  ],
+  "scroll_size" : 1000,
+  "delayed_data_check_config" : {
+    "enabled" : true
   }
 }
 ----
-// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

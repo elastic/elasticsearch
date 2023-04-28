@@ -14,7 +14,6 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -23,11 +22,11 @@ public class ThreadPoolInfo implements ReportingService.Info, Iterable<ThreadPoo
     private final List<ThreadPool.Info> infos;
 
     public ThreadPoolInfo(List<ThreadPool.Info> infos) {
-        this.infos = Collections.unmodifiableList(infos);
+        this.infos = List.copyOf(infos);
     }
 
     public ThreadPoolInfo(StreamInput in) throws IOException {
-        this.infos = Collections.unmodifiableList(in.readList(ThreadPool.Info::new));
+        this.infos = in.readImmutableList(ThreadPool.Info::new);
     }
 
     @Override

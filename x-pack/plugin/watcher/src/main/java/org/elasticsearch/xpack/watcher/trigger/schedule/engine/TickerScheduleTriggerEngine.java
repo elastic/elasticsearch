@@ -61,7 +61,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         long startTime = clock.millis();
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
-            if (job.trigger()instanceof ScheduleTrigger trigger) {
+            if (job.trigger() instanceof ScheduleTrigger trigger) {
                 startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
             }
         }

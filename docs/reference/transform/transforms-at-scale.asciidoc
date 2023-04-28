@@ -116,6 +116,23 @@ example, greater than `2020-01-01T00:00:00`) to limit which historical indices
 are accessed. If you use a relative time value (for example, `now-30d`) then 
 this date range is re-evaluated at the point of each checkpoint execution.
 
+Consider using <<api-date-math-index-names,date math>> in your index names to 
+reduce the number of indices to resolve in your queries. Add a date pattern 
+- for example, `yyyy-MM-dd` - to your index names and use it to limit your query 
+to a specific date. The example below queries indices only from yesterday and 
+today: 
+
+[source,js]
+----------------------------------
+  "source": {
+    "index": [
+        "<mydata-{now/d-1d{yyyy-MM-dd}}*>", 
+        "<mydata-{now/d{yyyy-MM-dd}}*>"
+    ]
+  },
+----------------------------------
+// NOTCONSOLE
+
 
 [discrete]
 [[optimize-shading-strategy]]

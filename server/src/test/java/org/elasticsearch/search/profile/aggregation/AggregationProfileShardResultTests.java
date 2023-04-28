@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -28,7 +28,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 
-public class AggregationProfileShardResultTests extends AbstractSerializingTestCase<AggregationProfileShardResult> {
+public class AggregationProfileShardResultTests extends AbstractXContentSerializingTestCase<AggregationProfileShardResult> {
 
     public static AggregationProfileShardResult createTestItem(int depth) {
         int size = randomIntBetween(0, 5);
@@ -42,6 +42,11 @@ public class AggregationProfileShardResultTests extends AbstractSerializingTestC
     @Override
     protected AggregationProfileShardResult createTestInstance() {
         return createTestItem(2);
+    }
+
+    @Override
+    protected AggregationProfileShardResult mutateInstance(AggregationProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

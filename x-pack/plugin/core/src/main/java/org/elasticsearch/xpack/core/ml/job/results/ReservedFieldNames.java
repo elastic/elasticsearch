@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+
 /**
  * Defines the field names that we use for our results.
  * Fields from the raw data with these names are not added to any result.  Even
@@ -73,6 +75,7 @@ public final class ReservedFieldNames {
         AnomalyRecord.TYPICAL.getPreferredName(),
         AnomalyRecord.ACTUAL.getPreferredName(),
         AnomalyRecord.GEO_RESULTS.getPreferredName(),
+        AnomalyRecord.ANOMALY_SCORE_EXPLANATION.getPreferredName(),
         AnomalyRecord.INFLUENCERS.getPreferredName(),
         AnomalyRecord.FIELD_NAME.getPreferredName(),
         AnomalyRecord.OVER_FIELD_NAME.getPreferredName(),
@@ -81,6 +84,20 @@ public final class ReservedFieldNames {
         AnomalyRecord.RECORD_SCORE.getPreferredName(),
         AnomalyRecord.INITIAL_RECORD_SCORE.getPreferredName(),
         AnomalyRecord.BUCKET_SPAN.getPreferredName(),
+
+        AnomalyScoreExplanation.ANOMALY_TYPE.getPreferredName(),
+        AnomalyScoreExplanation.ANOMALY_LENGTH.getPreferredName(),
+        AnomalyScoreExplanation.SINGLE_BUCKET_IMPACT.getPreferredName(),
+        AnomalyScoreExplanation.MULTI_BUCKET_IMPACT.getPreferredName(),
+        AnomalyScoreExplanation.ANOMALY_CHARACTERISTICS_IMPACT.getPreferredName(),
+        AnomalyScoreExplanation.LOWER_CONFIDENCE_BOUND.getPreferredName(),
+        AnomalyScoreExplanation.TYPICAL_VALUE.getPreferredName(),
+        AnomalyScoreExplanation.UPPER_CONFIDENCE_BOUND.getPreferredName(),
+        AnomalyScoreExplanation.HIGH_VARIANCE_PENALTY.getPreferredName(),
+        AnomalyScoreExplanation.INCOMPLETE_BUCKET_PENALTY.getPreferredName(),
+        AnomalyScoreExplanation.MULTIMODAL_DISTRIBUTION.getPreferredName(),
+        AnomalyScoreExplanation.BY_FIELD_FIRST_OCCURRENCE.getPreferredName(),
+        AnomalyScoreExplanation.BY_FIELD_RELATIVE_RARITY.getPreferredName(),
 
         GeoResults.TYPICAL_POINT.getPreferredName(),
         GeoResults.ACTUAL_POINT.getPreferredName(),
@@ -200,6 +217,10 @@ public final class ReservedFieldNames {
         ExponentialAverageCalculationContext.INCREMENTAL_METRIC_VALUE_MS.getPreferredName(),
         ExponentialAverageCalculationContext.LATEST_TIMESTAMP.getPreferredName(),
         ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
+
+        // ML results use "timestamp" as their time field, but we add an alias "@timestamp" to be
+        // slightly more ECS-like as a convenience for users of components that only work with ECS
+        DEFAULT_TIMESTAMP_FIELD,
 
         GetResult._ID,
         GetResult._INDEX };

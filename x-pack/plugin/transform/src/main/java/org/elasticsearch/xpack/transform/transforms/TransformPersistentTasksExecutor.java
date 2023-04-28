@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -59,6 +59,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -220,8 +221,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
 
             final long lastCheckpoint = stateHolder.get().getCheckpoint();
+            final AuthorizationState authState = stateHolder.get().getAuthState();
 
-            startTask(buildTask, indexerBuilder, lastCheckpoint, startTaskListener);
+            startTask(buildTask, indexerBuilder, authState, lastCheckpoint, startTaskListener);
         }, error -> {
             // TODO: do not use the same error message as for loading the last checkpoint
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -288,7 +290,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     markAsFailed(buildTask, msg);
                 } else {
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
-                    startTask(buildTask, indexerBuilder, null, startTaskListener);
+                    startTask(buildTask, indexerBuilder, null, null, startTaskListener);
                 }
             }
         );
@@ -299,12 +301,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             // fail if a transform is too old, this can only happen on a rolling upgrade
             if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
-                String transformTooOldError = new ParameterizedMessage(
-                    "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
-                        + "Minimum required version is [{}]",
+                String transformTooOldError = format(
+                    "Transform configuration is too old [%s], use the upgrade API to fix your transform. "
+                        + "Minimum required version is [%s]",
                     config.getVersion(),
                     TransformDeprecations.MIN_TRANSFORM_VERSION
-                ).getFormattedMessage();
+                );
                 auditor.error(transformId, transformTooOldError);
                 markAsFailed(buildTask, transformTooOldError);
                 return;
@@ -383,12 +385,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private void startTask(
         TransformTask buildTask,
         ClientTransformIndexerBuilder indexerBuilder,
+        AuthorizationState authState,
         Long previousCheckpoint,
         ActionListener<StartTransformAction.Response> listener
     ) {
         // switch the threadpool to generic, because the caller is on the system_read threadpool
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
+            buildTask.setAuthState(authState);
             // TransformTask#start will fail if the task state is FAILED
             buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
         });
@@ -415,7 +419,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            transformServices.getSchedulerEngine(),
+            transformServices.getScheduler(),
             auditor,
             threadPool,
             headers

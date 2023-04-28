@@ -1,8 +1,9 @@
 ---
 "Dynamic templates":
   - skip:
-      version: " - 8.1.0"
-      reason: "Error message has changed in 8.1.0"
+      features: contains
+      version: " - 8.7.99"
+      reason: "Exception type has changed in 8.8.0"
 
   - do:
       indices.create:
@@ -24,20 +25,20 @@
       bulk:
         refresh: true
         body:
-          - index:
+          - create:
               _index: test_index
               _id: id_1
               dynamic_templates:
                 location: location
-          - { "location": [ -71.34, 41.12 ]}
+          - { "location": "41.12,-71.34"}
           - index:
               _index: test_index
               _id: id_2
               dynamic_templates:
                 location: location
-          - { "location": "41.12,-71.34"}
+          - { "location": [ -71.34, 41.12 ]}
   - match: { errors: false }
-  - match: { items.0.index.result: created }
+  - match: { items.0.create.result: created }
   - match: { items.1.index.result: created }
 
   - do:
@@ -65,7 +66,7 @@
               _index: test_index
               _id: id_3
           - { "my_location": "41.12,-71.34" } # matches the field name defined in the `my_location` template
-          - index:
+          - create:
               _index: test_index
               _id: id_4
               dynamic_templates:
@@ -139,11 +140,11 @@
           - { "location": "41.12,-71.34"} # ok as fields are defined
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
-  - match: { items.0.index.error.type: mapper_parsing_exception }
-  - match: { items.0.index.error.reason: "Can't find dynamic template for dynamic template name [bar_foo] of field [foo_location]"}
+  - match: { items.0.index.error.type: document_parsing_exception }
+  - contains: { items.0.index.error.reason: "Can't find dynamic template for dynamic template name [bar_foo] of field [foo_location]"}
   - match: { items.1.index.status: 400 }
-  - match: { items.1.index.error.type: mapper_parsing_exception }
-  - match: { items.1.index.error.reason: "Can't find dynamic template for dynamic template name [foo_bar] of field [foo_location]"}
+  - match: { items.1.index.error.type: document_parsing_exception }
+  - contains: { items.1.index.error.reason: "Can't find dynamic template for dynamic template name [foo_bar] of field [foo_location]"}
   - match: { items.2.index.status: 201 }
   - match: { items.2.index.result: created }
 
@@ -165,7 +166,68 @@
           - { "foo.bar": "hello world" } # ok
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
-  - match: { items.0.index.error.type: mapper_parsing_exception }
-  - match: { items.0.index.error.reason: "failed to parse field [foo] of type [keyword] in document with id 'id_11'. Preview of field's value: '{bar=hello world}'"}
+  - match: { items.0.index.error.type: document_parsing_exception }
+  - contains: { items.0.index.error.reason: "failed to parse field [foo] of type [keyword] in document with id 'id_11'. Preview of field's value: '{bar=hello world}'"}
   - match: { items.1.index.status: 201 }
   - match: { items.1.index.result: created }
+
+---
+"Dynamic templates with op_type":
+  - skip:
+      version: " - 8.6.0"
+      reason: "bug fixed in 8.6.1"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            dynamic_templates:
+              - location:
+                  mapping:
+                    type: geo_point
+              - my_location:
+                  match: my*
+                  mapping:
+                    type: geo_point
+              - string:
+                  mapping:
+                    type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: test_index
+              _id: id_1
+              op_type: create
+              dynamic_templates:
+                location: location
+          - { "location": "41.12,-71.34"}
+          - index:
+              _index: test_index
+              _id: id_2
+              op_type: index
+              dynamic_templates:
+                location: location
+          - { "location": [ -71.34, 41.12 ]}
+  - match: { errors: false }
+  - match: { items.0.create.result: created }
+  - match: { items.1.index.result: created }
+
+  - do:
+      search:
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                top_left:
+                  lat: 42
+                  lon: -72
+                bottom_right:
+                  lat: 40
+                  lon: -74
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: id_1 }
+  - match: { hits.hits.1._id: id_2 }

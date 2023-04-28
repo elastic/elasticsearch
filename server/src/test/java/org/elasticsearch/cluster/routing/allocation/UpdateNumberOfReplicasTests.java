@@ -11,8 +11,10 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -41,7 +43,9 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
 
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
@@ -60,7 +64,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("Start all the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -84,7 +88,10 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("add another replica");
         final String[] indices = { "test" };
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, indices).build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterState.routingTable()
+        ).updateNumberOfReplicas(2, indices).build();
         metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(2, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
 
@@ -101,7 +108,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("Add another node and start the added replica");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -159,7 +166,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         );
 
         logger.info("do a reroute, should remain the same");
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
     }
 }

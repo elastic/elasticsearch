@@ -213,7 +213,7 @@ public final class JobModelSnapshotUpgrader {
                 }
             }
             // field for categorization tokens
-            if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA && job.getAnalysisConfig().getCategorizationFieldName() != null) {
+            if (job.getAnalysisConfig().getCategorizationFieldName() != null) {
                 fieldIndexes.put(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD, index++);
             }
 

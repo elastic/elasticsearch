@@ -1,5 +1,0 @@
-pr: 86210
-summary: Compute master task batch summary lazily
-area: Cluster Coordination
-type: enhancement
-issues: []

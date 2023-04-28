@@ -1,0 +1,76 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.testclusters.RunTask
+
+boolean proxyMode = Boolean.valueOf(providers.systemProperty('proxyMode').getOrElse('true'))
+boolean basicSecurityMode = Boolean.valueOf(providers.systemProperty('basicSecurityMode').getOrElse('true'))
+
+def fulfillingCluster = testClusters.register('fulfilling-cluster') {
+  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  if (false == basicSecurityMode) {
+    setting 'remote_cluster_server.enabled', 'true'
+    setting 'xpack.security.authc.api_key.enabled', 'true'
+    setting 'xpack.security.remote_cluster_server.ssl.enabled', 'false'
+  }
+
+  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+}
+
+def queryingCluster = testClusters.register('querying-cluster') {
+  testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'cluster.remote.connections_per_cluster', "1"
+  if (false == basicSecurityMode) {
+    setting 'xpack.security.remote_cluster_client.ssl.enabled', 'false'
+  }
+  user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+}
+
+
+tasks.register("run-ccs", RunTask) {
+  useCluster fulfillingCluster
+  useCluster queryingCluster
+  doFirst {
+    queryingCluster.get().getNodes().each { node ->
+      if (proxyMode) {
+        node.setting('cluster.remote.my_remote_cluster.mode', 'proxy')
+        if (basicSecurityMode) {
+          node.setting('cluster.remote.my_remote_cluster.proxy_address', "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\"")
+        } else {
+          node.setting('cluster.remote.my_remote_cluster.proxy_address', "\"${fulfillingCluster.get().getAllRemoteAccessPortURI().get(0)}\"")
+        }
+      } else {
+        if (basicSecurityMode) {
+          node.setting('cluster.remote.my_remote_cluster.seeds', fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString())
+        } else {
+          node.setting('cluster.remote.my_remote_cluster.seeds', fulfillingCluster.get().getAllRemoteAccessPortURI().collect { "\"$it\"" }.toString())
+        }
+      }
+    }
+    queryingCluster.get().restart() //updates the on-disk config
+
+    println "** Querying cluster HTTP endpoints are: ${-> queryingCluster.get().allHttpSocketURI.join(",")}"
+    println "** Querying cluster transport endpoints are: ${-> queryingCluster.get().getAllTransportPortURI().join(",")}"
+    println "** Fulfilling cluster HTTP endpoints are: ${-> fulfillingCluster.get().allHttpSocketURI.join(",")}"
+    println "** Fulfilling cluster transport endpoints are: ${-> fulfillingCluster.get().getAllTransportPortURI().join(",")}"
+    if (false == basicSecurityMode) {
+      println "** Fulfilling cluster remote access endpoints are: ${-> fulfillingCluster.get().getAllRemoteAccessPortURI().join(",")}"
+      println "** NOTE: you must manually configure a cross cluster access API key on the two clusters to run cross cluster operations"
+    }
+  }
+}

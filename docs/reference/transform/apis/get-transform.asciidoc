@@ -1,4 +1,3 @@
-[role="xpack"]
 [[get-transform]]
 = Get {transforms} API
 
@@ -50,6 +49,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 (Optional, Boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
+`exclude_generated`::
+(Optional, Boolean)
+Excludes fields that were automatically added when creating the transform.
+This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+
 `from`::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
@@ -58,11 +63,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
-`exclude_generated`::
-(Optional, Boolean)
-Excludes fields that were automatically added when creating the transform.
-This allows the configuration to be in an acceptable format to be retrieved
-and then added to another cluster. Default is false.
+
 
 [[get-transform-response]]
 == {api-response-body-title}
@@ -98,11 +99,11 @@ GET _transform?size=10
 // TEST[skip:setup kibana sample data]
 
 The following example gets configuration information for the
-`ecommerce_transform` {transform}:
+`ecommerce_transform1` {transform}:
 
 [source,console]
 --------------------------------------------------
-GET _transform/ecommerce_transform
+GET _transform/ecommerce_transform1
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
@@ -114,7 +115,14 @@ The API returns the following results:
   "count" : 1,
   "transforms" : [
     {
-      "id" : "ecommerce_transform",
+      "id" : "ecommerce_transform1",
+      "authorization" : {
+        "roles" : [
+          "superuser"
+        ]
+      },
+      "version" : "8.4.0",
+      "create_time" : 1656023416565,
       "source" : {
         "index" : [
           "kibana_sample_data_ecommerce"
@@ -128,9 +136,16 @@ The API returns the following results:
         }
       },
       "dest" : {
-        "index" : "kibana_sample_data_ecommerce_transform"
+        "index" : "kibana_sample_data_ecommerce_transform1",
+        "pipeline" : "add_timestamp_pipeline"
       },
-      "frequency": "1m",
+      "frequency" : "5m",
+      "sync" : {
+        "time" : {
+          "field" : "order_date",
+          "delay" : "60s"
+        }
+      },
       "pivot" : {
         "group_by" : {
           "customer_id" : {
@@ -149,10 +164,13 @@ The API returns the following results:
       },
       "description" : "Maximum priced ecommerce data by customer_id in Asia",
       "settings" : { },
-      "version" : "7.5.0",
-      "create_time" : 1576094542936
+      "retention_policy" : {
+        "time" : {
+          "field" : "order_date",
+          "max_age" : "30d"
+        }
+      }
     }
   ]
 }
-
 ----

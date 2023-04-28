@@ -1,5 +1,0 @@
-pr: 87337
-summary: Skip `ensureNoSelfReferences` check in `IngestService`
-area: Ingest
-type: enhancement
-issues: []

@@ -9,8 +9,6 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -18,7 +16,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
@@ -161,7 +158,6 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         FailureListener failureListener = new FailureListener();
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "message",
@@ -176,16 +172,10 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     + "] failed"
             )
         );
-        Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
-        Loggers.addAppender(targetLogger, mockAppender);
-
-        try {
+        try (var ignored = mockAppender.capturing(HandshakingTransportAddressConnector.class)) {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(targetLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

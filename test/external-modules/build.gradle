@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 subprojects {
   apply plugin: 'elasticsearch.base-internal-es-plugin'
-  apply plugin: 'elasticsearch.internal-yaml-rest-test'
+  apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
   esplugin {
     name it.name
@@ -12,6 +12,6 @@ subprojects {
   }
 
   tasks.named('yamlRestTest').configure {
-    it.onlyIf { BuildParams.isSnapshotBuild() }
+    it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
   }
 }

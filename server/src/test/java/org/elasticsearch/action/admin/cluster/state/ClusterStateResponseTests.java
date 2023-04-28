@@ -47,6 +47,11 @@ public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<C
     }
 
     @Override
+    protected ClusterStateResponse mutateInstance(ClusterStateResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ClusterStateResponse> instanceReader() {
         return ClusterStateResponse::new;
     }

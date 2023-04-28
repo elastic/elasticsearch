@@ -170,6 +170,12 @@ public class IndexShardSnapshotStatus {
         return stage.get() == Stage.ABORTED;
     }
 
+    public void ensureNotAborted() {
+        if (isAborted()) {
+            throw new AbortedSnapshotException();
+        }
+    }
+
     /**
      * Increments number of processed files
      */

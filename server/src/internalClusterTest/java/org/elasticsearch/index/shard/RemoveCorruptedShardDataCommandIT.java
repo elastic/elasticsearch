@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -107,10 +106,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String indexName = "index42";
         assertAcked(
             prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                     .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true)
                     .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")
@@ -277,22 +273,14 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String indexName = "test";
         assertAcked(
             prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
                     .put("index.routing.allocation.exclude._name", node2)
             )
         );
         ensureYellow();
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"))
-        );
+        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), indexName);
         ensureGreen();
 
         // Index some documents
@@ -331,7 +319,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final Settings node2PathSettings = internalCluster().dataPathSettings(node2);
 
         // shut down the replica node to be tested later
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
+        internalCluster().stopNode(node2);
 
         final Path translogDir = getPathToShardData(indexName, ShardPath.TRANSLOG_FOLDER_NAME);
         final Path indexDir = getPathToShardData(indexName, ShardPath.INDEX_FOLDER_NAME);
@@ -481,22 +469,14 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final String indexName = "test";
         assertAcked(
             prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+                indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
                     .put("index.routing.allocation.exclude._name", node2)
             )
         );
         ensureYellow();
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null))
-        );
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", (String) null), indexName);
         ensureGreen();
 
         // Index some documents
@@ -592,13 +572,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(numOfNodes, Settings.EMPTY);
 
         final String indexName = "test" + randomInt(100);
-        assertAcked(
-            prepareCreate(indexName).setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfNodes - 1)
-            )
-        );
+        assertAcked(prepareCreate(indexName).setSettings(indexSettings(1, numOfNodes - 1)));
         flush(indexName);
 
         ensureGreen(indexName);
@@ -631,7 +605,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             );
             environmentByNodeName.put(nodeName, environment);
 
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeName));
+            internalCluster().stopNode(nodeName);
             logger.info(" -- stopped {}", nodeName);
         }
 
@@ -681,10 +655,11 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
     /** Disables translog flushing for the specified index */
     private static void disableTranslogFlush(String index) {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
-            .build();
-        client().admin().indices().prepareUpdateSettings(index).setSettings(settings).get();
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB)),
+            index
+        );
     }
 
     private SeqNoStats getSeqNoStats(String index, int shardId) {

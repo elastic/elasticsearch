@@ -8,27 +8,34 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authc.Subject.Type.API_KEY;
+import static org.elasticsearch.xpack.core.security.authc.Subject.Type.CROSS_CLUSTER_ACCESS;
 
 /**
  * A subject is a more generic concept similar to user and associated to the current authentication.
- * It is more generic than user because it can also represent API keys and service accounts.
+ * It is more generic than user because it can also represent API keys, service accounts, or cross cluster access users.
  * It also contains authentication level information, e.g. realm and metadata so that it can answer
  * queries in a better encapsulated way.
  */
@@ -38,19 +45,20 @@ public class Subject {
         USER,
         API_KEY,
         SERVICE_ACCOUNT,
+        CROSS_CLUSTER_ACCESS,
     }
 
-    private final Version version;
+    private final TransportVersion version;
     private final User user;
     private final Authentication.RealmRef realm;
     private final Type type;
     private final Map<String, Object> metadata;
 
     public Subject(User user, Authentication.RealmRef realm) {
-        this(user, realm, Version.CURRENT, Map.of());
+        this(user, realm, TransportVersion.CURRENT, Map.of());
     }
 
-    public Subject(User user, Authentication.RealmRef realm, Version version, Map<String, Object> metadata) {
+    public Subject(User user, Authentication.RealmRef realm, TransportVersion version, Map<String, Object> metadata) {
         this.version = version;
         this.user = user;
         this.realm = realm;
@@ -64,6 +72,9 @@ public class Subject {
         } else if (ServiceAccountSettings.REALM_TYPE.equals(realm.getType())) {
             assert ServiceAccountSettings.REALM_NAME.equals(realm.getName()) : "service account realm name mismatch";
             this.type = Type.SERVICE_ACCOUNT;
+        } else if (AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(realm.getType())) {
+            assert AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_NAME.equals(realm.getName()) : "cross cluster access realm name mismatch";
+            this.type = Type.CROSS_CLUSTER_ACCESS;
         } else {
             this.type = Type.USER;
         }
@@ -86,6 +97,10 @@ public class Subject {
         return metadata;
     }
 
+    public TransportVersion getTransportVersion() {
+        return version;
+    }
+
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         switch (type) {
             case USER:
@@ -94,6 +109,8 @@ public class Subject {
                 return buildRoleReferencesForApiKey();
             case SERVICE_ACCOUNT:
                 return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+            case CROSS_CLUSTER_ACCESS:
+                return buildRoleReferencesForCrossClusterAccess();
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -101,44 +118,94 @@ public class Subject {
     }
 
     public boolean canAccessResourcesOf(Subject resourceCreatorSubject) {
-        if (API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType())) {
-            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
-                .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
-            assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
-                : "The same API key ID cannot be attributed to two different usernames";
-            return sameKeyId;
-        } else if ((API_KEY.equals(getType()) && false == API_KEY.equals(resourceCreatorSubject.getType()))
-            || (false == API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType()))) {
+        if (eitherIsAnApiKey(resourceCreatorSubject)) {
+            if (bothAreApiKeys(resourceCreatorSubject)) {
+                return isTheSameApiKey(resourceCreatorSubject);
+            } else {
                 // an API Key cannot access resources created by non-API Keys or vice-versa
                 return false;
-            } else {
-                if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
+            }
+        } else if (eitherIsCrossClusterAccess(resourceCreatorSubject)) {
+            if (bothAreCrossClusterAccess(resourceCreatorSubject)) {
+                if (false == isTheSameApiKey(resourceCreatorSubject)) {
                     return false;
                 }
-                final Authentication.RealmRef myAuthRealm = getRealm();
-                final Authentication.RealmRef creatorAuthRealm = resourceCreatorSubject.getRealm();
-                if (null == myAuthRealm.getDomain()) {
-                    // the authentication accessing the resource is for a user from a realm not part of any domain
-                    return Authentication.equivalentRealms(
-                        myAuthRealm.getName(),
-                        myAuthRealm.getType(),
+                return ((Authentication) getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)).canAccessResourcesOf(
+                    (Authentication) resourceCreatorSubject.getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY)
+                );
+            } else {
+                // A cross cluster access subject can never share resources with non-cross cluster access
+                return false;
+            }
+        } else {
+            if (false == getUser().principal().equals(resourceCreatorSubject.getUser().principal())) {
+                return false;
+            }
+            final Authentication.RealmRef myAuthRealm = getRealm();
+            final Authentication.RealmRef creatorAuthRealm = resourceCreatorSubject.getRealm();
+            if (null == myAuthRealm.getDomain()) {
+                // the authentication accessing the resource is for a user from a realm not part of any domain
+                return Authentication.equivalentRealms(
+                    myAuthRealm.getName(),
+                    myAuthRealm.getType(),
+                    creatorAuthRealm.getName(),
+                    creatorAuthRealm.getType()
+                );
+            } else {
+                for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
+                    if (Authentication.equivalentRealms(
+                        domainRealm.getName(),
+                        domainRealm.getType(),
                         creatorAuthRealm.getName(),
                         creatorAuthRealm.getType()
-                    );
-                } else {
-                    for (RealmConfig.RealmIdentifier domainRealm : myAuthRealm.getDomain().realms()) {
-                        if (Authentication.equivalentRealms(
-                            domainRealm.getName(),
-                            domainRealm.getType(),
-                            creatorAuthRealm.getName(),
-                            creatorAuthRealm.getType()
-                        )) {
-                            return true;
-                        }
+                    )) {
+                        return true;
                     }
-                    return false;
                 }
+                return false;
             }
+        }
+    }
+
+    private boolean isTheSameApiKey(Subject resourceCreatorSubject) {
+        final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+            .equals(resourceCreatorSubject.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+        assert false == sameKeyId || getUser().principal().equals(resourceCreatorSubject.getUser().principal())
+            : "The same API key ID cannot be attributed to two different usernames";
+        return sameKeyId;
+    }
+
+    private boolean eitherIsAnApiKey(Subject resourceCreatorSubject) {
+        return API_KEY.equals(getType()) || API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreApiKeys(Subject resourceCreatorSubject) {
+        return API_KEY.equals(getType()) && API_KEY.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean eitherIsCrossClusterAccess(Subject resourceCreatorSubject) {
+        return CROSS_CLUSTER_ACCESS.equals(getType()) || CROSS_CLUSTER_ACCESS.equals(resourceCreatorSubject.getType());
+    }
+
+    private boolean bothAreCrossClusterAccess(Subject resourceCreatorSubject) {
+        return CROSS_CLUSTER_ACCESS.equals(getType()) && CROSS_CLUSTER_ACCESS.equals(resourceCreatorSubject.getType());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Subject subject = (Subject) o;
+        return version.equals(subject.version)
+            && user.equals(subject.user)
+            && Objects.equals(realm, subject.realm)
+            && type == subject.type
+            && metadata.equals(subject.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(version, user, realm, type, metadata);
     }
 
     @Override
@@ -196,6 +263,37 @@ public class Subject {
             new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
             limitedByRoleReference
         );
+    }
+
+    private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {
+        final List<RoleReference> roleReferences = new ArrayList<>(4);
+        @SuppressWarnings("unchecked")
+        final var crossClusterAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(
+            AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY
+        );
+        final var innerAuthentication = (Authentication) metadata.get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+        final User innerUser = innerAuthentication.getEffectiveSubject().getUser();
+        if (CrossClusterAccessUser.is(innerUser)) {
+            assert crossClusterAccessRoleDescriptorsBytes.isEmpty()
+                : "role descriptors bytes list for internal cross cluster access user must be empty";
+            roleReferences.add(
+                new RoleReference.FixedRoleReference(CrossClusterAccessUser.ROLE_DESCRIPTOR, "cross_cluster_access_internal")
+            );
+        } else if (crossClusterAccessRoleDescriptorsBytes.isEmpty()) {
+            // If the cross cluster access role descriptors are empty, the remote user has no privileges. We need to add an empty role to
+            // restrict access of the overall intersection accordingly
+            roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), RoleDescriptorsBytes.EMPTY));
+        } else {
+            // This is just a sanity check, since we should never have more than 2 role descriptors.
+            // We can have max two role descriptors in case when API key is used for cross cluster access.
+            assert crossClusterAccessRoleDescriptorsBytes.size() <= 2
+                : "not expected to have list of cross cluster access role descriptors bytes which have more than 2 elements";
+            for (RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessRoleDescriptorsBytes) {
+                roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), roleDescriptorsBytes));
+            }
+        }
+        roleReferences.addAll(buildRoleReferencesForApiKey().getRoleReferences());
+        return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 
     private static boolean isEmptyRoleDescriptorsBytes(BytesReference roleDescriptorsBytes) {

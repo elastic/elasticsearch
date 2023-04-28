@@ -1,0 +1,350 @@
+setup:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              foo:
+                type: keyword
+                fields:
+                  analyze:
+                    type: text
+                    index_options: positions
+                  vectors:
+                    type: text
+                    term_vector: with_positions_offsets
+                  positions:
+                    type: text
+                    index_options: offsets
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          foo: the quick brown fox jumped over the lazy dog
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          foo:
+            - "To be, or not to be, that is the question:"
+            - "Whether 'tis nobler in the mind to suffer"
+            - "The slings and arrows of outrageous fortune,"
+            - "Or to take arms against a sea of troubles"
+            - "And by opposing end them. To die—to sleep,"
+            - "No more; and by a sleep to say we end"
+            - "The heart-ache and the thousand natural shocks"
+            - "That flesh is heir to: 'tis a consummation"
+            - "Devoutly to be wish'd. To die, to sleep;"
+            - "To sleep, perchance to dream—ay, there's the rub:"
+            - "For in that sleep of death what dreams may come,"
+            - "When we have shuffled off this mortal coil,"
+            - "Must give us pause—there's the respect"
+            - "That makes calamity of so long life."
+            - "For who would bear the whips and scorns of time,"
+            - "Th'oppressor's wrong, the proud man's contumely,"
+            - "The pangs of dispriz'd love, the law's delay,"
+            - "The insolence of office, and the spurns"
+            - "That patient merit of th'unworthy takes,"
+            - "When he himself might his quietus make"
+            - "With a bare bodkin? Who would fardels bear,"
+            - "To grunt and sweat under a weary life,"
+            - "But that the dread of something after death,"
+            - "The undiscovere'd country, from whose bourn"
+            - "No traveller returns, puzzles the will,"
+            - "And makes us rather bear those ills we have"
+            - "Than fly to others that we know not of?"
+            - "Thus conscience doth make cowards of us all,"
+            - "And thus the native hue of resolution"
+            - "Is sicklied o'er with the pale cast of thought,"
+            - "And enterprises of great pith and moment"
+            - "With this regard their currents turn awry"
+            - "And lose the name of action."
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+keyword single plain:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo:
+                type: plain
+  - match: { hits.hits.0.highlight.foo.0: <em>the quick brown fox jumped over the lazy dog</em> }
+
+---
+keyword multi plain:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo:
+                type: plain
+  - match: { hits.hits.0.highlight.foo.0: <em>That makes calamity of so long life.</em> }
+
+---
+keyword single unified:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo:
+                type: unified
+  - match: { hits.hits.0.highlight.foo.0: <em>the quick brown fox jumped over the lazy dog</em> }
+
+---
+keyword multi unified:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo:
+                type: unified
+  - match: { hits.hits.0.highlight.foo.0: <em>That makes calamity of so long life.</em> }
+
+---
+keyword single fvh:
+  - do:
+      catch: /the field \[foo\] should be indexed with term vector with position offsets to be used with fast vector highlighter/
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo:
+                type: fvh
+
+---
+keyword multi fvh:
+  - do:
+      catch: /the field \[foo\] should be indexed with term vector with position offsets to be used with fast vector highlighter/
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo:
+                type: fvh
+
+---
+text single plain:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.analyze: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.analyze:
+                type: plain
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+
+---
+text multi plain:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.analyze: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.analyze:
+                type: plain
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+
+---
+text single unified from reanalysis:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.analyze: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.analyze:
+                type: unified
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+
+---
+text multi unified from reanalysis:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.analyze: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.analyze:
+                type: unified
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+
+---
+text single unified from positions:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.positions: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.positions:
+                type: unified
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+
+---
+text multi unified from positions:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.positions: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.positions:
+                type: unified
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+
+---
+text single unified from vectors:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.vectors:
+                type: unified
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+
+---
+text multi unified from vectors:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.vectors:
+                type: unified
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+
+---
+text single fvh source order:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.vectors:
+                type: fvh
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
+
+---
+text multi fvh source order:
+  - do:
+      catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.vectors:
+                type: fvh
+
+---
+text single fvh score order:
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "the quick brown fox jumped over the lazy dog"
+          highlight:
+            fields:
+              foo.vectors:
+                type: fvh
+                order: score
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
+
+---
+text multi fvh score order:
+  - do:
+      catch: /The fast vector highlighter doesn't support loading multi-valued fields from _source in index \[test\] because _source can reorder field values/
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo.vectors: "That makes calamity of so long life."
+          highlight:
+            fields:
+              foo.vectors:
+                type: fvh
+                order: score

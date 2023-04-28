@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.calendars;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -24,7 +24,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
+public class ScheduledEventTests extends AbstractXContentSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
         Instant start = Instant.now();
@@ -34,6 +34,11 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
     @Override
     protected ScheduledEvent createTestInstance() {
         return createScheduledEvent(randomAlphaOfLengthBetween(1, 20));
+    }
+
+    @Override
+    protected ScheduledEvent mutateInstance(ScheduledEvent instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -26,7 +26,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
-import java.util.concurrent.CancellationException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
@@ -75,8 +74,8 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     private static void checkCancellation(Task task) {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
-            throw new CancellationException("Task cancelled");
+        if (task instanceof CancellableTask cancellableTask) {
+            cancellableTask.ensureNotCancelled();
         }
     }
 }

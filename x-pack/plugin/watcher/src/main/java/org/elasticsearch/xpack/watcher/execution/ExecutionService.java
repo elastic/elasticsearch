@@ -171,7 +171,6 @@ public class ExecutionService {
         assert stoppedListener != null;
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions(stoppedListener);
-        historyStore.flush();
         return cancelledTaskCount;
     }
 

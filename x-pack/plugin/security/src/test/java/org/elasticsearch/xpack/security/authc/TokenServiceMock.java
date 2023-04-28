@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
@@ -50,7 +50,9 @@ public class TokenServiceMock {
 
     public MockToken mockAccessToken() throws Exception {
         final String uuid = UUIDs.randomBase64UUID();
-        final SecureString encoded = new SecureString(tokenService.prependVersionAndEncodeAccessToken(Version.CURRENT, uuid).toCharArray());
+        final SecureString encoded = new SecureString(
+            tokenService.prependVersionAndEncodeAccessToken(TransportVersion.CURRENT, uuid).toCharArray()
+        );
         final String hashedToken = TokenService.hashTokenString(uuid);
         return new MockToken(uuid, encoded, hashedToken);
     }
@@ -61,7 +63,7 @@ public class TokenServiceMock {
 
     public void defineToken(MockToken token, Authentication authentication, boolean valid) throws IOException {
         Instant expiration = Instant.now().plusSeconds(TimeUnit.MINUTES.toSeconds(20));
-        final UserToken userToken = new UserToken(token.hashedToken, Version.CURRENT, authentication, expiration, Map.of());
+        final UserToken userToken = new UserToken(token.hashedToken, TransportVersion.CURRENT, authentication, expiration, Map.of());
         final Map<String, Object> document = new HashMap<>();
         document.put("access_token", Map.of("user_token", userToken, "invalidated", valid == false));
 

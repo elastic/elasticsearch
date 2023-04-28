@@ -22,7 +22,6 @@
           cancel-builds-on-update: true
           black-list-target-branches:
             - 6.8
-            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -45,7 +44,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
             JAVA16_HOME=$HOME/.java/openjdk16

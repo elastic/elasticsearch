@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 import org.elasticsearch.gradle.VersionProperties
@@ -43,7 +43,7 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
             nonInputProperties.systemProperty('tests.rest.cluster', cluster.map(c -> c.allHttpSocketURI.join(",")))
             nonInputProperties.systemProperty('tests.clustername', baseName)
         }
-        onlyIf { project.bwc_tests_enabled }
+        onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

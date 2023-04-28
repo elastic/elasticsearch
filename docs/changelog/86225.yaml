@@ -1,6 +1,0 @@
-pr: 86225
-summary: Fix FORMAT function to comply with Microsoft SQL Server specification
-area: SQL
-type: bug
-issues:
- - 66560

@@ -1,6 +1,0 @@
-pr: 85897
-summary: "SQ: Allow partial results in SQL queries"
-area: SQL
-type: feature
-issues:
- - 33148

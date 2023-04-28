@@ -322,5 +322,6 @@ DELETE /_async_search/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWH
 
 If the {es} {security-features} are enabled, the deletion of a specific async
 search is restricted to:
+
   * The authenticated user that submitted the original search request.
   * Users that have the `cancel_task` cluster privilege.

@@ -22,8 +22,6 @@
             - ^docs/.*
           black-list-labels:
             - '>test-mute'
-          black-list-target-branches:
-            - feature/desired-balance-allocator
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -31,7 +29,6 @@
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check

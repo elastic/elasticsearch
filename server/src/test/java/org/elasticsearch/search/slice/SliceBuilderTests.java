@@ -90,12 +90,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     private IndexSettings createIndexSettings(Version indexVersionCreated) {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-        IndexMetadata indexState = IndexMetadata.builder("index").settings(settings).build();
+        IndexMetadata indexState = IndexMetadata.builder("index").settings(indexSettings(indexVersionCreated, 1, 0)).build();
         return new IndexSettings(indexState, Settings.EMPTY);
     }
 
@@ -171,7 +166,7 @@ public class SliceBuilderTests extends ESTestCase {
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
-            when(context.getForField(fieldType)).thenReturn(fd);
+            when(context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH)).thenReturn(fd);
         }
         return context;
 

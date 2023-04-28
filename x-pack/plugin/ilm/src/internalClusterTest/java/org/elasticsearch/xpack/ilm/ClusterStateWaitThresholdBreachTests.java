@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -184,9 +183,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // at this point, the second shrink attempt was executed and the manged index is looping into the `shrunk-shards-allocated` step as
         // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this
         // situation and allow for shrink to complete by reducing the number of shards for the shrunk index to 0
-        Settings.Builder zeroReplicasSetting = Settings.builder().put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
-        assertAcked(client().admin().indices().prepareUpdateSettings(secondCycleShrinkIndexName[0]).setSettings(zeroReplicasSetting));
-
+        setReplicaCount(0, secondCycleShrinkIndexName[0]);
         assertBusy(() -> {
             ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(secondCycleShrinkIndexName[0]);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();

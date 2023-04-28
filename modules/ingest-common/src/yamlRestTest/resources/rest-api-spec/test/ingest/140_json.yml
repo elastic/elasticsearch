@@ -12,6 +12,10 @@ teardown:
       ingest.delete_pipeline:
         id: "3"
         ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "4"
+        ignore: 404
 
 ---
 "Test JSON Processor":
@@ -150,3 +154,35 @@ teardown:
         id: "3"
   - match: { _source.foo.bar: "baz" }
   - match: { _source.foo.qux: "quux" }
+
+---
+"Test JSON Processor lenient parsing":
+  - do:
+      ingest.put_pipeline:
+        id: "4"
+        body: {
+          "processors": [
+            {
+              "json" : {
+                "field" : "message",
+                "strict_json_parsing": false
+              }
+            }
+          ]
+        }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        pipeline: "4"
+        body: {
+          message: "123 foo"
+        }
+
+  - do:
+      get:
+        index: test
+        id: "4"
+  - match: { _source.message: 123 }

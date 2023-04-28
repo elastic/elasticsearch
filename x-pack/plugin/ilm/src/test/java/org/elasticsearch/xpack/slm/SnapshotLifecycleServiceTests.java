@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,7 +33,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -456,12 +456,12 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             )
         );
         final SetOnce<ClusterStateUpdateTask> task = new SetOnce<>();
-        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool) {
+        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null) {
             @Override
             public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
                 if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set((OperationModeUpdateTask) updateTask);
+                    task.set(updateTask);
                 }
             }
         };

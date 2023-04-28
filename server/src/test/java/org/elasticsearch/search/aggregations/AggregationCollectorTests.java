@@ -8,12 +8,8 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -28,49 +24,48 @@ import static org.mockito.Mockito.when;
 
 public class AggregationCollectorTests extends AggregatorTestCase {
     public void testTerms() throws IOException {
-        assertFalse(needsScores(termsBuilder().field("f")));
+        assertNeedsScores(termsBuilder().field("f"), false);
     }
 
     public void testSubTerms() throws IOException {
-        assertFalse(needsScores(termsBuilder().field("f").subAggregation(new TermsAggregationBuilder("i").field("f"))));
+        assertNeedsScores(termsBuilder().field("f").subAggregation(new TermsAggregationBuilder("i").field("f")), false);
     }
 
     public void testScoreConsumingScript() throws IOException {
-        assertFalse(needsScores(termsBuilder().script(new Script("no_scores"))));
+        assertNeedsScores(termsBuilder().script(new Script("no_scores")), false);
     }
 
     public void testNonScoreConsumingScript() throws IOException {
-        assertTrue(needsScores(termsBuilder().script(new Script("with_scores"))));
+        assertNeedsScores(termsBuilder().script(new Script("with_scores")), true);
     }
 
     public void testSubScoreConsumingScript() throws IOException {
-        assertFalse(needsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("no_scores")))));
+        assertNeedsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("no_scores"))), false);
     }
 
     public void testSubNonScoreConsumingScript() throws IOException {
-        assertTrue(needsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("with_scores")))));
+        assertNeedsScores(termsBuilder().field("f").subAggregation(termsBuilder().script(new Script("with_scores"))), true);
     }
 
     public void testTopHits() throws IOException {
-        assertTrue(needsScores(new TopHitsAggregationBuilder("h")));
+        assertNeedsScores(new TopHitsAggregationBuilder("h"), true);
     }
 
     public void testSubTopHits() throws IOException {
-        assertTrue(needsScores(termsBuilder().field("f").subAggregation(new TopHitsAggregationBuilder("h"))));
+        assertNeedsScores(termsBuilder().field("f").subAggregation(new TopHitsAggregationBuilder("h")), true);
     }
 
     private TermsAggregationBuilder termsBuilder() {
         return new TermsAggregationBuilder("t");
     }
 
-    private boolean needsScores(AggregationBuilder builder) throws IOException {
-        try (
-            Directory directory = newDirectory();
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            DirectoryReader reader = indexWriter.getReader()
-        ) {
-            return createAggregator(builder, new IndexSearcher(reader), new KeywordFieldType("f")).scoreMode().needsScores();
-        }
+    private void assertNeedsScores(AggregationBuilder builder, boolean expected) throws IOException {
+        withAggregator(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {},
+            (indexSearcher, agg) -> assertEquals(expected, agg.scoreMode().needsScores())
+        );
     }
 
     @Override

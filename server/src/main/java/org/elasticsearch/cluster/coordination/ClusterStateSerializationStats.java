@@ -82,13 +82,17 @@ public class ClusterStateSerializationStats implements Writeable, ToXContentObje
         builder.startObject();
         builder.startObject("full_states");
         builder.field("count", fullStateCount);
-        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedFullStateBytes));
-        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedFullStateBytes));
+        builder.humanReadableField(
+            "uncompressed_size_in_bytes",
+            "uncompressed_size",
+            ByteSizeValue.ofBytes(totalUncompressedFullStateBytes)
+        );
+        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", ByteSizeValue.ofBytes(totalCompressedFullStateBytes));
         builder.endObject();
         builder.startObject("diffs");
         builder.field("count", diffCount);
-        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", new ByteSizeValue(totalUncompressedDiffBytes));
-        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", new ByteSizeValue(totalCompressedDiffBytes));
+        builder.humanReadableField("uncompressed_size_in_bytes", "uncompressed_size", ByteSizeValue.ofBytes(totalUncompressedDiffBytes));
+        builder.humanReadableField("compressed_size_in_bytes", "compressed_size", ByteSizeValue.ofBytes(totalCompressedDiffBytes));
         builder.endObject();
         builder.endObject();
         return builder;

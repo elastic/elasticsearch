@@ -97,7 +97,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool
+            threadpool,
+            null
         );
         env = newEnvironment(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
 
@@ -238,6 +239,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
         readinessService.clusterChanged(event);
+        readinessService.watchedFileChanged();
 
         // sending a cluster state with active master should bring up the service
         assertTrue(readinessService.ready());

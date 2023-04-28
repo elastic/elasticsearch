@@ -46,14 +46,15 @@ run it using Gradle:
 ==== Launching and debugging from an IDE
 
 If you want to run Elasticsearch from your IDE, the `./gradlew run` task
-supports a remote debugging option:
+supports a remote debugging option. Run the following from your terminal:
 
 ---------------------------------------------------------------------------
 ./gradlew run --debug-jvm
 ---------------------------------------------------------------------------
 
-This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users)
-to suspend and initiate a debug connection on port incrementing from `5005`.
+Next start the "Debug Elasticsearch" run configuration in IntelliJ. This will enable the IDE to connect to the process and allow debug functionality.
+
+
 As such the IDE needs to be instructed to listen for connections on this port.
 Since we might run multiple JVMs as part of configuring and starting the cluster it's
 recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option
@@ -69,7 +70,7 @@ When running Elasticsearch with `./gradlew run`, assertions are enabled by
 default. To disable them, add the following command line option:
 
 -------------------------
--Dtests.jvm.argline="-da"
+-Dtests.jvm.argline="-da -dsa"
 -------------------------
 
 ==== Distribution
@@ -106,6 +107,76 @@ password: `elastic-password`.
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 - In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
+- In order to use HTTPS: ./gradlew run --https
+
+==== Customizing the test cluster for ./gradlew run
+
+You may need to customize the cluster configuration for the ./gradlew run task.
+The settings can be set via the command line, but other options require updating the task itself.
+You can simply find the task in the source code and configure it there.
+(The task is currently defined in build-tools-internal/src/main/groovy/elasticsearch.run.gradle)
+However, this requires modifying a source controlled file and is subject to accidental commits.
+Alternatively, you can use a Gradle init script to inject custom build logic with the -I flag to configure this task locally.
+
+For example:
+
+To use a custom certificate for HTTPS with `./gradlew run`, you can do the following.
+Create a file (for example ~/custom-run.gradle) with the following contents:
+-------------------------------------
+rootProject {
+  if(project.name == 'elasticsearch') {
+    afterEvaluate {
+        testClusters.matching { it.name == "runTask"}.configureEach {
+          extraConfigFile 'http.p12', file("<path/to/file>/http.p12")
+        }
+    }
+  }
+}
+-------------------------------------
+Now tell Gradle to use this init script:
+-------------------------------------
+./gradlew run -I ~/custom-run.gradle \
+-Dtests.es.xpack.security.http.ssl.enabled=true \
+-Dtests.es.xpack.security.http.ssl.keystore.path=http.p12
+-------------------------------------
+
+Now the http.p12 file will be placed in the config directory of the running cluster and available for use.
+Assuming you have the http.ssl.keystore setup correctly, you can now use HTTPS with ./gradlew run without the risk
+of accidentally committing your local configurations.
+
+==== Multiple nodes in the test cluster for ./gradlew run
+
+Another desired customization for ./gradlew run might be to run multiple
+nodes with different setting for each node. For example, you may want to debug a coordinating only node that fans out
+to one or more data nodes. To do this, increase the numberOfNodes and add specific configuration for each
+of the nodes.  For example, the following will instruct the first node (:9200) to be a coordinating only node,
+and all other nodes to be master, data_hot, data_content nodes.
+-------------------------------------
+testClusters.register("runTask") {
+     ...
+    numberOfNodes = 2
+    def cluster = testClusters.named("runTask").get()
+    cluster.getNodes().each { node ->
+      node.setting('cluster.initial_master_nodes', cluster.getLastNode().getName())
+      node.setting('node.roles', '[master,data_hot,data_content]')
+    }
+    cluster.getFirstNode().setting('node.roles', '[]')
+   ...
+}
+-------------------------------------
+
+You can also place this config in custom init script (see above) to avoid accidental commits.
+If you are passing in the --debug-jvm flag with multiple nodes, you will need multiple remote debuggers running. One
+for each node listening at port 5007, 5008, 5009, and so on. Ensure that each remote debugger has auto restart enabled.
+
+==== Manually testing cross cluster search
+
+Use ./gradlew run-ccs to launch 2 clusters wired together for the purposes of cross cluster search.
+For example send a search request "my_remote_cluster:*/_search" to the querying cluster (:9200) to query data
+in the fulfilling cluster.
+
+If you are passing in the --debug-jvm flag, you will need two remote debuggers running. One at port 5007 and another
+one at port 5008. Ensure that each remote debugger has auto restart enabled.
 
 === Test case filtering.
 
@@ -321,7 +392,8 @@ port of `5007`.
 NOTE: In the case of test clusters using multiple nodes, multiple debuggers
 will need to be attached on incrementing ports. For example, for a 3 node
 cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
-debugger.
+debugger. You can use the "Debug Elasticsearch (node 2)" and "(node 3)" run
+configurations should you need to debug a multi-node cluster.
 
 You can also use a combination of both flags to debug both tests and server.
 This is only applicable to Java REST tests.
@@ -374,13 +446,15 @@ A specific test case can be run with the following command:
   -Dtests.method="test {yaml=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 
+You can run a group of YAML test by using wildcards:
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest \
+  --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=index/*/*}"
+---------------------------------------------------------------------------
+
 The YAML REST tests support all the options provided by the randomized runner, plus the following:
 
-* `tests.rest.suite`: comma separated paths of the test suites to be run
-(by default loaded from /rest-api-spec/test). It is possible to run only a subset
-of the tests providing a sub-folder or even a single yaml file (the default
-/rest-api-spec/test prefix is optional when files are loaded from classpath)
-e.g. -Dtests.rest.suite=index,get,create/10_with_id
 * `tests.rest.blacklist`: comma separated globs that identify tests that are
 blacklisted and need to be skipped
 e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
@@ -588,7 +662,7 @@ sure that a branch is available and is up to date in the case of multiple runs.
 
 Example:
 
-Say you need to make a change to `master` and have a BWC layer in `5.x`. You
+Say you need to make a change to `main` and have a BWC layer in `5.x`. You
 will need to:
 . Create a branch called `index_req_change` off your remote `${remote}`. This
 will contain your change.
@@ -770,10 +844,6 @@ Test coverage reporting used to be possible with JaCoCo when Elasticsearch was u
 as its build system. Since the switch to Gradle though, this is no longer possible, seeing as
 the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
 For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
-
----------------------------------------------------------------------------
-
-Read your IDE documentation for how to attach a debugger to a JVM process.
 
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their

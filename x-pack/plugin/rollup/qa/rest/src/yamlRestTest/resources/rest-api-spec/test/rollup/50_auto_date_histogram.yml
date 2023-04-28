@@ -1,0 +1,191 @@
+setup:
+  - skip:
+      version: " - 8.6.99"
+      reason: "Downsample GA version 8.7.0"
+
+  - do:
+      indices.create:
+        index: test1-raw
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              total_memory_used:
+                type: integer
+                time_series_metric: gauge
+
+  - do:
+      indices.create:
+        index: test2-raw
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-29T00:00:00Z
+                end_time: 2021-04-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              total_memory_used:
+                type: integer
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: test1-raw
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "001", "total_memory_used": 106780 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "001", "total_memory_used": 110450 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T19:00:00Z", "uid": "001", "total_memory_used": 109009 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T19:05:00Z", "uid": "001", "total_memory_used": 120770 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:50:00Z", "uid": "002", "total_memory_used": 105580 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T18:55:00Z", "uid": "002", "total_memory_used": 110770 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T19:00:00Z", "uid": "002", "total_memory_used": 108991 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-28T19:05:00Z", "uid": "002", "total_memory_used": 124676 }'
+
+  - do:
+      bulk:
+        refresh: true
+        index: test2-raw
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T18:50:00Z", "uid": "001", "total_memory_used": 102343 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T18:55:00Z", "uid": "001", "total_memory_used": 111618 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T19:00:00Z", "uid": "001", "total_memory_used": 192828 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T19:05:00Z", "uid": "001", "total_memory_used": 136355 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T18:50:00Z", "uid": "002", "total_memory_used": 144490 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T18:55:00Z", "uid": "002", "total_memory_used": 124200 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T19:00:00Z", "uid": "002", "total_memory_used": 111901 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-04-29T19:05:00Z", "uid": "002", "total_memory_used": 117899 }'
+  - do:
+      indices.put_settings:
+        index: test1-raw
+        body:
+          index.blocks.write: true
+
+  - do:
+      indices.downsample:
+        index: test1-raw
+        target_index: test1-rollup
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+
+---
+"Auto date histogram aggregation 2 buckets":
+  - do:
+      search:
+        index: test1-rollup,test2-raw
+        body:
+          size: 0
+          aggs:
+            auto_date_histo:
+              auto_date_histogram:
+                field: "@timestamp"
+                buckets: 2
+
+  - match: { hits.total.value: 12 }
+  - length: { aggregations.auto_date_histo.buckets: 2 }
+  - match: { aggregations.auto_date_histo.interval: "1d" }
+  - match: { aggregations.auto_date_histo.buckets.0.key_as_string: "2021-04-28T00:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.0.doc_count: 8 }
+  - match: { aggregations.auto_date_histo.buckets.1.key_as_string: "2021-04-29T00:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.1.doc_count: 8 }
+
+---
+"Auto date histogram aggregation 10 buckets":
+  - do:
+      search:
+        index: test1-rollup,test2-raw
+        body:
+          size: 0
+          aggs:
+            auto_date_histo:
+              auto_date_histogram:
+                field: "@timestamp"
+                buckets: 10
+
+  - match: { hits.total.value: 12 }
+  - length: { aggregations.auto_date_histo.buckets: 9 }
+  - match: { aggregations.auto_date_histo.interval: "3h" }
+  - match: { aggregations.auto_date_histo.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.0.doc_count: 8 }
+  - match: { aggregations.auto_date_histo.buckets.1.key_as_string: "2021-04-28T21:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.1.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.2.key_as_string: "2021-04-29T00:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.2.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.3.key_as_string: "2021-04-29T03:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.3.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.4.key_as_string: "2021-04-29T06:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.4.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.5.key_as_string: "2021-04-29T09:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.5.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.6.key_as_string: "2021-04-29T12:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.6.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.7.key_as_string: "2021-04-29T15:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.7.doc_count: 0 }
+  - match: { aggregations.auto_date_histo.buckets.8.key_as_string: "2021-04-29T18:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.8.doc_count: 8 }
+
+---
+"Auto date histogram aggregation 200 buckets":
+  - do:
+      search:
+        index: test1-rollup,test2-raw
+        body:
+          size: 0
+          aggs:
+            auto_date_histo:
+              auto_date_histogram:
+                field: "@timestamp"
+                buckets: 200
+
+  - match: { hits.total.value: 12 }
+  - length: { aggregations.auto_date_histo.buckets: 151 }
+  - match: { aggregations.auto_date_histo.interval: "10m" }
+  - match: { aggregations.auto_date_histo.buckets.0.key_as_string: "2021-04-28T18:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.0.doc_count: 4 }
+  - match: { aggregations.auto_date_histo.buckets.6.key_as_string: "2021-04-28T19:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.6.doc_count: 4 }
+  - match: { aggregations.auto_date_histo.buckets.149.key_as_string: "2021-04-29T18:50:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.149.doc_count: 4 }
+  - match: { aggregations.auto_date_histo.buckets.150.key_as_string: "2021-04-29T19:00:00.000Z" }
+  - match: { aggregations.auto_date_histo.buckets.150.doc_count: 4 }

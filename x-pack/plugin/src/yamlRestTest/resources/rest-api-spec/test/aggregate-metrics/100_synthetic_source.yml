@@ -1,0 +1,53 @@
+constant_keyword:
+  - skip:
+      version: " - 8.4.99"
+      reason: synthetic source support added  in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, value_count]
+                default_metric: max
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: false # Do not refresh on every insert so that we get both docs in the same segment
+        body:
+          metric:
+            min: 18.2
+            max: 100
+            value_count: 50
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        refresh: true
+        body:
+          metric:
+            min: 10.0
+            max: 20.0
+            value_count: 5
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1, 2]
+  - match:
+      hits.hits.0._source:
+        metric:
+          min: 18.2
+          max: 100.0
+          value_count: 50

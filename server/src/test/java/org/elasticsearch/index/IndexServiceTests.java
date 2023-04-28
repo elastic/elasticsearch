@@ -57,6 +57,19 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         return new CompressedXContent(Strings.toString(builder));
     }
 
+    public void testClosedIndexHasNullNodeMappingStats() throws Exception {
+        final IndexService indexService = createIndex("test", Settings.EMPTY);
+        ensureGreen("test");
+
+        final Index index = indexService.index();
+        assertAcked(client().admin().indices().prepareClose(index.getName()));
+        assertBusy(() -> assertTrue("Index not found: " + index.getName(), getInstanceFromNode(IndicesService.class).hasIndex(index)));
+
+        final IndexService closedIndexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
+        assertNotSame(indexService, closedIndexService);
+        assertNull(closedIndexService.getNodeMappingStats());
+    }
+
     public void testBaseAsyncTask() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));

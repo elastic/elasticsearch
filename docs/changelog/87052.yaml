@@ -1,6 +1,0 @@
-pr: 87052
-summary: Add Resolve Index API to the "read" permission for an index
-area: Indices APIs
-type: bug
-issues:
- - 86977

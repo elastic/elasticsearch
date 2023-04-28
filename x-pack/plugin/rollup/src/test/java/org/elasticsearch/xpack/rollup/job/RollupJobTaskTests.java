@@ -10,9 +10,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,7 +38,6 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -584,6 +588,11 @@ public class RollupJobTaskTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         Client client = mock(Client.class);
+        doAnswer(invocationOnMock -> {
+            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
+            return null;
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
         when(client.settings()).thenReturn(Settings.EMPTY);
 
         AtomicBoolean started = new AtomicBoolean(false);
@@ -609,7 +618,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -686,7 +695,11 @@ public class RollupJobTaskTests extends ESTestCase {
         headers.put("_xpack_security_authentication", "bar");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
+        doAnswer(invocationOnMock -> {
+            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
+            return null;
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
 
         AtomicBoolean started = new AtomicBoolean(false);
         AtomicBoolean finished = new AtomicBoolean(false);
@@ -714,7 +727,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         TaskId taskId = new TaskId("node", 123);
@@ -780,7 +793,7 @@ public class RollupJobTaskTests extends ESTestCase {
         latch.countDown();
 
         // Wait for the final persistent status to finish
-        assertBusy(() -> assertTrue(finished.get()));
+        assertBusy(() -> assertTrue(finished.get()), 30, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings("unchecked")
@@ -791,6 +804,11 @@ public class RollupJobTaskTests extends ESTestCase {
         headers.put("_xpack_security_authentication", "bar");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
         Client client = mock(Client.class);
+        doAnswer(invocationOnMock -> {
+            RefreshResponse r = new RefreshResponse(2, 2, 0, Collections.emptyList());
+            ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
+            return null;
+        }).when(client).execute(eq(RefreshAction.INSTANCE), any(), any());
         when(client.settings()).thenReturn(Settings.EMPTY);
 
         AtomicBoolean started = new AtomicBoolean(false);
@@ -819,7 +837,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             ((ActionListener) invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
         RollupJobStatus status = new RollupJobStatus(IndexerState.STOPPED, null);

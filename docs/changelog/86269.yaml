@@ -1,6 +1,0 @@
-pr: 86269
-summary: Add parameter to exclude indices in a snapshot from response
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 82937

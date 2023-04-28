@@ -56,14 +56,14 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
             // startOffsets
             size = in.readVLong();
             long sizeOfStartOffsets = size + 1;
-            startOffsets = bigArrays.newLongArray(sizeOfStartOffsets, true);
+            startOffsets = bigArrays.newLongArray(sizeOfStartOffsets, false);
             for (long i = 0; i < sizeOfStartOffsets; ++i) {
                 startOffsets.set(i, in.readVLong());
             }
 
             // bytes
             long sizeOfBytes = in.readVLong();
-            bytes = bigArrays.newByteArray(sizeOfBytes, true);
+            bytes = bigArrays.newByteArray(sizeOfBytes, false);
 
             for (long i = 0; i < sizeOfBytes; ++i) {
                 bytes.set(i, in.readByte());
@@ -77,13 +77,23 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         }
     }
 
+    private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
+        this.bytes = bytes;
+        this.startOffsets = startOffsets;
+        this.size = size;
+        this.bigArrays = bigArrays;
+    }
+
     public void append(BytesRef key) {
+        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(size);
-        bytes = bigArrays.grow(bytes, startOffset + key.length);
-        bytes.set(startOffset, key.bytes, key.offset, key.length);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
         startOffsets.set(size + 1, startOffset + key.length);
         ++size;
+        if (key.length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + key.length);
+            bytes.set(startOffset, key.bytes, key.offset, key.length);
+        }
     }
 
     /**
@@ -91,6 +101,7 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
+        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(id);
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
@@ -106,8 +117,29 @@ public class BytesRefArray implements Accountable, Releasable, Writeable {
         Releasables.close(bytes, startOffsets);
     }
 
+    /**
+     * Create new instance and pass ownership of this array to the new one.
+     *
+     * Note, this closes this array. Don't use it after passing ownership.
+     *
+     * @param other BytesRefArray to claim ownership from
+     * @return a new BytesRefArray instance with the payload of other
+     */
+    public static BytesRefArray takeOwnershipOf(BytesRefArray other) {
+        BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
+
+        // don't leave a broken array behind, although it isn't used any longer
+        // on append both arrays get re-allocated
+        other.startOffsets = null;
+        other.bytes = null;
+        other.size = 0;
+
+        return b;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert startOffsets != null : "using BytesRefArray after ownership taken";
         out.writeVLong(size);
         long sizeOfStartOffsets = size + 1;
 

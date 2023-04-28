@@ -1,5 +1,0 @@
-pr: 85635
-summary: Report pending joins in `ClusterFormationFailureHelper`
-area: Cluster Coordination
-type: enhancement
-issues: []

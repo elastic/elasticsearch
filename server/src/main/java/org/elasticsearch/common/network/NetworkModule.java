@@ -23,7 +23,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -31,6 +33,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -46,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -121,7 +125,9 @@ public final class NetworkModule {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         this.settings = settings;
         for (NetworkPlugin plugin : plugins) {
@@ -134,7 +140,9 @@ public final class NetworkModule {
                 xContentRegistry,
                 networkService,
                 dispatcher,
-                clusterSettings
+                perRequestThreadContext,
+                clusterSettings,
+                tracer
             );
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());

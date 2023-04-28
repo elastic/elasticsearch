@@ -38,12 +38,7 @@ public class UpdateSettingsValidationIT extends ESIntegTestCase {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.totalNumShards));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test")
-            .setSettings(Settings.builder().put("index.number_of_replicas", 0))
-            .execute()
-            .actionGet();
+        setReplicaCount(0, "test");
         healthResponse = client().admin()
             .cluster()
             .prepareHealth("test")

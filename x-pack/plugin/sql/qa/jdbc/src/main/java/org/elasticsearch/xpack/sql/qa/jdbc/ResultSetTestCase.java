@@ -79,6 +79,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isVersionFieldTypeSupported;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
@@ -2244,6 +2245,25 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertEquals("No row available", sqle.getMessage());
     }
 
+    public void testSingleVersionFieldValue() throws SQLException, IOException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support VERSION fields", isVersionFieldTypeSupported());
+
+        createTestDataForVersionType();
+        String query = "SELECT name, version FROM test WHERE version = '1.3.0' OR version = 'foo' ORDER BY version ASC";
+        doWithQuery(query, results -> {
+            assertTrue(results.next());
+            assertEquals("version 1.3.0", results.getString("name"));
+            assertEquals("1.3.0", results.getString("version"));
+            SQLException sqle = expectThrows(SQLException.class, () -> results.getByte("version"));
+            assertEquals(format(Locale.ROOT, "Unable to convert value [%.128s] of type [VERSION] to [Byte]", "1.3.0"), sqle.getMessage());
+            assertTrue(results.next());
+            assertEquals("version foo", results.getString("name"));
+            assertEquals("foo", results.getString("version"));
+            assertFalse(results.next());
+        });
+
+    }
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         doWithQuery(() -> esJdbc(timeZoneId), query, consumer);
     }
@@ -2468,6 +2488,48 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 }
             }
         });
+    }
+
+    private void createTestDataForVersionType() throws IOException {
+        createIndexWithMapping("test");
+        updateMapping("test", builder -> {
+            builder.startObject("name").field("type", "keyword").endObject();
+            builder.startObject("version").field("type", "version").endObject();
+        });
+
+        int docId = 1;
+        // first two deterministic values
+        index("test", "" + (docId++), builder -> {
+            builder.array("version", "1.3.0");
+            builder.array("name", "version 1.3.0");
+        });
+        index("test", "" + (docId++), builder -> {
+            builder.array("version", "1.11.0");
+            builder.array("name", "version 1.11.0");
+        });
+
+        // some higher versions
+        for (int i = 0; i < randomInt(10); i++) {
+            index("test", "" + (docId++), builder -> {
+                String versionVal = (2 + randomInt(50)) + "." + randomInt(50) + "." + randomInt(50);
+                builder.array("version", versionVal);
+                builder.array("name", "version " + versionVal);
+            });
+        }
+
+        // some invalid versions
+        index("test", "" + (docId++), builder -> {
+            String versionVal = "foo";
+            builder.array("version", versionVal);
+            builder.array("name", "version " + versionVal);
+        });
+        for (int i = 0; i < randomInt(10); i++) {
+            index("test", "" + (docId++), builder -> {
+                String versionVal = "foo" + randomInt(1000);
+                builder.array("version", versionVal);
+                builder.array("name", "version " + versionVal);
+            });
+        }
     }
 
     /**

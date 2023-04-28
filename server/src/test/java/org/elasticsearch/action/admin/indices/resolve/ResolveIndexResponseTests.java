@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Resolve
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response.DATA_STREAMS_FIELD;
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response.INDICES_FIELD;
 
-public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Response> {
+public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCase<Response> {
 
     @Override
     protected Writeable.Reader<Response> instanceReader() {
@@ -63,6 +63,11 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
         }
 
         return new Response(indices, aliases, dataStreams);
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     private static ResolvedIndex createTestResolvedIndexInstance() {

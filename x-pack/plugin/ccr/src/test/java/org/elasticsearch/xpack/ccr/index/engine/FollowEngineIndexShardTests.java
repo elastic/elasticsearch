@@ -102,7 +102,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
             releasable.close();
             latch.countDown();
         }, e -> { assert false : "expected no exception, but got [" + e.getMessage() + "]"; });
-        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC, "");
+        indexShard.acquirePrimaryOperationPermit(actionListener, ThreadPool.Names.GENERIC);
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(seqNoBeforeGap));
         indexShard.refresh("test");
@@ -171,7 +171,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         assertThat(target.getLocalCheckpoint(), equalTo(0L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
-        IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
 
         assertDocs(target, "0", "2");

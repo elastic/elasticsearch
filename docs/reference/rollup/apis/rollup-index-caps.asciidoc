@@ -10,6 +10,9 @@ index where rollup data is stored).
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 [[rollup-get-rollup-index-caps-request]]
 ==== {api-request-title}
 

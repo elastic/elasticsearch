@@ -70,8 +70,6 @@ class MembersInjectorStore {
         List<SingleMemberInjector> injectors = getInjectors(injectionPoints, errors);
         errors.throwIfNewErrors(numErrorsBefore);
 
-        errors.throwIfNewErrors(numErrorsBefore);
-
         return new MembersInjectorImpl<>(injector, type, injectors);
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -73,6 +75,14 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Map<String, String> param4 = mapBuilder().put("id", "api-key-id-1").map();
         final Map<String, String> param5 = mapBuilder().put("name", "api-key-name-1").map();
         final Map<String, String> params = randomFrom(param1, param2, param3, param4, param5);
+        final boolean withLimitedBy = randomBoolean();
+        if (withLimitedBy) {
+            params.put("with_limited_by", "true");
+        } else {
+            if (randomBoolean()) {
+                params.put("with_limited_by", "false");
+            }
+        }
         final boolean replyEmptyResponse = rarely();
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(params).build();
 
@@ -87,9 +97,22 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
+        final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null;
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
             Collections.singletonList(
-                new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)
+                new ApiKey(
+                    "api-key-name-1",
+                    "api-key-id-1",
+                    creation,
+                    expiration,
+                    false,
+                    "user-x",
+                    "realm-1",
+                    metadata,
+                    roleDescriptors,
+                    limitedByRoleDescriptors
+                )
             )
         );
 
@@ -140,7 +163,18 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 assertThat(
                     actual.getApiKeyInfos(),
                     arrayContaining(
-                        new ApiKey("api-key-name-1", "api-key-id-1", creation, expiration, false, "user-x", "realm-1", metadata)
+                        new ApiKey(
+                            "api-key-name-1",
+                            "api-key-id-1",
+                            creation,
+                            expiration,
+                            false,
+                            "user-x",
+                            "realm-1",
+                            metadata,
+                            roleDescriptors,
+                            limitedByRoleDescriptors
+                        )
                     )
                 );
             }
@@ -155,6 +189,14 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             param = mapBuilder().put("owner", Boolean.TRUE.toString()).map();
         } else {
             param = mapBuilder().put("owner", Boolean.FALSE.toString()).put("realm_name", "realm-1").map();
+        }
+        final boolean withLimitedBy = randomBoolean();
+        if (withLimitedBy) {
+            param.put("with_limited_by", "true");
+        } else {
+            if (randomBoolean()) {
+                param.put("with_limited_by", "false");
+            }
         }
 
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(param).build();
@@ -177,7 +219,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             false,
             "user-x",
             "realm-1",
-            ApiKeyTests.randomMetadata()
+            ApiKeyTests.randomMetadata(),
+            randomUniquelyNamedRoleDescriptors(0, 3),
+            withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final ApiKey apiKey2 = new ApiKey(
             "api-key-name-2",
@@ -187,7 +231,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             false,
             "user-y",
             "realm-1",
-            ApiKeyTests.randomMetadata()
+            ApiKeyTests.randomMetadata(),
+            randomUniquelyNamedRoleDescriptors(0, 3),
+            withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));

@@ -16,14 +16,27 @@ import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.same;
 
 public class FieldPermissionsTests extends ESTestCase {
+
+    public void test() {
+        FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;
+        fieldPermissions = fieldPermissions.limitFieldPermissions(
+            new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2" }, new String[] { "" }))
+        );
+
+        assertThat(fieldPermissions.grantsAccessTo("f1"), is(true));
+        assertThat(fieldPermissions.grantsAccessTo("f2"), is(true));
+    }
 
     public void testFieldPermissionsIntersection() {
 
@@ -36,13 +49,13 @@ public class FieldPermissionsTests extends ESTestCase {
         );
 
         {
-            FieldPermissions result = fieldPermissions.limitFieldPermissions(randomFrom(new FieldPermissions(), null));
+            FieldPermissions result = fieldPermissions.limitFieldPermissions(randomFrom(FieldPermissions.DEFAULT, null));
             assertThat(result, is(notNullValue()));
             assertThat(result, IsSame.sameInstance(FieldPermissions.DEFAULT));
         }
 
         {
-            FieldPermissions result = fieldPermissions1.limitFieldPermissions(new FieldPermissions());
+            FieldPermissions result = fieldPermissions1.limitFieldPermissions(FieldPermissions.DEFAULT);
             assertThat(result, is(notNullValue()));
             assertThat(result, not(same(fieldPermissions)));
             assertThat(result, not(same(fieldPermissions1)));
@@ -82,9 +95,47 @@ public class FieldPermissionsTests extends ESTestCase {
         }
     }
 
+    public void testMultipleLimiting() {
+        // Basic test for a number of permission definitions
+        FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;
+        final int nSets = randomIntBetween(2, 8);
+        final FieldPermissionsDefinition fieldPermissionsDefinition = fieldPermissionDef(
+            new String[] { "f1", "f2", "f3*" },
+            new String[] { "f3" }
+        );
+        for (int i = 0; i < nSets; i++) {
+            fieldPermissions = fieldPermissions.limitFieldPermissions(new FieldPermissions(fieldPermissionsDefinition));
+        }
+        final List<FieldPermissionsDefinition> fieldPermissionsDefinitions = fieldPermissions.getFieldPermissionsDefinitions();
+        assertNonNullFieldPermissionDefinitions(fieldPermissionsDefinitions, nSets);
+        fieldPermissionsDefinitions.forEach(fpd -> assertThat(fpd, equalTo(fieldPermissionsDefinition)));
+        assertThat(fieldPermissions.grantsAccessTo(randomFrom("f1", "f2", "f31")), is(true));
+        assertThat(fieldPermissions.grantsAccessTo("f3"), is(false));
+
+        // More realistic intersection
+        fieldPermissions = FieldPermissions.DEFAULT;
+        fieldPermissions = fieldPermissions.limitFieldPermissions(
+            new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2", "f3*", "f4*" }, new String[] { "f3" }))
+        );
+        fieldPermissions = fieldPermissions.limitFieldPermissions(
+            new FieldPermissions(fieldPermissionDef(new String[] { "f2", "f3*", "f4*", "f5*" }, new String[] { "f4" }))
+        );
+        fieldPermissions = fieldPermissions.limitFieldPermissions(
+            new FieldPermissions(fieldPermissionDef(new String[] { "f3*", "f4*", "f5*", "f6" }, new String[] { "f5" }))
+        );
+        assertNonNullFieldPermissionDefinitions(fieldPermissions.getFieldPermissionsDefinitions(), 3);
+
+        assertThat(fieldPermissions.grantsAccessTo(randomFrom("f1", "f2", "f5", "f6") + randomAlphaOfLengthBetween(0, 10)), is(false));
+        assertThat(fieldPermissions.grantsAccessTo("f3"), is(false));
+        assertThat(fieldPermissions.grantsAccessTo("f4"), is(false));
+
+        assertThat(fieldPermissions.grantsAccessTo("f3" + randomAlphaOfLengthBetween(1, 10)), is(true));
+        assertThat(fieldPermissions.grantsAccessTo("f4" + randomAlphaOfLengthBetween(1, 10)), is(true));
+    }
+
     public void testMustHaveNonNullFieldPermissionsDefinition() {
-        final FieldPermissions fieldPermissions0 = new FieldPermissions();
-        assertThat(fieldPermissions0.getFieldPermissionsDefinition(), notNullValue());
+        final FieldPermissions fieldPermissions0 = FieldPermissions.DEFAULT;
+        assertNonNullFieldPermissionDefinitions(fieldPermissions0.getFieldPermissionsDefinitions());
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null));
         expectThrows(NullPointerException.class, () -> new FieldPermissions(null, Automatons.MATCH_ALL));
 
@@ -92,13 +143,15 @@ public class FieldPermissionsTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }))
         );
-        assertThat(fieldPermissions03.limitFieldPermissions(null).getFieldPermissionsDefinition(), notNullValue());
-        assertThat(fieldPermissions03.limitFieldPermissions(FieldPermissions.DEFAULT).getFieldPermissionsDefinition(), notNullValue());
-        assertThat(
+        assertNonNullFieldPermissionDefinitions(fieldPermissions03.limitFieldPermissions(null).getFieldPermissionsDefinitions());
+        assertNonNullFieldPermissionDefinitions(
+            fieldPermissions03.limitFieldPermissions(FieldPermissions.DEFAULT).getFieldPermissionsDefinitions()
+        );
+        assertNonNullFieldPermissionDefinitions(
             fieldPermissions03.limitFieldPermissions(
                 new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }))
-            ).getFieldPermissionsDefinition(),
-            notNullValue()
+            ).getFieldPermissionsDefinitions(),
+            fieldPermissions03.hasFieldLevelSecurity() ? 2 : 1
         );
     }
 
@@ -154,7 +207,7 @@ public class FieldPermissionsTests extends ESTestCase {
 
         // Just limited by
         final BytesStreamOutput out3 = new BytesStreamOutput();
-        final FieldPermissions fieldPermissions3 = new FieldPermissions().limitFieldPermissions(
+        final FieldPermissions fieldPermissions3 = FieldPermissions.DEFAULT.limitFieldPermissions(
             new FieldPermissions(
                 new FieldPermissionsDefinition(
                     Set.of(
@@ -180,4 +233,13 @@ public class FieldPermissionsTests extends ESTestCase {
         return new FieldPermissionsDefinition(granted, denied);
     }
 
+    private void assertNonNullFieldPermissionDefinitions(List<FieldPermissionsDefinition> fieldPermissionsDefinitions) {
+        assertNonNullFieldPermissionDefinitions(fieldPermissionsDefinitions, 1);
+    }
+
+    private void assertNonNullFieldPermissionDefinitions(List<FieldPermissionsDefinition> fieldPermissionsDefinitions, int expectedSize) {
+        assertThat(fieldPermissionsDefinitions, notNullValue());
+        assertThat(fieldPermissionsDefinitions, hasSize(expectedSize));
+        fieldPermissionsDefinitions.forEach(fieldPermissionsDefinition -> assertThat(fieldPermissionsDefinition, notNullValue()));
+    }
 }

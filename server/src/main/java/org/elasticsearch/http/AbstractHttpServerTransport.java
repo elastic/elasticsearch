@@ -34,8 +34,10 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -87,7 +89,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final HttpClientStatsTracker httpClientStatsTracker;
 
-    private final HttpTracer tracer;
+    private final HttpTracer httpLogger;
+    private final Tracer tracer;
 
     private volatile long slowLogThresholdMs;
 
@@ -98,7 +101,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         this.settings = settings;
         this.networkService = networkService;
@@ -123,13 +127,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.tracer = new HttpTracer(settings, clusterSettings);
+        this.tracer = tracer;
+        this.httpLogger = new HttpTracer(settings, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(
             TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
             slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis()
         );
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
+    }
+
+    public Recycler<BytesRef> recycler() {
+        return recycler;
     }
 
     @Override
@@ -323,7 +332,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         refCounted.incRef();
-        httpChannel.addCloseListener(ActionListener.wrap(() -> {
+        httpChannel.addCloseListener(ActionListener.running(() -> {
             httpChannels.remove(httpChannel);
             refCounted.decRef();
         }));
@@ -368,10 +377,26 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (badRequestCause != null) {
                 dispatcher.dispatchBadRequest(channel, threadContext, badRequestCause);
             } else {
+                populatePerRequestThreadContext0(restRequest, channel, threadContext);
                 dispatcher.dispatchRequest(restRequest, channel, threadContext);
             }
         }
     }
+
+    private void populatePerRequestThreadContext0(RestRequest restRequest, RestChannel channel, ThreadContext threadContext) {
+        try {
+            populatePerRequestThreadContext(restRequest, threadContext);
+        } catch (Exception e) {
+            try {
+                channel.sendResponse(new RestResponse(channel, e));
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error(() -> "failed to send failure response for uri [" + restRequest.uri() + "]", inner);
+            }
+        }
+    }
+
+    protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {}
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
         if (exception == null) {
@@ -407,7 +432,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             restRequest = innerRestRequest;
         }
 
-        final HttpTracer trace = tracer.maybeTraceRequest(restRequest, exception);
+        final HttpTracer maybeHttpLogger = httpLogger.maybeLogRequest(restRequest, exception);
 
         /*
          * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
@@ -428,7 +453,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     handlingSettings,
                     threadContext,
                     corsHandler,
-                    trace
+                    maybeHttpLogger,
+                    tracer
                 );
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
@@ -441,7 +467,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     handlingSettings,
                     threadContext,
                     corsHandler,
-                    trace
+                    httpLogger,
+                    tracer
                 );
             }
             channel = innerChannel;
@@ -474,7 +501,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
         if (HttpUtils.shouldCloseConnection(request)) {
-            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+            return ActionListener.running(() -> CloseableChannel.closeChannel(httpChannel));
         } else {
             return ActionListener.noop();
         }

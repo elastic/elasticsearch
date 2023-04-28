@@ -23,9 +23,10 @@ class ReaperPluginFuncTest extends AbstractGradleFuncTest {
             import org.elasticsearch.gradle.ReaperPlugin;
             import org.elasticsearch.gradle.util.GradleUtils;
             
+            def serviceProvider = GradleUtils.getBuildService(project.getGradle().getSharedServices(), ReaperPlugin.REAPER_SERVICE_NAME);
+                
             tasks.register("launchReaper") {
               doLast {
-                def serviceProvider = GradleUtils.getBuildService(project.getGradle().getSharedServices(), ReaperPlugin.REAPER_SERVICE_NAME);
                 def reaper = serviceProvider.get()
                 reaper.registerCommand('test', 'true')
                 reaper.unregister('test')

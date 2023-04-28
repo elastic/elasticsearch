@@ -1,6 +1,0 @@
-pr: 85577
-summary: Use varhandles for primitive type conversion in more places
-area: Infra/Core
-type: enhancement
-issues:
- - 78823

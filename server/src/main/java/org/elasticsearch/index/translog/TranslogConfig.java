@@ -25,13 +25,14 @@ import java.nio.file.Path;
 public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = new ByteSizeValue(10, ByteSizeUnit.BYTES);
+    public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
     private final BigArrays bigArrays;
     private final DiskIoBufferPool diskIoBufferPool;
     private final IndexSettings indexSettings;
     private final ShardId shardId;
     private final Path translogPath;
     private final ByteSizeValue bufferSize;
+    private final OperationListener operationListener;
 
     /**
      * Creates a new TranslogConfig instance
@@ -52,12 +53,25 @@ public final class TranslogConfig {
         ByteSizeValue bufferSize,
         DiskIoBufferPool diskIoBufferPool
     ) {
+        this(shardId, translogPath, indexSettings, bigArrays, bufferSize, diskIoBufferPool, (d, s, l) -> {});
+    }
+
+    public TranslogConfig(
+        ShardId shardId,
+        Path translogPath,
+        IndexSettings indexSettings,
+        BigArrays bigArrays,
+        ByteSizeValue bufferSize,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener
+    ) {
         this.bufferSize = bufferSize;
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;
         this.bigArrays = bigArrays;
         this.diskIoBufferPool = diskIoBufferPool;
+        this.operationListener = operationListener;
     }
 
     /**
@@ -101,5 +115,9 @@ public final class TranslogConfig {
      */
     public DiskIoBufferPool getDiskIoBufferPool() {
         return diskIoBufferPool;
+    }
+
+    public OperationListener getOperationListener() {
+        return operationListener;
     }
 }

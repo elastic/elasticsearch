@@ -111,6 +111,11 @@ comprising the number of shards in the index, the total size of the index in
 bytes, and the maximum number of segments per shard in the index. Defaults to
 `false`, meaning that this information is omitted.
 
+`include_repository`::
+(Optional, Boolean)
+If `true`, returns the repository name for each snapshot in the response.
+Defaults to `true`.
+
 `sort`::
 (Optional, string)
 Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorting by snapshot start time stamp.

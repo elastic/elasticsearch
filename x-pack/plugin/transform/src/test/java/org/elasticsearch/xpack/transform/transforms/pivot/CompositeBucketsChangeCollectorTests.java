@@ -140,6 +140,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
             null,
             false,
             new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.MINUTE),
+            null,
             null
         );
         groups.put("output_timestamp", groupBy);
@@ -224,6 +225,7 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
             null,
             true,
             new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.MINUTE),
+            null,
             null
         );
         groups.put("output_timestamp", groupBy);

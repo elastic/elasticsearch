@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,7 +70,7 @@ public class TransformNodesTests extends ESTestCase {
             }
 
             @Override
-            public Version getMinimalSupportedVersion() {
+            public TransportVersion getMinimalSupportedVersion() {
                 return null;
             }
 
@@ -225,7 +226,6 @@ public class TransformNodesTests extends ESTestCase {
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false, Metadata.EMPTY_METADATA), isEmpty());
 
         nodes = DiscoveryNodes.builder()
-            .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
             .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
             .build();
@@ -236,7 +236,6 @@ public class TransformNodesTests extends ESTestCase {
         );
 
         nodes = DiscoveryNodes.builder()
-            .add(newDiscoveryNode("node-1", Version.V_7_12_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
             .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
             .add(newDiscoveryNode("node-4", Version.V_7_13_0, TRANSFORM_ROLE, REMOTE_CLUSTER_CLIENT_ROLE))

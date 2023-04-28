@@ -24,7 +24,6 @@ import java.lang.invoke.MethodType;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.lang.invoke.MethodHandles.Lookup;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
@@ -400,9 +399,9 @@ public final class LambdaBootstrap {
         iface.visitCode();
 
         // Loads any captured variables onto the stack.
-        for (int captureCount = 0; captureCount < captures.length; ++captureCount) {
+        for (Capture capture : captures) {
             iface.loadThis();
-            iface.getField(lambdaClassType, captures[captureCount].name, captures[captureCount].type);
+            iface.getField(lambdaClassType, capture.name, capture.type);
         }
 
         // Loads any passed in arguments onto the stack.
@@ -442,13 +441,16 @@ public final class LambdaBootstrap {
                 delegateClassType = Type.getType(clazz);
 
                 // functionalInterfaceWithCaptures needs to add the receiver and other captures
-                List<Type> parameters = interfaceMethodType.parameterList().stream().map(Type::getType).collect(Collectors.toList());
-                parameters.add(0, delegateClassType);
+                Type[] parameters = new Type[captures.length + interfaceMethodType.parameterList().size()];
+                int p = 0;
+                parameters[p++] = delegateClassType;
                 for (int i = 1; i < captures.length; i++) {
-                    parameters.add(i, captures[i].type);
+                    parameters[p++] = captures[i].type;
                 }
-                Type[] parametersArray = parameters.toArray(new Type[0]);
-                functionalInterfaceWithCaptures = Type.getMethodDescriptor(Type.getType(interfaceMethodType.returnType()), parametersArray);
+                for (Class<?> pCls : interfaceMethodType.parameterList()) {
+                    parameters[p++] = Type.getType(pCls);
+                }
+                functionalInterfaceWithCaptures = Type.getMethodDescriptor(Type.getType(interfaceMethodType.returnType()), parameters);
 
                 // delegateMethod does not need the receiver
                 List<Class<?>> factoryParameters = factoryMethodType.parameterList();

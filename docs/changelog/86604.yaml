@@ -1,6 +1,0 @@
-pr: 86604
-summary: Relax restrictions for role names in roles API
-area: Authorization
-type: enhancement
-issues:
- - 86480

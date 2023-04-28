@@ -40,7 +40,7 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
             method,
             "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
         );
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizerInstance, settings);
     }
 
     @Override

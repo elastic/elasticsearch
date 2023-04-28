@@ -9,6 +9,7 @@
 package org.elasticsearch.nodesinfo;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
-import static org.elasticsearch.client.internal.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -46,24 +46,24 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet();
         assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server1NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
-        response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
+        response = client().admin().cluster().nodesInfo(new NodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
@@ -104,8 +104,8 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
 
     public void testAllocatedProcessors() throws Exception {
         List<String> nodesIds = internalCluster().startNodes(
-            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 3).build(),
-            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 6).build()
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 2.9).build(),
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 5.9).build()
         );
 
         final String node_1 = nodesIds.get(0);
@@ -134,6 +134,8 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         );
 
         assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(3));
+        assertThat(response.getNodesMap().get(server1NodeId).getInfo(OsInfo.class).getFractionalAllocatedProcessors(), equalTo(2.9));
         assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getAllocatedProcessors(), equalTo(6));
+        assertThat(response.getNodesMap().get(server2NodeId).getInfo(OsInfo.class).getFractionalAllocatedProcessors(), equalTo(5.9));
     }
 }

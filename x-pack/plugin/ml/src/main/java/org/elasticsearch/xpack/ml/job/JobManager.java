@@ -23,8 +23,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -128,8 +130,8 @@ public class JobManager {
         this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
-    public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, listener);
+    public void jobExists(String jobId, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
+        jobConfigProvider.jobExists(jobId, true, parentTaskId, listener);
     }
 
     /**
@@ -142,6 +144,7 @@ public class JobManager {
     public void getJob(String jobId, ActionListener<Job> jobListener) {
         jobConfigProvider.getJob(
             jobId,
+            null,
             ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
                 jobListener::onFailure
@@ -155,10 +158,16 @@ public class JobManager {
      *
      * @param expression   the jobId or an expression matching jobIds
      * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param parentTaskId The parent task ID if available
      * @param jobsListener The jobs listener
      */
-    public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, jobsListener);
+    public void expandJobBuilders(
+        String expression,
+        boolean allowNoMatch,
+        @Nullable TaskId parentTaskId,
+        ActionListener<List<Job.Builder>> jobsListener
+    ) {
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, parentTaskId, jobsListener);
     }
 
     /**
@@ -173,6 +182,7 @@ public class JobManager {
         expandJobBuilders(
             expression,
             allowNoMatch,
+            null,
             ActionListener.wrap(
                 jobBuilders -> jobsListener.onResponse(
                     new QueryPage<>(
@@ -316,7 +326,7 @@ public class JobManager {
             actionListener::onFailure
         );
 
-        jobConfigProvider.jobExists(job.getId(), false, ActionListener.wrap(jobExists -> {
+        jobConfigProvider.jobExists(job.getId(), false, null, ActionListener.wrap(jobExists -> {
             if (jobExists) {
                 actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             } else {
@@ -406,7 +416,7 @@ public class JobManager {
 
         // Step 2. Delete the physical storage
         ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
-            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+            r -> new JobDataDeleter(clientToUse, jobId, request.getDeleteUserAnnotations()).deleteJobDocuments(
                 jobConfigProvider,
                 indexNameExpressionResolver,
                 state,
@@ -436,16 +446,14 @@ public class JobManager {
                         logger.error("[{}] Updating autodetect failed for job update [{}]", jobUpdate.getJobId(), jobUpdate);
                     }
                 },
-                    e -> {
-                        logger.error(
-                            () -> format(
-                                "[%s] Updating autodetect failed with an exception, job update [%s] ",
-                                jobUpdate.getJobId(),
-                                jobUpdate
-                            ),
-                            e
-                        );
-                    }
+                    e -> logger.error(
+                        () -> format(
+                            "[%s] Updating autodetect failed with an exception, job update [%s] ",
+                            jobUpdate.getJobId(),
+                            jobUpdate
+                        ),
+                        e
+                    )
                 ));
             }
         } else {
@@ -637,7 +645,7 @@ public class JobManager {
             updateJobProcessNotifier.submitJobUpdate(
                 UpdateParams.scheduledEventsUpdate(jobId),
                 ActionListener.wrap(
-                    isUpdated -> { auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)); },
+                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
                     e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
                 )
             );
@@ -680,7 +688,7 @@ public class JobManager {
         CheckedConsumer<Boolean, Exception> updateHandler = response -> {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
-                jobResultsPersister.persistModelSizeStats(
+                jobResultsPersister.persistModelSizeStatsWithoutRetries(
                     revertedModelSizeStats,
                     WriteRequest.RefreshPolicy.IMMEDIATE,
                     ActionListener.wrap(modelSizeStatsResponseHandler, actionListener::onFailure)

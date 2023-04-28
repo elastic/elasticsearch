@@ -1,0 +1,80 @@
+= Keystore Details
+This document details the steps used to create the certificate and keystore files in this directory.
+
+== Instructions on generating certificates
+The certificates in this directory have been generated using elasticsearch-certutil (8.7.0 SNAPSHOT)
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil ca --pem --ca-dn 'CN=Elastic Auto Transport CA' --out=ca.zip --pass="transport-ca-password" --days=3500
+unzip ca.zip
+mv ca/ca.crt ./transport-ca.crt
+mv ca/ca.key ./transport-ca.key
+
+rm ca.zip
+rmdir ca
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert --pem --name=transport --out=transport.zip --pass="transport-password" --days=3500 \
+    --ca-cert=transport-ca.crt --ca-key=transport-ca.key --ca-pass="transport-ca-password" \
+    --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 --dns=localhost6 --dns=localhost6.localdomain6 \
+    --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1
+
+unzip transport.zip
+mv transport/transport.* ./
+
+rm transport.zip
+rmdir transport
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil ca --pem --ca-dn 'CN=Elastic Auto RemoteCluster CA' --out=ca.zip --pass="remote-cluster-ca-password" --days=3500
+unzip ca.zip
+mv ca/ca.crt ./remote-cluster-ca.crt
+mv ca/ca.key ./remote-cluster-ca.key
+
+rm ca.zip
+rmdir ca
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert --pem --name=remote_cluster --out=remote_cluster.zip --pass="remote-cluster-password" --days=3500 \
+    --ca-cert=remote-cluster-ca.crt --ca-key=remote-cluster-ca.key --ca-pass="remote-cluster-ca-password" \
+    --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 --dns=localhost6 --dns=localhost6.localdomain6 \
+    --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1
+
+unzip remote_cluster.zip
+mv remote_cluster/remote_cluster.* ./
+
+rm remote_cluster.zip
+rmdir remote_cluster
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil ca --pem --ca-dn 'CN=Elastic Auto RemoteClusterClient CA' --out=ca.zip --pass="remote-cluster-client-ca-password" --days=3500
+unzip ca.zip
+mv ca/ca.crt ./remote-cluster-client-ca.crt
+mv ca/ca.key ./remote-cluster-client-ca.key
+
+rm ca.zip
+rmdir ca
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert --pem --name=remote-cluster-client --out=remote-cluster-client.zip --pass="remote-cluster-client-password" --days=3500 \
+    --ca-cert=remote-cluster-client-ca.crt --ca-key=remote-cluster-client-ca.key --ca-pass="remote-cluster-client-ca-password" \
+    --dns=localhost --dns=localhost.localdomain --dns=localhost4 --dns=localhost4.localdomain4 --dns=localhost6 --dns=localhost6.localdomain6 \
+    --ip=127.0.0.1 --ip=0:0:0:0:0:0:0:1
+
+unzip remote-cluster-client.zip
+mv remote-cluster-client/remote-cluster-client.* ./
+
+rm remote-cluster-client.zip
+rmdir remote-cluster-client
+-----------------------------------------------------------------------------------------------------------

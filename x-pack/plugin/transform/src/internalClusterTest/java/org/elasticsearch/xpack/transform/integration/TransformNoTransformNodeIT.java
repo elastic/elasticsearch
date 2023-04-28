@@ -41,7 +41,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     }
 
     public void testGetTransformStats() {
-        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request("_all");
+        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request("_all", AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformsStats(), is(empty()));
 
@@ -154,7 +154,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     private static TransformConfig randomConfig(String transformId) {
         return new TransformConfig.Builder().setId(transformId)
             .setSource(new SourceConfig("my-index"))
-            .setDest(new DestConfig("my-dest-index", null))
+            .setDest(new DestConfig("my-dest-index", null, null))
             .setPivotConfig(PivotConfigTests.randomPivotConfig())
             .build();
     }

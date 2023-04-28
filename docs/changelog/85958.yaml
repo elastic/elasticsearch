@@ -1,6 +1,0 @@
-pr: 85958
-summary: Adds new `question_answering` NLP task for extracting answers to questions
-  from a document
-area: Machine Learning
-type: enhancement
-issues: []

@@ -8,8 +8,6 @@
 
 Creates part of a trained model definition.
 
-preview::[]
-
 [[ml-put-trained-model-definition-part-request]]
 == {api-request-title}
 

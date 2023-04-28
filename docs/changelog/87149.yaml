@@ -1,5 +1,0 @@
-pr: 87149
-summary: Temporarily provide `SystemPropertiesPropertySource`
-area: Infra/Logging
-type: bug
-issues: []

@@ -99,8 +99,8 @@ public final class LegacySortedSetDocValuesWrapper extends SortedSetDocValues {
     }
 
     @Override
-    public long docValueCount() {
-        throw new UnsupportedOperationException();
+    public int docValueCount() {
+        return values.docValueCount();
     }
 
     @Override

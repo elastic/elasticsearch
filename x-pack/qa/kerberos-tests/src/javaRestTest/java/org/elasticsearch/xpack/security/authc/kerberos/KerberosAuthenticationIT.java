@@ -133,9 +133,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         final String kerberosTicket = callbackHandler.getBase64EncodedTokenForSpnegoHeader(host);
 
         final Request request = new Request("POST", "/_security/oauth2/token");
-        String json = """
+        String json = Strings.format("""
             { "grant_type" : "_kerberos", "kerberos_ticket" : "%s"}
-            """.formatted(kerberosTicket);
+            """, kerberosTicket);
         request.setJsonEntity(json);
 
         try (RestClient client = buildClientForUser("test_kibana_user")) {
@@ -157,8 +157,22 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     @SuppressForbidden(reason = "SPNEGO relies on hostnames and we need to ensure host isn't a IP address")
     protected HttpHost buildHttpHost(String host, int port) {
         try {
-            InetAddress inetAddress = InetAddress.getByName(host);
-            return super.buildHttpHost(inetAddress.getCanonicalHostName(), port);
+            final InetAddress address = InetAddress.getByName(host);
+            final String hostname = address.getCanonicalHostName();
+            // InetAddress#getCanonicalHostName depends on the system configuration (e.g. /etc/hosts) to return the FQDN.
+            // In case InetAddress cannot resolve the FQDN it will return the textual representation of the IP address.
+            if (hostname.equals(address.getHostAddress())) {
+                if (address.isLoopbackAddress()) {
+                    // Fall-back and return "localhost" for loopback address if it's not resolved.
+                    // This is safe because InetAddress implements a reverse fall-back to loopback address
+                    // in case the resolution of "localhost" hostname fails.
+                    return super.buildHttpHost("localhost", port);
+                } else {
+                    throw new IllegalStateException("failed to resolve [" + host + "] to FQDN");
+                }
+            } else {
+                return super.buildHttpHost(hostname, port);
+            }
         } catch (UnknownHostException e) {
             assumeNoException("failed to resolve host [" + host + "]", e);
         }
@@ -175,7 +189,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
             final LoginContext lc = callbackHandler.login();
             Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
                 lc.getSubject(),
-                (PrivilegedExceptionAction<Response>) () -> { return restClient.performRequest(request); },
+                (PrivilegedExceptionAction<Response>) () -> {
+                    return restClient.performRequest(request);
+                },
                 accessControlContext
             );
 

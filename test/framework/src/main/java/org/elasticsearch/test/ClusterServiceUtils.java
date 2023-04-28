@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,11 +29,14 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -121,10 +125,16 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
         Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
-        ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
+        ClusterService clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, Collections.emptySet(), Tracer.NOOP)
+        );
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .putTransportVersion(localNode.getId(), TransportVersion.CURRENT)
             .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
             .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
@@ -218,5 +228,31 @@ public class ClusterServiceUtils {
             }, statePredicate);
             future.get(30L, TimeUnit.SECONDS);
         }
+    }
+
+    public static void awaitNoPendingTasks(ClusterService clusterService) {
+        PlainActionFuture.<Void, RuntimeException>get(
+            fut -> clusterService.submitUnbatchedStateUpdateTask(
+                "await-queue-empty",
+                new ClusterStateUpdateTask(Priority.LANGUID, TimeValue.timeValueSeconds(10)) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fut.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        fut.onResponse(null);
+                    }
+                }
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 }

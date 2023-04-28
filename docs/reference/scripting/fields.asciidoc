@@ -16,6 +16,8 @@ API will have access to the `ctx` variable which exposes:
 `ctx.op`::          The operation that should be applied to the document: `index` or `delete`.
 `ctx._index` etc::  Access to <<mapping-fields,document metadata fields>>, some of which may be read-only.
 
+These scripts do not have access to the `doc` variable and have to use `ctx` to access the documents they operate on.
+
 [discrete]
 == Search and aggregation scripts
 

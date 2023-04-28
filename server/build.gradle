@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 publishing {
   publications {
@@ -25,12 +26,18 @@ archivesBaseName = 'elasticsearch'
 dependencies {
 
   api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-logging')
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
   api project(":libs:elasticsearch-lz4")
+  api project(":libs:elasticsearch-plugin-api")
+  api project(":libs:elasticsearch-plugin-analysis-api")
+  api project(':libs:elasticsearch-grok')
 
   implementation project(':libs:elasticsearch-plugin-classloader')
+  // no compile dependency by server, but server defines security policy for this codebase so it i>
+  runtimeOnly project(":libs:elasticsearch-preallocate")
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
@@ -74,6 +81,12 @@ dependencies {
 
 }
 
+spotless {
+  java {
+    targetExclude "src/main/java/org/elasticsearch/Version.java"
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
     exclude '**/*.json'
     exclude '**/*.jmx'
@@ -89,17 +102,10 @@ tasks.named('forbiddenApisTest').configure {
   addSignatureFiles 'hppc-signatures'
 }
 
-tasks.named("testingConventions").configure {
-    naming.clear()
-    naming {
-        Tests {
-            baseClass "org.apache.lucene.tests.util.LuceneTestCase"
-        }
-        IT {
-            baseClass "org.elasticsearch.test.ESIntegTestCase"
-            baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
-        }
-    }
+tasks.named('internalClusterTestTestingConventions').configure {
+    baseClass "org.elasticsearch.test.AbstractMultiClustersTestCase"
+    baseClass "org.elasticsearch.test.ESIntegTestCase"
+    baseClass "org.elasticsearch.test.ESSingleNodeTestCase"
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
@@ -134,10 +140,16 @@ sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.dlm_feature_flag_enabled', 'true'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
+        systemProperty 'es.dlm_feature_flag_enabled', 'true'
     }
+}
+
+tasks.named("test").configure {
+    systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -184,7 +196,9 @@ tasks.named("thirdPartyAudit").configure {
             'com.lmax.disruptor.LifecycleAware',
             'com.lmax.disruptor.RingBuffer',
             'com.lmax.disruptor.Sequence',
+            'com.lmax.disruptor.SequenceBarrier',
             'com.lmax.disruptor.SequenceReportingEventHandler',
+            'com.lmax.disruptor.TimeoutException',
             'com.lmax.disruptor.WaitStrategy',
             'com.lmax.disruptor.dsl.Disruptor',
             'com.lmax.disruptor.dsl.ProducerType',
@@ -221,6 +235,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.BundleEvent',
             'org.osgi.framework.BundleReference',
             'org.osgi.framework.FrameworkUtil',
+            'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
             'org.osgi.framework.wiring.BundleWire',
@@ -249,3 +264,5 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
 }
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

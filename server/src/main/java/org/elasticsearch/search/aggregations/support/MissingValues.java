@@ -117,7 +117,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
+    public static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
         return new AbstractSortedNumericDocValues() {
 
             private int count;
@@ -280,7 +280,7 @@ public enum MissingValues {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return values.docValueCount();
             }
 
@@ -319,7 +319,7 @@ public enum MissingValues {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return values.docValueCount();
             }
 

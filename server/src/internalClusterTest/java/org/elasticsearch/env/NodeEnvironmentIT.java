@@ -54,7 +54,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
         if (writeDanglingIndices) {
             assertBusy(
@@ -251,8 +251,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
         allDataPaths.addAll(node1DataPaths);
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+        internalCluster().stopNode(nodes.get(1));
+        internalCluster().stopNode(nodes.get(0));
 
         CorruptStateException corruptStateException = expectThrows(
             CorruptStateException.class,

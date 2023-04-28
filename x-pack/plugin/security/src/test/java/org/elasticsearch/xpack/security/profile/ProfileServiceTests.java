@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.security.profile;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -24,6 +23,10 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -31,6 +34,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,27 +42,35 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.common.ResultsAndErrors;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
@@ -71,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
@@ -86,11 +99,12 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -98,10 +112,12 @@ import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIG
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,12 +125,15 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -203,82 +222,96 @@ public class ProfileServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testGetProfileByUid() {
-        final String uid = randomAlphaOfLength(20);
-        doAnswer(invocation -> {
-            assertThat(
-                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
-            );
-            final GetRequest getRequest = (GetRequest) invocation.getArguments()[1];
-            @SuppressWarnings("unchecked")
-            final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
-            client.get(getRequest, listener);
-            return null;
-        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
-
-        final long lastSynchronized = Instant.now().toEpochMilli();
-        mockGetRequest(uid, lastSynchronized);
-
-        final PlainActionFuture<Profile> future = new PlainActionFuture<>();
-
-        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
-
-        profileService.getProfile(uid, dataKeys, future);
-        final Profile profile = future.actionGet();
-
-        final Map<String, Object> applicationData = new HashMap<>();
-
-        if (dataKeys != null && dataKeys.contains("app1")) {
-            applicationData.put("app1", Map.of("name", "app1"));
-        }
-
-        if (dataKeys != null && dataKeys.contains("app2")) {
-            applicationData.put("app2", Map.of("name", "app2"));
-        }
-
-        assertThat(
-            profile,
-            equalTo(
-                new Profile(
-                    uid,
-                    true,
-                    lastSynchronized,
-                    new Profile.ProfileUser("Foo", List.of("role1", "role2"), "realm_name_1", "domainA", "foo@example.com", "User Foo"),
-                    Map.of(),
-                    applicationData,
-                    new Profile.VersionControl(1, 0)
-                )
+    public void testGetProfilesByUids() {
+        final List<SampleDocumentParameter> sampleDocumentParameters = randomList(
+            1,
+            5,
+            () -> new SampleDocumentParameter(
+                randomAlphaOfLength(20),
+                randomAlphaOfLengthBetween(3, 18),
+                randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
+                Instant.now().toEpochMilli() + randomLongBetween(-100_000, 100_000)
             )
         );
+        mockMultiGetRequest(sampleDocumentParameters);
+
+        final PlainActionFuture<ResultsAndErrors<Profile>> future = new PlainActionFuture<>();
+        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
+        profileService.getProfiles(sampleDocumentParameters.stream().map(SampleDocumentParameter::uid).toList(), dataKeys, future);
+        final ResultsAndErrors<Profile> resultsAndErrors = future.actionGet();
+        assertThat(resultsAndErrors.results().size(), equalTo(sampleDocumentParameters.size()));
+        assertThat(resultsAndErrors.errors(), anEmptyMap());
+
+        int i = 0;
+        for (Profile profile : resultsAndErrors.results()) {
+            final Map<String, Object> applicationData = new HashMap<>();
+
+            if (dataKeys != null && dataKeys.contains("app1")) {
+                applicationData.put("app1", Map.of("name", "app1"));
+            }
+
+            if (dataKeys != null && dataKeys.contains("app2")) {
+                applicationData.put("app2", Map.of("name", "app2"));
+            }
+
+            final SampleDocumentParameter sampleDocumentParameter = sampleDocumentParameters.get(i);
+            assertThat(
+                profile,
+                equalTo(
+                    new Profile(
+                        sampleDocumentParameter.uid,
+                        true,
+                        sampleDocumentParameter.lastSynchronized,
+                        new Profile.ProfileUser(
+                            sampleDocumentParameter.username,
+                            sampleDocumentParameter.roles,
+                            "realm_name_1",
+                            "domainA",
+                            "foo@example.com",
+                            "User Foo"
+                        ),
+                        Map.of(),
+                        applicationData,
+                        new Profile.VersionControl(1, 0)
+                    )
+                )
+            );
+            i++;
+        }
+    }
+
+    public void testGetProfilesEmptyUids() {
+        final PlainActionFuture<ResultsAndErrors<Profile>> future = new PlainActionFuture<>();
+        profileService.getProfiles(List.of(), Set.of(), future);
+        assertThat(future.actionGet().isEmpty(), is(true));
     }
 
     @SuppressWarnings("unchecked")
     public void testGetProfileSubjectsNoIndex() throws Exception {
         when(profileIndex.indexExists()).thenReturn(false);
-        PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
+        PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
-        ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future.get();
-        assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(0));
-        assertThat(multiProfileSubjectResponse.failureProfileUids().size(), is(0));
+        ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future.get();
+        assertThat(resultsAndErrors.results().size(), is(0));
+        assertThat(resultsAndErrors.errors().size(), is(0));
         when(profileIndex.indexExists()).thenReturn(true);
         ElasticsearchException unavailableException = new ElasticsearchException("mock profile index unavailable");
         when(profileIndex.isAvailable()).thenReturn(false);
         when(profileIndex.getUnavailableReason()).thenReturn(unavailableException);
-        PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future2 = new PlainActionFuture<>();
+        PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future2);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());
         assertThat(e.getCause(), is(unavailableException));
-        PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future3 = new PlainActionFuture<>();
+        PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future3 = new PlainActionFuture<>();
         profileService.getProfileSubjects(List.of(), future3);
-        multiProfileSubjectResponse = future3.get();
-        assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(0));
-        assertThat(multiProfileSubjectResponse.failureProfileUids().size(), is(0));
+        resultsAndErrors = future3.get();
+        assertThat(resultsAndErrors.results().size(), is(0));
+        assertThat(resultsAndErrors.errors().size(), is(0));
         verify(profileIndex, never()).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetProfileSubjectsWithMissingNoFailures() throws Exception {
+    public void testGetProfileSubjectsWithMissingUids() throws Exception {
         final Collection<String> allProfileUids = randomList(1, 5, () -> randomAlphaOfLength(20));
         final Collection<String> missingProfileUids = randomSubsetOf(allProfileUids);
         doAnswer(invocation -> {
@@ -323,14 +356,19 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
 
-        final PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(allProfileUids, future);
 
-        ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future.get();
+        ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future.get();
         verify(profileIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        assertThat(multiProfileSubjectResponse.failureProfileUids().isEmpty(), is(true));
-        assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(allProfileUids.size() - missingProfileUids.size()));
-        for (Map.Entry<String, Subject> profileIdAndSubject : multiProfileSubjectResponse.profileUidToSubject().entrySet()) {
+        assertThat(resultsAndErrors.errors().size(), equalTo(missingProfileUids.size()));
+        resultsAndErrors.errors().forEach((uid, e) -> {
+            assertThat(missingProfileUids, hasItem(uid));
+            assertThat(e, instanceOf(ResourceNotFoundException.class));
+        });
+
+        assertThat(resultsAndErrors.results().size(), is(allProfileUids.size() - missingProfileUids.size()));
+        for (Map.Entry<String, Subject> profileIdAndSubject : resultsAndErrors.results()) {
             assertThat(allProfileUids, hasItem(profileIdAndSubject.getKey()));
             assertThat(missingProfileUids, not(hasItem(profileIdAndSubject.getKey())));
             assertThat(profileIdAndSubject.getValue().getUser().principal(), is("foo_username_" + profileIdAndSubject.getKey()));
@@ -351,29 +389,13 @@ public class ProfileServiceTests extends ESTestCase {
             listener.onFailure(mGetException);
             return null;
         }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
-        final PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
         assertThat(e.getCause(), is(mGetException));
-        final Collection<String> missingProfileUids = randomList(1, 5, () -> randomAlphaOfLength(20));
-        final Collection<String> errorProfileUids = randomSubsetOf(missingProfileUids);
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        if (false == errorProfileUids.isEmpty()) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "message",
-                    "org.elasticsearch.xpack.security.profile.ProfileService",
-                    Level.DEBUG,
-                    "Failed to retrieve profiles "
-                        + missingProfileUids.stream()
-                            .filter(v -> errorProfileUids.contains(v))
-                            .collect(Collectors.toCollection(TreeSet::new))
-                )
-            );
-        }
-        mockLogAppender.start();
-        final Logger logger = LogManager.getLogger(ProfileService.class);
-        Loggers.setLevel(logger, Level.DEBUG);
+        final Collection<String> allProfileUids = randomList(1, 5, () -> randomAlphaOfLength(20));
+        final Collection<String> errorProfileUids = randomSubsetOf(allProfileUids);
+        final Collection<String> missingProfileUids = Sets.difference(Set.copyOf(allProfileUids), Set.copyOf(errorProfileUids));
         doAnswer(invocation -> {
             assertThat(
                 threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
@@ -401,19 +423,15 @@ public class ProfileServiceTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
 
-        try {
-            Loggers.addAppender(logger, mockLogAppender);
-            final PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future2 = new PlainActionFuture<>();
-            profileService.getProfileSubjects(missingProfileUids, future2);
+        final PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
+        profileService.getProfileSubjects(allProfileUids, future2);
 
-            ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future2.get();
-            assertThat(multiProfileSubjectResponse.profileUidToSubject().isEmpty(), is(true));
-            assertThat(multiProfileSubjectResponse.failureProfileUids(), containsInAnyOrder(errorProfileUids.toArray(String[]::new)));
-            mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockLogAppender);
-            mockLogAppender.stop();
-        }
+        ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future2.get();
+        assertThat(resultsAndErrors.results().isEmpty(), is(true));
+        assertThat(resultsAndErrors.errors().size(), equalTo(allProfileUids.size()));
+        assertThat(resultsAndErrors.errors().keySet(), equalTo(Set.copyOf(allProfileUids)));
+        missingProfileUids.forEach(uid -> assertThat(resultsAndErrors.errors().get(uid), instanceOf(ResourceNotFoundException.class)));
+        errorProfileUids.forEach(uid -> assertThat(resultsAndErrors.errors().get(uid), instanceOf(ElasticsearchException.class)));
     }
 
     public void testActivateProfileShouldFailIfSubjectTypeIsNotUser() {
@@ -499,7 +517,7 @@ public class ProfileServiceTests extends ESTestCase {
         final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(Set.of(), name, size, hint);
         final TaskId parentTaskId = new TaskId(randomAlphaOfLength(20), randomNonNegativeLong());
 
-        final SearchRequest searchRequest = profileService.buildSearchRequest(suggestProfilesRequest, parentTaskId);
+        final SearchRequest searchRequest = profileService.buildSearchRequestForSuggest(suggestProfilesRequest, parentTaskId);
         assertThat(searchRequest.getParentTask(), is(parentTaskId));
 
         final SearchSourceBuilder searchSourceBuilder = searchRequest.source();
@@ -562,10 +580,16 @@ public class ProfileServiceTests extends ESTestCase {
                 equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
             );
             @SuppressWarnings("unchecked")
-            final ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
-            listener.onResponse(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY));
+            final ActionListener<MultiSearchResponse> listener = (ActionListener<MultiSearchResponse>) invocation.getArguments()[2];
+            listener.onResponse(
+                new MultiSearchResponse(
+                    new MultiSearchResponse.Item[] {
+                        new MultiSearchResponse.Item(SearchResponse.empty(() -> 1L, SearchResponse.Clusters.EMPTY), null) },
+                    1L
+                )
+            );
             return null;
-        }).when(client).execute(eq(SearchAction.INSTANCE), any(SearchRequest.class), anyActionListener());
+        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
 
         when(client.prepareIndex(SECURITY_PROFILE_ALIAS)).thenReturn(
             new IndexRequestBuilder(client, IndexAction.INSTANCE, SECURITY_PROFILE_ALIAS)
@@ -706,7 +730,11 @@ public class ProfileServiceTests extends ESTestCase {
             new RealmDomain("literal", Set.of(new RealmConfig.RealmIdentifier(realmRef2.getType(), realmRef2.getName())))
         );
 
-        final Authentication authentication2 = AuthenticationTestHelper.builder().realm().realmRef(realmRef2).build();
+        // Username is allowed to have dash as long it is not the 1st character
+        final User user2 = AuthenticationTestHelper.userWithRandomMetadataAndDetails(
+            randomFrom(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(1, 8) + "-" + randomAlphaOfLengthBetween(0, 8))
+        );
+        final Authentication authentication2 = AuthenticationTestHelper.builder().user(user2).realm().realmRef(realmRef2).build();
         final Subject subject2 = authentication2.getEffectiveSubject();
         final PlainActionFuture<Profile> future2 = new PlainActionFuture<>();
         service.activateProfile(authentication2, future2);
@@ -715,11 +743,21 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(profile2.user().username(), equalTo(subject2.getUser().principal()));
 
         // Domain with literal username, but the username is invalid
-        final String invalidUsername = randomFrom("", "fóóbár", randomAlphaOfLength(257));
+        final List<Character> invalidFirstCharsOfLiteralUsername = VALID_NAME_CHARS.stream()
+            .filter(c -> false == Character.isLetterOrDigit(c))
+            .toList();
+        final List<Character> invalidCharsOfLiteralUsername = invalidFirstCharsOfLiteralUsername.stream().filter(c -> c != '-').toList();
+        final String invalidLiteralUsername = randomFrom(
+            "",
+            "fóóbár",
+            randomAlphaOfLength(257),
+            randomFrom(invalidFirstCharsOfLiteralUsername) + randomAlphaOfLengthBetween(0, 8),
+            randomAlphaOfLengthBetween(1, 8) + randomFrom(invalidCharsOfLiteralUsername) + randomAlphaOfLengthBetween(0, 8)
+        );
         final Authentication.RealmRef realmRef3 = realmRef2;
         final Authentication authentication3 = AuthenticationTestHelper.builder()
             .realm()
-            .user(new User(invalidUsername))
+            .user(new User(invalidLiteralUsername))
             .realmRef(realmRef3)
             .build();
         final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
@@ -730,15 +768,344 @@ public class ProfileServiceTests extends ESTestCase {
             e3.getMessage(),
             containsString("Security domain [" + realmRef3.getDomain().name() + "] is configured to use literal username.")
         );
-        assertThat(e3.getMessage(), containsString("The username can contain alphanumeric characters"));
+        assertThat(e3.getMessage(), containsString("The username must begin with an alphanumeric character"));
     }
 
-    private void mockGetRequest(String uid, long lastSynchronized) {
-        mockGetRequest(uid, "Foo", List.of("role1", "role2"), lastSynchronized);
+    public void testShouldSkipUpdateForActivate() {
+        // Scenario 1: Should skip update since content is the same and last_synchronized is within 30 seconds
+        final ProfileDocument profileDocument = randomProfileDocument(randomAlphaOfLength(40));
+        final ProfileDocumentUser user = profileDocument.user();
+        assertThat(
+            profileService.shouldSkipUpdateForActivate(
+                profileDocument,
+                new ProfileDocument(
+                    profileDocument.uid(),
+                    profileDocument.enabled(),
+                    profileDocument.lastSynchronized() + randomLongBetween(0, 29_999),
+                    profileDocument.user(),
+                    profileDocument.labels(),
+                    profileDocument.applicationData()
+                )
+            ),
+            is(true)
+        );
+
+        // Scenario 2: Should not skip update if 30 seconds has passed even when content is the same
+        assertThat(
+            profileService.shouldSkipUpdateForActivate(
+                profileDocument,
+                new ProfileDocument(
+                    profileDocument.uid(),
+                    profileDocument.enabled(),
+                    profileDocument.lastSynchronized() + randomLongBetween(30_000, 60_000),
+                    profileDocument.user(),
+                    profileDocument.labels(),
+                    profileDocument.applicationData()
+                )
+            ),
+            is(false)
+        );
+
+        // Scenario 4: Should not skip update if enabled status changes
+        assertThat(
+            profileService.shouldSkipUpdateForActivate(
+                new ProfileDocument(
+                    profileDocument.uid(),
+                    false,
+                    profileDocument.lastSynchronized(),
+                    profileDocument.user(),
+                    profileDocument.labels(),
+                    profileDocument.applicationData()
+                ),
+                profileDocument
+            ),
+            is(false)
+        );
+
+        // Scenario 4: Should not skip update if user info changes
+        final ProfileDocumentUser user4 = switch (randomIntBetween(0, 4)) {
+            case 0 -> new ProfileDocumentUser(
+                randomValueOtherThan(user.username(), () -> randomAlphaOfLengthBetween(5, 8)),
+                user.roles(),
+                user.realm(),
+                user.email(),
+                user.fullName()
+            );
+            case 1 -> new ProfileDocumentUser(
+                user.username(),
+                randomValueOtherThan(user.roles(), () -> randomList(3, () -> randomAlphaOfLengthBetween(5, 8))),
+                user.realm(),
+                user.email(),
+                user.fullName()
+            );
+            case 2 -> new ProfileDocumentUser(
+                user.username(),
+                user.roles(),
+                randomValueOtherThan(user.realm(), AuthenticationTestHelper::randomRealmRef),
+                user.email(),
+                user.fullName()
+            );
+            case 3 -> new ProfileDocumentUser(
+                user.username(),
+                user.roles(),
+                user.realm(),
+                randomValueOtherThan(user.email(), () -> randomAlphaOfLengthBetween(10, 20)),
+                user.fullName()
+            );
+            default -> new ProfileDocumentUser(
+                user.username(),
+                user.roles(),
+                user.realm(),
+                user.email(),
+                randomValueOtherThan(user.fullName(), () -> randomAlphaOfLengthBetween(10, 20))
+            );
+        };
+
+        assertThat(
+            profileService.shouldSkipUpdateForActivate(
+                profileDocument,
+                new ProfileDocument(
+                    profileDocument.uid(),
+                    true,
+                    profileDocument.lastSynchronized(),
+                    user4,
+                    profileDocument.labels(),
+                    profileDocument.applicationData()
+                )
+            ),
+            is(false)
+        );
+    }
+
+    public void testActivateWhenShouldSkipUpdateForActivateReturnsTrue() throws IOException {
+        final ProfileService service = spy(profileService);
+
+        doAnswer(
+            invocation -> new UpdateRequestBuilder(
+                client,
+                UpdateAction.INSTANCE,
+                SECURITY_PROFILE_ALIAS,
+                (String) invocation.getArguments()[1]
+            )
+        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+
+        final UpdateResponse updateResponse = mock(UpdateResponse.class);
+        when(updateResponse.getPrimaryTerm()).thenReturn(randomNonNegativeLong());
+        when(updateResponse.getSeqNo()).thenReturn(randomNonNegativeLong());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UpdateResponse> listener = (ActionListener<UpdateResponse>) invocation.getArguments()[1];
+            listener.onResponse(updateResponse);
+            return null;
+        }).when(service).doUpdate(any(), anyActionListener());
+
+        final Subject subject = AuthenticationTestHelper.builder().realm().build().getEffectiveSubject();
+        final ProfileService.VersionedDocument versionedDocument = new ProfileService.VersionedDocument(
+            ProfileDocument.fromSubject(subject),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+        doAnswer(invocation -> true).when(service).shouldSkipUpdateForActivate(any(), any());
+
+        final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+        service.updateProfileForActivate(subject, versionedDocument, future);
+        assertThat(future.actionGet(), equalTo(versionedDocument.toProfile(Set.of())));
+        verify(service, times(1)).shouldSkipUpdateForActivate(any(), any());
+        verify(service, never()).doUpdate(any(), anyActionListener());
+    }
+
+    public void testActivateWhenShouldSkipUpdateForActivateReturnsFalseFirst() throws IOException {
+        final ProfileService service = spy(profileService);
+        doAnswer(
+            invocation -> new UpdateRequestBuilder(
+                client,
+                UpdateAction.INSTANCE,
+                SECURITY_PROFILE_ALIAS,
+                (String) invocation.getArguments()[1]
+            )
+        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+
+        // Throw version conflict on update to force GET document
+        final Exception updateException;
+        final VersionConflictEngineException versionConflictException = new VersionConflictEngineException(mock(ShardId.class), "", "");
+        if (randomBoolean()) {
+            updateException = new RemoteTransportException("", versionConflictException);
+        } else {
+            updateException = versionConflictException;
+        }
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UpdateResponse> listener = (ActionListener<UpdateResponse>) invocation.getArguments()[1];
+            listener.onFailure(updateException);
+            return null;
+        }).when(service).doUpdate(any(), anyActionListener());
+
+        final Subject subject = AuthenticationTestHelper.builder().realm().build().getEffectiveSubject();
+        final var versionedDocument = new ProfileService.VersionedDocument(ProfileDocument.fromSubject(subject), 1, 0);
+
+        final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("user_profile", versionedDocument.doc()).endObject();
+
+        SecurityMocks.mockGetRequest(
+            client,
+            SECURITY_PROFILE_ALIAS,
+            "profile_" + versionedDocument.doc().uid(),
+            BytesReference.bytes(builder)
+        );
+        doAnswer(invocation -> {
+            final GetRequest getRequest = (GetRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
+            client.get(getRequest, listener);
+            return null;
+        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
+
+        // First check returns false, second check return true or false randomly
+        final boolean secondCheckResult = randomBoolean();
+        doAnswer(invocation -> false).doAnswer(invocation -> secondCheckResult).when(service).shouldSkipUpdateForActivate(any(), any());
+
+        final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+        service.updateProfileForActivate(subject, versionedDocument, future);
+        if (secondCheckResult) {
+            assertThat(future.actionGet(), equalTo(versionedDocument.toProfile(Set.of())));
+        } else {
+            // The actionGet method unwraps ES exception to rethrow the cause of it
+            assertThat(expectThrows(VersionConflictEngineException.class, future::actionGet), sameInstance(versionConflictException));
+        }
+        verify(service, times(2)).shouldSkipUpdateForActivate(any(), any());
+        verify(service).doUpdate(any(), anyActionListener());
+    }
+
+    public void testActivateWhenGetRequestErrors() throws IOException {
+        final ProfileService service = spy(profileService);
+        doAnswer(
+            invocation -> new UpdateRequestBuilder(
+                client,
+                UpdateAction.INSTANCE,
+                SECURITY_PROFILE_ALIAS,
+                (String) invocation.getArguments()[1]
+            )
+        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+
+        // Throw version conflict on update to force GET document
+        final var versionConflictEngineException = new VersionConflictEngineException(mock(ShardId.class), "", "");
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UpdateResponse> listener = (ActionListener<UpdateResponse>) invocation.getArguments()[1];
+            listener.onFailure(versionConflictEngineException);
+            return null;
+        }).when(service).doUpdate(any(), anyActionListener());
+
+        final Subject subject = AuthenticationTestHelper.builder().realm().build().getEffectiveSubject();
+        final var versionedDocument = new ProfileService.VersionedDocument(ProfileDocument.fromSubject(subject), 1, 0);
+
+        final ResourceNotFoundException getException = new ResourceNotFoundException("not found");
+        SecurityMocks.mockGetRequestException(client, getException);
+        doAnswer(invocation -> {
+            final GetRequest getRequest = (GetRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<GetResponse>) invocation.getArguments()[2];
+            client.get(getRequest, listener);
+            return null;
+        }).when(client).execute(eq(GetAction.INSTANCE), any(GetRequest.class), anyActionListener());
+
+        // First check returns false
+        doAnswer(invocation -> false).when(service).shouldSkipUpdateForActivate(any(), any());
+
+        final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+        service.updateProfileForActivate(subject, versionedDocument, future);
+        assertThat(expectThrows(ResourceNotFoundException.class, future::actionGet), sameInstance(getException));
+        assertThat(getException.getSuppressed(), arrayContaining(versionConflictEngineException));
+        verify(service, times(1)).shouldSkipUpdateForActivate(any(), any());
+        verify(service).doUpdate(any(), anyActionListener());
+    }
+
+    public void testUsageStats() {
+        final List<String> metricNames = List.of("total", "enabled", "recent");
+
+        final String erroredMetric;
+        if (randomBoolean()) {
+            erroredMetric = randomFrom(metricNames);
+        } else {
+            erroredMetric = null;
+        }
+
+        final Map<String, Long> metrics = metricNames.stream()
+            .collect(Collectors.toUnmodifiableMap(Function.identity(), n -> n.equals(erroredMetric) ? 0L : randomNonNegativeLong()));
+
+        final MultiSearchResponse.Item[] items = metricNames.stream().map(name -> {
+            if (name.equals(erroredMetric)) {
+                return new MultiSearchResponse.Item(null, new RuntimeException());
+            } else {
+                final var searchResponse = mock(SearchResponse.class);
+                when(searchResponse.getHits()).thenReturn(
+                    new SearchHits(new SearchHit[0], new TotalHits(metrics.get(name), TotalHits.Relation.EQUAL_TO), 1)
+                );
+                return new MultiSearchResponse.Item(searchResponse, null);
+            }
+        }).toArray(MultiSearchResponse.Item[]::new);
+
+        final MultiSearchResponse multiSearchResponse = new MultiSearchResponse(items, randomNonNegativeLong());
+
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+            listener.onResponse(multiSearchResponse);
+            return null;
+        }).when(client).execute(eq(MultiSearchAction.INSTANCE), any(MultiSearchRequest.class), anyActionListener());
+
+        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client, MultiSearchAction.INSTANCE));
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        profileService.usageStats(future);
+        assertThat(future.actionGet(), equalTo(metrics));
+    }
+
+    public void testUsageStatsWhenNoIndex() {
+        when(profileIndex.indexExists()).thenReturn(false);
+        final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
+        profileService.usageStats(future);
+        assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "enabled", 0L, "recent", 0L)));
+    }
+
+    record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}
+
+    private void mockMultiGetRequest(List<SampleDocumentParameter> sampleDocumentParameters) {
+        mockMultiGetRequest(sampleDocumentParameters, Map.of());
+    }
+
+    private void mockMultiGetRequest(List<SampleDocumentParameter> sampleDocumentParameters, Map<String, Exception> errors) {
+        doAnswer(invocation -> {
+            assertThat(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                equalTo(minNodeVersion.onOrAfter(Version.V_8_3_0) ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+            );
+            final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
+            client.multiGet(multiGetRequest, listener);
+            return null;
+        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+
+        final Map<String, String> results = sampleDocumentParameters.stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    param -> "profile_" + param.uid,
+                    param -> getSampleProfileDocumentSource(param.uid, param.username, param.roles, param.lastSynchronized)
+                )
+            );
+
+        SecurityMocks.mockMultiGetRequest(
+            client,
+            SECURITY_PROFILE_ALIAS,
+            results,
+            errors.entrySet().stream().collect(Collectors.toUnmodifiableMap(entry -> "profile_" + entry.getKey(), Map.Entry::getValue))
+        );
     }
 
     public static String getSampleProfileDocumentSource(String uid, String username, List<String> roles, long lastSynchronized) {
-        return SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(
+        return String.format(
+            Locale.ROOT,
+            SAMPLE_PROFILE_DOCUMENT_TEMPLATE,
             uid,
             username,
             roles.stream().map(v -> "\"" + v + "\"").collect(Collectors.toList()),
@@ -746,22 +1113,17 @@ public class ProfileServiceTests extends ESTestCase {
         );
     }
 
-    private void mockGetRequest(String uid, String username, List<String> roles, long lastSynchronized) {
-        final String source = getSampleProfileDocumentSource(uid, username, roles, lastSynchronized);
-        SecurityMocks.mockGetRequest(client, SECURITY_PROFILE_ALIAS, "profile_" + uid, new BytesArray(source));
-    }
-
     private ProfileDocument randomProfileDocument(String uid) {
         return new ProfileDocument(
             uid,
             true,
-            randomLong(),
-            new ProfileDocument.ProfileDocumentUser(
-                randomAlphaOfLengthBetween(3, 8),
-                List.of(),
-                AuthenticationTests.randomRealmRef(randomBoolean()),
+            randomNonNegativeLong(),
+            new ProfileDocumentUser(
+                randomAlphaOfLengthBetween(5, 8),
+                randomList(3, () -> randomAlphaOfLengthBetween(5, 8)),
+                AuthenticationTestHelper.randomRealmRef(),
                 "foo@example.com",
-                null
+                randomAlphaOfLengthBetween(10, 20)
             ),
             Map.of(),
             null

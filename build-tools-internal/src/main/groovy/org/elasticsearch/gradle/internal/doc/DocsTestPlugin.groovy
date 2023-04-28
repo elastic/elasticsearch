@@ -15,17 +15,30 @@ import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.internal.file.FileOperations
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
+
+import javax.inject.Inject
 
 /**
  * Sets up tests for documentation.
  */
 class DocsTestPlugin implements Plugin<Project> {
 
+    private FileOperations fileOperations
+    private ProjectLayout projectLayout
+
+    @Inject
+    DocsTestPlugin(FileOperations fileOperations, ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout
+        this.fileOperations = fileOperations
+    }
+
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('elasticsearch.internal-yaml-rest-test')
+        project.pluginManager.apply('elasticsearch.legacy-yaml-rest-test')
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
@@ -62,12 +75,12 @@ class DocsTestPlugin implements Plugin<Project> {
             }
         }
 
-        Provider<Directory> restRootDir = project.getLayout().buildDirectory.dir("rest")
+        Provider<Directory> restRootDir = projectLayout.buildDirectory.dir("rest")
         TaskProvider<RestTestsFromSnippetsTask> buildRestTests = project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
             defaultSubstitutions = commonDefaultSubstitutions
             testRoot.convention(restRootDir)
             doFirst {
-                project.delete(restRootDir)
+                fileOperations.delete(restRootDir)
             }
         }
 

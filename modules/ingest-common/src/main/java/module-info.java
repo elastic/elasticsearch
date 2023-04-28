@@ -17,6 +17,7 @@ module org.elasticsearch.ingest.common {
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.analysis.common;
+    requires org.jruby.joni;
 
     exports org.elasticsearch.ingest.common; // for painless
 

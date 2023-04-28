@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
@@ -16,6 +16,11 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.security.enabled', 'false'
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.repositories.blobstore.testkit.AbstractSnapshotRepoTestKitRestTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
 }
 
 restResources {

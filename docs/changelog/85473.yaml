@@ -1,5 +1,0 @@
-pr: 85473
-summary: Serialize interval in auto date histogram aggregation
-area: Aggregations
-type: bug
-issues: []

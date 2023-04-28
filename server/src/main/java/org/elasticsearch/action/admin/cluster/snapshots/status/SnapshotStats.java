@@ -164,7 +164,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             builder.startObject(Fields.INCREMENTAL);
             {
                 builder.field(Fields.FILE_COUNT, getIncrementalFileCount());
-                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()));
+                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, ByteSizeValue.ofBytes(getIncrementalSize()));
             }
             builder.endObject();
 
@@ -172,7 +172,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                 builder.startObject(Fields.PROCESSED);
                 {
                     builder.field(Fields.FILE_COUNT, getProcessedFileCount());
-                    builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()));
+                    builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, ByteSizeValue.ofBytes(getProcessedSize()));
                 }
                 builder.endObject();
             }
@@ -180,7 +180,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             builder.startObject(Fields.TOTAL);
             {
                 builder.field(Fields.FILE_COUNT, getTotalFileCount());
-                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()));
+                builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, ByteSizeValue.ofBytes(getTotalSize()));
             }
             builder.endObject();
 

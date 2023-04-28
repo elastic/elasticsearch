@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.ml.inference.pytorch;
 
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.job.process.AbstractInitializableRunnable;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService.RequestPriority;
@@ -39,7 +41,12 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         var r3 = new RunOrderValidator(3, counter);
         executor.executeWithPriority(r3, RequestPriority.NORMAL, 101L);
 
+        assertTrue(r1.initialized);
+        assertTrue(r2.initialized);
+        assertTrue(r3.initialized);
         assertTrue(r3.hasBeenRejected);
+        assertFalse(r1.hasBeenRejected);
+        assertFalse(r2.hasBeenRejected);
     }
 
     public void testQueueCapacityReached_HighestPriority() {
@@ -56,8 +63,11 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         var r5 = new RunOrderValidator(5, counter);
         executor.executeWithPriority(r5, RequestPriority.NORMAL, 105L);
 
+        assertTrue(r3.initialized);
         assertTrue(r3.hasBeenRejected);
+        assertTrue(highestPriorityAlwaysAccepted.initialized);
         assertFalse(highestPriorityAlwaysAccepted.hasBeenRejected);
+        assertTrue(r5.initialized);
         assertTrue(r5.hasBeenRejected);
     }
 
@@ -78,6 +88,10 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
 
         executor.start();
 
+        assertTrue(r1.initialized);
+        assertTrue(r2.initialized);
+        assertTrue(r3.initialized);
+
         assertTrue(r1.hasBeenRun);
         assertTrue(r2.hasBeenRun);
         assertTrue(r3.hasBeenRun);
@@ -90,20 +104,29 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
 
         var counter = new AtomicInteger();
         long requestId = 1;
-        var r1 = new RunOrderValidator(2, counter);
-        executor.executeWithPriority(r1, RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(3, counter), RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(4, counter), RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(1, counter), RequestPriority.HIGH, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(5, counter), RequestPriority.NORMAL, requestId++);
-        executor.executeWithPriority(new RunOrderValidator(6, counter), RequestPriority.NORMAL, requestId++);
+        List<RunOrderValidator> validators = new ArrayList<>();
+        validators.add(new RunOrderValidator(2, counter));
+        validators.add(new RunOrderValidator(3, counter));
+        validators.add(new RunOrderValidator(4, counter));
+        validators.add(new RunOrderValidator(1, counter));   // high priority request runs first
+        validators.add(new RunOrderValidator(5, counter));
+        validators.add(new RunOrderValidator(6, counter));
+
+        executor.executeWithPriority(validators.get(0), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(1), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(2), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(3), RequestPriority.HIGH, requestId++);
+        executor.executeWithPriority(validators.get(4), RequestPriority.NORMAL, requestId++);
+        executor.executeWithPriority(validators.get(5), RequestPriority.NORMAL, requestId++);
 
         // final action stops the executor
         executor.executeWithPriority(new ShutdownExecutorRunnable(executor), RequestPriority.NORMAL, 10000L);
 
         executor.start();
 
-        assertTrue(r1.hasBeenRun);
+        for (var validator : validators) {
+            assertTrue(validator.hasBeenRun);
+        }
     }
 
     private PriorityProcessWorkerExecutorService createProcessWorkerExecutorService(int queueSize) {
@@ -114,16 +137,22 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         );
     }
 
-    private static class RunOrderValidator extends AbstractRunnable {
+    private static class RunOrderValidator extends AbstractInitializableRunnable {
 
         private boolean hasBeenRun = false;
         private boolean hasBeenRejected = false;
         private final int expectedOrder;
         private final AtomicInteger counter;
+        private boolean initialized = false;
 
         RunOrderValidator(int expectedOrder, AtomicInteger counter) {
             this.expectedOrder = expectedOrder;
             this.counter = counter;
+        }
+
+        @Override
+        public void init() {
+            initialized = true;
         }
 
         @Override
@@ -143,7 +172,7 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
         }
     }
 
-    private static class ShutdownExecutorRunnable extends AbstractRunnable {
+    private static class ShutdownExecutorRunnable extends AbstractInitializableRunnable {
 
         PriorityProcessWorkerExecutorService executor;
 
@@ -162,5 +191,9 @@ public class PriorityProcessWorkerExecutorServiceTests extends ESTestCase {
             executor.shutdown();
         }
 
+        @Override
+        public void init() {
+            // do nothing
+        }
     }
 }

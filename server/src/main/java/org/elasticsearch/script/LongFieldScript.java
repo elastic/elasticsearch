@@ -10,6 +10,7 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -20,8 +21,8 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
-            return ctx -> new LongFieldScript(field, params, lookup, ctx) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
+            return ctx -> new LongFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -36,11 +37,11 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup) -> {
+        return (leafFieldName, params, searchLookup, onScriptError) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new LongFieldScript(leafFieldName, params, searchLookup, ctx) {
+                return new LongFieldScript(leafFieldName, params, searchLookup, onScriptError, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -59,15 +60,21 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, OnScriptError onScriptError);
     }
 
     public interface LeafFactory {
         LongFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    public LongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+    public LongFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        OnScriptError onScriptError,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, onScriptError, ctx);
     }
 
     @Override
@@ -87,6 +94,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
         }
 
         public void emit(long v) {
+            script.checkMaxSize(script.count());
             script.emit(v);
         }
     }

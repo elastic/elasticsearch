@@ -344,7 +344,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             followingPrimary,
                             logger,
-                            new PostWriteRefresh(mock(TransportService.class), mock(ThreadPool.class))
+                            new PostWriteRefresh(mock(TransportService.class))
                         );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
@@ -806,7 +806,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     request.getMaxSeqNoOfUpdatesOrDeletes(),
                     primary,
                     logger,
-                    new PostWriteRefresh(mock(TransportService.class), mock(ThreadPool.class))
+                    new PostWriteRefresh(mock(TransportService.class))
                 );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {

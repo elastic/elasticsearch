@@ -28,11 +28,9 @@ public class PostWriteRefresh {
     public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
-    private final ThreadPool threadPool;
 
-    public PostWriteRefresh(final TransportService transportService, final ThreadPool threadPool) {
+    public PostWriteRefresh(final TransportService transportService) {
         this.transportService = transportService;
-        this.threadPool = threadPool;
     }
 
     public void refreshShard(
@@ -114,7 +112,11 @@ public class PostWriteRefresh {
         engineOrNull.addFlushListener(location, new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)) {
+                try (
+                    ThreadContext.StoredContext ignore = transportService.getThreadPool()
+                        .getThreadContext()
+                        .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
+                ) {
                     sendUnpromotableRequests(indexShard, generation, forced, listener);
                 }
             }

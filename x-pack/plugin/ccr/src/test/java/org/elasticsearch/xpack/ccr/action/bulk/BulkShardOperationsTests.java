@@ -21,7 +21,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
@@ -76,7 +75,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 numOps - 1,
                 followerPrimary,
                 logger,
-                new PostWriteRefresh(mock(TransportService.class), mock(ThreadPool.class))
+                new PostWriteRefresh(mock(TransportService.class))
             );
 
         boolean accessStats = randomBoolean();
@@ -139,7 +138,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 seqno,
                 oldPrimary,
                 logger,
-                new PostWriteRefresh(mock(TransportService.class), mock(ThreadPool.class))
+                new PostWriteRefresh(mock(TransportService.class))
             );
         assertThat(
             fullResult.replicaRequest().getOperations(),
@@ -166,7 +165,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                 seqno,
                 newPrimary,
                 logger,
-                new PostWriteRefresh(mock(TransportService.class), mock(ThreadPool.class))
+                new PostWriteRefresh(mock(TransportService.class))
             );
         final long newPrimaryTerm = newPrimary.getOperationPrimaryTerm();
         final long globalCheckpoint = newPrimary.getLastKnownGlobalCheckpoint();

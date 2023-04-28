@@ -1062,7 +1062,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 primary,
                 logger,
                 // TODO: Fix
-                new PostWriteRefresh(mock(TransportService.class), mock(ThreadPool.class))
+                new PostWriteRefresh(mock(TransportService.class))
 
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);

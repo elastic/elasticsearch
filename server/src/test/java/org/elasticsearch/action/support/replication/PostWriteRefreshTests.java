@@ -82,7 +82,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, threadPool);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, primary, result.getTranslogLocation(), f);
             Releasable releasable = simulateScheduledRefresh(primary, false);
             f.actionGet();
@@ -101,7 +101,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, threadPool);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.IMMEDIATE, primary, result.getTranslogLocation(), f);
             f.actionGet();
             assertFalse(unpromotableRefreshRequestReceived.get());
@@ -119,7 +119,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, threadPool);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
             IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
@@ -192,7 +192,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         ReplicationGroup realReplicationGroup = primary.getReplicationGroup();
         try {
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
-            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService, threadPool);
+            PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
             IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);

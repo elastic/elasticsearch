@@ -211,7 +211,7 @@ public class CompositeRolesStore {
         // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
         if (User.isInternal(user)) {
-            Role r = getInternalUserRole(user);
+            return getInternalUserRole(user);
         }
         return null;
     }

@@ -153,6 +153,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -1741,9 +1742,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().privileges(), empty());
         assertThat(role.indices(), is(IndicesPermission.NONE));
 
-        Role internalRole = compositeRolesStore.getInternalUserRole(InternalUsers.getUser(roleName));
-        assertThat(internalRole, notNullValue());
-        assertThat(role, not(internalRole));
+        final User internalUser = InternalUsers.getUser(roleName);
+        assertThat(internalUser, notNullValue());
+        if (InternalUsers.getRoleDescriptors().containsKey(internalUser.principal())) {
+            Role internalRole = compositeRolesStore.getInternalUserRole(internalUser);
+            assertThat(internalRole, notNullValue());
+            assertThat(role, not(internalRole));
+        }
+
+        final Role[] internalRoles = InternalUsers.getRoleDescriptors()
+            .keySet()
+            .stream()
+            .map(InternalUsers::getUser)
+            .map(compositeRolesStore::getInternalUserRole)
+            .toArray(Role[]::new);
+        assertThat(role, not(is(oneOf(internalRoles))));
     }
 
     public void testGetRolesForSystemUserThrowsException() {
@@ -1782,7 +1795,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
         );
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        assertEquals("the user [_system] is an internal user without a role and we should never try to get its roles", iae.getMessage());
+        assertEquals("the internal user [_system] should never have its roles resolved", iae.getMessage());
     }
 
     public void testGetRolesForCrossClusterAccessUserThrowsException() {
@@ -1821,10 +1834,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             )
         );
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        assertEquals(
-            "the user [_cross_cluster_access] is an internal user without a role and we should never try to get its roles",
-            iae.getMessage()
-        );
+        assertEquals("the internal user [_cross_cluster_access] should never have its roles resolved", iae.getMessage());
     }
 
     public void testApiKeyAuthUsesApiKeyService() throws Exception {
@@ -2505,32 +2515,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(
-            e1.getMessage(),
-            equalTo(
-                "the user ["
-                    + SystemUser.NAME
-                    + "] is the ["
-                    + SystemUser.NAME
-                    + "] internal user and we should never try to get its role descriptors"
-            )
-        );
+        assertThat(e1.getMessage(), equalTo("should never try to get the roles for internal user [" + SystemUser.NAME + "]"));
 
         when(subject.getUser()).thenReturn(CrossClusterAccessUser.INSTANCE);
         final IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
             () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
         );
-        assertThat(
-            e2.getMessage(),
-            equalTo(
-                "the user ["
-                    + CrossClusterAccessUser.NAME
-                    + "] is the ["
-                    + CrossClusterAccessUser.NAME
-                    + "] internal user and we should never try to get its role descriptors"
-            )
-        );
+        assertThat(e2.getMessage(), equalTo("should never try to get the roles for internal user [" + CrossClusterAccessUser.NAME + "]"));
 
         for (var userAndDescriptor : List.of(
             new Tuple<>(XPackUser.INSTANCE, XPackUser.ROLE_DESCRIPTOR),

@@ -17,12 +17,9 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -47,9 +44,10 @@ public class DocumentFieldTests extends ESTestCase {
     }
 
     public void testUnserializableXContent() {
-        DocumentField df = new DocumentField("field", List.of((ToXContent) (builder, params) -> {
-            throw new UnsupportedOperationException();
-        }));
+        DocumentField df = new DocumentField(
+            "field",
+            List.of((ToXContent) (builder, params) -> { throw new UnsupportedOperationException(); })
+        );
         String output = Strings.toString(df.getValidValuesWriter());
         assertEquals("""
             {"field":["<unserializable>"]}""", output);

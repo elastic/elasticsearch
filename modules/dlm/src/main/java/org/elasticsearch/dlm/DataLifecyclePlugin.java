@@ -26,10 +26,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.dlm.action.AuthorizeDataLifecycleAction;
 import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
+import org.elasticsearch.dlm.action.TransportAuthorizeDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportGetDataLifecycleAction;
@@ -161,6 +163,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, TransportGetDataLifecycleAction.class));
         actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, TransportDeleteDataLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
+        actions.add(new ActionHandler<>(AuthorizeDataLifecycleAction.INSTANCE, TransportAuthorizeDataLifecycleAction.class));
         return actions;
     }
 

@@ -67,7 +67,7 @@ if (BuildParams.isSnapshotBuild() == false) {
   restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
 
   // TODO: Remove the following when RCS feature is released
-  // cross_cluster_access privilege is only available when untrusted_remote_cluster_feature_flag_registered is enabled
+  // cross_cluster_search privilege is only available when untrusted_remote_cluster_feature_flag_registered is enabled
   // which requires snapshot build
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
 }

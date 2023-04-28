@@ -26,7 +26,7 @@ public class CrossClusterAccessUser extends User {
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] {
-            "cross_cluster_access",
+            "cross_cluster_search",
             // TODO: add a named cluster privilege to cover the CCR cluster actions
             ClusterStateAction.NAME },
         // Needed for CCR background jobs (with system user)

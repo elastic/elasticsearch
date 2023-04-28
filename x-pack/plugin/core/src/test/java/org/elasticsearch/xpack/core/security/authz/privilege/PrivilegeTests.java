@@ -126,8 +126,8 @@ public class PrivilegeTests extends ESTestCase {
         assertTrue(combinedPermission.implies(monitorClusterPermission));
 
         if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            ClusterPrivilege crossClusterAccessClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_access");
-            assertThat(crossClusterAccessClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_ACCESS));
+            ClusterPrivilege crossClusterAccessClusterPrivilege = ClusterPrivilegeResolver.resolve("cross_cluster_search");
+            assertThat(crossClusterAccessClusterPrivilege, is(ClusterPrivilegeResolver.CROSS_CLUSTER_SEARCH));
             verifyClusterActionAllowed(
                 crossClusterAccessClusterPrivilege,
                 "cluster:internal/remote_cluster/handshake",

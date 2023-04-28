@@ -33,11 +33,7 @@ import static org.mockito.Mockito.when;
 
 public class DanglingIndicesStateTests extends ESTestCase {
 
-    private static final Settings indexSettings = Settings.builder()
-        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-        .build();
+    private static final Settings indexSettings = indexSettings(Version.CURRENT, 1, 0).build();
 
     public void testDanglingIndicesAreDiscovered() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {

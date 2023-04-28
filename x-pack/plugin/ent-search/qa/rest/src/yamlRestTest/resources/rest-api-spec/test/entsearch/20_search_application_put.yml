@@ -57,6 +57,11 @@ teardown:
         name: test-re-creating-search-application
         ignore: 404
 
+  - do:
+      indices.delete:
+        index: [ "test-index1", "test-index2", "test-index3", "test-index4" ]
+        ignore: 404
+
 ---
 "Create Search Application":
   - do:

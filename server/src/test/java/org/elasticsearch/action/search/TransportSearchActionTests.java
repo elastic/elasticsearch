@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -256,9 +257,7 @@ public class TransportSearchActionTests extends ESTestCase {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
-            DiscoveryNode[] nodes = new DiscoveryNode[] {
-                new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
-                new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT) };
+            DiscoveryNode[] nodes = new DiscoveryNode[] { TestDiscoveryNode.create("node1"), TestDiscoveryNode.create("node2") };
             Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
             indicesAndAliases.put("foo", AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"));
             indicesAndAliases.put("bar", AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
@@ -282,7 +281,7 @@ public class TransportSearchActionTests extends ESTestCase {
                         TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED) }
                 ) };
             searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
-            DiscoveryNode[] nodes2 = new DiscoveryNode[] { new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT) };
+            DiscoveryNode[] nodes2 = new DiscoveryNode[] { TestDiscoveryNode.create("node3") };
             ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("xyz", "xyz_id", 0),

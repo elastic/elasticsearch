@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -309,9 +310,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final Exception shardActionFailure;
         if (randomBoolean()) {
-            shardActionFailure = new NodeClosedException(new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT));
+            shardActionFailure = new NodeClosedException(TestDiscoveryNode.create("foo"));
         } else if (randomBoolean()) {
-            DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode node = TestDiscoveryNode.create("foo");
             shardActionFailure = new SendRequestTransportException(
                 node,
                 ShardStateAction.SHARD_FAILED_ACTION_NAME,

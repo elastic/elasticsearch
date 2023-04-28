@@ -401,10 +401,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         final String p_node = internalCluster().startNode();
 
-        prepareCreate(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
 
         internalCluster().startNode();
         internalCluster().startNode();

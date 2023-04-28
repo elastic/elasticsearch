@@ -42,12 +42,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", "1")
-                    .put("index.number_of_replicas", 0)
-                    .put("index.routing.allocation.include.tag", "A")
-            )
+            .setSettings(indexSettings(1, 0).put("index.routing.allocation.include.tag", "A"))
             .execute()
             .actionGet();
         ensureGreen();
@@ -73,12 +68,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("test")
-            .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", "4")
-                    .put("index.number_of_replicas", 0)
-                    .put("index.routing.allocation.include.tag", "A")
-            )
+            .setSettings(indexSettings(4, 0).put("index.routing.allocation.include.tag", "A"))
             .execute()
             .actionGet();
         ensureGreen();

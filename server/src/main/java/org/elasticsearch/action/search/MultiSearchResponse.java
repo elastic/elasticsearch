@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -177,7 +176,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             Iterators.single((b, p) -> b.field("took", tookInMillis).startArray(Fields.RESPONSES)),
-            Iterators.flatMap(Arrays.stream(items).iterator(), item -> item.toXContentChunked(params)),
+            Iterators.flatMap(Iterators.forArray(items), item -> item.toXContentChunked(params)),
             Iterators.single((b, p) -> b.endArray()),
             ChunkedToXContentHelper.endObject()
         );

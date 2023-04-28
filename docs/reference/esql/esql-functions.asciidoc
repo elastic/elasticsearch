@@ -9,8 +9,12 @@ these functions:
 * <<esql-concat>>
 * <<esql-date_format>>
 * <<esql-date_trunc>>
+* <<esql-is_finite>>
+* <<esql-is_infinite>>
+* <<esql-is_nan>>
 * <<esql-is_null>>
 * <<esql-length>>
+* <<esql-pow>>
 * <<esql-round>>
 * <<esql-starts_with>>
 * <<esql-substring>>
@@ -117,7 +121,7 @@ Returns a boolean than indicates whether its input is `null`.
 [source,esql]
 ----
 FROM employees
-| WHERE is_null(first_name)
+| WHERE IS_NULL(first_name)
 ----
 
 Combine this function with `NOT` to filter out any `null` data:
@@ -125,7 +129,7 @@ Combine this function with `NOT` to filter out any `null` data:
 [source,esql]
 ----
 FROM employees
-| WHERE NOT is_null(first_name)
+| WHERE NOT IS_NULL(first_name)
 ----
 
 [[esql-length]]

@@ -46,7 +46,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             .execute()
             .actionGet();
         ensureGreen();
-        ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
+        ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
@@ -54,7 +54,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = client().admin().cluster().prepareSearchShards("test").setRouting("A").execute().actionGet();
+        response = clusterAdmin().prepareSearchShards("test").setRouting("A").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
@@ -73,16 +73,16 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             .actionGet();
         ensureGreen();
 
-        ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
+        ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(4));
         assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
-        response = client().admin().cluster().prepareSearchShards("test").setRouting("ABC").execute().actionGet();
+        response = clusterAdmin().prepareSearchShards("test").setRouting("ABC").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
 
-        response = client().admin().cluster().prepareSearchShards("test").setPreference("_shards:2").execute().actionGet();
+        response = clusterAdmin().prepareSearchShards("test").setPreference("_shards:2").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
         assertThat(response.getGroups()[0].getShardId().getId(), equalTo(2));
     }
@@ -96,9 +96,9 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
             .addAliasAction(AliasActions.add().index("test1").alias("routing_alias").routing("ABC"))
             .addAliasAction(AliasActions.add().index("test2").alias("routing_alias").routing("EFG"))
             .get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("routing_alias").execute().actionGet();
+        ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("routing_alias").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(2));
         assertThat(response.getGroups()[0].getShards().length, equalTo(2));
         assertThat(response.getGroups()[1].getShards().length, equalTo(2));
@@ -140,7 +140,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test-blocks").execute().actionGet();
+                ClusterSearchShardsResponse response = clusterAdmin().prepareSearchShards("test-blocks").execute().actionGet();
                 assertThat(response.getGroups().length, equalTo(numShards.numPrimaries));
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);
@@ -150,7 +150,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         // Request is blocked
         try {
             enableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().cluster().prepareSearchShards("test-blocks"));
+            assertBlocked(clusterAdmin().prepareSearchShards("test-blocks"));
         } finally {
             disableIndexBlock("test-blocks", SETTING_BLOCKS_METADATA);
         }

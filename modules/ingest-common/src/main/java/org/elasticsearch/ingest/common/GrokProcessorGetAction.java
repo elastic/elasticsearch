@@ -20,6 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -135,13 +136,13 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         TransportAction(
             TransportService transportService,
             ActionFilters actionFilters,
-            Map<String, String> legacyGrokPatterns,
-            Map<String, String> ecsV1GrokPatterns
+            PatternBank legacyGrokPatterns,
+            PatternBank ecsV1GrokPatterns
         ) {
             super(NAME, transportService, actionFilters, Request::new);
-            this.legacyGrokPatterns = legacyGrokPatterns;
+            this.legacyGrokPatterns = legacyGrokPatterns.bank();
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
-            this.ecsV1GrokPatterns = ecsV1GrokPatterns;
+            this.ecsV1GrokPatterns = ecsV1GrokPatterns.bank();
             this.sortedEcsV1GrokPatterns = new TreeMap<>(this.ecsV1GrokPatterns);
         }
 

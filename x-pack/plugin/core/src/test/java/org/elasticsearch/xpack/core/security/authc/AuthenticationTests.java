@@ -19,6 +19,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -854,7 +855,7 @@ public class AuthenticationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] can't handle cross cluster access authentication and attempted to rewrite for ["
                         + version
                         + "]"
@@ -867,7 +868,8 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion crossClusterAccessRealmVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
+        final TransportVersion crossClusterAccessRealmVersion =
+            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             crossClusterAccessRealmVersion,
@@ -1058,7 +1060,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(Authentication.TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
+            .transportVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite

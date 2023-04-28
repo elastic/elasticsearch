@@ -178,10 +178,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         ensureYellow();
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
-        Settings.Builder firstSplitSettingsBuilder = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", firstSplitShards)
-            .putNull("index.blocks.write");
+        Settings.Builder firstSplitSettingsBuilder = indexSettings(firstSplitShards, 0).putNull("index.blocks.write");
         if (sourceShards == 1 && useRoutingPartition == false && randomBoolean()) { // try to set it if we have a source index with 1 shard
             firstSplitSettingsBuilder.put("index.number_of_routing_shards", secondSplitShards);
         }
@@ -220,13 +217,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .indices()
                 .prepareResizeIndex("first_split", "second_split")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", secondSplitShards)
-                        .putNull("index.blocks.write")
-                        .build()
-                )
+                .setSettings(indexSettings(secondSplitShards, 0).putNull("index.blocks.write").build())
                 .get()
         );
         ensureGreen();
@@ -339,11 +330,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         final long beforeSplitPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetadata::primaryTerm).max().getAsLong();
 
         // now split source into target
-        final Settings splitSettings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", numberOfTargetShards)
-            .putNull("index.blocks.write")
-            .build();
+        final Settings splitSettings = indexSettings(numberOfTargetShards, 0).putNull("index.blocks.write").build();
         assertAcked(
             client().admin()
                 .indices()
@@ -398,13 +385,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                     .indices()
                     .prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.SPLIT)
-                    .setSettings(
-                        Settings.builder()
-                            .put("index.number_of_replicas", createWithReplicas ? 1 : 0)
-                            .put("index.number_of_shards", 2)
-                            .putNull("index.blocks.write")
-                            .build()
-                    )
+                    .setSettings(indexSettings(2, createWithReplicas ? 1 : 0).putNull("index.blocks.write").build())
                     .get()
             );
             ensureGreen();
@@ -508,13 +489,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .indices()
                 .prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 4)
-                        .put("index.sort.field", "foo")
-                        .build()
-                )
+                .setSettings(indexSettings(4, 0).put("index.sort.field", "foo").build())
                 .get()
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
@@ -525,13 +500,7 @@ public class SplitIndexIT extends ESIntegTestCase {
                 .indices()
                 .prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", 4)
-                        .putNull("index.blocks.write")
-                        .build()
-                )
+                .setSettings(indexSettings(4, 0).putNull("index.blocks.write").build())
                 .get()
         );
         ensureGreen();

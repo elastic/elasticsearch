@@ -199,6 +199,35 @@ system (such as Active Directory, or a SAML Identity Provider) do not have a
 1-to-1 correspondence with the names of roles in {es}. The role mapping is the
 means by which you link a _group name_ with a _role name_.
 
+If there are multiple groups, you can use array syntax for the groups field.
+This matches any of the groups (rather than all of the groups):
+
+[source,console]
+------------------------------------------------------------
+POST /_security/role_mapping/mapping4
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "any": [
+      {
+        "field": {
+          "username": "esadmin"
+        }
+      },
+      {
+        "field": {
+          "groups": [
+               "cn=admins,dc=example,dc=com",
+               "cn=other,dc=example,dc=com"
+            ]
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+
 However, in rare cases the names of your groups may be an exact match for the
 names of your {es} roles. This can be the case when your SAML Identity Provider
 includes its own "group mapping" feature and can be configured to release {es}

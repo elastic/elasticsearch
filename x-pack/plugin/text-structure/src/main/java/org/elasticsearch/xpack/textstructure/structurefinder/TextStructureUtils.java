@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
@@ -47,7 +48,7 @@ public final class TextStructureUtils {
 
     public static final String NULL_TIMESTAMP_FORMAT = "null";
 
-    private static final Map<String, String> EXTENDED_PATTERNS;
+    private static final PatternBank EXTENDED_PATTERNS;
     static {
         Map<String, String> patterns = new HashMap<>();
         patterns.put("GEO_POINT", "%{NUMBER} %{NUMBER}");
@@ -65,8 +66,7 @@ public final class TextStructureUtils {
             "(?:%{WKT_POINT}|%{WKT_LINESTRING}|%{WKT_MULTIPOINT}|%{WKT_POLYGON}|%{WKT_MULTILINESTRING}|%{WKT_MULTIPOLYGON}|%{WKT_BBOX})"
         );
         patterns.put("WKT_GEOMETRYCOLLECTION", "GEOMETRYCOLLECTION \\(%{WKT_ANY}(?:, %{WKT_ANY})\\)");
-        patterns.putAll(GrokBuiltinPatterns.legacyPatterns());
-        EXTENDED_PATTERNS = Collections.unmodifiableMap(patterns);
+        EXTENDED_PATTERNS = GrokBuiltinPatterns.legacyPatterns().extendWith(patterns);
     }
 
     private static final int NUM_TOP_HITS = 10;

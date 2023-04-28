@@ -37,7 +37,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -1112,7 +1111,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     TransportRequestOptions.timeout(transportTimeout),
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                        transportActionType.getResponseReader()
+                        transportActionType.getResponseReader(),
+                        ThreadPool.Names.CLUSTER_COORDINATION
                     )
                 );
             }
@@ -1156,7 +1156,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         transportService.connectToNode(
                             // Note: This connection must be explicitly closed in the connectionListener
                             masterEligibleNode,
-                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
                             connectionListener
                         );
                     }
@@ -1167,7 +1166,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             public String toString() {
                 return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
             }
-        }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
+        }, remoteRequestInitialDelay, ThreadPool.Names.CLUSTER_COORDINATION);
     }
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {

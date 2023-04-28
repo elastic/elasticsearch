@@ -496,14 +496,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         IntFunction<String> assignmentFunction
     ) {
         final var inSyncIds = randomList(numberOfShards, numberOfShards, () -> UUIDs.randomBase64UUID(random()));
-        final var indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put("index.number_of_shards", numberOfShards)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.version.created", Version.CURRENT)
-                    .build()
-            );
+        final var indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(Version.CURRENT, numberOfShards, 0));
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             indexMetadataBuilder.putInSyncAllocationIds(shardId, Set.of(inSyncIds.get(shardId)));
         }

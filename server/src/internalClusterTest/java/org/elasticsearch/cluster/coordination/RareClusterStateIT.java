@@ -73,9 +73,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
     public void testAssignmentWithJustAddedNodes() {
         internalCluster().startNode(Settings.builder().put(TransportSettings.CONNECT_TIMEOUT.getKey(), "1s"));
         final String index = "index";
-        prepareCreate(index).setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate(index).setSettings(indexSettings(1, 0)).get();
         ensureGreen(index);
 
         // close to have some unassigned started shards shards..
@@ -243,14 +241,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertNotNull(otherNode);
 
         // Don't allocate the shard on the master node
-        assertAcked(
-            prepareCreate("index").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.exclude._name", master)
-            ).get()
-        );
+        assertAcked(prepareCreate("index").setSettings(indexSettings(1, 0).put("index.routing.allocation.exclude._name", master)).get());
         ensureGreen();
 
         // Check routing tables
@@ -333,12 +324,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Force allocation of the primary on the master node by first only allocating on the master
         // and then allowing all nodes so that the replica gets allocated on the other node
-        prepareCreate("index").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", master)
-        ).get();
+        prepareCreate("index").setSettings(indexSettings(1, 1).put("index.routing.allocation.include._name", master)).get();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", ""), "index");
         ensureGreen();
 

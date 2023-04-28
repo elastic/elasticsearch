@@ -100,7 +100,6 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         ) {
             super(INTERNAL_NAME, bigArrays, transportService, actionFilters, restoreSourceService);
         }
-
     }
 
     public static class TransportAction extends TransportGetCcrRestoreFileChunkAction {
@@ -117,6 +116,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         @Override
         protected void validate(GetCcrRestoreFileChunkRequest request) {
             final ShardId shardId = request.getShardId();
+            assert shardId != null : "shardId must be specified for the request";
             restoreSourceService.ensureSessionShardIdConsistency(request.getSessionUUID(), shardId);
             restoreSourceService.ensureFileNameIsKnownToSession(request.getSessionUUID(), request.getFileName());
         }

@@ -20,7 +20,7 @@ RRF uses the following formula to determine the score for ranking each document:
 score = 0.0
 for q in queries:
     if d in result(q):
-        score += 1.0 / ( k + rank(result(q),d) )
+        score += 1.0 / ( k + rank( result(q), d ) )
 return score
 
 # where
@@ -28,7 +28,7 @@ return score
 # q is a query in the set of queries
 # d is a document in the result set of q
 # result(q) is the result set of q
-# rank(q,d) is d's rank within the result(q) starting from 1
+# rank( result(q), d ) is d's rank within the result(q) starting from 1
 ----
 // NOTCONSOLE
 
@@ -57,7 +57,7 @@ Defaults to `100`.
 
 An example request using RRF:
 
-[source,js]
+[source,console]
 ----
 GET rrf-index/_search
 {
@@ -68,7 +68,7 @@ GET rrf-index/_search
     },
     "knn": {                         <2>
         "field": "rrf-vector",
-        "query_vector": [1, 2, 3.5],
+        "query_vector": [1.25, 2, 3.5],
         "k": 50,
         "num_candidates": 100
     },
@@ -80,7 +80,7 @@ GET rrf-index/_search
     }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:example request only]
 <1> a standard query
 <2> a knn search
 <3> the `rank` object
@@ -90,7 +90,7 @@ GET rrf-index/_search
 
 The above example uses RRF to combine and rank the standard query and knn search.
 
-[[rrf-supported-features]
+[[rrf-supported-features]]
 ==== Reciprocal rank fusion supported features
 
 RRF does support:
@@ -177,7 +177,8 @@ POST rrf-index/_refresh
 ----
 // TEST
 
-We now execute a search using RRF.
+We now execute a search using RRF with a standard query, a knn search, and
+a terms aggregation.
 
 [source,console]
 ----
@@ -200,10 +201,20 @@ GET rrf-index/_search
             "rank_constant": 1
         }
     },
-    "size": 3
+    "size": 3,
+    "aggs": {
+        "rrf_int_count": {
+            "terms": {
+                "field": "rrf_integer"
+            }
+        }
+    }
 }
 ----
 // TEST[continued]
+
+And we receive the response with a ranked result set and the
+terms aggregation result.
 
 [source,console-response]
 ----
@@ -260,7 +271,24 @@ GET rrf-index/_search
                 }
             }
         ]
+    },
+    "aggregations" : {
+        "rrf_int_count" : {
+            "doc_count_error_upper_bound" : 0,
+            "sum_other_doc_count" : 0,
+            "buckets" : [
+                {
+                    "key" : 1,
+                    "doc_count" : 3
+                },
+                {
+                    "key" : 2,
+                    "doc_count" : 2
+                }
+            ]
+        }
     }
 }
 ----
 // TESTRESPONSE[s/: \.\.\./: $body.$_path/]
+

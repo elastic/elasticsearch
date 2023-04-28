@@ -234,14 +234,15 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 { "index": { "_index": "metrics-001" } }
                 { "name": "doc-3" }
                 { "index": { "_index": "metrics-002" } }
-                { "name": "doc-4" }\n"""));
+                { "name": "doc-4" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
         // follow cluster
         {
             assertBusy(() -> {
-                ensureHealth("", request -> {
+                ensureHealth("metrics-000,metrics-002", request -> {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("wait_for_active_shards", "1");
                     request.addParameter("wait_for_no_relocating_shards", "true");
@@ -269,7 +270,8 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 { "index": { "_index": "metrics-000" } }
                 { "name": "doc-5" }
                 { "index": { "_index": "metrics-002" } }
-                { "name": "doc-6" }\n"""));
+                { "name": "doc-6" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
             verifyReplicatedDocuments(5L, "metrics-000", "metrics-002");
 

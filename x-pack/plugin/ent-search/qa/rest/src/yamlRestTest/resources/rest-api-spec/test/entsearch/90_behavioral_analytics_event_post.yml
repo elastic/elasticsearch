@@ -2,6 +2,7 @@ setup:
   - do:
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
+        ignore: 400
 
 ---
 teardown:

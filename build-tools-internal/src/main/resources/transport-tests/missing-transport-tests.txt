@@ -226,6 +226,7 @@ org/elasticsearch/index/rankeval/PrecisionAtK$Detail
 org/elasticsearch/index/rankeval/RecallAtK$Detail
 org/elasticsearch/index/reindex/BulkByScrollTask$StatusOrException
 org/elasticsearch/index/reindex/RemoteInfo
+org/elasticsearch/index/reindex/ScrollableHitSource$SearchFailure
 org/elasticsearch/index/search/MatchQueryParser$Type
 org/elasticsearch/index/search/stats/FieldUsageStats
 org/elasticsearch/index/search/stats/FieldUsageStats$PerFieldUsageStats
@@ -254,6 +255,7 @@ org/elasticsearch/index/snapshots/IndexShardRestoreFailedException
 org/elasticsearch/index/snapshots/IndexShardSnapshotException
 org/elasticsearch/index/snapshots/IndexShardSnapshotFailedException
 org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshot$FileInfo
+org/elasticsearch/index/stats/IndexingPressureStats
 org/elasticsearch/index/translog/TranslogCorruptedException
 org/elasticsearch/index/translog/TranslogException
 org/elasticsearch/index/translog/TruncatedTranslogException
@@ -360,7 +362,9 @@ org/elasticsearch/transport/BindTransportException
 org/elasticsearch/transport/NoSeedNodeLeftException
 org/elasticsearch/transport/NoSuchRemoteClusterException
 org/elasticsearch/transport/NotSerializableTransportException
+org/elasticsearch/transport/ProxyConnectionStrategy$ProxyModeInfo
 org/elasticsearch/transport/ReceiveTimeoutTransportException
+org/elasticsearch/transport/RemoteClusterServerInfo
 org/elasticsearch/transport/ResponseHandlerFailureTransportException
 org/elasticsearch/transport/TcpTransport$HttpRequestOnTransportException
 org/elasticsearch/transport/TransportActionProxy$CancellableProxyRequest

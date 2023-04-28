@@ -503,9 +503,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("no_field", "type=keyword", "some_field", "type=keyword")
+            prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("no_field", "type=keyword", "some_field", "type=keyword")
         );
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
@@ -685,22 +683,8 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
-        createIndex(
-            "demo",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", dataNode)
-                .build()
-        );
-        createIndex(
-            "prod",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", dataNode)
-                .build()
-        );
+        createIndex("demo", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
+        createIndex("prod", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
         int numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             index("demo", "demo-" + i, Map.of());

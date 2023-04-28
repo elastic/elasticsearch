@@ -55,8 +55,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -92,12 +90,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.global_checkpoint_sync.interval", "1s")
-                )
+                .setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s"))
                 .get()
         );
         ensureGreen();
@@ -422,12 +415,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .indices()
             .prepareCreate("test")
             .setWaitForActiveShards(ActiveShardCount.NONE)
-            .setSettings(
-                Settings.builder()
-                    .put("index.routing.allocation.exclude._name", node)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(1, 0).put("index.routing.allocation.exclude._name", node))
             .get();
 
         assertThat(
@@ -446,12 +434,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.unassigned.node_left.delayed_timeout", "0ms")
-                )
+                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
                 .get()
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -486,12 +469,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                        .put("index.unassigned.node_left.delayed_timeout", "0ms")
-                )
+                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
                 .get()
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -580,12 +558,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
         final String oldPrimary = internalCluster().startDataOnlyNode();
-        assertAcked(
-            prepareCreate(
-                "test",
-                Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            )
-        );
+        assertAcked(prepareCreate("test", indexSettings(1, numberOfReplicas)));
         final ShardId shardId = new ShardId(clusterService().state().metadata().index("test").getIndex(), 0);
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();

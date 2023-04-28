@@ -55,14 +55,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build());
         ensureYellow(indexName);
         final String newPrimary = internalCluster().startDataOnlyNode();
         final Collection<String> toDelete = new ArrayList<>();

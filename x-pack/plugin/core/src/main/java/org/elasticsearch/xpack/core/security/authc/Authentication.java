@@ -732,6 +732,16 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
+    public static Authentication getAuthenticationFromCrossClusterAccessMetadata(Authentication authentication) {
+        if (authentication.isCrossClusterAccess()) {
+            return (Authentication) authentication.getAuthenticatingSubject().getMetadata().get(CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
+        } else {
+            String message = "authentication is not cross_cluster_access";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
+    }
+
     private static final Map<String, CheckedFunction<StreamInput, Object, IOException>> METADATA_VALUE_READER = Map.of(
         CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY,
         Authentication::new,

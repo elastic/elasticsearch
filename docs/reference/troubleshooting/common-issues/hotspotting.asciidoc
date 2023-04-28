@@ -54,7 +54,7 @@ of their potentially impacting scope.
 
 [discrete]
 [[causes-hardware]]
-===== Hardware
+==== Hardware
 
 Here are some common improper hardware setups which may contribute to hot 
 spotting:
@@ -78,7 +78,7 @@ for more information.
 
 [discrete]
 [[causes-shards]]
-===== Shard distributions
+==== Shard distributions
 
 {es} indices are divided into one or more link:{wikipedia}/Shard_(database_architecture)[shards] 
 which can sometimes be poorly distributed. {es} accounts for this by <<modules-cluster,balancing shard counts>> 
@@ -89,7 +89,7 @@ overall shards it's hosting.
 
 [discrete]
 [[causes-shards-nodes]]
-====== Node level
+===== Node level
 
 You can check for shard balancing via <<cat-allocation,cat allocation>>, though as of version 
 8.6, <<modules-cluster,desired balancing>> may no longer fully expect to 
@@ -145,7 +145,7 @@ GET _nodes/stats?human&filter_path=nodes.*.name,nodes.*.indices.indexing
 
 [discrete]
 [[causes-shards-index]]
-====== Index level
+===== Index level
 
 Hot spotted nodes frequently surface via <<cat-thread-pool,cat thread pool>>'s 
 `write` and `search` queue backups. For example:
@@ -214,7 +214,7 @@ cat shard_stats.json | jq -rc 'sort_by(-.avg_indexing)[]' | head
 
 [discrete]
 [[causes-tasks]]
-===== Task loads
+==== Task loads
 
 Shard distribution problems will most-likely surface as task load as seen 
 above in the <<cat-thread-pool,cat thread pool>> example. It is also

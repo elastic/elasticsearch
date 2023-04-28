@@ -13,8 +13,21 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.translog.Translog;
 
 public class LiveVersionMapTestUtils {
+
+    public static LiveVersionMap newLiveVersionMap(LiveVersionMapArchive archiver) {
+        return new LiveVersionMap(archiver);
+    }
+
+    public static DeleteVersionValue newDeleteVersionValue(long version, long seqNo, long term, long time) {
+        return new DeleteVersionValue(version, seqNo, term, time);
+    }
+
+    public static IndexVersionValue newIndexVersionValue(Translog.Location location, long version, long seqNo, long term) {
+        return new IndexVersionValue(location, version, seqNo, term);
+    }
 
     public static VersionValue get(LiveVersionMap map, String id) {
         try (Releasable r = acquireLock(map, uid(id))) {

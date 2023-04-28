@@ -26,13 +26,13 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
-    private final LiveVersionMapArchiver archiver;
+    private final LiveVersionMapArchive archiver;
 
     LiveVersionMap() {
-        this(LiveVersionMapArchiver.NOOP_ARCHIVER);
+        this(LiveVersionMapArchive.NOOP_ARCHIVE);
     }
 
-    public LiveVersionMap(LiveVersionMapArchiver archiver) {
+    LiveVersionMap(LiveVersionMapArchive archiver) {
         this.archiver = archiver;
     }
 
@@ -164,7 +164,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         /**
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
-        Maps invalidateOldMap(LiveVersionMapArchiver archiver) {
+        Maps invalidateOldMap(LiveVersionMapArchive archiver) {
             archiver.afterRefresh(old);
             return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
@@ -496,7 +496,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
     }
 
     // visible for testing purposes only
-    LiveVersionMapArchiver getArchiver() {
+    LiveVersionMapArchive getArchiver() {
         return archiver;
     }
 }

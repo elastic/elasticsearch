@@ -13,13 +13,13 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.util.Objects;
 
-public final class IndexVersionValue extends VersionValue {
+final class IndexVersionValue extends VersionValue {
 
     private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);
 
     private final Translog.Location translogLocation;
 
-    public IndexVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
+    IndexVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
         super(version, seqNo, term);
         this.translogLocation = translogLocation;
     }

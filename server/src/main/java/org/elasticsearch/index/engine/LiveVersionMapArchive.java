@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 /**
  * Keeps track of the old map of a LiveVersionMap that gets evacuated on a refresh
  */
-public interface LiveVersionMapArchiver {
+public interface LiveVersionMapArchive {
     /**
      * Archive the old map evacuated due to a refresh
      *
@@ -31,7 +31,7 @@ public interface LiveVersionMapArchiver {
      */
     long getMinDeleteTimestamp();
 
-    LiveVersionMapArchiver NOOP_ARCHIVER = new LiveVersionMapArchiver() {
+    LiveVersionMapArchive NOOP_ARCHIVE = new LiveVersionMapArchive() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}
 

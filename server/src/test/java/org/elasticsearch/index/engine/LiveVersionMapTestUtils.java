@@ -38,6 +38,10 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
+    public static VersionValue versionLookupPut(LiveVersionMap.VersionLookup versionLookup, BytesRef key, VersionValue versionValue) {
+        return versionLookup.put(key, versionValue);
+    }
+
     public static int VersionLookupSize(LiveVersionMap.VersionLookup lookup) {
         return lookup.size();
     }
@@ -46,7 +50,7 @@ public class LiveVersionMapTestUtils {
         return map.acquireLock(uid);
     }
 
-    private static BytesRef uid(String id) {
+    public static BytesRef uid(String id) {
         return new Term(IdFieldMapper.NAME, Uid.encodeId(id)).bytes();
     }
 }

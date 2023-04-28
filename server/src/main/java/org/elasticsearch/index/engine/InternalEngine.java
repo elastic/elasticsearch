@@ -141,6 +141,7 @@ public class InternalEngine extends Engine {
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap;
+    private final LiveVersionMapArchiver archiver;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -215,7 +216,8 @@ public class InternalEngine extends Engine {
         this.maxDocs = maxDocs;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
-        this.versionMap = createLiveVersionMap();
+        this.archiver = createLiveVersionMapArchiver();
+        this.versionMap = new LiveVersionMap(archiver);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -3130,8 +3132,12 @@ public class InternalEngine extends Engine {
         this.flushListener.addOrNotify(location, listener);
     }
 
-    protected LiveVersionMap createLiveVersionMap() {
-        return new LiveVersionMap();
+    public LiveVersionMapArchiver createLiveVersionMapArchiver() {
+        return LiveVersionMapArchiver.NOOP_ARCHIVER;
+    }
+
+    public LiveVersionMapArchiver getLiveVersionMapArchiver() {
+        return archiver;
     }
 
     // Visible for testing purposes only

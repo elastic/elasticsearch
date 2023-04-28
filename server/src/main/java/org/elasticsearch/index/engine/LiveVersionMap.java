@@ -65,6 +65,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // Modifies the map of this instance by merging with the given VersionLookup
         public void merge(VersionLookup versionLookup) {
             map.putAll(versionLookup.map);
+            minDeleteTimestamp.accumulateAndGet(versionLookup.minDeleteTimestamp(), Math::min);
         }
 
         private VersionLookup(Map<BytesRef, VersionValue> map) {
@@ -103,6 +104,9 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
             minDeleteTimestamp.accumulateAndGet(delete.time, Math::min);
         }
 
+        public long minDeleteTimestamp() {
+            return minDeleteTimestamp.get();
+        }
     }
 
     private static final class Maps {
@@ -113,7 +117,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // Used while refresh is running, and to hold adds/deletes until refresh finishes. We read from both current and old on lookup:
         final VersionLookup old;
 
-        // this is not volatile since we don't need to maintain a happens before relation ship across doc IDs so it's enough to
+        // this is not volatile since we don't need to maintain a happens before relationship across doc IDs so it's enough to
         // have the volatile read of the Maps reference to make it visible even across threads.
         boolean needsSafeAccess;
         final boolean previousMapsNeededSafeAccess;
@@ -273,10 +277,6 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
 
     }
 
-    public void afterUnpromotablesRefreshed(long generation) {
-        archiver.afterUnpromotablesRefreshed(generation);
-    }
-
     /**
      * Returns the live version (add or delete) for this uid.
      */
@@ -402,7 +402,8 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // version value can't be removed it's
         // not yet flushed to lucene ie. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
-        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps;
+        final boolean isNotTrackedByArchiver = versionValue.time < archiver.getMinDeleteTimestamp();
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps & isNotTrackedByArchiver;
     }
 
     /**

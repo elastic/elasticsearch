@@ -22,27 +22,27 @@ public interface LiveVersionMapArchiver {
     void afterRefresh(LiveVersionMap.VersionLookup old);
 
     /**
-     * Trigger a cleanup of the archive based on the given generation
-     *
-     * @param generation the generation of the commit caused by the flush
-     */
-    void afterUnpromotablesRefreshed(long generation);
-
-    /**
      * Look up the given uid in the archive
      */
     VersionValue get(BytesRef uid);
+
+    /**
+     * Returns the min delete timestamp across all archived maps.
+     */
+    long getMinDeleteTimestamp();
 
     LiveVersionMapArchiver NOOP_ARCHIVER = new LiveVersionMapArchiver() {
         @Override
         public void afterRefresh(LiveVersionMap.VersionLookup old) {}
 
         @Override
-        public void afterUnpromotablesRefreshed(long generation) {}
-
-        @Override
         public VersionValue get(BytesRef uid) {
             return null;
+        }
+
+        @Override
+        public long getMinDeleteTimestamp() {
+            return Long.MAX_VALUE;
         }
     };
 }

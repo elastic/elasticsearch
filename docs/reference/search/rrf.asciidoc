@@ -1,6 +1,266 @@
 [[rrf]]
 === Reciprocal rank fusion
 
-Reciprocal Rank Fusion (RRF) is a simple method to combine document result sets
-from multiple queries where the queries' document scores may be unrelated.
+NOTE: Reciprocal rank fusion requires a Platinum subscription or higher.
 
+IMPORTANT: Reciprocal rank fusion is in technical preview. Features in technical
+preview may be changed or removed in a future release. Elastic will apply best
+effort to fix any issues, but features in technical preview are not subject to
+the support SLA of official GA features.
+
+Reciprocal rank fusion (RRF) is a method for combining results from
+multiple queries with different relevance indicators into a single
+result set where there is no requirement the relevance indicators for
+each query are related to each other in order to achieve high-quality results.
+
+RRF uses the following formula to determine the score for ranking each document:
+
+[source,python]
+----
+score = 0.0
+for q in queries:
+    if d in result(q):
+        score += 1.0 / ( k + rank(result(q),d) )
+return score
+
+# where
+# k is a ranking constant
+# q is a query in the set of queries
+# d is a document in the result set of q
+# result(q) is the result set of q
+# rank(q,d) is d's rank within the result(q) starting from 1
+----
+// NOTCONSOLE
+
+[[rrf-api]]
+==== Reciprocal rank fusion API
+
+RRF may be used as part of a <<search-search, search>> to combine and rank
+documents using either a single standard query and 1-to-many knn searches or no standard
+query and 2-to-many knn searches. The `rrf` parameter is an optional object defined as part
+of a search request's <<request-body-rank, rank parameter>>.
+
+The `rrf` object contains the following parameters:
+
+`rank_constant`::
+(Optional, integer) This value determines how much influence documents in individual
+result sets per query have over the final ranked result set. A higher value indicates
+that lower ranked documents have more influence. This value must be greater than or
+equal to `1`. Defaults to `60`.
+
+`window_size`::
+(Optional, integer) This value determines the size of the individual results sets per
+query. A higher value will improve result relevance at the cost of performance. The final
+ranked result set is pruned down to the search request's <<search-api-query-params-q, size>.
+`window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+Defaults to `100`.
+
+An example request using RRF:
+
+[source,js]
+----
+GET rrf-index/_search
+{
+    "query": {                       <1>
+        "term": {
+            "rrf_text": "shoes"
+        }
+    },
+    "knn": {                         <2>
+        "field": "rrf-vector",
+        "query_vector": [1, 2, 3.5],
+        "k": 50,
+        "num_candidates": 100
+    },
+    "rank": {                        <3>
+        "rrf": {                     <4>
+            "window_size": 50,       <5>
+            "rank_constant": 20      <6>
+        }
+    }
+}
+----
+// NOTCONSOLE
+<1> a standard query
+<2> a knn search
+<3> the `rank` object
+<4> the `rrf` object
+<5> the `window_size` set to `50`
+<6> the `rank_constant` set to `20`
+
+The above example uses RRF to combine and rank the standard query and knn search.
+
+[[rrf-supported-features]
+==== Reciprocal rank fusion supported features
+
+RRF does support:
+
+* from
+* aggregations
+
+RRF does not support:
+
+* scrolling
+* point in time queries
+* sorting
+* rescoring
+* suggestions
+* highlighting
+* collapsable fields
+* explain
+* profile
+
+[[rrf-full-example]]
+==== Reciprocal rank fusion full example
+
+We begin by creating a mapping for an rrf-index with a text field, a vector field,
+and an integer field along with indexing several documents. For this example we
+are going to use a vector with only a single dimension to make the ranking easier
+to explain.
+
+[source,console]
+----
+PUT rrf-index
+{
+  "mappings": {
+        "properties": {
+            "rrf_text" : {
+                "type" : "text"
+            },
+            "rrf_vector": {
+                "type": "dense_vector",
+                "dims": 1,
+                "index": true,
+                "similarity": "l2_norm"
+            },
+            "rrf_integer" : {
+                "type" : "integer"
+            }
+        }
+    }
+}
+
+PUT rrf-index/_doc/1
+{
+    "rrf_text" : "rrf",
+    "rrf_vector" : [5],
+    "rrf_integer": 1
+}
+
+PUT rrf-index/_doc/2
+{
+    "rrf_text" : "rrf rrf",
+    "rrf_vector" : [4],
+    "rrf_integer": 2
+}
+
+PUT rrf-index/_doc/3
+{
+    "rrf_text" : "rrf rrf rrf",
+    "rrf_vector" : [3],
+    "rrf_integer": 1
+}
+
+PUT rrf-index/_doc/4
+{
+    "rrf_text" : "rrf rrf rrf rrf",
+    "rrf_integer": 2
+}
+
+PUT rrf-index/_doc/5
+{
+    "rrf_vector" : [1],
+    "rrf_integer": 1
+}
+
+POST rrf-index/_refresh
+----
+// TEST
+
+We now execute a search using RRF.
+
+[source,console]
+----
+GET rrf-index/_search
+{
+    "query": {
+        "term": {
+            "rrf_text": "rrf"
+        }
+    },
+    "knn": {
+        "field": "rrf_vector",
+        "query_vector": [3],
+        "k": 5,
+        "num_candidates": 5
+    },
+    "rank": {
+        "rrf": {
+            "window_size": 5,
+            "rank_constant": 1
+        }
+    },
+    "size": 3
+}
+----
+// TEST[continued]
+
+[source,console-response]
+----
+{
+    "took": ...,
+    "timed_out" : false,
+    "_shards" : {
+        "total" : 1,
+        "successful" : 1,
+        "skipped" : 0,
+        "failed" : 0
+    },
+    "hits" : {
+        "total" : {
+            "value" : 5,
+            "relation" : "eq"
+        },
+        "max_score" : null,
+        "hits" : [
+            {
+                "_index" : "rrf-index",
+                "_id" : "3",
+                "_score" : null,
+                "_rank" : 1,
+                "_source" : {
+                    "rrf_integer" : 1,
+                    "rrf_vector" : [
+                        3
+                    ],
+                    "rrf_text" : "rrf rrf rrf"
+                }
+            },
+            {
+                "_index" : "rrf-index",
+                "_id" : "2",
+                "_score" : null,
+                "_rank" : 2,
+                "_source" : {
+                    "rrf_integer" : 2,
+                    "rrf_vector" : [
+                        4
+                    ],
+                    "rrf_text" : "rrf rrf"
+                }
+            },
+            {
+                "_index" : "rrf-index",
+                "_id" : "4",
+                "_score" : null,
+                "_rank" : 3,
+                "_source" : {
+                    "rrf_integer" : 2,
+                    "rrf_text" : "rrf rrf rrf rrf"
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/: \.\.\./: $body.$_path/]

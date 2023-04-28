@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -18,9 +21,13 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,9 +36,11 @@ import java.util.Map;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DynamicTemplatesTests extends MapperServiceTestCase {
@@ -342,9 +351,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         DynamicTemplate[] templates = mapper.mapping().getRoot().dynamicTemplates();
         assertEquals(2, templates.length);
         assertEquals("first_template", templates[0].name());
-        assertEquals("first", templates[0].pathMatch());
+        assertEquals("first", templates[0].pathMatch().get(0));
         assertEquals("second_template", templates[1].name());
-        assertEquals("second", templates[1].pathMatch());
+        assertEquals("second", templates[1].pathMatch().get(0));
 
         // Dynamic templates should be appended and deduplicated.
         mapping = Strings.toString(
@@ -379,11 +388,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         templates = mapper.mapping().getRoot().dynamicTemplates();
         assertEquals(3, templates.length);
         assertEquals("first_template", templates[0].name());
-        assertEquals("first", templates[0].pathMatch());
+        assertEquals("first", templates[0].pathMatch().get(0));
         assertEquals("second_template", templates[1].name());
-        assertEquals("second_updated", templates[1].pathMatch());
+        assertEquals("second_updated", templates[1].pathMatch().get(0));
         assertEquals("third_template", templates[2].name());
-        assertEquals("third", templates[2].pathMatch());
+        assertEquals("third", templates[2].pathMatch().get(0));
     }
 
     public void testIllegalDynamicTemplates() throws Exception {
@@ -1751,5 +1760,496 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ObjectMapper artifacts = (ObjectMapper) mapping.getRoot().getMapper("artifacts");
         ObjectMapper leaf = (ObjectMapper) artifacts.getMapper("leaf");
         assertFalse(leaf.subobjects());
+    }
+
+    public void testMatchWithArrayOfFieldNames() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match": ["long_*", "int_*"],
+                      "mapping": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "long_one": 10,
+                "int_text": "12",
+                "mynum": 13
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        LuceneDocument doc = parsedDoc.rootDoc();
+
+        assertEquals(IntField.class, doc.getField("long_one").getClass());
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("long_one");
+        assertNotNull(fieldMapper);
+        assertEquals("integer", fieldMapper.typeName());
+
+        assertEquals(IntField.class, doc.getField("int_text").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("int_text");
+        assertNotNull(fieldMapper);
+        assertEquals("integer", fieldMapper.typeName());
+
+        assertEquals(LongField.class, doc.getField("mynum").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("mynum");
+        assertNotNull(fieldMapper);
+        assertEquals("long", fieldMapper.typeName());
+    }
+
+    public void testMatchAndUnmatchWithArrayOfFieldNamesMapToIpType() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match": ["ip_*", "*_ip"],
+                      "unmatch": ["one*", "*two"],
+                      "mapping": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "one_ip": "will not match",
+                "ip_two": "will not match",
+                "three_ip": "12.12.12.12",
+                "ip_four": "13.13.13.13"
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        LuceneDocument doc = parsedDoc.rootDoc();
+
+        assertNotEquals(InetAddressPoint.class, doc.getField("one_ip").getClass());
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one_ip");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+
+        assertNotEquals(InetAddressPoint.class, doc.getField("ip_two").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("ip_two");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+
+        assertEquals(InetAddressPoint.class, doc.getField("three_ip").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("three_ip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        assertEquals(InetAddressPoint.class, doc.getField("ip_four").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("ip_four");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+    }
+
+    public void testMatchWithArrayOfFieldNamesUsingRegex() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match_pattern": "regex",
+                      "match": ["^one\\\\d.*$", "^.*two", ".*xyz.*"],
+                      "mapping": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "one100_ip": "11.11.11.120",
+                "iptwo": "10.10.10.10",
+                "threeip": "12.12.12.12"
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        LuceneDocument doc = parsedDoc.rootDoc();
+
+        assertEquals(InetAddressPoint.class, doc.getField("one100_ip").getClass());
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one100_ip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        assertEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+    }
+
+    public void testMatchWithArrayOfFieldNamesMixingGlobsAndRegex() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match": ["one*", ".*two$", "^xyz.*"],
+                      "mapping": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "oneip": "11.11.11.120",
+                "iptwo": "10.10.10.10",
+                "threeip": "12.12.12.12"
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        LuceneDocument doc = parsedDoc.rootDoc();
+
+        assertEquals(InetAddressPoint.class, doc.getField("oneip").getClass());
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("oneip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
+        assertNotEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+
+        assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+    }
+
+    public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match": ["*one*", "two*"],
+                      "unmatch": ["*_xyz", "*foo"],
+                      "runtime": {}
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        // twothing should map to runtime field of type 'keyword' (default for runtime strings)
+        // one_xyz should be excluded because of the unmatch, so be multi-field of text/keyword
+        String docJson = """
+            {
+                "twothing": "ipsum",
+                "one_xyz": "13"
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Map<String, Object> actualDynamicMappings = XContentTestUtils.convertToMap(parsedDoc.dynamicMappingsUpdate());
+
+        String expected = """
+            {
+              "_doc": {
+                "runtime": {
+                  "twothing": {
+                    "type": "keyword"
+                  }
+                },
+                "properties": {
+                  "one_xyz": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 256
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+
+        try (XContentParser xparser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, expected)) {
+            Map<String, Object> expectedDynamicMappings = xparser.map();
+            String diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(actualDynamicMappings, expectedDynamicMappings);
+            assertNull("difference between expected and actual Mappings", diff);
+        }
+    }
+
+    public void testMatchAndUnmatchWithArrayOfFieldNamesWithMatchMappingType() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match_mapping_type": "string",
+                      "match": ["*one*", "two*"],
+                      "mapping": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "one_bool": "true",
+                "two_bool": false
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("one_bool");
+        assertNotNull(fieldMapper);
+        assertEquals("keyword", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("two_bool");
+        assertNotNull(fieldMapper);
+        // this would be keyword if we hadn't specified match_mapping_type = string
+        assertEquals("boolean", fieldMapper.typeName());
+    }
+
+    public void testPathMatchWithArrayOfFieldNames() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "full_name": {
+                      "path_match": ["name.*", "user.name.*"],
+                      "mapping": {
+                        "type":     "text",
+                        "copy_to":  "full_name"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        String docJson1 = """
+            {
+              "name": {
+                "first":  "John",
+                "middle": "Winston",
+                "last":   "Lennon"
+              }
+            }
+            """;
+
+        String docJson2 = """
+            {
+              "user": {
+                "name": {
+                  "first":  "Jane",
+                  "midinitial": "M",
+                  "last":   "Salazar"
+                }
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson1));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name.first");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        String copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("name.middle");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("name.last");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        // test second doc with user.name.xxx
+        parsedDoc = mapperService.documentMapper().parse(source(docJson2));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.first");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.midinitial");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.last");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+    }
+
+    public void testPathMatchAndPathUnmatchWithArrayOfFieldNames() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "full_name": {
+                      "path_match":   ["name.*", "user.name.*"],
+                      "path_unmatch": ["*.middle", "*.midinitial"],
+                      "mapping": {
+                        "type":       "text",
+                        "copy_to":    "full_name"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        String docJson1 = """
+            {
+              "name": {
+                "first":  "John",
+                "middle": "Winston",
+                "last":   "Lennon"
+              }
+            }
+            """;
+
+        String docJson2 = """
+            {
+              "user": {
+                "name": {
+                  "first":  "Jane",
+                  "midinitial": "M",
+                  "last":   "Salazar"
+                }
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson1));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name.first");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        String copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("name.middle");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        assertThat(((TextFieldMapper) fieldMapper).copyTo().copyToFields(), is(empty()));
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("name.last");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        // test second doc with user.name.xxx
+        parsedDoc = mapperService.documentMapper().parse(source(docJson2));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.first");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.midinitial");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        assertThat(((TextFieldMapper) fieldMapper).copyTo().copyToFields(), is(empty()));
+        assertEquals("text", fieldMapper.typeName());
+
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("user.name.last");
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        copyToField = ((TextFieldMapper) fieldMapper).copyTo().copyToFields().get(0);
+        assertEquals("full_name", copyToField);
+        assertEquals("text", fieldMapper.typeName());
+    }
+
+    public void testInvalidMatchWithArrayOfFieldNamesUsingNonStringEntries() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match": [23.45, false],
+                      "mapping": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+
+        // throws MapperParsingException Failed to parse mapping: [match] values must either be a string or list of strings, but was
+        // [[23.45, false]]
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("[match] values must either be a string or list of strings, but was [[23.45, false]]")
+        );
     }
 }

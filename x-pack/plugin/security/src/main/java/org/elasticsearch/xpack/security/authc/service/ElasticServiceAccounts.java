@@ -69,11 +69,11 @@ final class ElasticServiceAccounts {
                         "metrics-*",
                         "traces-*",
                         ".logs-endpoint.diagnostic.collection-*",
-                        ".logs-endpoint.action.responses-*",
-                        "profiling-*"
+                        ".logs-endpoint.action.responses-*"
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write", "auto_configure").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:

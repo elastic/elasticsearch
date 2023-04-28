@@ -174,7 +174,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertTrue(response.isAcknowledged());
 
         int numShards = randomIntBetween(1, 5);
-        Settings settings = Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0).build();
+        Settings settings = indexSettings(numShards, 0).build();
         String mapping = """
             {
               "properties": {

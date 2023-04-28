@@ -235,10 +235,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         Settings getIndexSettings() {
             logger.info("--> numShards={}, numReplicas={}", numShards, numReplicas);
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build();
+            return indexSettings(numShards, numReplicas).build();
         }
     }
 

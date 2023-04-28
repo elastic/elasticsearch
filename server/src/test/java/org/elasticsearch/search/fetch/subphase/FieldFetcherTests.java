@@ -1257,12 +1257,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService,
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup
     ) {
-        Settings settings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("test").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new SearchExecutionContext(

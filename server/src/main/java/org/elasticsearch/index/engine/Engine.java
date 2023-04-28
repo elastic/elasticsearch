@@ -1967,6 +1967,12 @@ public abstract class Engine implements Closeable {
         listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
     }
 
+    public void addGenerationDurabilityListener(long generation, ActionListener<Void> listener) {
+        listener.onFailure(
+            new UnsupportedOperationException("Engine type " + this.getClass() + " does not support generation durability listeners.")
+        );
+    }
+
     /**
      * Captures the result of a refresh operation on the index shard.
      * <p>

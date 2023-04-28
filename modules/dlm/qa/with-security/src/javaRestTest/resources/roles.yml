@@ -7,6 +7,9 @@ manage_dlm:
       privileges:
         - manage
         - view_index_metadata
+    - names: [ 'composed-dlm-*' ]
+      privileges:
+        - view_index_metadata
 not_privileged:
   indices:
     - names: [ 'dlm-*' ]

@@ -752,7 +752,8 @@ public class Node implements Closeable {
                 settingsModule.getIndexScopedSettings(),
                 xContentRegistry,
                 systemIndices,
-                indexSettingProviders
+                indexSettingProviders,
+                client
             );
 
             reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));

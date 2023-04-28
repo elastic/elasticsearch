@@ -114,6 +114,63 @@ public class DlmPermissionsIT extends ESRestTestCase {
         makeRequest(client(), deniedIndexTemplateRequest, false);
     }
 
+    public void testDlmPermissionsWithComposedIndexTemplates() throws IOException {
+        String dataStreamName = "dlm-test";
+        String mappingsTemplateName = dataStreamName + "_mappings";
+        Request mappingsRequest = new Request("PUT", "/_component_template/" + mappingsTemplateName);
+        mappingsRequest.setJsonEntity("""
+            {
+              "template": {
+                "mappings": {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date",
+                      "format": "date_optional_time||epoch_millis"
+                    },
+                    "message": {
+                      "type": "wildcard"
+                    }
+                  }
+                }
+              }
+            }""");
+        assertOK(adminClient().performRequest(mappingsRequest));
+
+        String lifecycleTemplateName = dataStreamName + "_lifecycle";
+        Request settingsRequest = new Request("PUT", "/_component_template/" + lifecycleTemplateName);
+        settingsRequest.setJsonEntity("""
+            {
+              "template": {
+                  "lifecycle": {
+                    "data_retention": "60d"
+                  },
+                  "settings": {
+                    "number_of_shards": 1
+                  }
+              }
+            }""");
+        assertOK(adminClient().performRequest(settingsRequest));
+
+        Request indexTemplateRequest = new Request("PUT", "/_index_template/" + dataStreamName + "_template");
+        indexTemplateRequest.setJsonEntity(Strings.format("""
+            {
+                "index_patterns": ["%s*"],
+                "data_stream": { },
+                "composed_of": [ "%s", "%s" ]
+            }""", dataStreamName, mappingsTemplateName, lifecycleTemplateName));
+        makeRequest(client(), indexTemplateRequest, true);
+
+        String otherDataStreamName = "composed-dlm-test";
+        Request deniedIndexTemplateRequest = new Request("PUT", "/_index_template/" + otherDataStreamName + "_template");
+        deniedIndexTemplateRequest.setJsonEntity(Strings.format("""
+            {
+                "index_patterns": ["%s*"],
+                "data_stream": { },
+                "composed_of": [ "%s", "%s" ]
+            }""", otherDataStreamName, mappingsTemplateName, lifecycleTemplateName));
+        makeRequest(client(), deniedIndexTemplateRequest, false);
+    }
+
     /*
      * This makes the given request with the given client. It asserts a 200 response if expectSuccess is true, and asserts an exception
      * with a 403 response if expectStatus is false.

@@ -191,7 +191,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
 
         @Override
         public CorePrivilegesToCheck getPrivilegesToCheck() {
-            // TODO do we have to deal with composedOf?
+            // TODO deal with composed-of
             Template template = indexTemplate.template();
             if (template == null) {
                 return null;

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.when;
 
 public class PostWriteRefreshTests extends IndexShardTestCase {
 
+    private final TimeValue postWriteRefreshTimeout = TimeValue.timeValueSeconds(30);
     private final AtomicBoolean unpromotableRefreshRequestReceived = new AtomicBoolean(false);
     private TransportService transportService;
 
@@ -83,7 +85,13 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
-            postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, primary, result.getTranslogLocation(), f);
+            postWriteRefresh.refreshShard(
+                WriteRequest.RefreshPolicy.WAIT_UNTIL,
+                primary,
+                result.getTranslogLocation(),
+                f,
+                postWriteRefreshTimeout
+            );
             Releasable releasable = simulateScheduledRefresh(primary, false);
             f.actionGet();
             assertFalse(unpromotableRefreshRequestReceived.get());
@@ -102,7 +110,13 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
             PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
-            postWriteRefresh.refreshShard(WriteRequest.RefreshPolicy.IMMEDIATE, primary, result.getTranslogLocation(), f);
+            postWriteRefresh.refreshShard(
+                WriteRequest.RefreshPolicy.IMMEDIATE,
+                primary,
+                result.getTranslogLocation(),
+                f,
+                postWriteRefreshTimeout
+            );
             f.actionGet();
             assertFalse(unpromotableRefreshRequestReceived.get());
             assertEngineContainsIdNoRefresh(primary, id);
@@ -134,7 +148,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
             );
             when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
             WriteRequest.RefreshPolicy policy = randomFrom(WriteRequest.RefreshPolicy.IMMEDIATE, WriteRequest.RefreshPolicy.WAIT_UNTIL);
-            postWriteRefresh.refreshShard(policy, primary, result.getTranslogLocation(), f);
+            postWriteRefresh.refreshShard(policy, primary, result.getTranslogLocation(), f, postWriteRefreshTimeout);
             final Releasable releasable;
             if (policy == WriteRequest.RefreshPolicy.WAIT_UNTIL) {
                 releasable = simulateScheduledRefresh(primary, true);
@@ -212,7 +226,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
                 when(routingTable.unpromotableShards()).thenReturn(List.of(shardRouting));
             }
             WriteRequest.RefreshPolicy policy = WriteRequest.RefreshPolicy.WAIT_UNTIL;
-            postWriteRefresh.refreshShard(policy, primary, null, f);
+            postWriteRefresh.refreshShard(policy, primary, null, f, postWriteRefreshTimeout);
             f.actionGet();
         } finally {
             closeShards(primary, primary);

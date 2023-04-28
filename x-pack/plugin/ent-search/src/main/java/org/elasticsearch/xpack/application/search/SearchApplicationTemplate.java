@@ -11,12 +11,15 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.SearchApplicationSearchRequest;
@@ -34,8 +37,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class SearchApplicationTemplate implements ToXContentObject, Writeable {
 
-    private final Script script;
-
     private static final ParseField TEMPLATE_SCRIPT_FIELD = new ParseField("script");
     public static final ParseField DICTIONARY_FIELD = new ParseField("dictionary");
 
@@ -49,7 +50,8 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
                     }
                 }
             }
-            """, Map.of("query_string", "*", "default_field", "*"))
+            """, Map.of("query_string", "*", "default_field", "*")),
+        null
     );
 
     private final Script script;
@@ -59,19 +61,10 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         this.script = in.readOptionalWriteable(Script::new);
         this.templateParamValidator = in.readOptionalWriteable(TemplateParamValidator::new);
     }
-
-    public SearchApplicationTemplate(Script script, TemplateParamValidator templateParamValidator) {
-        if (script != null && script.getLang() != null) {
-            if (MustacheScriptEngine.NAME.equals(script.getLang()) == false) {
-                throw new IllegalArgumentException("only [" + MustacheScriptEngine.NAME + "] scripting language is supported");
-            }
-        }
-        if (script != null && script.getType().getId() != ScriptType.INLINE.getId()) {
-            throw new IllegalArgumentException("only [" + ScriptType.INLINE.getName() + "] script type is supported");
-        }
-        this.script = script;
-        this.templateParamValidator = templateParamValidator;
-    }
+    private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        "search_template",
+        p -> new SearchApplicationTemplate((Script) p[0], (TemplateParamValidator) p[1])
+    );
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -96,11 +89,6 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         return PARSER.apply(parser, null);
     }
 
-    private static final ConstructingObjectParser<SearchApplicationTemplate, Void> PARSER = new ConstructingObjectParser<>(
-        "search_template",
-        p -> new SearchApplicationTemplate((Script) p[0])
-    );
-
     static {
         PARSER.declareObject(
             optionalConstructorArg(),
@@ -109,14 +97,26 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         );
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                return new TemplateParamValidwritetowator(builder.copyCurrentStructure(p));
+                return new TemplateParamValidator(builder.copyCurrentStructure(p));
             }
         }, DICTIONARY_FIELD);
     }
 
+    public SearchApplicationTemplate(Script script, @Nullable TemplateParamValidator templateParamValidator) {
+        if (script != null && script.getLang() != null) {
+            if (MustacheScriptEngine.NAME.equals(script.getLang()) == false) {
+                throw new IllegalArgumentException("only [" + MustacheScriptEngine.NAME + "] scripting language is supported");
+            }
+        }
+        if (script != null && script.getType().getId() != ScriptType.INLINE.getId()) {
+            throw new IllegalArgumentException("only [" + ScriptType.INLINE.getName() + "] script type is supported");
+        }
+        this.script = script;
+        this.templateParamValidator = templateParamValidator;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(script);
         return Objects.hash(script, templateParamValidator);
     }
 
@@ -126,8 +126,7 @@ public class SearchApplicationTemplate implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         SearchApplicationTemplate template = (SearchApplicationTemplate) o;
         if (script == null) return template.script == null;
-        return script.equals(template.script);
-        return Objects.equals(script, template.script) && Objects.equals(templateParamValidator, template.templateParamValidator);
+        return script.equals(template.script) && Objects.equals(templateParamValidator, template.templateParamValidator);
     }
 
     public void validateTemplateParams(Map<String, Object> templateParams) throws ValidationException {

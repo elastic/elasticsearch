@@ -100,15 +100,16 @@ teardown:
           lang: "mustache",
           options: {
             content_type: "application/json;charset=utf-8"
-          },
-          dictionary: {
-            query_string: {
-              type: string
-            }
+          }
+        },
+        dictionary: {
+          query_string: {
+            type: string
           }
         }
       }
     }
+
 ---
 "Create Search Application with string encoded template script":
   - do:
@@ -117,35 +118,32 @@ teardown:
         body:
           indices: [ "test-index1", "test-index2" ]
           template:
-            script: {
-              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
-              params: {
+            script:
+              source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }"
+              params:
                 query_string: "elastic"
-              },
               lang: "mustache"
-            }
-          },
-          dictionary: {
-            another_query_string: {
-              type: "string"
-            }
-          }
+            dictionary:
+              another_query_string:
+                type: "string"
 
   - do:
       search_application.get:
         name: another-test-search-application
-  - match: {
-    template: {
-      script: {
-        source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }",
-        params: {
-          query_string: "elastic"
-        },
-        lang: "mustache"
-      }
-    }
-  }
+
+  - match:
+      template:
+        script:
+          source: "{ \"query\": { \"query_string\":{ \"query\": \"{{query_string}}\", \"default_field\": \"_all\" } } }"
+          params:
+            query_string: "elastic"
+          lang: "mustache"
+        dictionary:
+          another_query_string:
+            type: "string"
+
   - match: { indices: [ "test-index1", "test-index2" ] }
+
 ---
 "Update Search Application with null template, results in default template being applied":
   - do:
@@ -184,13 +182,6 @@ teardown:
     }
   }
   - match: { indices: [ "test-index3", "test-index4" ] }
-
-  - do:
-      search_application.get:
-        name: test-updated-search-application
-  - match: { template: null }
-  - match: { indices: [ "test-index3", "test-index4" ] }
-
 
 ---
 "Update Search Application - Dictionary is not a valid JSON Schema":

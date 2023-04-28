@@ -464,8 +464,8 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform is red with one issue
-        assertBusy(() -> assertRed(transformId, authIssue), 10, TimeUnit.SECONDS);
+        // transform's auth state status is still RED, but the health status is GREEN (because dest index exists)
+        assertRed(transformId, authIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());

@@ -96,6 +96,7 @@ public final class Messages {
         "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or "
         + "underscores; must start and end with alphanumeric";
+    public static final String INVALID_MODEL_PACKAGE_ID = "Invalid {0}; ''{1}'' is not a valid model package id";
     public static final String ID_TOO_LONG = "Invalid {0}; ''{1}'' cannot contain more than {2} characters.";
     public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric"
         + " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";

@@ -1289,6 +1289,13 @@ public abstract class ESTestCase extends LuceneTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
+    /** Return consistent index settings for the provided shard- and replica-count. */
+    public static Settings.Builder indexSettings(int shards, int replicas) {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
     /**
      * Returns size random values
      */

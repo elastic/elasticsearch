@@ -8,10 +8,9 @@ dependencies {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  rolesFile file('roles.yml')
+  rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "test_dlm", password: "x-pack-test-password", role: "manage_dlm"
   user username: "test_non_privileged", password: "x-pack-test-password", role: "not_privileged"
 }

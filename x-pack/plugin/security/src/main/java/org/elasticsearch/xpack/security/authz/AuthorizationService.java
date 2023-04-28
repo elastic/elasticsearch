@@ -454,24 +454,21 @@ public class AuthorizationService {
                     }
                 }
                 if (result.isGranted() && request instanceof PrivilegesCheckRequest) {
-                    var indices = ((PrivilegesCheckRequest) request).getPrivilegesToCheck().indices();
-                    var indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("manage").build() };
+                    PrivilegesCheckRequest.CorePrivilegesToCheck privilegesToCheck = ((PrivilegesCheckRequest) request)
+                        .getPrivilegesToCheck();
+                    if (privilegesToCheck == null) {
+                        clusterAuthzListener.onResponse(result);
+                        return;
+                    }
                     checkPrivileges(
                         authentication.getEffectiveSubject(),
-                        new AuthorizationEngine.PrivilegesToCheck(
-                            new String[] {},
-                            indicesPrivilegesToCheck,
-                            new RoleDescriptor.ApplicationResourcePrivileges[] {},
-                            false
-                        ),
-                        Set.of(),
+                        toXPackPrivilegesToCheck(privilegesToCheck),
+                        Set.of(), // TODO we don't need application privileges checking for now, but should we still handle it?
                         ActionListener.wrap(
-                            privilegesCheckResult -> {
-                                clusterAuthzListener.onResponse(
-                                    privilegesCheckResult.allChecksSuccess() ? AuthorizationResult.granted() : AuthorizationResult.deny()
-                                );
-                            },
+                            // TODO need meaningful deny error messages
+                            privilegesCheckResult -> clusterAuthzListener.onResponse(
+                                privilegesCheckResult.allChecksSuccess() ? AuthorizationResult.granted() : AuthorizationResult.deny()
+                            ),
                             clusterAuthzListener::onFailure
                         )
                     );
@@ -480,6 +477,7 @@ public class AuthorizationService {
                 clusterAuthzListener.onResponse(result);
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
+            assert false == (request instanceof PrivilegesCheckRequest) : "only cluster actions can have privileges check requests";
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
@@ -536,6 +534,21 @@ public class AuthorizationService {
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));
         }
+    }
+
+    private AuthorizationEngine.PrivilegesToCheck toXPackPrivilegesToCheck(
+        PrivilegesCheckRequest.CorePrivilegesToCheck corePrivilegesToCheck
+    ) {
+        String[] indices = corePrivilegesToCheck.indices();
+        RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("manage").build() };
+
+        return new AuthorizationEngine.PrivilegesToCheck(
+            new String[] {},
+            indicesPrivilegesToCheck,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {},
+            false
+        );
     }
 
     private void handleIndexActionAuthorizationResult(

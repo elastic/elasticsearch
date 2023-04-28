@@ -49,7 +49,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testManageDLM() throws Exception {
+    public void testDlmPermissionsWithDataStreamLifecycleApis() throws Exception {
         String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
         createDataStreamAsAdmin(dataStreamName);
         Response dataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
@@ -67,12 +67,51 @@ public class DlmPermissionsIT extends ESRestTestCase {
         makeRequest(client(), deleteLifecycleRequest, true);
         makeRequest(client(), putLifecycleRequest, true);
 
+        Request deniedPutLifecycleRequest = new Request("PUT", "_data_stream/no-access-dlm-test/_lifecycle");
+        deniedPutLifecycleRequest.setJsonEntity("{}");
+        makeRequest(client(), deniedPutLifecycleRequest, false);
+
         try (RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
             makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
             makeRequest(nonDlmManagerClient, getLifecycleRequest, true);
             makeRequest(nonDlmManagerClient, deleteLifecycleRequest, false);
             makeRequest(nonDlmManagerClient, putLifecycleRequest, false);
         }
+    }
+
+    public void testDlmPermissionsWithIndexTemplates() throws IOException {
+        String dataStreamName = "dlm-test";
+        Request indexTemplateRequest = new Request("PUT", "/_index_template/my_template");
+        indexTemplateRequest.setJsonEntity(Strings.format("""
+            {
+                "index_patterns": ["%s*"],
+                "data_stream": { },
+                "template": {
+                    "lifecycle": {
+                      "data_retention": "60d"
+                    },
+                    "settings": {
+                      "number_of_shards": 1
+                    }
+                }
+            }""", dataStreamName));
+        makeRequest(client(), indexTemplateRequest, true);
+
+        Request deniedIndexTemplateRequest = new Request("PUT", "/_index_template/my_other_template");
+        deniedIndexTemplateRequest.setJsonEntity(Strings.format("""
+            {
+                "index_patterns": ["%s*"],
+                "data_stream": { },
+                "template": {
+                    "lifecycle": {
+                      "data_retention": "60d"
+                    },
+                    "settings": {
+                      "number_of_shards": 1
+                    }
+                }
+            }""", "no-access-dlm-test"));
+        makeRequest(client(), deniedIndexTemplateRequest, false);
     }
 
     /*

@@ -27,8 +27,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -51,12 +49,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numShards = randomIntBetween(1, 2);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings(numShards, 1)));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);

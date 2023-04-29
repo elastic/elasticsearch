@@ -115,7 +115,7 @@ If the request succeeds, the body of the response contains the policy definition
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/95128"]
+// TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
 
 <1> The policy version is incremented whenever the policy is updated
 <2> When this policy was last modified

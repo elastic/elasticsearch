@@ -51,25 +51,30 @@ import org.elasticsearch.xpack.application.analytics.action.TransportDeleteAnaly
 import org.elasticsearch.xpack.application.analytics.action.TransportGetAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
-import org.elasticsearch.xpack.application.analytics.ingest.BulkProcessorConfig;
+import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.PutSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction;
+import org.elasticsearch.xpack.application.search.action.RenderSearchApplicationQueryAction;
 import org.elasticsearch.xpack.application.search.action.RestDeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.RestGetSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.RestListSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.RestPutSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.RestQuerySearchApplicationAction;
+import org.elasticsearch.xpack.application.search.action.RestRenderSearchApplicationQueryAction;
 import org.elasticsearch.xpack.application.search.action.TransportDeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportGetSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportListSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportPutSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.TransportQuerySearchApplicationAction;
+import org.elasticsearch.xpack.application.search.action.TransportRenderSearchApplicationQueryAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -100,8 +105,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchUsageTransportAction.class);
+        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.ENTERPRISE_SEARCH, EnterpriseSearchInfoTransportAction.class);
         if (enabled == false) {
-            return Collections.emptyList();
+            return List.of(usageAction, infoAction);
         }
         return List.of(
             new ActionHandler<>(PutAnalyticsCollectionAction.INSTANCE, TransportPutAnalyticsCollectionAction.class),
@@ -112,7 +119,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(GetSearchApplicationAction.INSTANCE, TransportGetSearchApplicationAction.class),
             new ActionHandler<>(ListSearchApplicationAction.INSTANCE, TransportListSearchApplicationAction.class),
             new ActionHandler<>(PutSearchApplicationAction.INSTANCE, TransportPutSearchApplicationAction.class),
-            new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class)
+            new ActionHandler<>(QuerySearchApplicationAction.INSTANCE, TransportQuerySearchApplicationAction.class),
+            new ActionHandler<>(RenderSearchApplicationQueryAction.INSTANCE, TransportRenderSearchApplicationQueryAction.class),
+            usageAction,
+            infoAction
         );
     }
 
@@ -139,7 +149,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestPutAnalyticsCollectionAction(),
             new RestGetAnalyticsCollectionAction(),
             new RestDeleteAnalyticsCollectionAction(),
-            new RestPostAnalyticsEventAction()
+            new RestPostAnalyticsEventAction(),
+            new RestRenderSearchApplicationQueryAction()
         );
     }
 
@@ -199,9 +210,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            BulkProcessorConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
-            BulkProcessorConfig.FLUSH_DELAY_SETTING,
-            BulkProcessorConfig.MAX_NUMBER_OF_RETRIES_SETTING
+            AnalyticsEventIngestConfig.MAX_NUMBER_OF_EVENTS_PER_BULK_SETTING,
+            AnalyticsEventIngestConfig.FLUSH_DELAY_SETTING,
+            AnalyticsEventIngestConfig.MAX_NUMBER_OF_RETRIES_SETTING,
+            AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING
         );
     }
 }

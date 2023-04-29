@@ -1111,7 +1111,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     TransportRequestOptions.timeout(transportTimeout),
                     new ActionListenerResponseHandler<>(
                         ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
-                        transportActionType.getResponseReader()
+                        transportActionType.getResponseReader(),
+                        ThreadPool.Names.CLUSTER_COORDINATION
                     )
                 );
             }
@@ -1165,7 +1166,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             public String toString() {
                 return "delayed retrieval of coordination diagnostics info from " + masterEligibleNode;
             }
-        }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
+        }, remoteRequestInitialDelay, ThreadPool.Names.CLUSTER_COORDINATION);
     }
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {

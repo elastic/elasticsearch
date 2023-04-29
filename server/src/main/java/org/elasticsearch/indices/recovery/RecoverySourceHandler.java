@@ -109,7 +109,6 @@ public class RecoverySourceHandler {
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
-    private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
@@ -141,7 +140,6 @@ public class RecoverySourceHandler {
         this.threadPool = threadPool;
         this.recoveryPlannerService = recoveryPlannerService;
         this.request = request;
-        this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
@@ -1434,7 +1432,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.checkForCancel();
                 logger.debug("checking integrity for file {} after remove corruption exception", md);
                 if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                    logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
+                    logger.warn("Corrupted file detected {} checksum mismatch", md);
                     if (localException == null) {
                         localException = corruptIndexException;
                     }
@@ -1450,12 +1448,7 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> format(
-                        "%s Remote file corruption on node %s, recovering %s. local checksum OK",
-                        shardId,
-                        request.targetNode(),
-                        mds
-                    ),
+                    () -> format("Remote file corruption on node %s, recovering %s. local checksum OK", request.targetNode(), mds),
                     corruptIndexException
                 );
                 throw remoteException;

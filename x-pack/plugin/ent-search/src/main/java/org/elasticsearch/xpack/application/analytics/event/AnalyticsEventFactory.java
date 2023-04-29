@@ -61,10 +61,9 @@ public class AnalyticsEventFactory {
     /**
      * Creates an {@link AnalyticsEvent} object from an Analytics context and a payload (e.g. HTTP POST request body).
      *
-     * @param context the analytics context
+     * @param context      the analytics context
      * @param xContentType the type of the payload
-     * @param payload the payload as a {@link BytesReference} object
-     *
+     * @param payload      the payload as a {@link BytesReference} object
      * @return Parsed event ({@link AnalyticsEvent})
      */
     public AnalyticsEvent fromPayload(AnalyticsEvent.Context context, XContentType xContentType, BytesReference payload)

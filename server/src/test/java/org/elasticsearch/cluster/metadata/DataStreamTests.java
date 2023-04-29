@@ -1332,6 +1332,28 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         {
+            // true for indices that have an ILM policy configured AND the prefer_ilm setting configured to false
+            {
+                // false for indices that have an ILM policy configured
+                Metadata.Builder builderWithIlm = Metadata.builder();
+                DataStream ds = createDataStream(
+                    builderWithIlm,
+                    dataStreamName,
+                    creationAndRolloverTimes,
+                    Settings.builder()
+                        .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexSettings.PREFER_ILM, false),
+                    new DataLifecycle()
+                );
+                Metadata metadataIlm = builderWithIlm.build();
+                for (Index index : ds.getIndices()) {
+                    assertThat(ds.isIndexManagedByDLM(index, metadataIlm::index), is(true));
+                }
+            }
+        }
+
+        {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
                 assertThat(dataStream.isIndexManagedByDLM(index, metadata::index), is(true));

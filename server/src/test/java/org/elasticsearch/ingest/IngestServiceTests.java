@@ -145,7 +145,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             null,
             List.of(DUMMY_PLUGIN),
-            client
+            client,
+            null
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -156,7 +157,16 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(DUMMY_PLUGIN, DUMMY_PLUGIN), client)
+            () -> new IngestService(
+                mock(ClusterService.class),
+                threadPool,
+                null,
+                null,
+                null,
+                List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
+                client,
+                null
+            )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
@@ -170,7 +180,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             null,
             List.of(DUMMY_PLUGIN),
-            client
+            client,
+            null
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -1763,7 +1774,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             null,
             List.of(testPlugin),
-            client
+            client,
+            null
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2091,7 +2103,7 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client);
+        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -2373,7 +2385,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client);
+        }), client, null);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

@@ -66,9 +66,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -129,11 +126,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
 
-        Settings indexSettings = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             .build();
 

@@ -2077,7 +2077,11 @@ public class InternalEngine extends Engine {
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
-                throw ex;
+                listener.onFailure(ex);
+                return;
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             } finally {
                 flushLock.unlock();
                 logger.trace("released flush lock");
@@ -2298,7 +2302,10 @@ public class InternalEngine extends Engine {
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
             logger.trace("start flush for snapshot");
-            flush(false, true, ActionListener.noop());
+            // TODO: Is it a concern to block here?
+            PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+            flush(false, true, future);
+            future.actionGet();
             logger.trace("finish flush for snapshot");
         }
         return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(false));

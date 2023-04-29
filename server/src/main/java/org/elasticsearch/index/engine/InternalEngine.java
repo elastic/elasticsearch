@@ -3130,10 +3130,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void addGenerationDurabilityListener(long generation, ActionListener<Void> listener) {
+    public void addFlushDurabilityListener(long generation, ActionListener<Void> listener) {
         ensureOpen();
         if (lastCommittedSegmentInfos.getGeneration() < generation) {
-            throw new IllegalStateException("Cannot wait on generation which has not been commited");
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
         }
         listener.onResponse(null);
     }

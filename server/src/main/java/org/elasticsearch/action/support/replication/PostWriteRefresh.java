@@ -110,7 +110,7 @@ public class PostWriteRefresh {
         engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                engineOrNull.addGenerationDurabilityListener(generation, ActionListener.wrap(new ActionListener<>() {
+                engineOrNull.addFlushDurabilityListener(generation, ActionListener.wrap(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         sendUnpromotableRequests(indexShard, generation, forced, listener);

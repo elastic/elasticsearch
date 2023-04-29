@@ -137,14 +137,6 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
             IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
-            ShardRouting routing = ShardRouting.newUnassigned(
-                primary.shardId(),
-                true,
-                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
-                ShardRouting.Role.INDEX_ONLY
-            );
-            when(primary.routingEntry()).thenReturn(routing);
             when(primary.getReplicationGroup()).thenReturn(replicationGroup).thenReturn(realReplicationGroup);
             when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
             ShardRouting shardRouting = ShardRouting.newUnassigned(

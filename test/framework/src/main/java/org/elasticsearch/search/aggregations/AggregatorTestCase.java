@@ -345,7 +345,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             emptyMap()
         );
 
-        MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
             searchExecutionContext,
@@ -353,7 +352,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             bytesToPreallocate,
             () -> query,
             null,
-            consumer,
+            maxBucket,
             () -> buildSubSearchContext(indexSettings, searchExecutionContext, bitsetFilterCache),
             bitsetFilterCache,
             randomInt(),
@@ -792,7 +791,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     getMockScriptService(),
                     () -> false,
                     builder,
-                    context.multiBucketConsumer(),
+                    new MultiBucketConsumer(context.maxBuckets(), context.breaker()),
                     builder.buildPipelineTree()
                 )
             );

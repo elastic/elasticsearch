@@ -113,5 +113,9 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
                 "If xpack.ml.model_repository is a file location, it must be placed below the configuration: " + normalizedConfigUri
             );
         }
+
+        if (baseUri.getUserInfo() != null) {
+            throw new IllegalArgumentException("xpack.ml.model_repository does not support authentication");
+        }
     }
 }

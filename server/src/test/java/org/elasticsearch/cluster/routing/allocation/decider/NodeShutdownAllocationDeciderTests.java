@@ -69,14 +69,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     private final String idxName = "test-idx";
     private final String idxUuid = "test-idx-uuid";
     private final IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
-        .settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, idxUuid)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        )
+        .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
         .build();
 
     private static final List<SingleNodeShutdownMetadata.Type> REMOVE_SHUTDOWN_TYPES = List.of(

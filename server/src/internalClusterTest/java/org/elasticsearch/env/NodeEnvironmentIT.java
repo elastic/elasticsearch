@@ -54,7 +54,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
         if (writeDanglingIndices) {
             assertBusy(

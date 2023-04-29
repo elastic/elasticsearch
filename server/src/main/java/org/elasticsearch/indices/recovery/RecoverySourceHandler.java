@@ -981,7 +981,7 @@ public class RecoverySourceHandler {
         }), shard, cancellableThreads, leaseCreatedStep);
 
         // NB we release the operation permit as soon as we have created the lease, but delay the outer listener until it is synced
-        leasesSyncedStep.whenComplete(ignored -> leaseCreatedStep.addListener(outerListener), outerListener::onFailure);
+        leaseCreatedStep.whenComplete(lease -> leasesSyncedStep.addListener(outerListener.map(ignored -> lease)), outerListener::onFailure);
     }
 
     private void deleteRetentionLease(ActionListener<Void> outerListener) {
@@ -1002,7 +1002,7 @@ public class RecoverySourceHandler {
         }), shard, cancellableThreads, leaseDeletedStep);
 
         // NB we release the operation permit as soon as we have deleted the lease, but delay the outer listener until it is synced
-        leasesSyncedStep.whenComplete(ignored -> leaseDeletedStep.addListener(outerListener), outerListener::onFailure);
+        leaseDeletedStep.whenComplete(ignored -> leasesSyncedStep.addListener(outerListener), outerListener::onFailure);
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {

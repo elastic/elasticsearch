@@ -3161,4 +3161,13 @@ public class InternalEngine extends Engine {
     protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
         listener.onResponse(null);
     }
+
+    @Override
+    public void addFlushDurabilityListener(long generation, ActionListener<Void> listener) {
+        ensureOpen();
+        if (lastCommittedSegmentInfos.getGeneration() < generation) {
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
+        }
+        listener.onResponse(null);
+    }
 }

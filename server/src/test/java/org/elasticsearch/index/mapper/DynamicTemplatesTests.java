@@ -1908,7 +1908,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("text", fieldMapper.typeName());
     }
 
-    public void testMatchWithArrayOfFieldNamesMixingGlobsAndRegex() throws IOException {
+    public void testSimpleMatchWithArrayOfFieldNamesMixingGlobsAndRegex() throws IOException {
         String mapping = """
             {
               "_doc": {
@@ -1953,6 +1953,74 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
         assertNotNull(fieldMapper);
         assertEquals("text", fieldMapper.typeName());
+
+        // patterns that appear to be regexes when using simple matching show up as warnings in the headers
+        assertWarnings(
+            "Pattern [.*two$] appears to be a regular expression, not a simple wildcard pattern",
+            "Pattern [^xyz.*] appears to be a regular expression, not a simple wildcard pattern"
+        );
+    }
+
+    public void testSimpleMatchWithArrayOfFieldNamesMixingGlobsAndRegexInPathMatchAndUnmatch() throws IOException {
+        /*
+           Currently fails with these header warnings:
+                but: <[299 Elasticsearch-8.9.0-SNAPSHOT-unknown
+                "Pattern [[xyz]*.*] appears to be a regular expression, not a simple wildcard pattern",
+                "Pattern [four.\\d] appears to be a regular expression, not a simple wildcard pattern"]>
+         */
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match_pattern": "simple",
+                      "path_match": "*.*",
+                      "path_unmatch": [".middle*", "foo.*.bar", "[xyz]*.*", "zero.one*", "*two.three$", "four.\\d"],
+                      "mapping": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "oneip": "11.11.11.120",
+                "iptwo": "10.10.10.10",
+                "threeip": "12.12.12.12"
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        // LuceneDocument doc = parsedDoc.rootDoc();
+        //
+        // assertEquals(InetAddressPoint.class, doc.getField("oneip").getClass());
+        // Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("oneip");
+        // assertNotNull(fieldMapper);
+        // assertEquals("ip", fieldMapper.typeName());
+        //
+        // // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
+        // assertNotEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
+        // fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
+        // assertNotNull(fieldMapper);
+        // assertEquals("text", fieldMapper.typeName());
+        //
+        // assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
+        // fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
+        // assertNotNull(fieldMapper);
+        // assertEquals("text", fieldMapper.typeName());
+
+        // patterns that appear to be regexes when using simple matching show up as warnings in the headers
+        // assertWarnings(
+        // "Pattern [.*two$] appears to be a regular expression, not a simple wildcard pattern",
+        // "Pattern [^xyz.*] appears to be a regular expression, not a simple wildcard pattern"
+        // );
     }
 
     public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields() throws IOException {
@@ -2251,5 +2319,62 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             e.getCause().getMessage(),
             containsString("[match] values must either be a string or list of strings, but was [[23.45, false]]")
         );
+    }
+
+    public void testSimpleMatchTypeIsValidPattern() {
+        record RegexCandidate(String pattern, boolean isRegex) {}
+
+        RegexCandidate[] candidates = new RegexCandidate[] {
+            new RegexCandidate("", false),    // has no metacharacters
+            new RegexCandidate("foo", false), // has no metacharacters
+            new RegexCandidate("user.name", false), // regular ES dotted field, so not a "field regex"
+            new RegexCandidate("*foo", false),
+            new RegexCandidate("foo*", false),       // matches simple wildcard, so not considered an ES field regex
+            new RegexCandidate("*.*", false),        // legitimate simple pattern for dotted path name
+            new RegexCandidate("foo.*.bar", false),  // legitimate simple pattern for dotted path name
+            new RegexCandidate(".middle*", false),
+            new RegexCandidate("zero.one*", false),
+            new RegexCandidate(".*foo", true),
+            new RegexCandidate("^foo", true),
+            new RegexCandidate("foo$", true),
+            new RegexCandidate("f.*oo$", true),
+            new RegexCandidate("foo?", true),
+            new RegexCandidate("foo+", true),
+            new RegexCandidate("a|b", true),
+            new RegexCandidate("a|b", true),
+            new RegexCandidate("a[cb]", true),
+            new RegexCandidate("a(cb)", true),
+            new RegexCandidate("a{1,2}", true),
+            new RegexCandidate("xyz\\d", true),
+            new RegexCandidate("xyz\\D", true),
+            new RegexCandidate("xyz\\w", true),
+            new RegexCandidate("xyz\\W", true),
+            new RegexCandidate("xyz\\s", true),
+            new RegexCandidate("xyz\\S", true),
+            new RegexCandidate("[xyz]*.*", true),
+            new RegexCandidate("four.\\d", true),
+            new RegexCandidate("*two.three$", false), // doesn't compile to regex
+            new RegexCandidate("$^[foo", false)       // doesn't compile to regex
+        };
+
+        DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.SIMPLE;
+
+        for (RegexCandidate c : candidates) {
+            if (c.isRegex) {
+                Exception e = expectThrows(
+                    IllegalArgumentException.class,
+                    "pattern tested: " + c.pattern,
+                    () -> matchType.isValidPattern(c.pattern)
+                );
+                assertThat(
+                    e.getMessage(),
+                    containsString("Pattern [" + c.pattern + "] appears to be a regular expression, not a simple wildcard pattern")
+                );
+
+            } else {
+                // should not throw an Exception
+                matchType.isValidPattern(c.pattern);
+            }
+        }
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,6 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Stream;
 
 public class DynamicTemplate implements ToXContentObject {
@@ -36,6 +39,73 @@ public class DynamicTemplate implements ToXContentObject {
             public String toString() {
                 return "simple";
             }
+
+            /**
+             * Attempts to determine if the String passed in appears to be
+             * regular expression rather than a simple wildcard match or a
+             * regular ES field name (or dotted path) with no regex metacharacters.
+             *
+             * The method looks for the presence of standard regex metacharacters
+             * like $, ^, |, .*, ?, or paired braces or parens.
+             * If found, it will then attempt to compile it as a regex to determine
+             * if it is a valid regex.
+             *
+             * This function should be used as a heuristic to warn users
+             * if they appear to be passing in a regex in a "simple" match scenario.
+             *
+             * @param pattern pattern to evaluate
+             * @throws IllegalArgumentException if the pattern has at least one Java regex metacharacter,
+             *         and it parses correctly as a Java regex.
+             */
+            @Override
+            public void isValidPattern(String pattern) {
+                // if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // throw new IllegalArgumentException("Simple pattern [" + pattern + "] has no wildcard [*]");
+                // }
+                if (pattern.startsWith("*")) {
+                    return;
+                }
+
+                boolean regexCandidate = false;
+                if (pattern.startsWith("^")) {
+                    regexCandidate = true;
+                    // TODO: MP - .* might still be OK? -> need to test if that works with simple and path_name currently!
+                } else if (pattern.startsWith(".*")) {  // .* is valid for simple matches because of ES dotted field names, except string
+                                                        // start
+                    regexCandidate = true;
+                } else if (pattern.contains("$")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("?")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("+")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("|")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("[") && pattern.contains("]")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("(") && pattern.contains(")")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("{") && pattern.contains("}")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("\\d") || pattern.contains("\\D")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("\\s") || pattern.contains("\\S")) {
+                    regexCandidate = true;
+                } else if (pattern.contains("\\w") || pattern.contains("\\W")) {
+                    regexCandidate = true;
+                }
+
+                if (regexCandidate) {
+                    try {
+                        Pattern.compile(pattern);
+                        throw new IllegalArgumentException(
+                            "Pattern [" + pattern + "] appears to be a regular expression, not a simple wildcard pattern"
+                        );
+                    } catch (PatternSyntaxException e) {
+                        // does not compile to a regex, so cannot be one, so ignore
+                    }
+                }
+            }
         },
         REGEX {
             @Override
@@ -46,6 +116,17 @@ public class DynamicTemplate implements ToXContentObject {
             @Override
             public String toString() {
                 return "regex";
+            }
+
+            /**
+             * If pattern is valid, no exception is thrown.
+             * @param pattern pattern to evaluate
+             * @throws PatternSyntaxException if pattern is not a valid Java regex
+             */
+            @Override
+            public void isValidPattern(String pattern) {
+                // if it parses as a Java regex, it is valid
+                this.matches(pattern, "");  // throws PatternSyntaxException if invalid regex
             }
         };
 
@@ -60,6 +141,12 @@ public class DynamicTemplate implements ToXContentObject {
 
         /** Whether {@code value} matches {@code regex}. */
         public abstract boolean matches(String regex, String value);
+
+        /**
+         * Whether the {@code pattern} is a valid for the MatchType.
+         * @throws IllegalArgumentException if the pattern is not valid
+         */
+        public abstract void isValidPattern(String pattern);
     }
 
     /** The type of a field as detected while parsing a json document. */
@@ -255,19 +342,25 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     private static void validatePatterns(String templateName, MatchType matchType, List<String> patterns) {
-        for (String regex : patterns) {
+        for (String pattern : patterns) {
             try {
-                matchType.matches(regex, "");
+                matchType.isValidPattern(pattern);
             } catch (IllegalArgumentException e) {
-                throw new MapperParsingException(
-                    Strings.format(
-                        "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
-                        regex,
-                        matchType,
-                        templateName
-                    ),
-                    e
-                );
+                if (matchType == MatchType.SIMPLE) {
+                    // simple patterns only warrant a warning, not failing the dynamic_template call
+                    HeaderWarning.addWarning(e.getMessage());
+                } else {
+                    // fail dynamic_template calls that have invalid regexes
+                    throw new MapperParsingException(
+                        Strings.format(
+                            "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
+                            pattern,
+                            matchType,
+                            templateName
+                        ),
+                        e
+                    );
+                }
             }
         }
     }

@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class Regex {
 
@@ -45,6 +46,67 @@ public class Regex {
 
     public static boolean isSuffixMatchPattern(String str) {
         return str.length() > 1 && str.indexOf("*") == str.length() - 1;
+    }
+
+    /**
+     * Attempts to determine if the String passed in appears to be
+     * regular expression rather than a simple wildcard match or a
+     * regular ES field name (or dotted path) with no regex metacharacters.
+     *
+     * The method looks for the presence of standard regex metacharacters
+     * like $, ^, |, .*, ?, or paired braces or parens.
+     * If found, it will then attempt to compile it as a regex to determine
+     * if it is a valid regex.
+     *
+     * This function should be used as a heuristic to warn users
+     * if they appear to be passing in a regex in a "simple" match scenario.
+     *
+     * @param str pattern to evaluate
+     * @return true if at least one regex meta-character is present,
+     *         and it parses correctly as a Java regex.
+     */
+    public static boolean isESFieldRegexPattern(String str) {
+        if (str.startsWith("*")) {
+            return false; // a Java regex cannot start with *
+        }
+
+        boolean regexCandidate = false;
+        if (str.startsWith("^")) {
+            regexCandidate = true;
+            // TODO: MP - .* might still be OK? -> need to test if that works with simple and path_name currently!
+        } else if (str.startsWith(".*")) {  // .* is valid for simple matches because of ES dotted field names, except string start
+            regexCandidate = true;
+        } else if (str.contains("$")) {
+            regexCandidate = true;
+        } else if (str.contains("?")) {
+            regexCandidate = true;
+        } else if (str.contains("+")) {
+            regexCandidate = true;
+        } else if (str.contains("|")) {
+            regexCandidate = true;
+        } else if (str.contains("[") && str.contains("]")) {
+            regexCandidate = true;
+        } else if (str.contains("(") && str.contains(")")) {
+            regexCandidate = true;
+        } else if (str.contains("{") && str.contains("}")) {
+            regexCandidate = true;
+        } else if (str.contains("\\d") || str.contains("\\D")) {
+            regexCandidate = true;
+        } else if (str.contains("\\s") || str.contains("\\S")) {
+            regexCandidate = true;
+        } else if (str.contains("\\w") || str.contains("\\W")) {
+            regexCandidate = true;
+        }
+
+        if (regexCandidate) {
+            try {
+                Pattern.compile(str);
+                return true;   // has at least one regex metacharacter and compiles as a regex
+            } catch (PatternSyntaxException e) {
+                return false;  // does not compile to a regex, so cannot be one
+            }
+        }
+        return false;
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */

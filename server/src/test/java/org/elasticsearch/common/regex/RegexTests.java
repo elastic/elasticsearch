@@ -17,6 +17,7 @@ import java.util.Random;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class RegexTests extends ESTestCase {
     public void testFlags() {
@@ -211,5 +212,46 @@ public class RegexTests extends ESTestCase {
         assertTrue(Regex.simpleMatcher("a*c", "x*z").test("xyz"));
         assertFalse(Regex.simpleMatcher("a*c", "x*z").test("abd"));
         assertFalse(Regex.simpleMatcher("a*c", "x*z").test("xyy"));
+    }
+
+    public void testIsESFieldRegexPattern() {
+        record RegexCandidate(String pattern, boolean isRegex) {}
+
+        RegexCandidate[] candidates = new RegexCandidate[] {
+            new RegexCandidate("", false),    // has no metacharacters
+            new RegexCandidate("foo", false), // has no metacharacters
+            new RegexCandidate("user.name", false), // regular ES dotted field, so not a "field regex"
+            new RegexCandidate("*foo", false),
+            new RegexCandidate("foo*", false),       // matches simple wildcard, so not considered an ES field regex
+            new RegexCandidate("*.*", false),        // legitimate simple pattern for dotted path name
+            new RegexCandidate("foo.*.bar", false),  // legitimate simple pattern for dotted path name
+            new RegexCandidate(".middle*", false),
+            new RegexCandidate("zero.one*", false),
+            new RegexCandidate(".*foo", true),
+            new RegexCandidate("^foo", true),
+            new RegexCandidate("foo$", true),
+            new RegexCandidate("f.*oo$", true),
+            new RegexCandidate("foo?", true),
+            new RegexCandidate("foo+", true),
+            new RegexCandidate("a|b", true),
+            new RegexCandidate("a|b", true),
+            new RegexCandidate("a[cb]", true),
+            new RegexCandidate("a(cb)", true),
+            new RegexCandidate("a{1,2}", true),
+            new RegexCandidate("xyz\\d", true),
+            new RegexCandidate("xyz\\D", true),
+            new RegexCandidate("xyz\\w", true),
+            new RegexCandidate("xyz\\W", true),
+            new RegexCandidate("xyz\\s", true),
+            new RegexCandidate("xyz\\S", true),
+            new RegexCandidate("[xyz]*.*", true),
+            new RegexCandidate("four.\\d", true),
+            new RegexCandidate("*two.three$", false), // doesn't compile to regex
+            new RegexCandidate("$^[foo", false)       // doesn't compile to regex
+        };
+
+        for (RegexCandidate c : candidates) {
+            assertThat("pattern: " + c.pattern, Regex.isESFieldRegexPattern(c.pattern), is(c.isRegex));
+        }
     }
 }

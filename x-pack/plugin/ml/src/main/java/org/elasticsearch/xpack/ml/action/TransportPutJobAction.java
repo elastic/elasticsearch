@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,9 +31,13 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.JobManager;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportPutJobAction extends TransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
 
@@ -97,17 +100,23 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 licenseState,
                 securityContext,
                 threadPool,
-                ActionListener.wrap(
-                    createdDatafeed -> listener.onResponse(jobCreated),
+                ActionListener.wrap(createdDatafeed -> {
+                    // We might need to add the authorization info to the embedded datafeed config in the response
+                    if (createdDatafeed.getResponse().getHeaders().isEmpty()) {
+                        listener.onResponse(jobCreated);
+                    } else {
+                        Job.Builder finalJobBuilder = new Job.Builder(jobCreated.getResponse()).setDatafeed(
+                            new DatafeedConfig.Builder(createdDatafeed.getResponse())
+                        );
+                        listener.onResponse(new PutJobAction.Response(finalJobBuilder.build()));
+                    }
+                },
                     failed -> jobManager.deleteJob(
                         new DeleteJobAction.Request(request.getJobBuilder().getId()),
                         state,
                         ActionListener.wrap(deleted -> listener.onFailure(failed), deleteFailed -> {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "[{}] failed to cleanup job after datafeed creation failure",
-                                    request.getJobBuilder().getId()
-                                ),
+                                () -> format("[%s] failed to cleanup job after datafeed creation failure", request.getJobBuilder().getId()),
                                 deleteFailed
                             );
                             ElasticsearchException ex = new ElasticsearchException(

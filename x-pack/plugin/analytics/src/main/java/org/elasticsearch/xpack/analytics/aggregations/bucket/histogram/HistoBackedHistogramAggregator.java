@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -72,12 +72,12 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
 
-        final HistogramValues values = valuesSource.getHistogramValues(ctx);
+        final HistogramValues values = valuesSource.getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

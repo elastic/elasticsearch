@@ -70,7 +70,10 @@ public class MovingPercentilesHDRAggregatorTests extends MovingPercentilesAbstra
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.DOUBLE);
 
                 InternalDateHistogram histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, 1000, new MappedFieldType[] { fieldType, valueFieldType });
+                histogram = searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
+                );
                 for (int i = 0; i < histogram.getBuckets().size(); i++) {
                     InternalDateHistogram.Bucket bucket = histogram.getBuckets().get(i);
                     InternalHDRPercentiles values = bucket.getAggregations().get("MovingPercentiles");

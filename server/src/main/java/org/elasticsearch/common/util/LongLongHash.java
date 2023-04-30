@@ -8,8 +8,7 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.BitMixer;
-
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -48,7 +47,7 @@ public final class LongLongHash extends AbstractHash {
     }
 
     /**
-     * Return the first key at {@code 0 &lt;= index &lt;= capacity()}. The
+     * Return the first key at {@code 0 <= index <= capacity()}. The
      * result is undefined if the slot is unused.
      */
     public long getKey1(long id) {

@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -27,34 +30,34 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,14 +67,16 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsByResource;
 
 public class TransportGetTrainedModelsStatsAction extends HandledTransportAction<
     GetTrainedModelsStatsAction.Request,
     GetTrainedModelsStatsAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportGetTrainedModelsStatsAction.class);
+
     private final Client client;
     private final ClusterService clusterService;
-    private final IngestService ingestService;
     private final TrainedModelProvider trainedModelProvider;
 
     @Inject
@@ -79,14 +84,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        IngestService ingestService,
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
         super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
-        this.ingestService = ingestService;
         this.trainedModelProvider = trainedModelProvider;
     }
 
@@ -96,78 +99,180 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         GetTrainedModelsStatsAction.Request request,
         ActionListener<GetTrainedModelsStatsAction.Response> listener
     ) {
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        final ModelAliasMetadata modelAliasMetadata = ModelAliasMetadata.fromState(clusterService.state());
+        final TrainedModelAssignmentMetadata assignmentMetadata = TrainedModelAssignmentMetadata.fromState(clusterService.state());
+        final Set<String> matchedDeploymentIds = matchedDeploymentIds(request.getResourceId(), assignmentMetadata);
 
-        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
-        ActionListener<Map<String, TrainedModelSizeStats>> modelSizeStatsListener = ActionListener.wrap(modelSizeStatsByModelId -> {
+        StepListener<Map<String, TrainedModelSizeStats>> modelSizeStatsListener = new StepListener<>();
+        modelSizeStatsListener.whenComplete(modelSizeStatsByModelId -> {
             responseBuilder.setModelSizeStatsByModelId(modelSizeStatsByModelId);
-            listener.onResponse(responseBuilder.build());
-        }, listener::onFailure);
-
-        ActionListener<GetDeploymentStatsAction.Response> deploymentStatsListener = ActionListener.wrap(deploymentStats -> {
-            responseBuilder.setDeploymentStatsByModelId(
-                deploymentStats.getStats().results().stream().collect(Collectors.toMap(AllocationStats::getModelId, Function.identity()))
+            listener.onResponse(
+                responseBuilder.build(modelToDeployments(responseBuilder.getExpandedModelIdsWithAliases().keySet(), assignmentMetadata))
             );
-            modelSizeStats(responseBuilder.getExpandedIdsWithAliases(), request.isAllowNoResources(), modelSizeStatsListener);
         }, listener::onFailure);
 
-        ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(inferenceStats -> {
+        StepListener<GetDeploymentStatsAction.Response> deploymentStatsListener = new StepListener<>();
+        deploymentStatsListener.whenComplete(deploymentStats -> {
+            // deployment stats for each matching deployment
+            // not necessarily for all models
+            responseBuilder.setDeploymentStatsByDeploymentId(
+                deploymentStats.getStats()
+                    .results()
+                    .stream()
+                    .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
+            );
+            modelSizeStats(
+                responseBuilder.getExpandedModelIdsWithAliases(),
+                request.isAllowNoResources(),
+                parentTaskId,
+                modelSizeStatsListener
+            );
+        }, listener::onFailure);
+
+        StepListener<List<InferenceStats>> inferenceStatsListener = new StepListener<>();
+        // inference stats are per model and are only
+        // persisted for boosted tree models
+        inferenceStatsListener.whenComplete(inferenceStats -> {
             responseBuilder.setInferenceStatsByModelId(
                 inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
             );
-            executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                GetDeploymentStatsAction.INSTANCE,
-                new GetDeploymentStatsAction.Request(request.getResourceId()),
-                deploymentStatsListener
-            );
+            getDeploymentStats(client, request.getResourceId(), parentTaskId, assignmentMetadata, deploymentStatsListener);
         }, listener::onFailure);
 
-        ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(nodesStatsResponse -> {
-            Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
+        StepListener<NodesStatsResponse> nodesStatsListener = new StepListener<>();
+        nodesStatsListener.whenComplete(nodesStatsResponse -> {
+            // find all pipelines whether using the model id,
+            // alias or deployment id.
+            Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedModelIdsWithAliases()
                 .entrySet()
                 .stream()
                 .flatMap(entry -> Stream.concat(entry.getValue().stream(), Stream.of(entry.getKey())))
                 .collect(Collectors.toSet());
-            Map<String, Set<String>> pipelineIdsByModelIdsOrAliases = pipelineIdsByModelIdsOrAliases(
-                clusterService.state(),
-                ingestService,
-                allPossiblePipelineReferences
-            );
+            allPossiblePipelineReferences.addAll(matchedDeploymentIds);
+
+            Map<String, Set<String>> pipelineIdsByResource = pipelineIdsByResource(clusterService.state(), allPossiblePipelineReferences);
             Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByModelId(
                 nodesStatsResponse,
-                currentMetadata,
-                pipelineIdsByModelIdsOrAliases
+                modelAliasMetadata,
+                pipelineIdsByResource
             );
             responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
             trainedModelProvider.getInferenceStats(
-                responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
+                responseBuilder.getExpandedModelIdsWithAliases().keySet().toArray(new String[0]),
+                parentTaskId,
                 inferenceStatsListener
             );
         }, listener::onFailure);
 
-        ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener = ActionListener.wrap(tuple -> {
-            responseBuilder.setExpandedIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
-            String[] ingestNodes = ingestNodes(clusterService.state());
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-                .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
-            executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
+        StepListener<Tuple<Long, Map<String, Set<String>>>> idsListener = new StepListener<>();
+        idsListener.whenComplete(tuple -> {
+            responseBuilder.setExpandedModelIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                NodesStatsAction.INSTANCE,
+                nodeStatsRequest(clusterService.state(), parentTaskId),
+                nodesStatsListener
+            );
         }, listener::onFailure);
+
+        // When the request resource is a deployment find the
+        // model used in that deployment for the model stats
+        String idExpression = addModelsUsedInMatchingDeployments(request.getResourceId(), assignmentMetadata);
+        logger.debug("Expanded models/deployment Ids request [{}]", idExpression);
+
+        // the request id may contain deployment ids
+        // It is not an error if these don't match a model id but
+        // they need to be included in case the deployment id is also
+        // a model id. Hence, the `matchedDeploymentIds` parameter
         trainedModelProvider.expandIds(
-            request.getResourceId(),
+            idExpression,
             request.isAllowNoResources(),
             request.getPageParams(),
             Collections.emptySet(),
-            currentMetadata,
+            modelAliasMetadata,
+            parentTaskId,
+            matchedDeploymentIds,
             idsListener
         );
+    }
+
+    static String addModelsUsedInMatchingDeployments(String idExpression, TrainedModelAssignmentMetadata assignmentMetadata) {
+        if (Strings.isAllOrWildcard(idExpression)) {
+            return idExpression;
+        } else {
+            var tokens = new HashSet<>(Arrays.asList(ExpandedIdsMatcher.tokenizeExpression(idExpression)));
+            var modelsUsedByMatchingDeployments = modelsUsedByMatchingDeploymentId(idExpression, assignmentMetadata);
+            tokens.addAll(modelsUsedByMatchingDeployments);
+            return String.join(",", tokens);
+        }
+    }
+
+    static Map<String, Set<String>> modelToDeployments(Set<String> modelIds, TrainedModelAssignmentMetadata assignments) {
+        var modelToDeploymentMap = new HashMap<String, Set<String>>();
+        for (var assignment : assignments.allAssignments().values()) {
+            if (modelIds.contains(assignment.getModelId())) {
+                modelToDeploymentMap.computeIfAbsent(assignment.getModelId(), k -> new HashSet<>()).add(assignment.getDeploymentId());
+            }
+        }
+        return modelToDeploymentMap;
+    }
+
+    static Set<String> matchedDeploymentIds(String resourceId, TrainedModelAssignmentMetadata assignments) {
+        var deploymentIds = new HashSet<String>();
+        var matcher = new ExpandedIdsMatcher.SimpleIdsMatcher(resourceId);
+        for (var assignment : assignments.allAssignments().values()) {
+            if (matcher.idMatches(assignment.getDeploymentId())) {
+                deploymentIds.add(assignment.getDeploymentId());
+            }
+        }
+        return deploymentIds;
+    }
+
+    static Set<String> modelsUsedByMatchingDeploymentId(String resourceId, TrainedModelAssignmentMetadata assignments) {
+        var modelIds = new HashSet<String>();
+        var matcher = new ExpandedIdsMatcher.SimpleIdsMatcher(resourceId);
+        for (var assignment : assignments.allAssignments().values()) {
+            if (matcher.idMatches(assignment.getDeploymentId())) {
+                modelIds.add(assignment.getModelId());
+            }
+        }
+        return modelIds;
+    }
+
+    static void getDeploymentStats(
+        Client client,
+        String resourceId,
+        TaskId parentTaskId,
+        TrainedModelAssignmentMetadata assignments,
+        ActionListener<GetDeploymentStatsAction.Response> deploymentStatsListener
+    ) {
+        // include all matched deployments and models
+        var matcher = new ExpandedIdsMatcher.SimpleIdsMatcher(resourceId);
+        var matchedDeployments = new HashSet<String>();
+        for (var assignment : assignments.allAssignments().values()) {
+            if (matcher.idMatches(assignment.getDeploymentId())) {
+                matchedDeployments.add(assignment.getDeploymentId());
+            } else if (matcher.idMatches(assignment.getModelId())) {
+                matchedDeployments.add(assignment.getDeploymentId());
+            }
+        }
+        String deployments = matchedDeployments.stream().collect(Collectors.joining(","));
+
+        logger.debug("Fetching stats for deployments [{}]", deployments);
+
+        GetDeploymentStatsAction.Request getDeploymentStatsRequest = new GetDeploymentStatsAction.Request(deployments);
+        getDeploymentStatsRequest.setParentTask(parentTaskId);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetDeploymentStatsAction.INSTANCE, getDeploymentStatsRequest, deploymentStatsListener);
     }
 
     private void modelSizeStats(
         Map<String, Set<String>> expandedIdsWithAliases,
         boolean allowNoResources,
+        TaskId parentTaskId,
         ActionListener<Map<String, TrainedModelSizeStats>> listener
     ) {
         ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
@@ -175,7 +280,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
                 .map(TrainedModelConfig::getModelId)
                 .toList();
-            definitionLengths(pytorchModelIds, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
+            definitionLengths(pytorchModelIds, parentTaskId, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
                 Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
@@ -201,11 +306,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             expandedIdsWithAliases,
             GetTrainedModelsAction.Includes.empty(),
             allowNoResources,
+            parentTaskId,
             modelsListener
         );
     }
 
-    private void definitionLengths(List<String> modelIds, ActionListener<Map<String, Long>> listener) {
+    private void definitionLengths(List<String> modelIds, TaskId parentTaskId, ActionListener<Map<String, Long>> listener) {
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME))
             .filter(QueryBuilders.termsQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelIds))
@@ -218,16 +324,17 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             .request();
+        searchRequest.setParentTask(parentTaskId);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
             Map<String, Long> totalDefinitionLengthByModelId = new HashMap<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 DocumentField modelIdField = hit.field(TrainedModelConfig.MODEL_ID.getPreferredName());
-                if (modelIdField != null && modelIdField.getValue()instanceof String modelId) {
+                if (modelIdField != null && modelIdField.getValue() instanceof String modelId) {
                     DocumentField totalDefinitionLengthField = hit.field(
                         TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH.getPreferredName()
                     );
-                    if (totalDefinitionLengthField != null && totalDefinitionLengthField.getValue()instanceof Long totalDefinitionLength) {
+                    if (totalDefinitionLengthField != null && totalDefinitionLengthField.getValue() instanceof Long totalDefinitionLength) {
                         totalDefinitionLengthByModelId.put(modelId, totalDefinitionLength);
                     }
                 }
@@ -257,39 +364,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         return ingestStatsMap;
     }
 
-    static String[] ingestNodes(final ClusterState clusterState) {
-        return clusterState.nodes().getIngestNodes().keySet().toArray(String[]::new);
-    }
-
-    static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, IngestService ingestService, Set<String> modelIds) {
-        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
-        if (ingestMetadata == null) {
-            return pipelineIdsByModelIds;
-        }
-
-        ingestMetadata.getPipelines().forEach((pipelineId, pipelineConfiguration) -> {
-            try {
-                Pipeline pipeline = Pipeline.create(
-                    pipelineId,
-                    pipelineConfiguration.getConfigAsMap(),
-                    ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
-                );
-                pipeline.getProcessors().forEach(processor -> {
-                    if (processor instanceof InferenceProcessor inferenceProcessor) {
-                        if (modelIds.contains(inferenceProcessor.getModelId())) {
-                            pipelineIdsByModelIds.computeIfAbsent(inferenceProcessor.getModelId(), m -> new LinkedHashSet<>())
-                                .add(pipelineId);
-                        }
-                    }
-                });
-            } catch (Exception ex) {
-                throw new ElasticsearchException("unexpected failure gathering pipeline information", ex);
-            }
-        });
-
-        return pipelineIdsByModelIds;
+    static NodesStatsRequest nodeStatsRequest(ClusterState state, TaskId parentTaskId) {
+        String[] ingestNodes = state.nodes().getIngestNodes().keySet().toArray(String[]::new);
+        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+            .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
+        nodesStatsRequest.setParentTask(parentTaskId);
+        return nodesStatsRequest;
     }
 
     static IngestStats ingestStatsForPipelineIds(NodeStats nodeStats, Set<String> pipelineIds) {
@@ -377,17 +457,18 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             this.type = type;
         }
 
-        IngestStatsAccumulator inc(IngestStats.Stats s) {
+        void inc(IngestStats.Stats s) {
             ingestCount.inc(s.getIngestCount());
             ingestTimeInMillis.inc(s.getIngestTimeInMillis());
             ingestCurrent.inc(s.getIngestCurrent());
             ingestFailedCount.inc(s.getIngestFailedCount());
-            return this;
         }
 
         IngestStats.Stats build() {
             return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
         }
     }
+
+    private record ModelAndDeployment(String modelId, String deploymentId) {}
 
 }

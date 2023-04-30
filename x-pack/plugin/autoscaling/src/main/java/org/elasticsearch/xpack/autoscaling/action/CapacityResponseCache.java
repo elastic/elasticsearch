@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -28,6 +30,9 @@ import java.util.function.Function;
  * The generic arg mainly helps ease testing (and we may want to generalize this in the future)
  */
 class CapacityResponseCache<Response> {
+
+    private static final Logger logger = LogManager.getLogger(CapacityResponseCache.class);
+
     private final Queue<Job> jobQueue = ConcurrentCollections.newQueue();
     private final AtomicInteger jobQueueSize = new AtomicInteger();
     private final Function<Runnable, Response> refresher;
@@ -45,6 +50,9 @@ class CapacityResponseCache<Response> {
             try {
                 runOnThread.accept(this::singleThreadRefresh);
             } catch (Exception e) {
+                // If this ever happens it's likely a server-side problem rather than the
+                // user's fault, so we need this logging as a means to get the stack trace
+                logger.debug("Error calculating autoscaling response", e);
                 do {
                     Job jobToFail = jobQueue.poll();
                     assert jobToFail != null;
@@ -111,7 +119,7 @@ class CapacityResponseCache<Response> {
             try {
                 listener.onFailure(e);
             } catch (Exception e2) {
-                assert false;
+                assert false : e2;
             }
         }
     }

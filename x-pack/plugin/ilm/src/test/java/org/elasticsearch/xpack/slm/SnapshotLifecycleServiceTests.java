@@ -12,9 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -25,6 +22,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -35,7 +33,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
@@ -188,6 +185,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
      * Test new policies getting scheduled correctly, updated policies also being scheduled,
      * and deleted policies having their schedules cancelled.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/44997")
     public void testPolicyCRUD() throws Exception {
         ClockMock clock = new ClockMock();
         final AtomicInteger triggerCount = new AtomicInteger(0);
@@ -458,16 +456,12 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             )
         );
         final SetOnce<ClusterStateUpdateTask> task = new SetOnce<>();
-        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool) {
+        ClusterService fakeService = new ClusterService(Settings.EMPTY, clusterSettings, threadPool, null) {
             @Override
-            public <T extends ClusterStateTaskConfig & ClusterStateTaskListener> void submitStateUpdateTask(
-                String source,
-                T updateTask,
-                ClusterStateTaskExecutor<T> executor
-            ) {
+            public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
                 logger.info("--> got task: [source: {}]: {}", source, updateTask);
                 if (updateTask instanceof OperationModeUpdateTask) {
-                    task.set((OperationModeUpdateTask) updateTask);
+                    task.set(updateTask);
                 }
             }
         };

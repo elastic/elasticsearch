@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -86,7 +87,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         // validate results
         assertThat(channel.responses().get(), equalTo(1));
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.OK));
-        assertThat(channel.capturedResponse().content().utf8ToString(), equalTo("test_ct 2 0 0 2 0 []\n"));
+        assertThat(RestResponseUtils.getBodyContent(channel.capturedResponse()).utf8ToString(), equalTo("test_ct 2 0 0 2 0 []\n"));
     }
 
     public void testRestCatComponentActionWithParam() throws Exception {

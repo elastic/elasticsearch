@@ -18,8 +18,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
@@ -29,16 +32,21 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -46,7 +54,9 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -60,10 +70,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class OldLuceneVersions extends Plugin implements IndexStorePlugin, ClusterPlugin, RepositoryPlugin, ActionPlugin {
+public class OldLuceneVersions extends Plugin implements IndexStorePlugin, ClusterPlugin, RepositoryPlugin, ActionPlugin, EnginePlugin {
 
     public static final LicensedFeature.Momentary ARCHIVE_FEATURE = LicensedFeature.momentary(
         null,
@@ -87,7 +99,9 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer,
+        AllocationService allocationService
     ) {
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
         if (DiscoveryNode.isMasterNode(environment.settings())) {
@@ -179,7 +193,17 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             // clean older segments file
             Lucene.pruneUnreferencedFiles(segmentInfos.getSegmentsFileName(), indexShard.store().directory());
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException(
+                Strings.format(
+                    """
+                        Elasticsearch version [{}] has limited support for indices created in version [{}] but this index could not be \
+                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
+                    Version.CURRENT,
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
+                    ReferenceDocs.ARCHIVE_INDICES
+                ),
+                e
+            );
         } finally {
             indexShard.store().decRef();
         }
@@ -225,5 +249,18 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of();
+    }
+
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()
+            && indexSettings.getIndexMetadata().isSearchableSnapshot() == false
+            && indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY) == false) {
+            return Optional.of(
+                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), true, Function.identity(), true, false)
+            );
+        }
+
+        return Optional.empty();
     }
 }

@@ -14,10 +14,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -39,6 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * SAMLResponse form parameter, i.e. caller of this API must do the work to extract the SAMLResponse value
  * from body of the HTTP-Post request. The value must also be URL decoded if necessary.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestSamlCompleteLogoutAction.class);
@@ -86,7 +88,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(ActionResponse.Empty response, XContentBuilder builder) throws Exception {
                         builder.startObject().endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );

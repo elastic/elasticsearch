@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
@@ -43,6 +44,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,6 +62,7 @@ public final class AggregationResultUtils {
         tempMap.put(GeoCentroid.class.getName(), new GeoCentroidAggExtractor());
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
         tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
+        tempMap.put(Range.class.getName(), new RangeAggExtractor());
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
         tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
@@ -166,6 +170,10 @@ public final class AggregationResultUtils {
             // TODO: can the Percentiles extractor be removed?
         } else if (aggregation instanceof Percentiles) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
+            // note: range is also a multi bucket agg, therefore check range first
+            // TODO: can the Range extractor be removed?
+        } else if (aggregation instanceof Range) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(Range.class.getName());
         } else if (aggregation instanceof MultiValue) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValue.class.getName());
         } else if (aggregation instanceof MultiValueAggregation) {
@@ -334,6 +342,19 @@ public final class AggregationResultUtils {
         }
     }
 
+    static class RangeAggExtractor extends MultiBucketsAggExtractor {
+
+        RangeAggExtractor() {
+            super(RangeAggExtractor::transformBucketKey);
+        }
+
+        private static String transformBucketKey(String bucketKey) {
+            return bucketKey.replace(".0-", "-")  // from: convert double to integer
+                .replaceAll("\\.0$", "")  // to: convert double to integer
+                .replace('.', '_');  // convert remaining dots with underscores so that the key prefix is not treated as object
+        }
+    }
+
     static class SingleBucketAggExtractor implements AggValueExtractor {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
@@ -360,6 +381,17 @@ public final class AggregationResultUtils {
     }
 
     static class MultiBucketsAggExtractor implements AggValueExtractor {
+
+        private final Function<String, String> bucketKeyTransfomer;
+
+        MultiBucketsAggExtractor() {
+            this(Function.identity());
+        }
+
+        MultiBucketsAggExtractor(Function<String, String> bucketKeyTransfomer) {
+            this.bucketKeyTransfomer = Objects.requireNonNull(bucketKeyTransfomer);
+        }
+
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiBucketsAggregation aggregation = (MultiBucketsAggregation) agg;
@@ -367,8 +399,9 @@ public final class AggregationResultUtils {
             HashMap<String, Object> nested = new HashMap<>();
 
             for (MultiBucketsAggregation.Bucket bucket : aggregation.getBuckets()) {
+                String bucketKey = bucketKeyTransfomer.apply(bucket.getKeyAsString());
                 if (bucket.getAggregations().iterator().hasNext() == false) {
-                    nested.put(bucket.getKeyAsString(), bucket.getDocCount());
+                    nested.put(bucketKey, bucket.getDocCount());
                 } else {
                     HashMap<String, Object> nestedBucketObject = new HashMap<>();
                     for (Aggregation subAgg : bucket.getAggregations()) {
@@ -381,7 +414,7 @@ public final class AggregationResultUtils {
                             )
                         );
                     }
-                    nested.put(bucket.getKeyAsString(), nestedBucketObject);
+                    nested.put(bucketKey, nestedBucketObject);
                 }
             }
             return nested;

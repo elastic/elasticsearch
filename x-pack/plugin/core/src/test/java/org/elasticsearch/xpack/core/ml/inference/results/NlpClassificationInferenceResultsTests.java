@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -49,7 +49,7 @@ public class NlpClassificationInferenceResultsTests extends InferenceResultsTest
             0.7,
             randomBoolean()
         );
-        IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
         writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.top_classes", List.class);
@@ -66,6 +66,11 @@ public class NlpClassificationInferenceResultsTests extends InferenceResultsTest
     @Override
     protected NlpClassificationInferenceResults createTestInstance() {
         return createRandomResults();
+    }
+
+    @Override
+    protected NlpClassificationInferenceResults mutateInstance(NlpClassificationInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

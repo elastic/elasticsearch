@@ -9,63 +9,51 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
-import java.util.List;
-import java.util.TreeSet;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
-
-    // Stored members
-    protected SecureString endUserSignedJwt; // required
-    protected SecureString clientAuthenticationSharedSecret; // optional, nullable
-    protected String principal; // "iss/aud/sub"
+    private final String principal;
+    private SignedJWT signedJWT;
+    private final byte[] userCredentialsHash;
+    @Nullable
+    private final SecureString clientAuthenticationSharedSecret;
 
     /**
-     * Store a mandatory JWT and optional Shared Secret. Parse the JWT, and extract the header, claims set, and signature.
-     * Throws IllegalArgumentException if bearerString is missing, or if JWT parsing fails.
-     * @param endUserSignedJwt Base64Url-encoded JWT for End-user authentication. Required by all JWT realms.
+     * Store a mandatory JWT and optional Shared Secret.
+     * @param principal The token's principal, useful as a realm order cache key
+     * @param signedJWT The JWT parsed from the end-user credentials
+     * @param userCredentialsHash The hash of the end-user credentials is used to compute the key for user cache at the realm level.
+     *                            See also {@link JwtRealm#authenticate}.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(final SecureString endUserSignedJwt, @Nullable final SecureString clientAuthenticationSharedSecret) {
-        if (endUserSignedJwt.isEmpty()) {
-            throw new IllegalArgumentException("JWT bearer token must be non-empty");
-        } else if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
+    public JwtAuthenticationToken(
+        String principal,
+        SignedJWT signedJWT,
+        byte[] userCredentialsHash,
+        @Nullable final SecureString clientAuthenticationSharedSecret
+    ) {
+        this.principal = Objects.requireNonNull(principal);
+        this.signedJWT = Objects.requireNonNull(signedJWT);
+        this.userCredentialsHash = Objects.requireNonNull(userCredentialsHash);
+
+        if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
         }
-        this.endUserSignedJwt = endUserSignedJwt; // required
-        this.clientAuthenticationSharedSecret = clientAuthenticationSharedSecret; // optional, nullable
-
-        JWTClaimsSet jwtClaimsSet;
-        try {
-            jwtClaimsSet = SignedJWT.parse(this.endUserSignedJwt.toString()).getJWTClaimsSet();
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
-        }
-        final String issuer = jwtClaimsSet.getIssuer();
-        final List<String> audiences = jwtClaimsSet.getAudience();
-        final String subject = jwtClaimsSet.getSubject();
-
-        if (Strings.hasText(issuer) == false) {
-            throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
-        } else if ((audiences == null) || (audiences.isEmpty())) {
-            throw new IllegalArgumentException("Audiences claim 'aud' is missing.");
-        } else if (Strings.hasText(subject) == false) {
-            throw new IllegalArgumentException("Subject claim 'sub' is missing.");
-        }
-        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + subject;
+        this.clientAuthenticationSharedSecret = clientAuthenticationSharedSecret;
     }
 
     @Override
     public String principal() {
-        return this.principal;
+        return principal;
     }
 
     @Override
@@ -73,23 +61,34 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         return null;
     }
 
-    public SecureString getEndUserSignedJwt() {
-        return this.endUserSignedJwt;
+    public SignedJWT getSignedJWT() {
+        return signedJWT;
+    }
+
+    public JWTClaimsSet getJWTClaimsSet() {
+        try {
+            return signedJWT.getJWTClaimsSet();
+        } catch (ParseException e) {
+            assert false : "The JWT claims set should have already been successfully parsed before building the JWT authentication token";
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    public byte[] getUserCredentialsHash() {
+        return userCredentialsHash;
     }
 
     public SecureString getClientAuthenticationSharedSecret() {
-        return this.clientAuthenticationSharedSecret;
+        return clientAuthenticationSharedSecret;
     }
 
     @Override
     public void clearCredentials() {
-        this.endUserSignedJwt.close();
-        this.endUserSignedJwt = null;
-        if (this.clientAuthenticationSharedSecret != null) {
-            this.clientAuthenticationSharedSecret.close();
-            this.clientAuthenticationSharedSecret = null;
+        signedJWT = null;
+        Arrays.fill(userCredentialsHash, (byte) 0);
+        if (clientAuthenticationSharedSecret != null) {
+            clientAuthenticationSharedSecret.close();
         }
-        this.principal = null;
     }
 
     @Override

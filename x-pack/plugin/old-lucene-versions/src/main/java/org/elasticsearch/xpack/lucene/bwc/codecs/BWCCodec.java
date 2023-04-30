@@ -15,14 +15,12 @@ import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.NormsFormat;
 import org.apache.lucene.codecs.NormsProducer;
-import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -41,15 +39,8 @@ import java.util.List;
  */
 public abstract class BWCCodec extends Codec {
 
-    private final PostingsFormat postingsFormat = new EmptyPostingsFormat();
-
     protected BWCCodec(String name) {
         super(name);
-    }
-
-    @Override
-    public PostingsFormat postingsFormat() {
-        return postingsFormat;
     }
 
     @Override
@@ -63,22 +54,98 @@ public abstract class BWCCodec extends Codec {
     }
 
     @Override
-    public PointsFormat pointsFormat() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public KnnVectorsFormat knnVectorsFormat() {
         throw new UnsupportedOperationException();
     }
 
+    protected static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
+        return new SegmentInfoFormat() {
+            @Override
+            public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
+                return wrap(wrapped.read(directory, segmentName, segmentID, context));
+            }
+
+            @Override
+            public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
+                wrapped.write(dir, info, ioContext);
+            }
+        };
+    }
+
+    protected static FieldInfosFormat wrap(FieldInfosFormat wrapped) {
+        return new FieldInfosFormat() {
+            @Override
+            public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
+                throws IOException {
+                return filterFields(wrapped.read(directory, segmentInfo, segmentSuffix, iocontext));
+            }
+
+            @Override
+            public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context)
+                throws IOException {
+                wrapped.write(directory, segmentInfo, segmentSuffix, infos, context);
+            }
+        };
+    }
+
+    // mark all fields as no term vectors, no norms, no payloads, and no vectors.
+    private static FieldInfos filterFields(FieldInfos fieldInfos) {
+        List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
+        for (FieldInfo fieldInfo : fieldInfos) {
+            fieldInfoCopy.add(
+                new FieldInfo(
+                    fieldInfo.name,
+                    fieldInfo.number,
+                    false,
+                    true,
+                    false,
+                    fieldInfo.getIndexOptions(),
+                    fieldInfo.getDocValuesType(),
+                    fieldInfo.getDocValuesGen(),
+                    fieldInfo.attributes(),
+                    fieldInfo.getPointDimensionCount(),
+                    fieldInfo.getPointIndexDimensionCount(),
+                    fieldInfo.getPointNumBytes(),
+                    0,
+                    fieldInfo.getVectorEncoding(),
+                    fieldInfo.getVectorSimilarityFunction(),
+                    fieldInfo.isSoftDeletesField()
+                )
+            );
+        }
+        FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
+        return newFieldInfos;
+    }
+
+    public static SegmentInfo wrap(SegmentInfo segmentInfo) {
+        // special handling for Lucene70Codec (which is currently bundled with Lucene)
+        // Use BWCLucene70Codec instead as that one extends BWCCodec (similar to all other older codecs)
+        final Codec codec = segmentInfo.getCodec() instanceof Lucene70Codec ? new BWCLucene70Codec() : segmentInfo.getCodec();
+        final SegmentInfo segmentInfo1 = new SegmentInfo(
+            segmentInfo.dir,
+            // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
+            // TODO: perhaps store the original version information in attributes so that we can retrieve it later when needed?
+            org.apache.lucene.util.Version.LATEST,
+            org.apache.lucene.util.Version.LATEST,
+            segmentInfo.name,
+            segmentInfo.maxDoc(),
+            segmentInfo.getUseCompoundFile(),
+            codec,
+            segmentInfo.getDiagnostics(),
+            segmentInfo.getId(),
+            segmentInfo.getAttributes(),
+            segmentInfo.getIndexSort()
+        );
+        segmentInfo1.setFiles(segmentInfo.files());
+        return segmentInfo1;
+    }
+
     /**
      * In-memory postings format that shows no postings available.
-     * TODO: Remove once https://issues.apache.org/jira/browse/LUCENE-10291 is fixed.
      */
-    static class EmptyPostingsFormat extends PostingsFormat {
+    public static class EmptyPostingsFormat extends PostingsFormat {
 
-        protected EmptyPostingsFormat() {
+        public EmptyPostingsFormat() {
             super("EmptyPostingsFormat");
         }
 
@@ -126,87 +193,6 @@ public abstract class BWCCodec extends Codec {
                 }
             };
         }
-    }
-
-    protected static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
-        return new SegmentInfoFormat() {
-            @Override
-            public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
-                return wrap(wrapped.read(directory, segmentName, segmentID, context));
-            }
-
-            @Override
-            public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
-                wrapped.write(dir, info, ioContext);
-            }
-        };
-    }
-
-    protected static FieldInfosFormat wrap(FieldInfosFormat wrapped) {
-        return new FieldInfosFormat() {
-            @Override
-            public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
-                throws IOException {
-                return filterFields(wrapped.read(directory, segmentInfo, segmentSuffix, iocontext));
-            }
-
-            @Override
-            public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context)
-                throws IOException {
-                wrapped.write(directory, segmentInfo, segmentSuffix, infos, context);
-            }
-        };
-    }
-
-    // mark all fields as having no postings, no term vectors, no norms, no payloads, no points, and no vectors.
-    private static FieldInfos filterFields(FieldInfos fieldInfos) {
-        List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
-        for (FieldInfo fieldInfo : fieldInfos) {
-            fieldInfoCopy.add(
-                new FieldInfo(
-                    fieldInfo.name,
-                    fieldInfo.number,
-                    false,
-                    false,
-                    false,
-                    IndexOptions.NONE,
-                    fieldInfo.getDocValuesType(),
-                    fieldInfo.getDocValuesGen(),
-                    fieldInfo.attributes(),
-                    0,
-                    0,
-                    0,
-                    0,
-                    fieldInfo.getVectorSimilarityFunction(),
-                    fieldInfo.isSoftDeletesField()
-                )
-            );
-        }
-        FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
-        return newFieldInfos;
-    }
-
-    public static SegmentInfo wrap(SegmentInfo segmentInfo) {
-        // special handling for Lucene70Codec (which is currently bundled with Lucene)
-        // Use BWCLucene70Codec instead as that one extends BWCCodec (similar to all other older codecs)
-        final Codec codec = segmentInfo.getCodec() instanceof Lucene70Codec ? new BWCLucene70Codec() : segmentInfo.getCodec();
-        final SegmentInfo segmentInfo1 = new SegmentInfo(
-            segmentInfo.dir,
-            // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
-            // TODO: perhaps store the original version information in attributes so that we can retrieve it later when needed?
-            org.apache.lucene.util.Version.LATEST,
-            org.apache.lucene.util.Version.LATEST,
-            segmentInfo.name,
-            segmentInfo.maxDoc(),
-            segmentInfo.getUseCompoundFile(),
-            codec,
-            segmentInfo.getDiagnostics(),
-            segmentInfo.getId(),
-            segmentInfo.getAttributes(),
-            segmentInfo.getIndexSort()
-        );
-        segmentInfo1.setFiles(segmentInfo.files());
-        return segmentInfo1;
     }
 
 }

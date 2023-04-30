@@ -5,9 +5,9 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -16,7 +16,7 @@ esplugin {
 }
 
 dependencies {
-  api "com.github.spullara.mustache.java:compiler:0.9.6"
+  api "com.github.spullara.mustache.java:compiler:0.9.10"
 }
 
 restResources {

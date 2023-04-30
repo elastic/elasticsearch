@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -215,12 +217,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         super(in);
         field = in.readString();
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String documentType = in.readOptionalString();
             assert documentType == null;
         }
         indexedDocumentIndex = in.readOptionalString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
             assert indexedDocumentType == null;
         }
@@ -232,7 +234,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             indexedDocumentVersion = null;
         }
-        documents = in.readList(StreamInput::readBytesReference);
+        documents = in.readImmutableList(StreamInput::readBytesReference);
         if (documents.isEmpty() == false) {
             documentXContentType = in.readEnum(XContentType.class);
         } else {
@@ -257,12 +259,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         out.writeString(field);
         out.writeOptionalString(name);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null documentType values
             out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentIndex);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             // In 7x, typeless percolate queries are represented by null indexedDocumentType values
             out.writeOptionalString(null);
         }
@@ -275,10 +277,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             out.writeBoolean(false);
         }
-        out.writeVInt(documents.size());
-        for (BytesReference document : documents) {
-            out.writeBytesReference(document);
-        }
+        out.writeCollection(documents, StreamOutput::writeBytesReference);
         if (documents.isEmpty() == false) {
             XContentHelper.writeTo(out, documentXContentType);
         }
@@ -327,7 +326,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 builder.field(INDEXED_DOCUMENT_FIELD_VERSION.getPreferredName(), indexedDocumentVersion);
             }
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -533,7 +532,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
-        ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
         return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
@@ -585,28 +583,34 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             return docId -> {
                 if (binaryDocValues.advanceExact(docId)) {
                     BytesRef qbSource = binaryDocValues.binaryValue();
-                    try (InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length)) {
-                        try (
-                            StreamInput input = new NamedWriteableAwareStreamInput(
-                                new InputStreamStreamInput(in, qbSource.length),
-                                registry
-                            )
-                        ) {
-                            input.setVersion(indexVersion);
-                            // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
-                            // to encode multiple binary values into a single binary doc values field.
-                            // This is the reason we need to first need to read the number of values and
-                            // then the length of the field value in bytes.
-                            int numValues = input.readVInt();
-                            assert numValues == 1;
-                            int valueLength = input.readVInt();
-                            assert valueLength > 0;
-                            QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                            assert in.read() == -1;
-                            queryBuilder = Rewriteable.rewrite(queryBuilder, context);
-                            return queryBuilder.toQuery(context);
+                    try (
+                        InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length);
+                        StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, qbSource.length), registry)
+                    ) {
+                        // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                        // to encode multiple binary values into a single binary doc values field.
+                        // This is the reason we need to first read the number of values and
+                        // then the length of the field value in bytes.
+                        int numValues = input.readVInt();
+                        assert numValues == 1;
+                        int valueLength = input.readVInt();
+                        assert valueLength > 0;
+
+                        TransportVersion transportVersion;
+                        if (indexVersion.before(Version.V_8_8_0)) {
+                            transportVersion = TransportVersion.fromId(indexVersion.id);
+                        } else {
+                            transportVersion = TransportVersion.readVersion(input);
                         }
+                        // set the transportversion here - only read vints so far, so can change the version freely at this point
+                        input.setTransportVersion(transportVersion);
+
+                        QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                        assert in.read() == -1;
+                        queryBuilder = Rewriteable.rewrite(queryBuilder, context);
+                        return queryBuilder.toQuery(context);
                     }
+
                 } else {
                     return null;
                 }
@@ -643,8 +647,18 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             @SuppressWarnings("unchecked")
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(delegate.getFullyQualifiedIndex().getName(), delegate::lookup);
+            public <IFD extends IndexFieldData<?>> IFD getForField(
+                MappedFieldType fieldType,
+                MappedFieldType.FielddataOperation fielddataOperation
+            ) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(
+                    new FieldDataContext(
+                        delegate.getFullyQualifiedIndex().getName(),
+                        delegate::lookup,
+                        this::sourcePath,
+                        fielddataOperation
+                    )
+                );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);
@@ -653,7 +667,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

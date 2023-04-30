@@ -28,6 +28,11 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
     }
 
     @Override
+    protected ConcatFunctionProcessor mutateInstance(ConcatFunctionProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<ConcatFunctionProcessor> instanceReader() {
         return ConcatFunctionProcessor::new;
     }

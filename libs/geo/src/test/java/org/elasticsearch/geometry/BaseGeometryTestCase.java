@@ -9,7 +9,7 @@
 package org.elasticsearch.geometry;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.AbstractWireTestCase;
@@ -32,7 +32,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
     @SuppressWarnings("unchecked")
     @Override
-    protected T copyInstance(T instance, Version version) throws IOException {
+    protected T copyInstance(T instance, TransportVersion version) throws IOException {
         String text = WellKnownText.toWKT(instance);
         try {
             return (T) WellKnownText.fromWKT(GeographyValidator.instance(true), true, text);

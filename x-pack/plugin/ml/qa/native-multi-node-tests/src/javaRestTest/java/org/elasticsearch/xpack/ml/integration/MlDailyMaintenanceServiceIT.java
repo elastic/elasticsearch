@@ -56,7 +56,10 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
             threadPool,
             client(),
             mock(ClusterService.class),
-            mock(MlAssignmentNotifier.class)
+            mock(MlAssignmentNotifier.class),
+            true,
+            true,
+            true
         );
 
         putJob("maintenance-test-1");

@@ -1,6 +1,0 @@
-pr: 85276
-summary: Fix license downgrade warnings for API Keys and Tokens
-area: License
-type: bug
-issues:
- - 75271

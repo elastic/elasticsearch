@@ -4,20 +4,22 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -33,7 +35,7 @@ import java.util.SortedSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CacheFile {
 
@@ -113,7 +115,7 @@ public class CacheFile {
                 fileChannel.close();
             } catch (IOException e) {
                 // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-                logger.warn(() -> new ParameterizedMessage("Failed to close [{}]", file), e);
+                logger.warn(() -> "Failed to close [" + file + "]", e);
             } finally {
                 decrementRefCount();
             }
@@ -169,7 +171,7 @@ public class CacheFile {
     }
 
     // Only used in tests
-    SortedSet<ByteRange> getCompletedRanges() {
+    public SortedSet<ByteRange> getCompletedRanges() {
         return tracker.getCompletedRanges();
     }
 
@@ -332,7 +334,7 @@ public class CacheFile {
 
     @FunctionalInterface
     public interface RangeMissingHandler {
-        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+        void fillCacheRange(FileChannel channel, long from, long to, LongConsumer progressUpdater) throws IOException;
     }
 
     /**
@@ -362,34 +364,28 @@ public class CacheFile {
             );
 
             for (SparseFileTracker.Gap gap : gaps) {
-                try {
-                    executor.execute(new AbstractRunnable() {
+                executor.execute(new AbstractRunnable() {
 
-                        @Override
-                        protected void doRun() throws Exception {
-                            if (reference.tryIncRef() == false) {
-                                throw new AlreadyClosedException("Cache file channel has been released and closed");
-                            }
-                            try {
-                                ensureOpen();
-                                writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
-                                gap.onCompletion();
-                                markAsNeedsFSync();
-                            } finally {
-                                reference.decRef();
-                            }
+                    @Override
+                    protected void doRun() throws Exception {
+                        if (reference.tryIncRef() == false) {
+                            throw new AlreadyClosedException("Cache file channel has been released and closed");
                         }
+                        try {
+                            ensureOpen();
+                            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                            gap.onCompletion();
+                            markAsNeedsFSync();
+                        } finally {
+                            reference.decRef();
+                        }
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            gap.onFailure(e);
-                        }
-                    });
-                } catch (Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected exception when submitting task to fill gap [{}]", gap), e);
-                    assert false : e;
-                    gap.onFailure(e);
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        gap.onFailure(e);
+                    }
+                });
             }
         } catch (Exception e) {
             releaseAndFail(future, decrementRef, e);
@@ -536,7 +532,7 @@ public class CacheFile {
             Files.deleteIfExists(file);
         } catch (IOException e) {
             // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-            logger.warn(() -> new ParameterizedMessage("Failed to delete [{}]", file), e);
+            logger.warn(() -> "Failed to delete [" + file + "]", e);
         } finally {
             listener.onCacheFileDelete(CacheFile.this);
         }

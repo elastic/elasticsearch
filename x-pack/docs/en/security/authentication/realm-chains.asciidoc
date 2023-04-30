@@ -78,7 +78,7 @@ LDAP group assignments to determine their roles in Elasticsearch.
 
 Any realm that supports retrieving users (without needing their credentials) can
 be used as an _authorization realm_ (that is, its name may appear as one of the
-values in the list of `authorization_realms`). See <<run-as-privilege>> for
+values in the list of `authorization_realms`). See <<user-lookup>> for
 further explanation on which realms support this.
 
 For realms that support this feature, it can be enabled by configuring the

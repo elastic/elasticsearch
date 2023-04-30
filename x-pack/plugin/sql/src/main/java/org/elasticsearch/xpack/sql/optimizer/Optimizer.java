@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -122,8 +121,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch(
+    protected Iterable<RuleExecutor.Batch<LogicalPlan>> batches() {
+        var substitutions = new Batch<>(
             "Substitutions",
             Limiter.ONCE,
             new RewritePivot(),
@@ -131,9 +130,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new ReplaceAggregatesWithLiterals()
         );
 
-        Batch refs = new Batch("Replace References", Limiter.ONCE, new ReplaceReferenceAttributeWithSource());
+        var refs = new Batch<>("Replace References", Limiter.ONCE, new ReplaceReferenceAttributeWithSource());
 
-        Batch operators = new Batch(
+        var operators = new Batch<>(
             "Operator Optimization",
             // combining
             new CombineProjections(),
@@ -167,7 +166,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PushDownAndCombineFilters()
         );
 
-        Batch aggregate = new Batch(
+        var aggregate = new Batch<>(
             "Aggregation Rewrite",
             new ReplaceMinMaxWithTopHits(),
             new ReplaceAggsWithMatrixStats(),
@@ -179,7 +178,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new ReplaceAggsWithPercentileRanks()
         );
 
-        Batch local = new Batch(
+        var local = new Batch<>(
             "Skip Elasticsearch",
             new SkipQueryOnLimitZero(),
             new SkipQueryForLiteralAggregations(),
@@ -189,7 +188,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new PruneLiteralsInGroupBy()
         );
 
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE, CleanAliases.INSTANCE, new SetAsOptimized());
+        var label = new Batch<>("Set as Optimized", Limiter.ONCE, CleanAliases.INSTANCE, new SetAsOptimized());
 
         return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
@@ -326,9 +325,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Project project) {
             // check whether OrderBy relies on nested fields which are not used higher up
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (project.child() instanceof OrderBy ob) {
-                // end::noformat
                 // resolve function references (that maybe hiding the target)
                 AttributeMap.Builder<Function> collectRefs = AttributeMap.builder();
 
@@ -589,7 +586,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return rule(plan);
         }
 
-        @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             Map<Attribute, Alias> aliases = new LinkedHashMap<>();
             List<Attribute> attrs = new ArrayList<>();
@@ -1038,43 +1034,31 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // count the extended stats
             p.forEachExpressionUp(InnerAggregate.class, ia -> {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof ExtendedStats extStats) {
                     seen.putIfAbsent(extStats.field(), extStats);
                 }
-                // end::noformat
             });
 
             // then if there's a match, replace the stat inside the InnerAgg
             return p.transformExpressionsUp(InnerAggregate.class, ia -> {
-                // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
                 if (ia.outer() instanceof Stats stats) {
                     ExtendedStats ext = seen.get(stats.field());
                     if (ext != null && stats.field().equals(ext.field())) {
                         return new InnerAggregate(ia.inner(), ext);
                     }
                 }
-                // end::noformat
                 return ia;
             });
         }
     }
 
-    private static class PercentileKey extends Tuple<Expression, PercentilesConfig> {
+    private record PercentileKey(Expression field, PercentilesConfig percentilesConfig) {
         PercentileKey(Percentile per) {
-            super(per.field(), per.percentilesConfig());
+            this(per.field(), per.percentilesConfig());
         }
 
         PercentileKey(PercentileRank per) {
-            super(per.field(), per.percentilesConfig());
-        }
-
-        private Expression field() {
-            return v1();
-        }
-
-        private PercentilesConfig percentilesConfig() {
-            return v2();
+            this(per.field(), per.percentilesConfig());
         }
     }
 
@@ -1192,7 +1176,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(UnaryPlan plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if ((plan instanceof Project || plan instanceof Aggregate) && plan.child() instanceof LocalRelation relation) {
                 List<Object> foldedValues = null;
 
@@ -1203,7 +1186,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         foldedValues = extractLiterals(((Project) plan).projections());
                     }
                 } else if (relation.executable() instanceof EmptyExecutable) {
-                    // end::noformat
                     if (plan instanceof Aggregate agg) {
                         if (agg.groupings().isEmpty()) {
                             // Implicit groupings on empty relations must produce a singleton result set with the aggregation results
@@ -1271,7 +1253,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         public abstract LogicalPlan apply(LogicalPlan plan);
 
-        @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             return plan;
         }

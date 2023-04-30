@@ -77,6 +77,12 @@
         "type":"number",
         "description":"Starting offset (default: 0)"
       },
+      "force_synthetic_source": {
+        "type": "boolean",
+        "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
+        "visibility": "feature_flag",
+        "feature_flag": "es.index_mode_feature_flag_registered"
+      },
       "ignore_unavailable":{
         "type":"boolean",
         "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"
@@ -234,6 +240,11 @@
       "min_compatible_shard_node":{
         "type":"string",
         "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
+      },
+      "include_named_queries_score":{
+          "type": "boolean",
+          "description":"Indicates whether hit.matched_queries should be rendered as a map that includes the name of the matched query associated with its score (true) or as an array containing the name of the matched queries (false)",
+          "default":false
       }
     },
     "body":{

@@ -7,33 +7,28 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.AfterClass;
-import org.junit.Before;
+import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-@SuppressWarnings("removal")
-public class PermissionsIT extends ESRestTestCase {
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
-    private static HighLevelClient highLevelClient;
-    private static HighLevelClient adminHighLevelClient;
+public class PermissionsIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
@@ -45,22 +40,6 @@ public class PermissionsIT extends ESRestTestCase {
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Before
-    public void initHighLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = new HighLevelClient(client());
-            adminHighLevelClient = new HighLevelClient(adminClient());
-        }
-    }
-
-    @AfterClass
-    public static void closeHighLevelClients() throws IOException {
-        highLevelClient.close();
-        adminHighLevelClient.close();
-        highLevelClient = null;
-        adminHighLevelClient = null;
     }
 
     public void testDLS() throws IOException {
@@ -107,14 +86,14 @@ public class PermissionsIT extends ESRestTestCase {
             """);
         assertOK(adminClient().performRequest(indexDoc3));
 
-        SearchRequest searchRequest = new SearchRequest("dls");
+        Request searchRequest = new Request(HttpPost.METHOD_NAME, "dls/_search");
         {
-            SearchResponse searchResponse = adminHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-            assertEquals(3, searchResponse.getHits().getTotalHits().value);
+            Response searchResponse = adminClient().performRequest(searchRequest);
+            assertThat(ObjectPath.createFromResponse(searchResponse).evaluate("hits.total.value"), equalTo(3));
         }
         {
-            SearchResponse searchResponse = highLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            Response searchResponse = client().performRequest(searchRequest);
+            assertThat(ObjectPath.createFromResponse(searchResponse).evaluate("hits.total.value"), equalTo(1));
         }
     }
 
@@ -162,20 +141,30 @@ public class PermissionsIT extends ESRestTestCase {
             """);
         assertOK(adminClient().performRequest(indexDoc3));
 
-        SearchRequest searchRequest = new SearchRequest("fls").source(new SearchSourceBuilder().docValueField("hidden_values_count"));
+        Request searchRequest = new Request(HttpPost.METHOD_NAME, "fls/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "docvalue_fields" : ["hidden_values_count"]
+            }
+            """);
         {
-            SearchResponse searchResponse = adminHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-            assertEquals(3, searchResponse.getHits().getTotalHits().value);
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                assertEquals(1, hit.getFields().size());
-                assertEquals(1, (int) hit.getFields().get("hidden_values_count").getValue());
+            Response searchResponse = adminClient().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(searchResponse);
+            assertThat(path.evaluate("hits.total.value"), equalTo(3));
+            List<Map<String, ?>> hits = path.evaluate("hits.hits");
+            for (Map<String, ?> hit : hits) {
+                Map<String, ?> fields = ObjectPath.evaluate(hit, "fields");
+                assertThat(fields.size(), equalTo(1));
+                assertThat(ObjectPath.evaluate(fields, "hidden_values_count"), equalTo(List.of(1)));
             }
         }
         {
-            SearchResponse searchResponse = highLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-            assertEquals(3, searchResponse.getHits().getTotalHits().value);
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                assertEquals(0, (int) hit.getFields().get("hidden_values_count").getValue());
+            Response searchResponse = client().performRequest(searchRequest);
+            ObjectPath path = ObjectPath.createFromResponse(searchResponse);
+            assertThat(path.evaluate("hits.total.value"), equalTo(3));
+            List<Map<String, ?>> hits = path.evaluate("hits.hits");
+            for (Map<String, ?> hit : hits) {
+                assertThat(ObjectPath.evaluate(hit, "fields.hidden_values_count"), equalTo(List.of(0)));
             }
         }
     }
@@ -225,36 +214,98 @@ public class PermissionsIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(indexDoc3));
 
         // There is no FLS directly on runtime fields
-        SearchRequest searchRequest = new SearchRequest("fls").source(new SearchSourceBuilder().docValueField("year"));
-        SearchResponse searchResponse = highLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-        assertEquals(3, searchResponse.getHits().getTotalHits().value);
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            Map<String, DocumentField> fields = hit.getFields();
-            assertEquals(1, fields.size());
-            switch (hit.getId()) {
-                case "1" -> assertEquals("2009", fields.get("year").getValue().toString());
-                case "2" -> assertEquals("2016", fields.get("year").getValue().toString());
-                case "3" -> assertEquals("2018", fields.get("year").getValue().toString());
+        Request searchRequest = new Request(HttpPost.METHOD_NAME, "fls/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "docvalue_fields" : ["year"]
+            }
+            """);
+        Response searchResponse = client().performRequest(searchRequest);
+        ObjectPath path = ObjectPath.createFromResponse(searchResponse);
+        assertThat(path.evaluate("hits.total.value"), equalTo(3));
+        List<Map<String, ?>> hits = path.evaluate("hits.hits");
+        for (Map<String, ?> hit : hits) {
+            Map<String, ?> fields = ObjectPath.evaluate(hit, "fields");
+            assertThat(fields.size(), equalTo(1));
+            String id = ObjectPath.evaluate(hit, "_id");
+            switch (id) {
+                case "1" -> assertThat(ObjectPath.evaluate(fields, "year"), equalTo(List.of("2009")));
+                case "2" -> assertThat(ObjectPath.evaluate(fields, "year"), equalTo(List.of("2016")));
+                case "3" -> assertThat(ObjectPath.evaluate(fields, "year"), equalTo(List.of("2018")));
                 default -> throw new UnsupportedOperationException();
             }
         }
 
         {
-            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices("fls").fields("year");
-            FieldCapabilitiesResponse fieldCapabilitiesResponse = adminHighLevelClient.fieldCaps(fieldCapsRequest, RequestOptions.DEFAULT);
-            assertNotNull(fieldCapabilitiesResponse.get().get("year"));
+            Request fieldCapsRequest = new Request(HttpGet.METHOD_NAME, "fls/_field_caps");
+            fieldCapsRequest.addParameter("fields", "year");
+            Response fieldCapsResponse = adminClient().performRequest(fieldCapsRequest);
+            assertThat(ObjectPath.createFromResponse(fieldCapsResponse).evaluate("fields.year"), notNullValue());
         }
         {
             // Though field_caps filters runtime fields out like ordinary fields
-            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices("fls").fields("year");
-            FieldCapabilitiesResponse fieldCapabilitiesResponse = highLevelClient.fieldCaps(fieldCapsRequest, RequestOptions.DEFAULT);
-            assertEquals(0, fieldCapabilitiesResponse.get().size());
+            Request fieldCapsRequest = new Request(HttpGet.METHOD_NAME, "fls/_field_caps");
+            fieldCapsRequest.addParameter("fields", "year");
+            Response fieldCapsResponse = client().performRequest(fieldCapsRequest);
+            assertThat(ObjectPath.createFromResponse(fieldCapsResponse).evaluate("fields"), aMapWithSize(0));
         }
     }
 
-    private static class HighLevelClient extends RestHighLevelClient {
-        private HighLevelClient(RestClient restClient) {
-            super(restClient, (client) -> {}, Collections.emptyList());
-        }
+    public void testPainlessExecuteWithIndexRequiresReadPrivileges() throws IOException {
+        Request createIndex = new Request("PUT", "/fls");
+        createIndex.setJsonEntity("""
+            {
+                "mappings" : {
+                    "properties" : {
+                        "@timestamp" : {"type" : "date"}
+                    }
+                }
+            }
+            """);
+        assertOK(adminClient().performRequest(createIndex));
+
+        Request painlessExecute = new Request("POST", "/_scripts/painless/_execute");
+        painlessExecute.setJsonEntity("""
+            {
+              "script": {
+                "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));"
+              },
+              "context": "keyword_field",
+              "context_setup": {
+                "index": "fls",
+                "document": {
+                  "@timestamp": "2020-04-30T14:31:43-05:00"
+                }
+              }
+            }
+            """);
+        Response response = client().performRequest(painlessExecute);
+        assertOK(response);
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("Thursday"));
+    }
+
+    public void testPainlessExecuteWithoutIndexRequiresClusterPrivileges() {
+        Request painlessExecute = new Request("POST", "/_scripts/painless/_execute");
+        painlessExecute.setJsonEntity("""
+            {
+              "script": {
+                "source": "params.count / params.total",
+                "params": {
+                  "count": 100.0,
+                  "total": 1000.0
+                }
+              }
+            }
+            """);
+        ResponseException responseException = expectThrows(ResponseException.class, () -> client().performRequest(painlessExecute));
+        assertEquals(403, responseException.getResponse().getStatusLine().getStatusCode());
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "action [cluster:admin/scripts/painless/execute] is "
+                    + "unauthorized for user [test] with effective roles [test]"
+                    + ", this action is granted by the cluster privileges [manage,all]\"}]"
+            )
+        );
     }
 }

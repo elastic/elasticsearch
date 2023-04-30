@@ -103,19 +103,18 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(
-            new InternalHistogram(
-                "h",
-                List.of(),
-                BucketOrder.key(true),
-                0,
-                new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
-                DocValueFormat.RAW,
-                false,
-                null
-            ),
-            100000
+        InternalHistogram largeHisto = new InternalHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            new InternalHistogram.EmptyBucketInfo(5e-8, 0, 0, 100, InternalAggregations.EMPTY),
+            DocValueFormat.RAW,
+            false,
+            null
         );
+        expectReduceUsesTooManyBuckets(largeHisto, 100000);
+        expectReduceThrowsRealMemoryBreaker(largeHisto);
     }
 
     @Override

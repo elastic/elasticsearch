@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,9 +29,9 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -72,10 +73,18 @@ public class OutboundHandlerTests extends ESTestCase {
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         StatsTracker statsTracker = new StatsTracker();
         compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-        handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, recycler, new HandlingTimeTracker(), false);
+        handler = new OutboundHandler(
+            "node",
+            TransportVersion.CURRENT,
+            statsTracker,
+            threadPool,
+            recycler,
+            new HandlingTimeTracker(),
+            false
+        );
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, this.recycler);
+        final InboundDecoder decoder = new InboundDecoder(TransportVersion.CURRENT, this.recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
@@ -120,13 +129,11 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
-        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
-            && version.before(Compression.Scheme.LZ4_VERSION);
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -181,7 +188,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress && compressUnsupportedDueToVersion == false) {
+        if (compress) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());
@@ -193,13 +200,11 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
-        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
-            && version.before(Compression.Scheme.LZ4_VERSION);
 
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -217,9 +222,9 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         });
         if (compress) {
-            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake, ResponseStatsConsumer.NONE);
         } else {
-            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake);
+            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake, ResponseStatsConsumer.NONE);
         }
 
         BytesReference reference = channel.getMessageCaptor().get();
@@ -246,7 +251,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress && compressUnsupportedDueToVersion == false) {
+        if (compress) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());
@@ -260,7 +265,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
@@ -277,7 +282,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 responseRef.set(error);
             }
         });
-        handler.sendErrorResponse(version, channel, requestId, action, error);
+        handler.sendErrorResponse(version, channel, requestId, action, ResponseStatsConsumer.NONE, error);
 
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();

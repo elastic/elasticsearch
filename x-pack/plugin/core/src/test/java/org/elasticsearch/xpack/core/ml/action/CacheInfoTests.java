@@ -34,6 +34,11 @@ public class CacheInfoTests extends AbstractWireSerializingTestCase<CacheInfo> {
         return createTestInstance(node);
     }
 
+    @Override
+    protected CacheInfo mutateInstance(CacheInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     static CacheInfo createTestInstance(DiscoveryNode node) {
         return new CacheInfo(node, ByteSizeValue.ofMb(randomLongBetween(1000, 30000)), ByteSizeValue.ofMb(randomLongBetween(0, 1000)));
     }

@@ -1,5 +1,0 @@
-pr: 85010
-summary: Fix ownership of refresh tokens
-area: Authorization
-type: bug
-issues: []

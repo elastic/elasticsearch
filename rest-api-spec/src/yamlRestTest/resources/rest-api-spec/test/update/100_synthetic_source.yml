@@ -1,0 +1,116 @@
+keyword:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+              kwd2:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      update:
+        index:  test
+        id:     1
+        body:
+          doc_as_upsert: true
+          doc:
+            kwd2: bar
+  - match: {result: updated}
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 2}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd:  foo
+        kwd2: bar
+
+  # Make sure there isn't any _source stored field
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+  - is_false: test.fields._source
+  - is_true: test.fields._recovery_source
+
+---
+stored text:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: true
+              text2:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: the quick brown fox
+
+  - do:
+      update:
+        index:  test
+        id:     1
+        body:
+          doc_as_upsert: true
+          doc:
+            text2: jumped over the lazy dog
+  - match: {result: updated}
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 2}
+  - match: {found: true}
+  - match:
+      _source:
+        text:  the quick brown fox
+        text2: jumped over the lazy dog
+
+  # Make sure there isn't any _source stored field
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+  - is_false: test.fields._source
+  - is_true: test.fields._recovery_source

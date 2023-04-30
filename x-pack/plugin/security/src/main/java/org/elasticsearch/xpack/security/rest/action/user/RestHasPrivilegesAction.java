@@ -13,10 +13,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST handler that tests whether a user has the specified
  * {@link RoleDescriptor.IndicesPrivileges privileges}
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     private final SecurityContext securityContext;
@@ -67,7 +69,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "security_has_priviledges_action";
+        return "security_has_privileges_action";
     }
 
     @Override
@@ -86,7 +88,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
             @Override
             public RestResponse buildResponse(HasPrivilegesResponse response, XContentBuilder builder) throws Exception {
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

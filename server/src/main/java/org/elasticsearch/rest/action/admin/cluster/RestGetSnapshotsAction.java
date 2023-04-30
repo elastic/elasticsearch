@@ -13,30 +13,25 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.client.internal.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.snapshots.SnapshotInfo.INCLUDE_REPOSITORY_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
+import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_NAMES_XCONTENT_PARAM;
 
 /**
  * Returns information about snapshot
  */
 public class RestGetSnapshotsAction extends BaseRestHandler {
 
-    private final ThreadPool threadPool;
-
-    public RestGetSnapshotsAction(ThreadPool threadPool) {
-        this.threadPool = threadPool;
-    }
+    public RestGetSnapshotsAction() {}
 
     @Override
     public List<Route> routes() {
@@ -50,7 +45,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM);
+        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM, INDEX_NAMES_XCONTENT_PARAM);
     }
 
     @Override
@@ -58,7 +53,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
 
-        GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repositories).snapshots(snapshots);
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repositories).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
         final GetSnapshotsRequest.SortBy sort = GetSnapshotsRequest.SortBy.of(request.param("sort", getSnapshotsRequest.sort().toString()));
@@ -80,12 +75,10 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
+        getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .getSnapshots(
-                getSnapshotsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
-            );
+            .getSnapshots(getSnapshotsRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

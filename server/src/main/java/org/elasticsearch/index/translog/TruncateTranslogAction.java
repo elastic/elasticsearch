@@ -20,14 +20,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -46,11 +45,6 @@ import java.util.TreeSet;
 public class TruncateTranslogAction {
 
     protected static final Logger logger = LogManager.getLogger(TruncateTranslogAction.class);
-    private final NamedXContentRegistry namedXContentRegistry;
-
-    public TruncateTranslogAction(NamedXContentRegistry namedXContentRegistry) {
-        this.namedXContentRegistry = namedXContentRegistry;
-    }
 
     public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
         ShardPath shardPath,

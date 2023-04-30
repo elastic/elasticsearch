@@ -18,6 +18,9 @@ import java.util.Objects;
 
 public enum LuceneFilesExtensions {
 
+    // Elasticsearch BloomFilterPostingsFormat
+    BFI("bfi", "BloomFilter Index", false, true),
+    BFM("bfm", "BloomFilter Metadata", true, false),
     CFE("cfe", "Compound Files Entries", true, false),
     // Compound files are tricky because they store all the information for the segment. Benchmarks
     // suggested that not mapping them hurts performance.
@@ -63,7 +66,9 @@ public enum LuceneFilesExtensions {
     // Lucene 8.6 terms metadata file
     TMD("tmd", "Term Dictionary Metadata", true, false),
     // Temporary Lucene file
-    TMP("tmp", "Temporary File", false, false),
+    // These files are short-lived, usually fit in the page cache, and sometimes accessed in a random access fashion (e.g. stored fields
+    // flushes when index sorting is enabled), which mmap handles more efficiently than niofs.
+    TMP("tmp", "Temporary File", false, true),
     TVD("tvd", "Term Vector Documents", false, false),
     TVF("tvf", "Term Vector Fields", false, false),
     TVM("tvm", "Term Vector Metadata", true, false),

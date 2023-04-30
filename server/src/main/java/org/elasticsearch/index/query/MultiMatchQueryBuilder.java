@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -223,7 +223,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         fuzzyRewrite = in.readOptionalString();
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalFloat();
         }
         zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
@@ -234,11 +234,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericValue(value);
-        out.writeVInt(fieldsBoosts.size());
-        for (Map.Entry<String, Float> fieldsEntry : fieldsBoosts.entrySet()) {
-            out.writeString(fieldsEntry.getKey());
-            out.writeFloat(fieldsEntry.getValue());
-        }
+        out.writeMap(fieldsBoosts, StreamOutput::writeString, StreamOutput::writeFloat);
         type.writeTo(out);
         operator.writeTo(out);
         out.writeOptionalString(analyzer);
@@ -250,7 +246,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalFloat(null);
         }
         zeroTermsQuery.writeTo(out);
@@ -527,17 +523,27 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             builder.value(fieldEntry.getKey() + "^" + fieldEntry.getValue());
         }
         builder.endArray();
-        builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (type != DEFAULT_TYPE) {
+            builder.field(TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        }
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(SLOP_FIELD.getPreferredName(), slop);
+        if (slop != DEFAULT_PHRASE_SLOP) {
+            builder.field(SLOP_FIELD.getPreferredName(), slop);
+        }
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
-        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        if (prefixLength != DEFAULT_PREFIX_LENGTH) {
+            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        }
+        if (maxExpansions != DEFAULT_MAX_EXPANSIONS) {
+            builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
@@ -550,10 +556,16 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (lenient != null) {
             builder.field(LENIENT_FIELD.getPreferredName(), lenient);
         }
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
-        printBoostAndQueryName(builder);
+        if (zeroTermsQuery != DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        if (autoGenerateSynonymsPhraseQuery != true) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        }
+        if (fuzzyTranspositions != DEFAULT_FUZZY_TRANSPOSITIONS) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -814,7 +826,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

@@ -21,8 +21,27 @@ import java.util.Objects;
 import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
 /**
- * Describes a {@link DataStream} that is reserved for use by a system component. The data stream will be managed by the system and also
- * protected by the system against user modification so that system features are not broken by inadvertent user operations.
+ * Describes a {@link DataStream} that is reserved for use by a system feature.
+ *
+ * <p>A system data stream is managed by the system and protected by the system against user modifications so that system features are
+ * not broken by inadvertent user operations.
+ *
+ * <p>Unlike a {@link SystemIndexDescriptor}, a SystemDataStreamDescriptor does not take an index pattern. Rather, it derives the expected
+ * backing index pattern from the data stream name.
+ *
+ * <p>A SystemDataStreamDescriptor defines a list of allowed product origins. If that list is empty, only system operations can read,
+ * write to, or modify the system data stream. If there are entries in the list, then a special request header must be used in any
+ * request that accesses the system data stream, either through plugin-provided APIs or through data stream APIs.
+ *
+ * <p>A SystemDataStreamDescriptor may be internal or external. If internal, the system feature must define APIs for interacting with
+ * the system data stream. If external, the system feature will allow use of the data stream API, assuming the correct permissions
+ * and product origin flag.
+ *
+ * <p>One interesting implementation detail is that the SystemDataStreamDescriptor manages its own templates for the data stream, so
+ * although they have names, they are never listed in the index template or component template APIs.
+ *
+ * <p>The descriptor also provides names for the thread pools that Elasticsearch should use to read, search, or modify the descriptor’s
+ * indices.
  */
 public class SystemDataStreamDescriptor {
 

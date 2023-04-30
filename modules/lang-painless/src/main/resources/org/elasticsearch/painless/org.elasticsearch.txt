@@ -85,6 +85,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
   int getDimensionalType()
   org.elasticsearch.common.geo.GeoPoint getCentroid()
   org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
+  org.elasticsearch.common.geo.GeoPoint getLabelPosition()
   double getMercatorWidth()
   double getMercatorHeight()
 }
@@ -114,6 +115,11 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Booleans {
 class org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs {
   BytesRef get(int)
   BytesRef getValue()
+}
+
+class org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues {
+    float[] getVectorValue()
+    float getMagnitude()
 }
 
 class org.apache.lucene.util.BytesRef {

@@ -115,10 +115,12 @@ public class ParsedDocument {
         return version;
     }
 
-    public void updateSeqID(long sequenceNumber, long primaryTerm) {
-        this.seqID.seqNo.setLongValue(sequenceNumber);
-        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
-        this.seqID.primaryTerm.setLongValue(primaryTerm);
+    /**
+     * Update the values of the {@code _seq_no} and {@code primary_term} fields
+     * to the specified value. Called in the engine long after parsing.
+     */
+    public void updateSeqID(long seqNo, long primaryTerm) {
+        seqID.set(seqNo, primaryTerm);
     }
 
     public String routing() {

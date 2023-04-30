@@ -23,7 +23,7 @@ configuration is required.
 | `source_port`      | no       | `source.port` | Field containing the source port.
 | `destination_ip`   | no       | `destination.ip` | Field containing the destination IP address.
 | `destination_port` | no       | `destination.port` | Field containing the destination port.
-| `iana_number`      | no       | `network.iana_number` | Field containing the IANA number.
+| `iana_number` | no | `network.iana_number` | Field containing the IANA number. The following protocol numbers are currently supported: `1` ICMP, `2` IGMP, `6` TCP, `17` UDP, `47` GRE, `58` ICMP IPv6, `88` EIGRP, `89` OSPF, `103` PIM, and `132` SCTP.
 | `icmp_type`        | no       | `icmp.type`   | Field containing the ICMP type.
 | `icmp_code`        | no       | `icmp.code`   | Field containing the ICMP code.
 | `transport`        | no       | `network.transport` | Field containing the transport protocol.

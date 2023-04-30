@@ -17,9 +17,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +40,7 @@ public abstract class RestActionTestCase extends ESTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(Collections.emptySet(), null, verifyingClient, new NoneCircuitBreakerService(), new UsageService());
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP, false);
     }
 
     @After
@@ -132,9 +132,9 @@ public abstract class RestActionTestCase extends ESTestCase {
         }
 
         /**
-         * Sets the function that will be called when {@link #executeLocally(ActionType, ActionRequest, TaskListener)}is called. The given
-         * function should return either a subclass of {@link ActionResponse} or {@code null}.
-         * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
+         * Sets the function that will be called when {@link #executeLocally(ActionType, ActionRequest, ActionListener)} is called. The
+         * given function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, ActionListener)}
          */
         public void setExecuteLocallyVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {
             executeLocallyVerifier.set(verifier);
@@ -159,18 +159,5 @@ public abstract class RestActionTestCase extends ESTestCase {
                 Collections.emptyMap()
             );
         }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
-            ActionType<Response> action,
-            Request request,
-            TaskListener<Response> listener
-        ) {
-            @SuppressWarnings("unchecked") // Callers are responsible for lining this up
-            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
-            listener.onResponse(null, response);
-            return null;
-        }
-
     }
 }

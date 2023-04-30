@@ -8,41 +8,26 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.EOFException;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
-import java.nio.file.AccessDeniedException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystemException;
-import java.nio.file.FileSystemLoopException;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.NotDirectoryException;
 import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
@@ -74,29 +59,23 @@ import static java.util.Map.entry;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
-
-    private Version version = Version.CURRENT;
+    private TransportVersion version = TransportVersion.CURRENT;
 
     /**
-     * The version of the node on the other side of this stream.
+     * The transport version to serialize the data as.
      */
-    public Version getVersion() {
+    public TransportVersion getTransportVersion() {
         return this.version;
     }
 
     /**
-     * Set the version of the node on the other side of this stream.
+     * Set the transport version of the data in this stream.
      */
-    public void setVersion(Version version) {
+    public void setTransportVersion(TransportVersion version) {
         this.version = version;
     }
 
     public long position() throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    public void seek(long position) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -150,7 +129,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
-        tmp.setVersion(version);
+        tmp.setTransportVersion(version);
         writeable.writeTo(tmp);
         writeBytesReference(tmp.bytes());
     }
@@ -193,8 +172,7 @@ public abstract class StreamOutput extends OutputStream {
 
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (v >> 8);
-        buffer[1] = (byte) v;
+        ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);
     }
 
@@ -203,10 +181,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeInt(int i) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 24);
-        buffer[1] = (byte) (i >> 16);
-        buffer[2] = (byte) (i >> 8);
-        buffer[3] = (byte) i;
+        ByteUtils.writeIntBE(i, buffer, 0);
         writeBytes(buffer, 0, 4);
     }
 
@@ -232,13 +207,26 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         byte[] buffer = scratch.get();
-        int index = 0;
+        int index = putMultiByteVInt(buffer, i, 0);
+        writeBytes(buffer, 0, index);
+    }
+
+    private static int putVInt(byte[] buffer, int i, int off) {
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            buffer[off] = (byte) i;
+            return 1;
+        }
+        return putMultiByteVInt(buffer, i, off);
+    }
+
+    private static int putMultiByteVInt(byte[] buffer, int i, int off) {
+        int index = off;
         do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         } while ((i & ~0x7F) != 0);
-        buffer[index++] = ((byte) i);
-        writeBytes(buffer, 0, index);
+        buffer[index++] = (byte) i;
+        return index - off;
     }
 
     /**
@@ -246,14 +234,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 56);
-        buffer[1] = (byte) (i >> 48);
-        buffer[2] = (byte) (i >> 40);
-        buffer[3] = (byte) (i >> 32);
-        buffer[4] = (byte) (i >> 24);
-        buffer[5] = (byte) (i >> 16);
-        buffer[6] = (byte) (i >> 8);
-        buffer[7] = (byte) i;
+        ByteUtils.writeLongBE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 
@@ -326,8 +307,10 @@ public abstract class StreamOutput extends OutputStream {
         if (str == null) {
             writeBoolean(false);
         } else {
-            writeBoolean(true);
-            writeString(str);
+            byte[] buffer = scratch.get();
+            // put the true byte into the buffer instead of writing it outright to do fewer flushes
+            buffer[0] = ONE;
+            writeString(str, buffer, 1);
         }
     }
 
@@ -398,10 +381,21 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeString(String str) throws IOException {
+        writeString(str, scratch.get(), 0);
+    }
+
+    /**
+     * Write string as well as possibly the beginning of the given {@code buffer}. The given {@code buffer} will also be used when encoding
+     * the given string.
+     *
+     * @param str string to write
+     * @param buffer buffer that may hold some bytes to write
+     * @param off how many bytes in {code buffer} to write
+     * @throws IOException on failure
+     */
+    private void writeString(String str, byte[] buffer, int off) throws IOException {
         final int charCount = str.length();
-        byte[] buffer = scratch.get();
-        int offset = 0;
-        writeVInt(charCount);
+        int offset = off + putVInt(buffer, charCount, off);
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
             if (c <= 0x007F) {
@@ -451,9 +445,9 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static byte ZERO = 0;
-    private static byte ONE = 1;
-    private static byte TWO = 2;
+    private static final byte ZERO = 0;
+    private static final byte ONE = 1;
+    private static final byte TWO = 2;
 
     /**
      * Writes a boolean.
@@ -481,8 +475,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     @Override
     public abstract void close() throws IOException;
-
-    public abstract void reset() throws IOException;
 
     @Override
     public void write(int b) throws IOException {
@@ -527,6 +519,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a byte array, for null arrays it writes false.
+     * @param array an array or null
+     */
+    public void writeOptionalByteArray(@Nullable byte[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeByteArray(array);
+        }
+    }
+
     public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -551,7 +556,11 @@ public abstract class StreamOutput extends OutputStream {
             .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            this.writeString(next.getKey());
+            if (this.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                this.writeGenericValue(next.getKey());
+            } else {
+                this.writeString(next.getKey());
+            }
             this.writeGenericValue(next.getValue());
         }
     }
@@ -678,12 +687,13 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> map = (Map<String, Object>) v;
-            o.writeVInt(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                o.writeString(entry.getKey());
-                o.writeGenericValue(entry.getValue());
+            if (o.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                final Map<?, ?> map = (Map<?, ?>) v;
+                o.writeMap(map, StreamOutput::writeGenericValue, StreamOutput::writeGenericValue);
+            } else {
+                @SuppressWarnings("unchecked")
+                final Map<String, ?> map = (Map<String, ?>) v;
+                o.writeMap(map, StreamOutput::writeString, StreamOutput::writeGenericValue);
             }
         }),
         entry(Byte.class, (o, v) -> {
@@ -766,8 +776,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeGenericString(String value) throws IOException {
-        writeByte((byte) 0);
-        writeString(value);
+        byte[] buffer = scratch.get();
+        // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
+        buffer[0] = 0;
+        writeString(value, buffer, 1);
     }
 
     public void writeGenericNull() throws IOException {
@@ -944,131 +956,16 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * This method allow to use a method reference when writing collection elements such as
+     * {@code out.writeMap(map, StreamOutput::writeString, StreamOutput::writeWriteable)}
+     */
+    public void writeWriteable(Writeable writeable) throws IOException {
+        writeable.writeTo(this);
+    }
+
     public void writeException(Throwable throwable) throws IOException {
-        writeException(throwable, throwable, 0);
-    }
-
-    private void writeException(Throwable rootException, Throwable throwable, int nestedLevel) throws IOException {
-        if (throwable == null) {
-            writeBoolean(false);
-        } else if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
-            assert failOnTooManyNestedExceptions(rootException);
-            writeException(new IllegalStateException("too many nested exceptions"));
-        } else {
-            writeBoolean(true);
-            boolean writeCause = true;
-            boolean writeMessage = true;
-            if (throwable instanceof CorruptIndexException) {
-                writeVInt(1);
-                writeOptionalString(((CorruptIndexException) throwable).getOriginalMessage());
-                writeOptionalString(((CorruptIndexException) throwable).getResourceDescription());
-                writeMessage = false;
-            } else if (throwable instanceof IndexFormatTooNewException) {
-                writeVInt(2);
-                writeOptionalString(((IndexFormatTooNewException) throwable).getResourceDescription());
-                writeInt(((IndexFormatTooNewException) throwable).getVersion());
-                writeInt(((IndexFormatTooNewException) throwable).getMinVersion());
-                writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
-                writeMessage = false;
-                writeCause = false;
-            } else if (throwable instanceof IndexFormatTooOldException t) {
-                writeVInt(3);
-                writeOptionalString(t.getResourceDescription());
-                if (t.getVersion() == null) {
-                    writeBoolean(false);
-                    writeOptionalString(t.getReason());
-                } else {
-                    writeBoolean(true);
-                    writeInt(t.getVersion());
-                    writeInt(t.getMinVersion());
-                    writeInt(t.getMaxVersion());
-                }
-                writeMessage = false;
-                writeCause = false;
-            } else if (throwable instanceof NullPointerException) {
-                writeVInt(4);
-                writeCause = false;
-            } else if (throwable instanceof NumberFormatException) {
-                writeVInt(5);
-                writeCause = false;
-            } else if (throwable instanceof IllegalArgumentException) {
-                writeVInt(6);
-            } else if (throwable instanceof AlreadyClosedException) {
-                writeVInt(7);
-            } else if (throwable instanceof EOFException) {
-                writeVInt(8);
-                writeCause = false;
-            } else if (throwable instanceof SecurityException) {
-                writeVInt(9);
-            } else if (throwable instanceof StringIndexOutOfBoundsException) {
-                writeVInt(10);
-                writeCause = false;
-            } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
-                writeVInt(11);
-                writeCause = false;
-            } else if (throwable instanceof FileNotFoundException) {
-                writeVInt(12);
-                writeCause = false;
-            } else if (throwable instanceof FileSystemException) {
-                writeVInt(13);
-                if (throwable instanceof NoSuchFileException) {
-                    writeVInt(0);
-                } else if (throwable instanceof NotDirectoryException) {
-                    writeVInt(1);
-                } else if (throwable instanceof DirectoryNotEmptyException) {
-                    writeVInt(2);
-                } else if (throwable instanceof AtomicMoveNotSupportedException) {
-                    writeVInt(3);
-                } else if (throwable instanceof FileAlreadyExistsException) {
-                    writeVInt(4);
-                } else if (throwable instanceof AccessDeniedException) {
-                    writeVInt(5);
-                } else if (throwable instanceof FileSystemLoopException) {
-                    writeVInt(6);
-                } else {
-                    writeVInt(7);
-                }
-                writeOptionalString(((FileSystemException) throwable).getFile());
-                writeOptionalString(((FileSystemException) throwable).getOtherFile());
-                writeOptionalString(((FileSystemException) throwable).getReason());
-                writeCause = false;
-            } else if (throwable instanceof IllegalStateException) {
-                writeVInt(14);
-            } else if (throwable instanceof LockObtainFailedException) {
-                writeVInt(15);
-            } else if (throwable instanceof InterruptedException) {
-                writeVInt(16);
-                writeCause = false;
-            } else if (throwable instanceof IOException) {
-                writeVInt(17);
-            } else if (throwable instanceof EsRejectedExecutionException) {
-                writeVInt(18);
-                writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
-                writeCause = false;
-            } else {
-                final ElasticsearchException ex;
-                if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
-                    ex = (ElasticsearchException) throwable;
-                } else {
-                    ex = new NotSerializableExceptionWrapper(throwable);
-                }
-                writeVInt(0);
-                writeVInt(ElasticsearchException.getId(ex.getClass()));
-                ex.writeTo(this);
-                return;
-            }
-            if (writeMessage) {
-                writeOptionalString(throwable.getMessage());
-            }
-            if (writeCause) {
-                writeException(rootException, throwable.getCause(), nestedLevel + 1);
-            }
-            ElasticsearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
-        }
-    }
-
-    boolean failOnTooManyNestedExceptions(Throwable throwable) {
-        throw new AssertionError("too many nested exceptions", throwable);
+        ElasticsearchException.writeException(throwable, this);
     }
 
     /**
@@ -1161,6 +1058,27 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an optional collection. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     */
+    public <T extends Writeable> void writeOptionalCollection(final Collection<T> collection) throws IOException {
+        writeOptionalCollection(collection, (o, v) -> v.writeTo(o));
+    }
+
+    /**
+     * Writes an optional collection via {@link Writer}. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     */
+    public <T> void writeOptionalCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
+        if (collection != null) {
+            writeBoolean(true);
+            writeCollection(collection, writer);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
      * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
      * {@link StreamInput#readList(Writeable.Reader)}.
      *
@@ -1168,12 +1086,7 @@ public abstract class StreamOutput extends OutputStream {
      * @throws IOException if an I/O exception occurs writing the collection
      */
     public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
-        if (collection != null) {
-            writeBoolean(true);
-            writeCollection(collection, StreamOutput::writeString);
-        } else {
-            writeBoolean(false);
-        }
+        writeOptionalCollection(collection, StreamOutput::writeString);
     }
 
     /**

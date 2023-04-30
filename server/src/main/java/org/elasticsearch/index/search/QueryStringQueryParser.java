@@ -36,7 +36,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -47,7 +47,6 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
-import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -425,7 +424,7 @@ public class QueryStringQueryParser extends QueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
             Query rangeQuery = currentFieldType.rangeQuery(
@@ -482,7 +481,7 @@ public class QueryStringQueryParser extends QueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(
                 term,
@@ -490,7 +489,8 @@ public class QueryStringQueryParser extends QueryParser {
                 getFuzzyPrefixLength(),
                 fuzzyMaxExpansions,
                 fuzzyTranspositions,
-                context
+                context,
+                null
             );
         } catch (RuntimeException e) {
             if (lenient) {
@@ -503,9 +503,9 @@ public class QueryStringQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
-        FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
-        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
-        return query;
+        return fuzzyRewriteMethod == null
+            ? new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions)
+            : new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
     }
 
     @Override
@@ -538,7 +538,7 @@ public class QueryStringQueryParser extends QueryParser {
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer);
+            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer);
             Query query = null;
             if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);

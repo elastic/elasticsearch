@@ -97,12 +97,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
             Lucene.writeTotalHits(out, totalHits);
         }
         out.writeFloat(maxScore);
-        out.writeVInt(hits.length);
-        if (hits.length > 0) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
-            }
-        }
+        out.writeArray(hits);
         out.writeOptionalArray(Lucene::writeSortField, sortFields);
         out.writeOptionalString(collapseField);
         out.writeOptionalArray(Lucene::writeSortValue, collapseValues);

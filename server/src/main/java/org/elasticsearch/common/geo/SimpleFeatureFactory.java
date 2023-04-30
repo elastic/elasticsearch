@@ -160,14 +160,14 @@ public class SimpleFeatureFactory {
         commands[2] = BitUtil.zigZagEncode(minY);
         commands[3] = encodeCommand(LINETO, 3);
         // 1
-        commands[4] = BitUtil.zigZagEncode(maxX - minX);
-        commands[5] = BitUtil.zigZagEncode(0);
+        commands[4] = BitUtil.zigZagEncode(0);
+        commands[5] = BitUtil.zigZagEncode(maxY - minY);
         // 2
-        commands[6] = BitUtil.zigZagEncode(0);
-        commands[7] = BitUtil.zigZagEncode(maxY - minY);
+        commands[6] = BitUtil.zigZagEncode(maxX - minX);
+        commands[7] = BitUtil.zigZagEncode(0);
         // 3
-        commands[8] = BitUtil.zigZagEncode(minX - maxX);
-        commands[9] = BitUtil.zigZagEncode(0);
+        commands[8] = BitUtil.zigZagEncode(0);
+        commands[9] = BitUtil.zigZagEncode(minY - maxY);
         // close
         commands[10] = encodeCommand(CLOSEPATH, 1);
         return writeCommands(commands, 3, 11);

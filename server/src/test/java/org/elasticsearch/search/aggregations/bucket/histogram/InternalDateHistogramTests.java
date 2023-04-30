@@ -214,26 +214,25 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(
-            new InternalDateHistogram(
-                "h",
-                List.of(),
-                BucketOrder.key(true),
-                0,
-                0,
-                new InternalDateHistogram.EmptyBucketInfo(
-                    Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
-                    InternalAggregations.EMPTY,
-                    new LongBounds(
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2018-01-01T00:00:00Z"),
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z")
-                    )
-                ),
-                DocValueFormat.RAW,
-                false,
-                null
+        InternalDateHistogram largeHisto = new InternalDateHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            0,
+            new InternalDateHistogram.EmptyBucketInfo(
+                Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(),
+                InternalAggregations.EMPTY,
+                new LongBounds(
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:00Z"),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z")
+                )
             ),
-            100000
+            DocValueFormat.RAW,
+            false,
+            null
         );
+        expectReduceUsesTooManyBuckets(largeHisto, 100000);
+        expectReduceThrowsRealMemoryBreaker(largeHisto);
     }
 }

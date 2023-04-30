@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -156,7 +155,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
             // in case of incompatible license:
             CountDownLatch latch = new CountDownLatch(1);
             ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-            clusterService.submitStateUpdateTask("test-add-auto-follow-pattern", new ClusterStateUpdateTask() {
+            clusterService.submitUnbatchedStateUpdateTask("test-add-auto-follow-pattern", new ClusterStateUpdateTask() {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -201,7 +200,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                     latch.countDown();
                     fail("unexpected error [" + e.getMessage() + "]");
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            });
             latch.await();
             appender.assertAllExpectationsMatched();
         } finally {

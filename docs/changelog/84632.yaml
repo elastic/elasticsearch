@@ -1,6 +1,0 @@
-pr: 84632
-summary: '`RANDOM(<expr>)` always evaluates to `NULL` if `<expr>` is `NULL`'
-area: SQL
-type: bug
-issues:
- - 84627

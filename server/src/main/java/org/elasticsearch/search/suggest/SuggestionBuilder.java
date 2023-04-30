@@ -293,7 +293,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         }
         MappedFieldType fieldType = context.getFieldType(field);
         if (analyzer == null) {
-            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().getSearchAnalyzer());
+            suggestionContext.setAnalyzer(fieldType.getTextSearchInfo().searchAnalyzer());
         } else {
             Analyzer luceneAnalyzer = context.getIndexAnalyzers().get(analyzer);
             if (luceneAnalyzer == null) {

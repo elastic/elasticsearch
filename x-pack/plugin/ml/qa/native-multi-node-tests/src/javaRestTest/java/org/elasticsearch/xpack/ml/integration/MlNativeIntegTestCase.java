@@ -34,7 +34,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -88,7 +88,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -193,7 +193,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put(ELASTICSEARCH_COLLECTION_ENABLED.getKey(), false);
         builder.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         builder.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        builder.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put(Environment.PATH_HOME_SETTING.getKey(), home);
         builder.put("xpack.security.transport.ssl.enabled", true);
         builder.put("xpack.security.transport.ssl.key", key.toAbsolutePath().toString());
@@ -291,15 +291,15 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     Metadata.Custom.class,
-                    TrainedModelAllocationMetadata.NAME,
-                    TrainedModelAllocationMetadata::new
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata::fromStream
                 )
             );
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     NamedDiff.class,
-                    TrainedModelAllocationMetadata.NAME,
-                    TrainedModelAllocationMetadata::readDiffFrom
+                    TrainedModelAssignmentMetadata.NAME,
+                    TrainedModelAssignmentMetadata::readDiffFrom
                 )
             );
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
@@ -315,7 +315,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             );
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new));
-            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read));
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     PersistentTaskParams.class,
@@ -440,9 +440,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
             }
             if (context.name.equals("ingest")) {
-                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                IngestScript.Factory factory = (params, ctx) -> new IngestScript(params, ctx) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {}
+                    public void execute() {}
                 };
                 return context.factoryClazz.cast(factory);
             }

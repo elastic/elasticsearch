@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -62,12 +61,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> runnableTasks.add((Runnable) invocationOnMock.getArguments()[0])).when(executorService).execute(any());
         when(mockThreadPool.generic()).thenReturn(executorService);
 
-        FakeThreadPoolMasterService masterService = new FakeThreadPoolMasterService(
-            "test_node",
-            "test",
-            mockThreadPool,
-            runnableTasks::add
-        );
+        MasterService masterService = new FakeThreadPoolMasterService("test_node", mockThreadPool, runnableTasks::add);
         masterService.setClusterStateSupplier(lastClusterStateRef::get);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
@@ -77,7 +71,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         masterService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -95,7 +89,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         assertThat(runnableTasks.size(), equalTo(1));
         assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(0));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion));
@@ -103,8 +97,12 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertFalse(firstTaskCompleted.get());
 
         final Runnable scheduleTask = runnableTasks.remove(0);
-        assertThat(scheduleTask, hasToString("master service scheduling next task"));
+        assertThat(scheduleTask, hasToString("master service queue processor"));
         scheduleTask.run();
+
+        // run tasks for computing routing nodes and indices lookup
+        runnableTasks.remove(0).run();
+        runnableTasks.remove(0).run();
 
         final Runnable publishTask = runnableTasks.remove(0);
         assertThat(publishTask, hasToString(containsString("publish change of cluster state")));
@@ -117,7 +115,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         AtomicBoolean secondTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -135,28 +133,31 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         assertThat(runnableTasks.size(), equalTo(0));
 
         publishingCallback.getAndSet(null).onResponse(null);
+        runnableTasks.remove(0).run(); // complete publication back on master service thread
         assertTrue(firstTaskCompleted.get());
         assertThat(runnableTasks.size(), equalTo(1)); // check that new task gets queued
 
         runnableTasks.remove(0).run(); // schedule again
+
+        // run task for computing missing indices lookup
+        runnableTasks.remove(0).run();
+
         runnableTasks.remove(0).run(); // publish again
         assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(2));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion + 2));
         assertNotNull(publishingCallback.get());
         assertFalse(secondTaskCompleted.get());
         publishingCallback.getAndSet(null).onResponse(null);
+        runnableTasks.remove(0).run(); // complete publication back on master service thread
         assertTrue(secondTaskCompleted.get());
         assertThat(runnableTasks.size(), equalTo(0)); // check that no more tasks are queued
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index)
-            .settings(
-                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            );
+        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0));
     }
 }

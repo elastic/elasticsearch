@@ -14,13 +14,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.is;
@@ -63,7 +63,7 @@ public class MlInitializationServiceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         ActionFuture<GetSettingsResponse> getSettingsResponseActionFuture = mock(ActionFuture.class);
-        when(getSettingsResponseActionFuture.actionGet()).thenReturn(new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of()));
+        when(getSettingsResponseActionFuture.actionGet()).thenReturn(new GetSettingsResponse(Map.of(), Map.of()));
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(indicesAdminClient.getSettings(any())).thenReturn(getSettingsResponseActionFuture);
         AdminClient adminClient = mock(AdminClient.class);
@@ -71,7 +71,7 @@ public class MlInitializationServiceTests extends ESTestCase {
         when(client.admin()).thenReturn(adminClient);
         @SuppressWarnings("unchecked")
         ActionFuture<GetSettingsResponse> actionFuture = mock(ActionFuture.class);
-        when(actionFuture.actionGet()).thenReturn(new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of()));
+        when(actionFuture.actionGet()).thenReturn(new GetSettingsResponse(Map.of(), Map.of()));
         when(client.execute(eq(GetSettingsAction.INSTANCE), any())).thenReturn(actionFuture);
     }
 
@@ -81,7 +81,10 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            mlAssignmentNotifier
+            mlAssignmentNotifier,
+            true,
+            true,
+            true
         );
         initializationService.onMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(true));
@@ -93,7 +96,10 @@ public class MlInitializationServiceTests extends ESTestCase {
             threadPool,
             clusterService,
             client,
-            mlAssignmentNotifier
+            mlAssignmentNotifier,
+            true,
+            true,
+            true
         );
         initializationService.offMaster();
         assertThat(initializationService.getDailyMaintenanceService().isStarted(), is(false));

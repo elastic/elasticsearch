@@ -8,11 +8,14 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,12 +23,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class IngestStats implements Writeable, ToXContentFragment {
+public class IngestStats implements Writeable, ChunkedToXContent {
     private final Stats totalStats;
     private final List<PipelineStat> pipelineStats;
     private final Map<String, List<ProcessorStat>> processorStats;
@@ -38,8 +42,18 @@ public class IngestStats implements Writeable, ToXContentFragment {
      */
     public IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats) {
         this.totalStats = totalStats;
-        this.pipelineStats = pipelineStats;
+        this.pipelineStats = pipelineStats.stream().sorted((p1, p2) -> {
+            final IngestStats.Stats p2Stats = p2.stats;
+            final IngestStats.Stats p1Stats = p1.stats;
+            final int ingestTimeCompare = Long.compare(p2Stats.ingestTimeInMillis, p1Stats.ingestTimeInMillis);
+            if (ingestTimeCompare == 0) {
+                return Long.compare(p2Stats.ingestCount, p1Stats.ingestCount);
+            } else {
+                return ingestTimeCompare;
+            }
+        }).toList();
         this.processorStats = processorStats;
+
     }
 
     /**
@@ -77,46 +91,60 @@ public class IngestStats implements Writeable, ToXContentFragment {
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
-                out.writeVInt(processorStatsForPipeline.size());
-                for (ProcessorStat processorStat : processorStatsForPipeline) {
-                    out.writeString(processorStat.getName());
-                    out.writeString(processorStat.getType());
-                    processorStat.getStats().writeTo(out);
-                }
+                out.writeCollection(processorStatsForPipeline, (o, processorStat) -> {
+                    o.writeString(processorStat.getName());
+                    o.writeString(processorStat.getType());
+                    processorStat.getStats().writeTo(o);
+                });
             }
         }
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("ingest");
-        builder.startObject("total");
-        totalStats.toXContent(builder, params);
-        builder.endObject();
-        builder.startObject("pipelines");
-        for (PipelineStat pipelineStat : pipelineStats) {
-            builder.startObject(pipelineStat.getPipelineId());
-            pipelineStat.getStats().toXContent(builder, params);
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
-            builder.startArray("processors");
-            if (processorStatsForPipeline != null) {
-                for (ProcessorStat processorStat : processorStatsForPipeline) {
-                    builder.startObject();
-                    builder.startObject(processorStat.getName());
-                    builder.field("type", processorStat.getType());
-                    builder.startObject("stats");
-                    processorStat.getStats().toXContent(builder, params);
-                    builder.endObject();
-                    builder.endObject();
-                    builder.endObject();
-                }
-            }
-            builder.endArray();
-            builder.endObject();
-        }
-        builder.endObject();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(
+
+            Iterators.single((builder, params) -> {
+                builder.startObject("ingest");
+                builder.startObject("total");
+                totalStats.toXContent(builder, params);
+                builder.endObject();
+                builder.startObject("pipelines");
+                return builder;
+            }),
+
+            Iterators.flatMap(
+                pipelineStats.iterator(),
+                pipelineStat -> Iterators.concat(
+
+                    Iterators.single((builder, params) -> {
+                        builder.startObject(pipelineStat.getPipelineId());
+                        pipelineStat.getStats().toXContent(builder, params);
+                        builder.startArray("processors");
+                        return builder;
+                    }),
+
+                    Iterators.flatMap(
+                        processorStats.getOrDefault(pipelineStat.getPipelineId(), List.of()).iterator(),
+                        processorStat -> Iterators.<ToXContent>single((builder, params) -> {
+                            builder.startObject();
+                            builder.startObject(processorStat.getName());
+                            builder.field("type", processorStat.getType());
+                            builder.startObject("stats");
+                            processorStat.getStats().toXContent(builder, params);
+                            builder.endObject();
+                            builder.endObject();
+                            builder.endObject();
+                            return builder;
+                        })
+                    ),
+
+                    Iterators.<ToXContent>single((builder, params) -> builder.endArray().endObject())
+                )
+            ),
+
+            Iterators.<ToXContent>single((builder, params) -> builder.endObject().endObject())
+        );
     }
 
     public Stats getTotalStats() {

@@ -69,11 +69,19 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final QueryBuilder query = randomSimpleQuery("name");
         final ApiKeyBoolQueryBuilder apiKeysQuery = ApiKeyBoolQueryBuilder.build(query, authentication);
         assertThat(apiKeysQuery.filter().get(0), is(QueryBuilders.termQuery("doc_type", "api_key")));
-        assertThat(apiKeysQuery.filter().get(1), is(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())));
-        if (authentication.getDomain().realms().size() == 1) {
+        assertThat(
+            apiKeysQuery.filter().get(1),
+            is(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
+        );
+        if (authentication.getEffectiveSubject().getRealm().getDomain().realms().size() == 1) {
             assertThat(
                 apiKeysQuery.filter().get(2),
-                is(QueryBuilders.termQuery("creator.realm", authentication.getDomain().realms().stream().findFirst().get().getName()))
+                is(
+                    QueryBuilders.termQuery(
+                        "creator.realm",
+                        authentication.getEffectiveSubject().getRealm().getDomain().realms().stream().findFirst().get().getName()
+                    )
+                )
             );
         } else {
             assertThat(apiKeysQuery.filter().get(2), instanceOf(BoolQueryBuilder.class));
@@ -81,7 +89,7 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).mustNot().size(), is(0));
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).filter().size(), is(0));
             assertThat(((BoolQueryBuilder) apiKeysQuery.filter().get(2)).minimumShouldMatch(), is("1"));
-            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getDomain().realms()) {
+            for (RealmConfig.RealmIdentifier realmIdentifier : authentication.getEffectiveSubject().getRealm().getDomain().realms()) {
                 assertThat(
                     ((BoolQueryBuilder) apiKeysQuery.filter().get(2)).should(),
                     hasItem(QueryBuilders.termQuery("creator.realm", realmIdentifier.getName()))
@@ -219,7 +227,6 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         final AbstractQueryBuilder<? extends AbstractQueryBuilder<?>> q1 = randomFrom(
             QueryBuilders.matchQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             QueryBuilders.constantScoreQuery(mock(QueryBuilder.class)),
-            QueryBuilders.existsQuery(randomAlphaOfLength(5)),
             QueryBuilders.boostingQuery(mock(QueryBuilder.class), mock(QueryBuilder.class)),
             QueryBuilders.queryStringQuery("q=a:42"),
             QueryBuilders.simpleQueryStringQuery(randomAlphaOfLength(5)),
@@ -328,7 +335,10 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
             return;
         }
         assertTrue(
-            tqb.stream().anyMatch(q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal())))
+            tqb.stream()
+                .anyMatch(
+                    q -> q.equals(QueryBuilders.termQuery("creator.principal", authentication.getEffectiveSubject().getUser().principal()))
+                )
         );
         assertTrue(
             tqb.stream()
@@ -337,13 +347,14 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
     }
 
     private QueryBuilder randomSimpleQuery(String name) {
-        return switch (randomIntBetween(0, 6)) {
+        return switch (randomIntBetween(0, 7)) {
             case 0 -> QueryBuilders.termQuery(name, randomAlphaOfLengthBetween(3, 8));
             case 1 -> QueryBuilders.termsQuery(name, randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
             case 2 -> QueryBuilders.idsQuery().addIds(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(22)));
             case 3 -> QueryBuilders.prefixQuery(name, "prod-");
             case 4 -> QueryBuilders.wildcardQuery(name, "prod-*-east-*");
             case 5 -> QueryBuilders.matchAllQuery();
+            case 6 -> QueryBuilders.existsQuery(name);
             default -> QueryBuilders.rangeQuery(name)
                 .from(Instant.now().minus(1, ChronoUnit.DAYS).toEpochMilli(), randomBoolean())
                 .to(Instant.now().toEpochMilli(), randomBoolean());

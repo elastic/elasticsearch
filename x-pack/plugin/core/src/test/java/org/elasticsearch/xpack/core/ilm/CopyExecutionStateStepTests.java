@@ -40,14 +40,14 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         StepKey targetNextStepKey = instance.getTargetNextStepKey();
 
-        switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        switch (between(0, 3)) {
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
             case 3 -> targetNextStepKey = new StepKey(
-                targetNextStepKey.getPhase(),
-                targetNextStepKey.getAction(),
-                targetNextStepKey.getName() + randomAlphaOfLength(5)
+                targetNextStepKey.phase(),
+                targetNextStepKey.action(),
+                targetNextStepKey.name() + randomAlphaOfLength(5)
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -92,9 +92,9 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
         assertEquals(newIndexData.lifecycleDate(), oldIndexData.lifecycleDate());
-        assertEquals(newIndexData.phase(), targetNextStepKey.getPhase());
-        assertEquals(newIndexData.action(), targetNextStepKey.getAction());
-        assertEquals(newIndexData.step(), targetNextStepKey.getName());
+        assertEquals(newIndexData.phase(), targetNextStepKey.phase());
+        assertEquals(newIndexData.action(), targetNextStepKey.action());
+        assertEquals(newIndexData.step(), targetNextStepKey.name());
         assertEquals(newIndexData.snapshotRepository(), oldIndexData.snapshotRepository());
         assertEquals(newIndexData.snapshotName(), oldIndexData.snapshotName());
     }
@@ -126,9 +126,9 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         Map<String, String> beforeMap = new HashMap<>(oldIndexData.asMap());
         // The target step key's StepKey is used in the new metadata, so update the "before" map with the new info so it can be compared
-        beforeMap.put("phase", step.getTargetNextStepKey().getPhase());
-        beforeMap.put("action", step.getTargetNextStepKey().getAction());
-        beforeMap.put("step", step.getTargetNextStepKey().getName());
+        beforeMap.put("phase", step.getTargetNextStepKey().phase());
+        beforeMap.put("action", step.getTargetNextStepKey().action());
+        beforeMap.put("step", step.getTargetNextStepKey().name());
         Map<String, String> newMap = newIndexData.asMap();
         assertThat(beforeMap, equalTo(newMap));
     }

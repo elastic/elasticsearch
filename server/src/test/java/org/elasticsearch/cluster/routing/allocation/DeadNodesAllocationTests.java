@@ -12,9 +12,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,7 +48,9 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTable).build();
@@ -56,7 +60,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -89,7 +93,9 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).build())
                 .metadata(metadata)
-                .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+                .routingTable(
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()
+                )
                 .build(),
             allocationService
         );
@@ -139,7 +145,9 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTable).build();
@@ -149,7 +157,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -164,7 +172,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding additional node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").iterator().next().state(), equalTo(STARTED));
@@ -187,7 +195,9 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();
@@ -216,7 +226,9 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.index("test"))
+            .build();
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTable).build();
@@ -226,7 +238,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
@@ -241,7 +253,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding additional node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
 
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").iterator().next().state(), equalTo(STARTED));
@@ -264,7 +276,9 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            false,
+            ActionListener.noop()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();

@@ -83,27 +83,6 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(r.stdout(), emptyString());
     }
 
-    public void test30MissingBundledJdk() throws Exception {
-        final Installation.Executables bin = installation.executables();
-        sh.getEnv().remove("ES_JAVA_HOME");
-
-        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-
-        try {
-            if (distribution().hasJdk) {
-                mv(installation.bundledJdk, relocatedJdk);
-            }
-            // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
-            final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -V");
-            assertThat(runResult.exitCode(), is(1));
-            assertThat(runResult.stderr(), containsString("could not find java in bundled JDK"));
-        } finally {
-            if (distribution().hasJdk) {
-                mv(relocatedJdk, installation.bundledJdk);
-            }
-        }
-    }
-
     public void test31BadJavaHome() throws Exception {
         final Installation.Executables bin = installation.executables();
         sh.getEnv().put("ES_JAVA_HOME", "doesnotexist");
@@ -252,11 +231,9 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final String password = "some-keystore-password";
         Platforms.onLinux(() -> bin.keystoreTool.run("passwd", password + "\n" + password + "\n"));
-        Platforms.onWindows(
-            () -> {
-                sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
-            }
-        );
+        Platforms.onWindows(() -> {
+            sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + password + "'} | " + bin.keystoreTool + " passwd");
+        });
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);

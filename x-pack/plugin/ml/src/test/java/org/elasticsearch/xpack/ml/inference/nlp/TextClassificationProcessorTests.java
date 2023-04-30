@@ -32,7 +32,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
         {
-            PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] {}, 0L, null);
+            PyTorchInferenceResult torchResult = new PyTorchInferenceResult(new double[][][] {});
             var e = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
@@ -41,7 +41,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("Text classification result has no data"));
         }
         {
-            PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] { { { 1.0 } } }, 0L, null);
+            PyTorchInferenceResult torchResult = new PyTorchInferenceResult(new double[][][] { { { 1.0 } } });
             var e = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))

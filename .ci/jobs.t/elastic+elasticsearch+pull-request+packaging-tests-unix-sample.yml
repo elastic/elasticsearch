@@ -21,7 +21,6 @@
           cancel-builds-on-update: true
           black-list-target-branches:
             - 6.8
-            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           black-list-labels:
@@ -32,7 +31,7 @@
           type: label-expression
           name: os
           values:
-            - rocky-linux-8-packaging
+            - rhel-8-packaging
             - ubuntu-20.04-packaging
       - axis:
           type: user-defined
@@ -46,7 +45,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK
+          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK

@@ -8,11 +8,10 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Encapsulates the fetching of information about a running process.
@@ -27,32 +26,34 @@ public record ProcessInfo(int pid, int uid, int gid, String username, String gro
     /**
      * Fetches process information about <code>command</code>, using <code>sh</code> to execute commands.
      *
-     * @return a populated <code>ProcessInfo</code> object
+     * @return a populated list of <code>ProcessInfo</code> objects
      */
-    public static ProcessInfo getProcessInfo(Shell sh, String command) {
+    public static List<ProcessInfo> getProcessInfo(Shell sh, String command) {
         final List<String> processes = sh.run("pgrep " + command).stdout().lines().collect(Collectors.toList());
 
-        assertThat("Expected a single process", processes, hasSize(1));
+        List<ProcessInfo> infos = new ArrayList<>();
+        for (String pidStr : processes) {
+            // Ensure we actually have a number
+            final int pid = Integer.parseInt(pidStr.trim());
 
-        // Ensure we actually have a number
-        final int pid = Integer.parseInt(processes.get(0).trim());
+            int uid = -1;
+            int gid = -1;
 
-        int uid = -1;
-        int gid = -1;
+            for (String line : sh.run("cat /proc/" + pid + "/status | grep '^[UG]id:'").stdout().split("\\n")) {
+                final String[] fields = line.split("\\s+");
 
-        for (String line : sh.run("cat /proc/" + pid + "/status | grep '^[UG]id:'").stdout().split("\\n")) {
-            final String[] fields = line.split("\\s+");
-
-            if (fields[0].equals("Uid:")) {
-                uid = Integer.parseInt(fields[1]);
-            } else {
-                gid = Integer.parseInt(fields[1]);
+                if (fields[0].equals("Uid:")) {
+                    uid = Integer.parseInt(fields[1]);
+                } else {
+                    gid = Integer.parseInt(fields[1]);
+                }
             }
+
+            final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout().trim();
+            final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout().trim();
+
+            infos.add(new ProcessInfo(pid, uid, gid, username, group));
         }
-
-        final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout().trim();
-        final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout().trim();
-
-        return new ProcessInfo(pid, uid, gid, username, group);
+        return Collections.unmodifiableList(infos);
     }
 }

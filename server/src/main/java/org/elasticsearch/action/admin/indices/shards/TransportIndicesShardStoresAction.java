@@ -9,12 +9,14 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.Failure;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus;
+import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse.StoreStatus.AllocationStatus;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -23,34 +25,32 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.gateway.AsyncShardFetch;
-import org.elasticsearch.gateway.AsyncShardFetch.Lister;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -95,35 +95,22 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         ClusterState state,
         ActionListener<IndicesShardStoresResponse> listener
     ) {
-        final RoutingTable routingTables = state.routingTable();
-        final RoutingNodes routingNodes = state.getRoutingNodes();
+        final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        final Set<Tuple<ShardId, String>> shardsToFetch = new HashSet<>();
-
+        final RoutingTable routingTable = state.routingTable();
+        final Metadata metadata = state.metadata();
         logger.trace("using cluster state version [{}] to determine shards", state.version());
-        // collect relevant shard ids of the requested indices for fetching store infos
-        for (String index : concreteIndices) {
-            IndexRoutingTable indexShardRoutingTables = routingTables.index(index);
-            if (indexShardRoutingTables == null) {
-                continue;
-            }
-            final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(state.metadata().index(index).getSettings());
-            for (int i = 0; i < indexShardRoutingTables.size(); i++) {
-                IndexShardRoutingTable routing = indexShardRoutingTables.shard(i);
-                final int shardId = routing.shardId().id();
-                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);
-                if (request.shardStatuses().contains(shardHealth.getStatus())) {
-                    shardsToFetch.add(Tuple.tuple(routing.shardId(), customDataPath));
-                }
-            }
-        }
-
-        // async fetch store infos from all the nodes
-        // NOTE: instead of fetching shard store info one by one from every node (nShards * nNodes requests)
-        // we could fetch all shard store info from every node once (nNodes requests)
-        // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
-        // for fetching shard stores info, that operates on a list of shards instead of a single shard
-        new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, shardsToFetch, listener).start();
+        assert task instanceof CancellableTask;
+        new AsyncAction(
+            (CancellableTask) task,
+            concreteIndices,
+            request.shardStatuses(),
+            nodes,
+            routingTable,
+            metadata,
+            request.maxConcurrentShardRequests(),
+            listener
+        ).run();
     }
 
     @Override
@@ -132,155 +119,175 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
-    private class AsyncShardStoresInfoFetches {
-        private final DiscoveryNodes nodes;
-        private final RoutingNodes routingNodes;
-        private final Set<Tuple<ShardId, String>> shards;
-        private final ActionListener<IndicesShardStoresResponse> listener;
-        private CountDown expectedOps;
-        private final Queue<InternalAsyncFetch.Response> fetchResponses;
+    // exposed for tests
+    void listShardStores(
+        TransportNodesListGatewayStartedShards.Request request,
+        ActionListener<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards> listener
+    ) {
+        // async fetch store infos from all the nodes for this one shard
+        // NOTE: instead of fetching shard store info one by one from every node (nShards * nNodes requests)
+        // we could fetch all shard store info from every node once (nNodes requests)
+        // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
+        // for fetching shard stores info, that operates on a list of shards instead of a single shard
 
-        AsyncShardStoresInfoFetches(
-            DiscoveryNodes nodes,
-            RoutingNodes routingNodes,
-            Set<Tuple<ShardId, String>> shards,
+        client.executeLocally(TransportNodesListGatewayStartedShards.TYPE, request, listener);
+    }
+
+    private record ShardRequestContext(
+        ShardId shardId,
+        String customDataPath,
+        ActionListener<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards> listener
+    ) {}
+
+    private final class AsyncAction {
+        private final CancellableTask task;
+        private final DiscoveryNode[] nodes;
+        private final String[] concreteIndices;
+        private final RoutingTable routingTable;
+        private final Metadata metadata;
+        private final Map<String, Map<Integer, List<StoreStatus>>> indicesStatuses;
+        private final int maxConcurrentShardRequests;
+        private final Queue<Failure> failures;
+        private final EnumSet<ClusterHealthStatus> requestedStatuses;
+        private final RefCountingListener outerListener;
+
+        private AsyncAction(
+            CancellableTask task,
+            String[] concreteIndices,
+            EnumSet<ClusterHealthStatus> requestedStatuses,
+            DiscoveryNode[] nodes,
+            RoutingTable routingTable,
+            Metadata metadata,
+            int maxConcurrentShardRequests,
             ActionListener<IndicesShardStoresResponse> listener
         ) {
+            this.task = task;
             this.nodes = nodes;
-            this.routingNodes = routingNodes;
-            this.shards = shards;
-            this.listener = listener;
-            this.fetchResponses = new ConcurrentLinkedQueue<>();
-            this.expectedOps = new CountDown(shards.size());
+            this.concreteIndices = concreteIndices;
+            this.routingTable = routingTable;
+            this.metadata = metadata;
+            this.requestedStatuses = requestedStatuses;
+
+            this.indicesStatuses = Collections.synchronizedMap(Maps.newHashMapWithExpectedSize(concreteIndices.length));
+            this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+            this.failures = new ConcurrentLinkedQueue<>();
+            this.outerListener = new RefCountingListener(1, listener.map(ignored -> {
+                task.ensureNotCancelled();
+                return new IndicesShardStoresResponse(Map.copyOf(indicesStatuses), List.copyOf(failures));
+            }));
         }
 
-        void start() {
-            if (shards.isEmpty()) {
-                listener.onResponse(new IndicesShardStoresResponse());
-            } else {
-                // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-                Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
-                for (Tuple<ShardId, String> shard : shards) {
-                    InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), lister);
-                    fetch.fetchData(nodes, Collections.<String>emptySet());
-                }
-            }
+        private boolean isFailing() {
+            return outerListener.isFailing() || task.isCancelled();
         }
 
-        private void listStartedShards(
-            ShardId shardId,
-            String customDataPath,
-            DiscoveryNode[] nodes,
-            ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
-        ) {
-            var request = new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes);
-            client.executeLocally(
-                TransportNodesListGatewayStartedShards.TYPE,
-                request,
-                ActionListener.wrap(listener::onResponse, listener::onFailure)
+        void run() {
+            ThrottledIterator.run(
+                Iterators.flatMap(Iterators.forArray(concreteIndices), this::getIndexIterator),
+                this::doShardRequest,
+                maxConcurrentShardRequests,
+                () -> {},
+                outerListener::close
             );
         }
 
-        private class InternalAsyncFetch extends AsyncShardFetch<NodeGatewayStartedShards> {
-
-            InternalAsyncFetch(
-                Logger logger,
-                String type,
-                ShardId shardId,
-                String customDataPath,
-                Lister<? extends BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> action
-            ) {
-                super(logger, type, shardId, customDataPath, action);
+        private Iterator<ShardRequestContext> getIndexIterator(String indexName) {
+            if (isFailing()) {
+                return Collections.emptyIterator();
             }
 
-            @Override
-            protected synchronized void processAsyncFetch(
-                List<NodeGatewayStartedShards> responses,
-                List<FailedNodeException> failures,
-                long fetchingRound
-            ) {
-                fetchResponses.add(new Response(shardId, responses, failures));
-                if (expectedOps.countDown()) {
-                    finish();
-                }
+            final var indexRoutingTable = routingTable.index(indexName);
+            if (indexRoutingTable == null) {
+                return Collections.emptyIterator();
             }
 
-            void finish() {
-                ImmutableOpenMap.Builder<
-                    String,
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
-                        ImmutableOpenMap.builder();
+            return new IndexRequestContext(indexRoutingTable).getShardRequestContexts();
+        }
 
-                java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
-                for (Response fetchResponse : fetchResponses) {
-                    ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexStoreStatuses =
-                        indicesStoreStatusesBuilder.get(fetchResponse.shardId.getIndexName());
-                    final ImmutableOpenIntMap.Builder<java.util.List<IndicesShardStoresResponse.StoreStatus>> indexShardsBuilder;
-                    if (indexStoreStatuses == null) {
-                        indexShardsBuilder = ImmutableOpenIntMap.builder();
-                    } else {
-                        indexShardsBuilder = ImmutableOpenIntMap.builder(indexStoreStatuses);
-                    }
-                    java.util.List<IndicesShardStoresResponse.StoreStatus> storeStatuses = indexShardsBuilder.get(
-                        fetchResponse.shardId.id()
+        private void doShardRequest(Releasable ref, ShardRequestContext shardRequestContext) {
+            ActionListener.run(ActionListener.releaseAfter(shardRequestContext.listener(), ref), l -> {
+                if (isFailing()) {
+                    l.onResponse(null);
+                } else {
+                    listShardStores(
+                        new TransportNodesListGatewayStartedShards.Request(
+                            shardRequestContext.shardId(),
+                            shardRequestContext.customDataPath(),
+                            nodes
+                        ),
+                        l
                     );
-                    if (storeStatuses == null) {
-                        storeStatuses = new ArrayList<>();
-                    }
-                    for (NodeGatewayStartedShards response : fetchResponse.responses) {
-                        if (shardExistsInNode(response)) {
-                            IndicesShardStoresResponse.StoreStatus.AllocationStatus allocationStatus = getAllocationStatus(
-                                fetchResponse.shardId.getIndexName(),
-                                fetchResponse.shardId.id(),
-                                response.getNode()
-                            );
-                            storeStatuses.add(
-                                new IndicesShardStoresResponse.StoreStatus(
-                                    response.getNode(),
-                                    response.allocationId(),
-                                    allocationStatus,
-                                    response.storeException()
+                }
+            });
+        }
+
+        private class IndexRequestContext {
+            private final IndexRoutingTable indexRoutingTable;
+            private final Map<Integer, List<StoreStatus>> indexResults;
+
+            IndexRequestContext(IndexRoutingTable indexRoutingTable) {
+                this.indexRoutingTable = indexRoutingTable;
+                this.indexResults = Collections.synchronizedMap(Maps.newHashMapWithExpectedSize(indexRoutingTable.size()));
+            }
+
+            Iterator<ShardRequestContext> getShardRequestContexts() {
+                try (var shardListeners = new RefCountingListener(1, outerListener.acquire(ignored -> putResults()))) {
+                    final var customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
+                        metadata.index(indexRoutingTable.getIndex()).getSettings()
+                    );
+                    final var shardRequestContexts = new ArrayList<ShardRequestContext>(indexRoutingTable.size());
+                    for (int shardNum = 0; shardNum < indexRoutingTable.size(); shardNum++) {
+                        final var indexShardRoutingTable = indexRoutingTable.shard(shardNum);
+                        final var clusterShardHealth = new ClusterShardHealth(shardNum, indexShardRoutingTable);
+                        if (requestedStatuses.contains(clusterShardHealth.getStatus())) {
+                            shardRequestContexts.add(
+                                new ShardRequestContext(
+                                    indexShardRoutingTable.shardId(),
+                                    customDataPath,
+                                    shardListeners.acquire(fetchResponse -> handleFetchResponse(indexShardRoutingTable, fetchResponse))
                                 )
                             );
                         }
                     }
-                    CollectionUtil.timSort(storeStatuses);
-                    indexShardsBuilder.put(fetchResponse.shardId.id(), storeStatuses);
-                    indicesStoreStatusesBuilder.put(fetchResponse.shardId.getIndexName(), indexShardsBuilder.build());
-                    for (FailedNodeException failure : fetchResponse.failures) {
-                        failureBuilder.add(
-                            new IndicesShardStoresResponse.Failure(
-                                failure.nodeId(),
-                                fetchResponse.shardId.getIndexName(),
-                                fetchResponse.shardId.id(),
-                                failure.getCause()
-                            )
-                        );
-                    }
+                    return shardRequestContexts.iterator();
                 }
-                listener.onResponse(
-                    new IndicesShardStoresResponse(indicesStoreStatusesBuilder.build(), Collections.unmodifiableList(failureBuilder))
-                );
             }
 
-            private IndicesShardStoresResponse.StoreStatus.AllocationStatus getAllocationStatus(
-                String index,
-                int shardID,
-                DiscoveryNode node
+            private void handleFetchResponse(
+                IndexShardRoutingTable indexShardRoutingTable,
+                TransportNodesListGatewayStartedShards.NodesGatewayStartedShards fetchResponse
             ) {
-                for (ShardRouting shardRouting : routingNodes.node(node.getId())) {
-                    ShardId shardId = shardRouting.shardId();
-                    if (shardId.id() == shardID && shardId.getIndexName().equals(index)) {
-                        if (shardRouting.primary()) {
-                            return IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY;
-                        } else if (shardRouting.assignedToNode()) {
-                            return IndicesShardStoresResponse.StoreStatus.AllocationStatus.REPLICA;
-                        } else {
-                            return IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED;
-                        }
-                    }
+                if (isFailing()) {
+                    return;
                 }
-                return IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED;
+
+                final var shardId = indexShardRoutingTable.shardId();
+
+                for (FailedNodeException failure : fetchResponse.failures()) {
+                    failures.add(new Failure(failure.nodeId(), shardId.getIndexName(), shardId.getId(), failure.getCause()));
+                }
+
+                final var shardStores = fetchResponse.getNodes()
+                    .stream()
+                    .filter(IndexRequestContext::shardExistsInNode)
+                    .map(
+                        nodeResponse -> new StoreStatus(
+                            nodeResponse.getNode(),
+                            nodeResponse.allocationId(),
+                            getAllocationStatus(indexShardRoutingTable, nodeResponse.getNode()),
+                            nodeResponse.storeException()
+                        )
+                    )
+                    .sorted()
+                    .toList();
+
+                indexResults.put(shardId.getId(), shardStores);
+            }
+
+            private void putResults() {
+                if (isFailing() == false && indexResults.isEmpty() == false) {
+                    indicesStatuses.put(indexRoutingTable.getIndex().getName(), Map.copyOf(indexResults));
+                }
             }
 
             /**
@@ -290,21 +297,13 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 return response.storeException() != null || response.allocationId() != null;
             }
 
-            @Override
-            protected void reroute(ShardId shardId, String reason) {
-                // no-op
-            }
-
-            public class Response {
-                private final ShardId shardId;
-                private final List<NodeGatewayStartedShards> responses;
-                private final List<FailedNodeException> failures;
-
-                Response(ShardId shardId, List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
-                    this.shardId = shardId;
-                    this.responses = responses;
-                    this.failures = failures;
+            private static AllocationStatus getAllocationStatus(IndexShardRoutingTable indexShardRoutingTable, DiscoveryNode node) {
+                for (final var shardRouting : indexShardRoutingTable.assignedShards()) {
+                    if (node.getId().equals(shardRouting.currentNodeId())) {
+                        return shardRouting.primary() ? AllocationStatus.PRIMARY : AllocationStatus.REPLICA;
+                    }
                 }
+                return AllocationStatus.UNUSED;
             }
         }
     }

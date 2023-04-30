@@ -64,7 +64,11 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Phase> phases1 = new HashMap<>();
         phases1.put(
             "hot",
-            new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null)))
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
+            )
         );
         phases1.put(
             "warm",
@@ -78,7 +82,11 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Phase> phases2 = new HashMap<>();
         phases2.put(
             "hot",
-            new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null)))
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null))
+            )
         );
         phases2.put(
             "warm",
@@ -121,7 +129,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
-        createIndexRequest.setJsonEntity("""
+        createIndexRequest.setJsonEntity(Strings.format("""
             {
               "settings": %s,
               "aliases": {
@@ -129,7 +137,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
                   "is_write_index": true
                 }
               }
-            }""".formatted(Strings.toString(settings)));
+            }""", Strings.toString(settings)));
         client().performRequest(createIndexRequest);
         // wait for the shards to initialize
         ensureGreen(indexName);
@@ -170,7 +178,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         String indexName = "test-000001";
         String policyName = "rolloverPolicy";
         String alias = "thealias";
-        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
 
         createIndexWithSettings(
             client(),
@@ -216,8 +224,8 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         Map<String, Object> indexExplainResponse = (Map<String, Object>) ((Map<String, Object>) explainResponseMap.get("indices")).get(
             indexName
         );
-        assertEquals(expectedStep.getPhase(), indexExplainResponse.get("phase"));
-        assertEquals(expectedStep.getAction(), indexExplainResponse.get("action"));
-        assertEquals(expectedStep.getName(), indexExplainResponse.get("step"));
+        assertEquals(expectedStep.phase(), indexExplainResponse.get("phase"));
+        assertEquals(expectedStep.action(), indexExplainResponse.get("action"));
+        assertEquals(expectedStep.name(), indexExplainResponse.get("step"));
     }
 }

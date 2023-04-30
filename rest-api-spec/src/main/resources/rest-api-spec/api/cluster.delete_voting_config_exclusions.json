@@ -24,6 +24,11 @@
         "type":"boolean",
         "description":"Specifies whether to wait for all excluded nodes to be removed from the cluster before clearing the voting configuration exclusions list.",
         "default":true
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for submitting request to master",
+        "default":"30s"
       }
     }
   }

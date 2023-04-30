@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanNotQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,9 +146,13 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         include.toXContent(builder, params);
         builder.field(EXCLUDE_FIELD.getPreferredName());
         exclude.toXContent(builder, params);
-        builder.field(PRE_FIELD.getPreferredName(), pre);
-        builder.field(POST_FIELD.getPreferredName(), post);
-        printBoostAndQueryName(builder);
+        if (pre != DEFAULT_PRE) {
+            builder.field(PRE_FIELD.getPreferredName(), pre);
+        }
+        if (post != DEFAULT_POST) {
+            builder.field(POST_FIELD.getPreferredName(), post);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -258,7 +262,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
@@ -79,7 +78,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
                             builder.field("authentication", response.getAuthentication());
                         }
                         builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );

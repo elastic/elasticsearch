@@ -15,11 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +51,7 @@ public class DanglingIndicesState {
     public Map<Index, IndexMetadata> getDanglingIndices() {
         final Metadata metadata = this.clusterService.state().metadata();
 
-        final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size());
+        final Set<String> excludeIndexPathIds = Sets.newHashSetWithExpectedSize(metadata.indices().size());
 
         for (IndexMetadata indexMetadata : metadata.indices().values()) {
             excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());

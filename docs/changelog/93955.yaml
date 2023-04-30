@@ -1,0 +1,5 @@
+pr: 93955
+summary: Add register analysis to repo analysis API
+area: Snapshot/Restore
+type: enhancement
+issues: []

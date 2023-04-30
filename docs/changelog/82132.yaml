@@ -1,6 +1,0 @@
-pr: 82132
-summary: Remove Lucene split packages
-area: Infra/Core
-type: enhancement
-issues:
- - 81981

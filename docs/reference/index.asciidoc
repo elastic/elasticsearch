@@ -15,8 +15,6 @@ include::intro.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 
-include::getting-started.asciidoc[]
-
 include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
@@ -40,6 +38,8 @@ include::search/search-your-data/search-your-data.asciidoc[]
 include::query-dsl.asciidoc[]
 
 include::aggregations.asciidoc[]
+
+include::geospatial-analysis.asciidoc[]
 
 include::eql/eql.asciidoc[]
 
@@ -66,6 +66,8 @@ include::{xes-repo-dir}/watcher/index.asciidoc[]
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
+
+include::troubleshooting.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

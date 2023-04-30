@@ -21,7 +21,7 @@ public class CatalanAnalyzerProvider extends AbstractIndexAnalyzerProvider<Catal
     private final CatalanAnalyzer analyzer;
 
     CatalanAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new CatalanAnalyzer(
             Analysis.parseStopWords(env, settings, CatalanAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

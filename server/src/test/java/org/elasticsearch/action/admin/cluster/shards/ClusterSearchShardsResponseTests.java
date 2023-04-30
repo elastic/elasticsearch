@@ -8,12 +8,11 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -25,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
@@ -56,9 +56,9 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             nodes.add(node);
             AliasFilter aliasFilter;
             if (randomBoolean()) {
-                aliasFilter = new AliasFilter(RandomQueryBuilder.createQuery(random()), "alias-" + index);
+                aliasFilter = AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-" + index);
             } else {
-                aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+                aliasFilter = AliasFilter.EMPTY;
             }
             indicesAndFilters.put(index, aliasFilter);
         }
@@ -72,12 +72,12 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             clusterSearchShardsResponse.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse(in);
                 assertArrayEquals(clusterSearchShardsResponse.getNodes(), deserialized.getNodes());
                 assertEquals(clusterSearchShardsResponse.getGroups().length, deserialized.getGroups().length);

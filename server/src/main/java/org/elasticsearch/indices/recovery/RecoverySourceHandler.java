@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -22,9 +21,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -39,13 +39,13 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -81,7 +81,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -93,6 +92,7 @@ import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -110,7 +110,6 @@ public class RecoverySourceHandler {
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
-    private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
     private final int chunkSizeInBytes;
@@ -123,7 +122,7 @@ public class RecoverySourceHandler {
     private final RecoveryPlannerService recoveryPlannerService;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
-    private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
+    private final ListenableActionFuture<RecoveryResponse> future = new ListenableActionFuture<>();
 
     public RecoverySourceHandler(
         IndexShard shard,
@@ -142,7 +141,6 @@ public class RecoverySourceHandler {
         this.threadPool = threadPool;
         this.recoveryPlannerService = recoveryPlannerService;
         this.request = request;
-        this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
@@ -201,12 +199,7 @@ public class RecoverySourceHandler {
                 retentionLeaseRef.set(
                     shard.getRetentionLeases().get(ReplicationTracker.getPeerRecoveryRetentionLeaseId(targetShardRouting))
                 );
-            },
-                shardId + " validating recovery target [" + request.targetAllocationId() + "] registered ",
-                shard,
-                cancellableThreads,
-                logger
-            );
+            }, shard, cancellableThreads);
             final Closeable retentionLock = shard.acquireHistoryRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
@@ -279,32 +272,13 @@ public class RecoverySourceHandler {
                         }
                     });
 
-                    final StepListener<ReplicationResponse> deleteRetentionLeaseStep = new StepListener<>();
-                    runUnderPrimaryPermit(() -> {
-                        try {
-                            // If the target previously had a copy of this shard then a file-based recovery might move its global
-                            // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
-                            // new one later on in the recovery.
-                            shard.removePeerRecoveryRetentionLease(
-                                request.targetNode().getId(),
-                                new ThreadedActionListener<>(
-                                    logger,
-                                    shard.getThreadPool(),
-                                    ThreadPool.Names.GENERIC,
-                                    deleteRetentionLeaseStep,
-                                    false
-                                )
-                            );
-                        } catch (RetentionLeaseNotFoundException e) {
-                            logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
-                            deleteRetentionLeaseStep.onResponse(null);
-                        }
-                    }, shardId + " removing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
-
-                    deleteRetentionLeaseStep.whenComplete(ignored -> {
+                    // If the target previously had a copy of this shard then a file-based recovery might move its global checkpoint
+                    // backwards. We must therefore remove any existing retention lease so that we can create a new one later on in the
+                    // recovery.
+                    deleteRetentionLease(ActionListener.wrap(ignored -> {
                         assert Transports.assertNotTransportThread(RecoverySourceHandler.this + "[phase1]");
                         phase1(safeCommitRef.getIndexCommit(), startingSeqNo, () -> estimateNumOps, sendFileStep);
-                    }, onFailure);
+                    }, onFailure));
 
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
@@ -326,13 +300,7 @@ public class RecoverySourceHandler {
                  * make sure to do this before sampling the max sequence number in the next step, to ensure that we send
                  * all documents up to maxSeqNo in phase2.
                  */
-                runUnderPrimaryPermit(
-                    () -> shard.initiateTracking(request.targetAllocationId()),
-                    shardId + " initiating tracking of " + request.targetAllocationId(),
-                    shard,
-                    cancellableThreads,
-                    logger
-                );
+                runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()), shard, cancellableThreads);
 
                 final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
                 logger.trace("snapshot for recovery; current size is [{}]", estimateNumberOfHistoryOperations(startingSeqNo));
@@ -410,46 +378,67 @@ public class RecoverySourceHandler {
 
     static void runUnderPrimaryPermit(
         CancellableThreads.Interruptible runnable,
-        String reason,
         IndexShard primary,
-        CancellableThreads cancellableThreads,
-        Logger logger
+        CancellableThreads cancellableThreads
     ) {
         cancellableThreads.execute(() -> {
-            CompletableFuture<Releasable> permit = new CompletableFuture<>();
-            final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    if (permit.complete(releasable) == false) {
-                        releasable.close();
-                    }
-                }
+            final var listener = new ListenableFuture<Releasable>();
+            final var future = new PlainActionFuture<Releasable>();
+            listener.addListener(future);
 
-                @Override
-                public void onFailure(Exception e) {
-                    permit.completeExceptionally(e);
-                }
-            };
-            primary.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME, reason);
-            try (Releasable ignored = FutureUtils.get(permit)) {
-                // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
-                // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
-                if (primary.isRelocatedPrimary()) {
-                    throw new IndexShardRelocatedException(primary.shardId());
-                }
+            primary.acquirePrimaryOperationPermit(listener, ThreadPool.Names.SAME);
+            try (var ignored = FutureUtils.get(future)) {
+                ensureNotRelocatedPrimary(primary);
                 runnable.run();
             } finally {
-                // just in case we got an exception (likely interrupted) while waiting for the get
-                permit.whenComplete((r, e) -> {
-                    if (r != null) {
-                        r.close();
-                    }
-                    if (e != null) {
-                        logger.trace("suppressing exception on completion (it was already bubbled up or the operation was aborted)", e);
-                    }
-                });
+                // add a listener to release the permit because we might have been interrupted while waiting (double-releasing is ok)
+                listener.addListener(ActionListener.wrap(Releasable::close, e -> {}));
             }
         });
+    }
+
+    /**
+     * Run {@code action} while holding a primary permit, checking for cancellation both before and after. Completing the listener passed to
+     * {@code action} releases the permit before passing the result through to {@code outerListener}.
+     */
+    static <T> void runUnderPrimaryPermit(
+        Consumer<ActionListener<T>> action,
+        IndexShard primary,
+        CancellableThreads cancellableThreads,
+        ActionListener<T> listener
+    ) {
+        primary.acquirePrimaryOperationPermit(listener.delegateFailure((l1, permit) -> ActionListener.run(new ActionListener<T>() {
+            @Override
+            public void onResponse(T result) {
+                ActionListener.completeWith(l1, () -> {
+                    try (permit) {
+                        cancellableThreads.checkForCancel();
+                    }
+                    return result;
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    Releasables.closeExpectNoException(permit);
+                } finally {
+                    l1.onFailure(e);
+                }
+            }
+        }, l2 -> {
+            cancellableThreads.checkForCancel();
+            ensureNotRelocatedPrimary(primary);
+            action.accept(l2);
+        })), ThreadPool.Names.GENERIC);
+    }
+
+    private static void ensureNotRelocatedPrimary(IndexShard indexShard) {
+        // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
+        // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
+        if (indexShard.isRelocatedPrimary()) {
+            throw new IndexShardRelocatedException(indexShard.shardId());
+        }
     }
 
     /**
@@ -458,7 +447,7 @@ public class RecoverySourceHandler {
      */
     private Releasable acquireStore(Store store) {
         store.incRef();
-        return Releasables.releaseOnce(() -> runWithGenericThreadPool(store::decRef));
+        return Releasables.releaseOnce(() -> closeOnGenericThreadPool(store::decRef));
     }
 
     /**
@@ -468,47 +457,30 @@ public class RecoverySourceHandler {
      */
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
-        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> runWithGenericThreadPool(commitRef::close));
+        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> closeOnGenericThreadPool(commitRef));
     }
 
-    private void runWithGenericThreadPool(CheckedRunnable<Exception> task) {
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+    private void closeOnGenericThreadPool(Closeable closeable) {
         assert threadPool.generic().isShutdown() == false;
-        // TODO: We shouldn't use the generic thread pool here as we already execute this from the generic pool.
-        // While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
-        // below and thus make it impossible for the store release to execute which in turn would block the futures forever
-        threadPool.generic().execute(ActionRunnable.run(future, task));
-        FutureUtils.get(future);
+        threadPool.generic().execute(() -> {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn(() -> format("Exception while closing [%s]", closeable), e);
+            }
+        });
     }
 
-    static final class SendFileResult {
-        final List<String> phase1FileNames;
-        final List<Long> phase1FileSizes;
-        final long totalSize;
-
-        final List<String> phase1ExistingFileNames;
-        final List<Long> phase1ExistingFileSizes;
-        final long existingTotalSize;
-
-        final TimeValue took;
-
-        SendFileResult(
-            List<String> phase1FileNames,
-            List<Long> phase1FileSizes,
-            long totalSize,
-            List<String> phase1ExistingFileNames,
-            List<Long> phase1ExistingFileSizes,
-            long existingTotalSize,
-            TimeValue took
-        ) {
-            this.phase1FileNames = phase1FileNames;
-            this.phase1FileSizes = phase1FileSizes;
-            this.totalSize = totalSize;
-            this.phase1ExistingFileNames = phase1ExistingFileNames;
-            this.phase1ExistingFileSizes = phase1ExistingFileSizes;
-            this.existingTotalSize = existingTotalSize;
-            this.took = took;
-        }
+    record SendFileResult(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        long totalSize,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        long existingTotalSize,
+        TimeValue took
+    ) {
 
         static final SendFileResult EMPTY = new SendFileResult(
             Collections.emptyList(),
@@ -556,9 +528,15 @@ public class RecoverySourceHandler {
                     );
                 }
             }
-            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+            // When sync ids were used we could use them to check if two shard copies were equivalent,
+            // if that's the case we can skip sending files from the source shard to the target shard.
+            // If the shard uses the current replication mechanism, we have to compute the recovery plan,
+            // and it is still possible to skip the sending files from the source shard to the target shard
+            // using a different mechanism to determine it.
+            // TODO: is this still relevant today?
+            if (hasSameLegacySyncId(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
+                final boolean canUseSnapshots = canUseSnapshots();
                 recoveryPlannerService.computeRecoveryPlan(
                     shard.shardId(),
                     shardStateIdentifier,
@@ -568,6 +546,7 @@ public class RecoverySourceHandler {
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),
                     canUseSnapshots,
+                    request.isPrimaryRelocation(),
                     ActionListener.wrap(plan -> recoverFilesFromSourceAndSnapshot(plan, store, stopWatch, listener), listener::onFailure)
                 );
             } else {
@@ -594,8 +573,14 @@ public class RecoverySourceHandler {
 
             }
         } catch (Exception e) {
-            throw new RecoverFilesRecoveryException(request.shardId(), 0, new ByteSizeValue(0L), e);
+            throw new RecoverFilesRecoveryException(request.shardId(), 0, ByteSizeValue.ZERO, e);
         }
+    }
+
+    private boolean canUseSnapshots() {
+        return useSnapshots && request.canDownloadSnapshotFiles()
+        // Avoid using snapshots for searchable snapshots as these are implicitly recovered from a snapshot
+            && shard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
     }
 
     void recoverFilesFromSourceAndSnapshot(
@@ -626,13 +611,13 @@ public class RecoverySourceHandler {
             for (StoreFileMetadata md : shardRecoveryPlan.getSourceFilesToRecover()) {
                 if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
-                        "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        "recovery [phase1]: recovering [{}] from peer, exists in local store but is different: remote [{}], local [{}]",
                         md.name(),
                         request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
-                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                    logger.trace("recovery [phase1]: recovering [{}] from peer, does not exist in remote", md.name());
                 }
             }
 
@@ -640,22 +625,35 @@ public class RecoverySourceHandler {
                 final StoreFileMetadata md = fileInfo.metadata();
                 if (request.metadataSnapshot().fileMetadataMap().containsKey(md.name())) {
                     logger.trace(
-                        "recovery [phase1]: recovering [{}], exists in local store, but is different: remote [{}], local [{}]",
+                        "recovery [phase1]: recovering [{}] from snapshot, exists in local store but is different: remote [{}], local [{}]",
                         md.name(),
                         request.metadataSnapshot().fileMetadataMap().get(md.name()),
                         md
                     );
                 } else {
-                    logger.trace("recovery [phase1]: recovering [{}], does not exist in remote", md.name());
+                    logger.trace("recovery [phase1]: recovering [{}] from snapshot, does not exist in remote", md.name());
                 }
             }
 
             logger.trace(
-                "recovery [phase1]: recovering_files [{}] with total_size [{}], reusing_files [{}] with total_size [{}]",
-                filesToRecoverNames.size(),
-                new ByteSizeValue(totalSize),
+                """
+                    recovery [phase1]: total_size[{}], \
+                    recovering_files [{}] with total_size [{}] from peer, \
+                    recovering_files [{}] with total_size [{}] from snapshot, \
+                    reusing_files [{}] with total_size [{}]""",
+                ByteSizeValue.ofBytes(totalSize),
+                shardRecoveryPlan.getSourceFilesToRecover().size(),
+                ByteSizeValue.ofBytes(shardRecoveryPlan.getSourceFilesToRecover().stream().mapToLong(StoreFileMetadata::length).sum()),
+                shardRecoveryPlan.getSnapshotFilesToRecover().size(),
+                ByteSizeValue.ofBytes(
+                    shardRecoveryPlan.getSnapshotFilesToRecover()
+                        .snapshotFiles()
+                        .stream()
+                        .mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length)
+                        .sum()
+                ),
                 phase1ExistingFileNames.size(),
-                new ByteSizeValue(existingTotalSize)
+                ByteSizeValue.ofBytes(existingTotalSize)
             );
         }
 
@@ -679,32 +677,30 @@ public class RecoverySourceHandler {
             sendFileInfoStep
         );
 
-        sendFileInfoStep.whenComplete(unused -> {
-            recoverSnapshotFiles(shardRecoveryPlan, new ActionListener<>() {
-                @Override
-                public void onResponse(List<StoreFileMetadata> filesFailedToRecoverFromSnapshot) {
-                    recoverSnapshotFilesStep.onResponse(Tuple.tuple(shardRecoveryPlan, filesFailedToRecoverFromSnapshot));
-                }
+        sendFileInfoStep.whenComplete(unused -> recoverSnapshotFiles(shardRecoveryPlan, new ActionListener<>() {
+            @Override
+            public void onResponse(List<StoreFileMetadata> filesFailedToRecoverFromSnapshot) {
+                recoverSnapshotFilesStep.onResponse(Tuple.tuple(shardRecoveryPlan, filesFailedToRecoverFromSnapshot));
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
-                        && e instanceof CancellableThreads.ExecutionCancelledException == false) {
-                        ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
-                        recoveryTarget.receiveFileInfo(
-                            fallbackPlan.getFilesToRecoverNames(),
-                            fallbackPlan.getFilesToRecoverSizes(),
-                            fallbackPlan.getFilesPresentInTargetNames(),
-                            fallbackPlan.getFilesPresentInTargetSizes(),
-                            fallbackPlan.getTranslogOps(),
-                            recoverSnapshotFilesStep.map(r -> Tuple.tuple(fallbackPlan, Collections.emptyList()))
-                        );
-                    } else {
-                        recoverSnapshotFilesStep.onFailure(e);
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                if (shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() == false
+                    && e instanceof CancellableThreads.ExecutionCancelledException == false) {
+                    ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
+                    recoveryTarget.receiveFileInfo(
+                        fallbackPlan.getFilesToRecoverNames(),
+                        fallbackPlan.getFilesToRecoverSizes(),
+                        fallbackPlan.getFilesPresentInTargetNames(),
+                        fallbackPlan.getFilesPresentInTargetSizes(),
+                        fallbackPlan.getTranslogOps(),
+                        recoverSnapshotFilesStep.map(r -> Tuple.tuple(fallbackPlan, Collections.emptyList()))
+                    );
+                } else {
+                    recoverSnapshotFilesStep.onFailure(e);
                 }
-            });
-        }, listener::onFailure);
+            }
+        }), listener::onFailure);
 
         recoverSnapshotFilesStep.whenComplete(planAndFilesFailedToRecoverFromSnapshot -> {
             ShardRecoveryPlan recoveryPlan = planAndFilesFailedToRecoverFromSnapshot.v1();
@@ -724,12 +720,13 @@ public class RecoverySourceHandler {
             );
         }, listener::onFailure);
 
-        sendFilesStep.whenComplete(recoveryPlan -> {
-            createRetentionLease(
+        sendFilesStep.whenComplete(
+            recoveryPlan -> createRetentionLease(
                 recoveryPlan.getStartingSeqNo(),
                 createRetentionLeaseStep.map(retentionLease -> Tuple.tuple(recoveryPlan, retentionLease))
-            );
-        }, listener::onFailure);
+            ),
+            listener::onFailure
+        );
 
         createRetentionLeaseStep.whenComplete(recoveryPlanAndRetentionLease -> {
             final ShardRecoveryPlan recoveryPlan = recoveryPlanAndRetentionLease.v1();
@@ -790,7 +787,7 @@ public class RecoverySourceHandler {
         private final CountDown countDown;
         private final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> pendingSnapshotFilesToRecover;
         private final AtomicBoolean cancelled = new AtomicBoolean();
-        private final Set<ListenableFuture<Void>> outstandingRequests = new HashSet<>(maxConcurrentSnapshotFileDownloads);
+        private final Set<ListenableFuture<Void>> outstandingRequests = Sets.newHashSetWithExpectedSize(maxConcurrentSnapshotFileDownloads);
         private List<StoreFileMetadata> filesFailedToDownloadFromSnapshot;
 
         SnapshotRecoverFileRequestsSender(ShardRecoveryPlan shardRecoveryPlan, ActionListener<List<StoreFileMetadata>> listener) {
@@ -798,9 +795,7 @@ public class RecoverySourceHandler {
             this.snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
             this.listener = listener;
             this.countDown = new CountDown(shardRecoveryPlan.getSnapshotFilesToRecover().size());
-            this.pendingSnapshotFilesToRecover = new LinkedBlockingQueue<>(
-                shardRecoveryPlan.getSnapshotFilesToRecover().getSnapshotFiles()
-            );
+            this.pendingSnapshotFilesToRecover = new LinkedBlockingQueue<>(shardRecoveryPlan.getSnapshotFilesToRecover().snapshotFiles());
         }
 
         void start() {
@@ -829,16 +824,13 @@ public class RecoverySourceHandler {
                     public void onFailure(Exception e) {
                         if (cancelled.get() || e instanceof CancellableThreads.ExecutionCancelledException) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "cancelled while recovering file [{}] from snapshot",
-                                    snapshotFileToRecover.metadata()
-                                ),
+                                () -> format("cancelled while recovering file [%s] from snapshot", snapshotFileToRecover.metadata()),
                                 e
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
-                                    "failed to recover file [{}] from snapshot{}",
+                                () -> format(
+                                    "failed to recover file [%s] from snapshot%s",
                                     snapshotFileToRecover.metadata(),
                                     shardRecoveryPlan.canRecoverSnapshotFilesFromSourceNode() ? ", will recover from primary instead" : ""
                                 ),
@@ -856,8 +848,8 @@ public class RecoverySourceHandler {
 
                 trackOutstandingRequest(requestFuture);
                 recoveryTarget.restoreFileFromSnapshot(
-                    snapshotFilesToRecover.getRepository(),
-                    snapshotFilesToRecover.getIndexId(),
+                    snapshotFilesToRecover.repository(),
+                    snapshotFilesToRecover.indexId(),
                     snapshotFileToRecover,
                     ActionListener.runBefore(requestFuture, () -> unTrackOutstandingRequest(requestFuture))
                 );
@@ -947,7 +939,7 @@ public class RecoverySourceHandler {
             // to notify the listener about the cancellation
             final CountDown pendingRequestsCountDown = new CountDown(pendingRequests.size());
             for (ListenableFuture<Void> outstandingFuture : pendingRequests) {
-                outstandingFuture.addListener(ActionListener.wrap(() -> {
+                outstandingFuture.addListener(ActionListener.running(() -> {
                     if (pendingRequestsCountDown.countDown()) {
                         listener.onFailure(e);
                     }
@@ -956,8 +948,15 @@ public class RecoverySourceHandler {
         }
     }
 
-    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
-        runUnderPrimaryPermit(() -> {
+    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> outerListener) {
+        // NB we release the operation permit as soon as we have created the lease, but delay the outer listener until it is synced
+        final var leaseListener = new SubscribableListener<RetentionLease>();
+        final var delayedListener = new ThreadedActionListener<>(
+            shard.getThreadPool().generic(),
+            outerListener.<ReplicationResponse>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+        );
+
+        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
             // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
@@ -965,35 +964,47 @@ public class RecoverySourceHandler {
             // not enough, and fall back to a file-based recovery.
             //
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
-            logger.trace("cloning primary's retention lease");
+            final var targetNodeId = request.targetNode().getId();
+            logger.trace("cloning primary's retention lease for target node ID [{}]", targetNodeId);
             try {
-                final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
-                final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
-                );
+                final var clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, delayedListener);
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                cloneRetentionLeaseStep.addListener(listener.map(rr -> clonedLease));
+                return clonedLease;
             } catch (RetentionLeaseNotFoundException e) {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                 // recovery as a conservative estimate for the global checkpoint.
                 assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0)
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
-                final StepListener<ReplicationResponse> addRetentionLeaseStep = new StepListener<>();
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
-                final RetentionLease newLease = shard.addPeerRecoveryRetentionLease(
-                    request.targetNode().getId(),
-                    estimatedGlobalCheckpoint,
-                    new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
-                );
-                addRetentionLeaseStep.addListener(listener.map(rr -> newLease));
+                final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, delayedListener);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
+                return newLease;
             }
-        }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
+        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
     }
 
-    boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+    private void deleteRetentionLease(ActionListener<Void> outerListener) {
+        // NB we release the operation permit as soon as we have deleted the lease, but delay the outer listener until it is synced
+        final var leaseListener = new SubscribableListener<Void>();
+        final var delayedListener = new ThreadedActionListener<>(
+            shard.getThreadPool().generic(),
+            outerListener.<Void>delegateFailure((l, ignored) -> leaseListener.addListener(l))
+        );
+
+        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
+            try {
+                shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), delayedListener.map(ignored -> null));
+            } catch (RetentionLeaseNotFoundException e) {
+                // this counts as success
+                logger.debug("no peer-recovery retention lease for [{}]", request.targetAllocationId());
+                leaseListener.addListener(outerListener);
+            }
+            return null;
+        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
+    }
+
+    boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
         if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
             return false;
         }
@@ -1107,20 +1118,9 @@ public class RecoverySourceHandler {
         sender.start();
     }
 
-    private static class OperationChunkRequest implements MultiChunkTransfer.ChunkRequest {
-        final List<Translog.Operation> operations;
-        final boolean lastChunk;
-
-        OperationChunkRequest(List<Translog.Operation> operations, boolean lastChunk) {
-            this.operations = operations;
-            this.lastChunk = lastChunk;
-        }
-
-        @Override
-        public boolean lastChunk() {
-            return lastChunk;
-        }
-    }
+    private record OperationChunkRequest(List<Translog.Operation> operations, boolean lastChunk)
+        implements
+            MultiChunkTransfer.ChunkRequest {}
 
     private class OperationBatchSender extends MultiChunkTransfer<Translog.Snapshot, OperationChunkRequest> {
         private final long startingSeqNo;
@@ -1197,7 +1197,7 @@ public class RecoverySourceHandler {
                 retentionLeases,
                 mappingVersion,
                 listener.delegateFailure((l, newCheckpoint) -> {
-                    targetLocalCheckpoint.updateAndGet(curr -> SequenceNumbers.max(curr, newCheckpoint));
+                    targetLocalCheckpoint.accumulateAndGet(newCheckpoint, SequenceNumbers::max);
                     l.onResponse(null);
                 })
             );
@@ -1229,10 +1229,8 @@ public class RecoverySourceHandler {
          */
         runUnderPrimaryPermit(
             () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
-            shardId + " marking " + request.targetAllocationId() + " as in sync",
             shard,
-            cancellableThreads,
-            logger
+            cancellableThreads
         );
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
@@ -1241,10 +1239,8 @@ public class RecoverySourceHandler {
         finalizeListener.whenComplete(r -> {
             runUnderPrimaryPermit(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
-                shardId + " updating " + request.targetAllocationId() + "'s global checkpoint",
                 shard,
-                cancellableThreads,
-                logger
+                cancellableThreads
             );
 
             if (request.isPrimaryRelocation()) {
@@ -1272,17 +1268,7 @@ public class RecoverySourceHandler {
         listener.onResponse(null);
     }
 
-    static final class SendSnapshotResult {
-        final long targetLocalCheckpoint;
-        final int sentOperations;
-        final TimeValue tookTime;
-
-        SendSnapshotResult(final long targetLocalCheckpoint, final int sentOperations, final TimeValue tookTime) {
-            this.targetLocalCheckpoint = targetLocalCheckpoint;
-            this.sentOperations = sentOperations;
-            this.tookTime = tookTime;
-        }
-    }
+    record SendSnapshotResult(long targetLocalCheckpoint, int sentOperations, TimeValue tookTime) {}
 
     /**
      * Cancels the recovery and interrupts all eligible threads.
@@ -1304,25 +1290,10 @@ public class RecoverySourceHandler {
             + '}';
     }
 
-    private static class FileChunk implements MultiChunkTransfer.ChunkRequest, Releasable {
-        final StoreFileMetadata md;
-        final BytesReference content;
-        final long position;
-        final boolean lastChunk;
-        final Releasable onClose;
-
-        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk, Releasable onClose) {
-            this.md = md;
-            this.content = content;
-            this.position = position;
-            this.lastChunk = lastChunk;
-            this.onClose = onClose;
-        }
-
-        @Override
-        public boolean lastChunk() {
-            return lastChunk;
-        }
+    private record FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk, Releasable onClose)
+        implements
+            MultiChunkTransfer.ChunkRequest,
+            Releasable {
 
         @Override
         public void close() {
@@ -1460,7 +1431,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.checkForCancel();
                 logger.debug("checking integrity for file {} after remove corruption exception", md);
                 if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                    logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
+                    logger.warn("Corrupted file detected {} checksum mismatch", md);
                     if (localException == null) {
                         localException = corruptIndexException;
                     }
@@ -1476,12 +1447,7 @@ public class RecoverySourceHandler {
                 );
                 remoteException.addSuppressed(e);
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                        shardId,
-                        request.targetNode(),
-                        mds
-                    ),
+                    () -> format("Remote file corruption on node %s, recovering %s. local checksum OK", request.targetNode(), mds),
                     corruptIndexException
                 );
                 throw remoteException;

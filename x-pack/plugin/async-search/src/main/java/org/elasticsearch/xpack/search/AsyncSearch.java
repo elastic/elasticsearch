@@ -52,7 +52,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return Arrays.asList(
-            new RestSubmitAsyncSearchAction(),
+            new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder()),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
             new RestDeleteAsyncSearchAction()

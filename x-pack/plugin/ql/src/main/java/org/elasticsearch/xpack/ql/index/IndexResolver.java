@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -588,21 +587,15 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, wrap(response -> {
-            client.admin()
-                .indices()
-                .getAliases(
-                    createGetAliasesRequest(response, includeFrozen),
-                    wrap(
-                        aliases -> { listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())); },
-                        ex -> {
-                            if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                            } else {
-                                listener.onFailure(ex);
-                            }
-                        }
-                    )
-                );
+            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
+                listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+            }, ex -> {
+                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                    listener.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                } else {
+                    listener.onFailure(ex);
+                }
+            }));
         }, listener::onFailure));
 
     }
@@ -618,7 +611,7 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCaps,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        Map<String, List<AliasMetadata>> aliases
     ) {
         return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
     }
@@ -636,7 +629,7 @@ public class IndexResolver {
         DataTypeRegistry typeRegistry,
         String javaRegex,
         FieldCapabilitiesResponse fieldCapsResponse,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        Map<String, List<AliasMetadata>> aliases,
         Function<String, String> indexNameProcessor,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier
     ) {
@@ -820,7 +813,7 @@ public class IndexResolver {
     private static Map<String, InvalidMappedField> getInvalidFieldsForAliases(
         String fieldName,
         Map<String, FieldCapabilities> types,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases
+        Map<String, List<AliasMetadata>> aliases
     ) {
         if (aliases == null || aliases.isEmpty()) {
             return emptyMap();

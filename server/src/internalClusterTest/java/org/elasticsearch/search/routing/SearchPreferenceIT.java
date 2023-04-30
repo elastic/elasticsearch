@@ -52,11 +52,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
     // see #2896
     public void testStopOneNodePreferenceWithRedState() throws IOException {
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put("index.number_of_shards", cluster().numDataNodes() + 2).put("index.number_of_replicas", 0)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(cluster().numDataNodes() + 2, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
@@ -240,27 +236,18 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test2")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex - 1))
-        );
+        setReplicaCount(replicasInNewIndex - 1, "test2");
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test2")
-                .setSettings(
-                    Settings.builder()
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                            internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+                    internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                ),
+            "test2"
         );
 
         ensureGreen();

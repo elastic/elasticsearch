@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.paging.Page;
+import com.google.cloud.BaseServiceException;
 import com.google.cloud.BatchResult;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
@@ -21,24 +22,23 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterOutputStream;
@@ -47,20 +47,24 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
+import static org.elasticsearch.core.Strings.format;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -152,7 +156,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
-        final MapBuilder<String, BlobMetadata> mapBuilder = MapBuilder.newMapBuilder();
+        final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
                 .iterateAll()
@@ -160,16 +164,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     assert blob.getName().startsWith(path);
                     if (blob.isDirectory() == false) {
                         final String suffixName = blob.getName().substring(path.length());
-                        mapBuilder.put(suffixName, new PlainBlobMetadata(suffixName, blob.getSize()));
+                        mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
                     }
                 })
         );
-        return mapBuilder.immutableMap();
+        return Map.copyOf(mapBuilder);
     }
 
     Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
-        final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
+        final Map<String, BlobContainer> mapBuilder = new HashMap<>();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
                 .iterateAll()
@@ -185,7 +189,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
                 })
         );
-        return mapBuilder.immutableMap();
+        return Map.copyOf(mapBuilder);
     }
 
     /**
@@ -374,7 +378,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     continue;
                 } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
@@ -421,11 +425,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
-                org.elasticsearch.core.internal.io.Streams.copy(
-                    inputStream,
-                    Channels.newOutputStream(new WritableBlobChannel(writeChannel)),
-                    buffer
-                );
+                org.elasticsearch.core.Streams.copy(inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                 // We don't track this operation on the http layer as
                 // we do with the GET/LIST operations since this operations
@@ -436,7 +436,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     inputStream.reset();
                     continue;
@@ -620,4 +620,166 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we manually close the channel later to have control over whether or not we want to finalize a blob
         }
     }
+
+    OptionalLong getRegister(String blobName, String container, String key) throws IOException {
+        final var blobId = BlobId.of(bucketName, blobName);
+        try (
+            var readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
+            var stream = new PrivilegedReadChannelStream(readChannel)
+        ) {
+            return OptionalLong.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
+        } catch (Exception e) {
+            final var serviceException = unwrapServiceException(e);
+            if (serviceException != null) {
+                final var statusCode = serviceException.getCode();
+                if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
+                    return OptionalLong.of(0L);
+                }
+            }
+            throw e;
+        }
+    }
+
+    OptionalLong compareAndExchangeRegister(String blobName, String container, String key, long expected, long updated) throws IOException {
+        final var blobId = BlobId.of(bucketName, blobName);
+        final var blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
+        final long generation;
+
+        if (blob == null || blob.getGeneration() == null) {
+            if (expected != 0L) {
+                return OptionalLong.of(0L);
+            }
+            generation = 0L;
+        } else {
+            generation = blob.getGeneration();
+            try (
+                var stream = new PrivilegedReadChannelStream(
+                    SocketAccess.doPrivilegedIOException(
+                        () -> client().reader(blobId, Storage.BlobSourceOption.generationMatch(generation))
+                    )
+                )
+            ) {
+                final var witness = BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key);
+                if (witness != expected) {
+                    return OptionalLong.of(witness);
+                }
+            } catch (Exception e) {
+                final var serviceException = unwrapServiceException(e);
+                if (serviceException != null) {
+                    final var statusCode = serviceException.getCode();
+                    if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
+                        return expected == 0L ? OptionalLong.empty() : OptionalLong.of(0L);
+                    } else if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
+                        return OptionalLong.empty();
+                    }
+                }
+                throw e;
+            }
+        }
+
+        final var newBlobContents = BlobContainerUtils.getRegisterBlobContents(updated);
+        final var blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, blobName, generation))
+            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(newBlobContents, MessageDigests.md5())))
+            .build();
+        final var bytesRef = newBlobContents.toBytesRef();
+        try {
+            SocketAccess.doPrivilegedVoidIOException(
+                () -> client().create(
+                    blobInfo,
+                    bytesRef.bytes,
+                    bytesRef.offset,
+                    bytesRef.length,
+                    Storage.BlobTargetOption.generationMatch()
+                )
+            );
+        } catch (Exception e) {
+            final var serviceException = unwrapServiceException(e);
+            if (serviceException != null) {
+                final var statusCode = serviceException.getCode();
+                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus() || statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                    return OptionalLong.empty();
+                }
+            }
+            throw e;
+        }
+
+        return OptionalLong.of(expected);
+    }
+
+    private static BaseServiceException unwrapServiceException(Throwable t) {
+        for (int i = 0; i < 10; i++) {
+            if (t == null) {
+                break;
+            }
+            if (t instanceof BaseServiceException baseServiceException) {
+                return baseServiceException;
+            }
+            t = t.getCause();
+        }
+        return null;
+    }
+
+    private static final class PrivilegedReadChannelStream extends InputStream {
+
+        private final InputStream stream;
+
+        PrivilegedReadChannelStream(ReadableByteChannel channel) {
+            stream = Channels.newInputStream(channel);
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            return SocketAccess.doPrivilegedIOException(() -> stream.read(b));
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
+        }
+
+        @Override
+        public void close() throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(stream::close);
+        }
+
+        @Override
+        public int read() throws IOException {
+            return SocketAccess.doPrivilegedIOException(stream::read);
+        }
+    }
+
+    private static final class PrivilegedWriteChannelStream extends OutputStream {
+
+        private final OutputStream stream;
+
+        PrivilegedWriteChannelStream(WritableByteChannel channel) {
+            stream = Channels.newOutputStream(channel);
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b));
+        }
+
+        @Override
+        public void write(byte[] b) throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b));
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(() -> stream.write(b, off, len));
+        }
+
+        @Override
+        public void flush() throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(stream::flush);
+        }
+
+        @Override
+        public void close() throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(stream::close);
+        }
+    }
+
 }

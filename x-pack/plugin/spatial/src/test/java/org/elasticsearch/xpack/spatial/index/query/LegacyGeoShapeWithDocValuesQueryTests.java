@@ -16,6 +16,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -84,7 +85,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .field("tree_levels", "6")
@@ -116,7 +117,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
         client().prepareIndex("geo_points_only")
             .setId("1")
-            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
@@ -124,7 +125,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         Point point = GeometryTestUtils.randomPoint(false);
         client().prepareIndex("geo_points_only")
             .setId("2")
-            .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+            .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
@@ -139,7 +140,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .field("tree_levels", "6")
@@ -171,10 +172,10 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         try {
             client().prepareIndex("geo_points_only")
                 .setId("1")
-                .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+                .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        } catch (MapperParsingException e) {
+        } catch (DocumentParsingException e) {
             // Random geometry generator created something other than a POINT type, verify the correct exception is thrown
             assertThat(e.getMessage(), containsString("is configured for points only"));
             return;
@@ -182,7 +183,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         // test that point was inserted
         SearchResponse response = client().prepareSearch("geo_points_only")
-            .setQuery(geoIntersectionQuery(defaultGeoFieldName, geometry))
+            .setQuery(geoIntersectionQuery(defaultFieldName, geometry))
             .get();
         assertEquals(1, response.getHits().getTotalHits().value);
     }
@@ -192,13 +193,13 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
-                .startObject(defaultGeoFieldName)
+                .startObject(defaultFieldName)
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
                 .endObject()
                 .startObject("alias")
                 .field("type", "alias")
-                .field("path", defaultGeoFieldName)
+                .field("path", defaultFieldName)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -221,11 +222,23 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
         client().prepareIndex(defaultIndexName)
             .setId("1")
-            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultGeoFieldName), null).endObject())
+            .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)).get();
         assertEquals(1, response.getHits().getTotalHits().value);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
+    @Override
+    public void testIndexPointsFromLine() throws Exception {
+        super.testIndexPointsFromLine();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86118")
+    @Override
+    public void testIndexPointsFromPolygon() throws Exception {
+        super.testIndexPointsFromPolygon();
     }
 }

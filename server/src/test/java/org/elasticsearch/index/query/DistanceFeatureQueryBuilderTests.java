@@ -15,6 +15,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -88,7 +89,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         // origin as string
         String origin = "2018-01-01T13:10:30Z";
         String pivot = "7d";
-        String json = """
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -96,7 +97,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 1.0
               }
-            }""".formatted(DATE_FIELD_NAME, origin, pivot);
+            }""", DATE_FIELD_NAME, origin, pivot);
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, origin, parsed.origin().origin());
@@ -105,7 +106,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
         // origin as long
         long originLong = 1514812230999L;
-        json = """
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -113,7 +114,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 1.0
               }
-            }""".formatted(DATE_FIELD_NAME, originLong, pivot);
+            }""", DATE_FIELD_NAME, originLong, pivot);
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         assertEquals(json, originLong, parsed.origin().origin());
     }
@@ -122,7 +123,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         // origin as string
         String origin = "2018-01-01T13:10:30.323456789Z";
         String pivot = "100000000nanos";
-        String json = """
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -130,7 +131,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 1.0
               }
-            }""".formatted(DATE_NANOS_FIELD_NAME, origin, pivot);
+            }""", DATE_NANOS_FIELD_NAME, origin, pivot);
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, origin, parsed.origin().origin());
@@ -139,7 +140,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
         // origin as long
         long originLong = 1514812230999L;
-        json = """
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -147,7 +148,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 1.0
               }
-            }""".formatted(DATE_NANOS_FIELD_NAME, originLong, pivot);
+            }""", DATE_NANOS_FIELD_NAME, originLong, pivot);
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         assertEquals(json, originLong, parsed.origin().origin());
     }
@@ -157,7 +158,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         final String pivot = "1km";
 
         // origin as string
-        String json = """
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -165,7 +166,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 2.0
               }
-            }""".formatted(GEO_POINT_FIELD_NAME, origin.toString(), pivot);
+            }""", GEO_POINT_FIELD_NAME, origin.toString(), pivot);
         DistanceFeatureQueryBuilder parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, origin.toString(), parsed.origin().origin());
@@ -173,7 +174,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
 
         // origin as array
-        json = """
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -181,12 +182,12 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 2.0
               }
-            }""".formatted(GEO_POINT_FIELD_NAME, origin.lon(), origin.lat(), pivot);
+            }""", GEO_POINT_FIELD_NAME, origin.lon(), origin.lat(), pivot);
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         assertEquals(json, origin, parsed.origin().origin());
 
         // origin as object
-        json = """
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -197,7 +198,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                 "pivot": "%s",
                 "boost": 2.0
               }
-            }""".formatted(GEO_POINT_FIELD_NAME, origin.lat(), origin.lon(), pivot);
+            }""", GEO_POINT_FIELD_NAME, origin.lat(), origin.lon(), pivot);
         parsed = (DistanceFeatureQueryBuilder) parseQuery(json);
         assertEquals(json, origin, parsed.origin().origin());
     }
@@ -217,14 +218,14 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     }
 
     public void testQueryFailsWithWrongFieldType() {
-        String query = """
+        String query = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
                 "origin": 40,
                 "pivot": "random_string"
               }
-            }""".formatted(INT_FIELD_NAME);
+            }""", INT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())

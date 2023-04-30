@@ -35,16 +35,14 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -66,6 +64,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -106,7 +105,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -189,7 +187,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertTrue(response.isFollowIndexShardsAcked());
             assertTrue(response.isIndexFollowingStarted());
 
-            ClusterHealthRequest healthRequest = Requests.clusterHealthRequest("index2").waitForNoRelocatingShards(true);
+            ClusterHealthRequest healthRequest = new ClusterHealthRequest("index2").waitForNoRelocatingShards(true);
             ClusterIndexHealth indexHealth = followerClient().admin().cluster().health(healthRequest).get().getIndices().get("index2");
             for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
                 if (waitOnAll) {
@@ -321,7 +319,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int firstBatchNumDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -368,7 +366,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -381,7 +379,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"k\":%d}", i);
+            final String source = Strings.format("{\"k\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Long.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -497,7 +495,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         int numberOfShards = between(1, 5);
         String leaderIndexSettings = getIndexSettings(numberOfShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+        BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -505,12 +503,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {}
         };
         int bulkSize = between(1, 20);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient()::bulk, listener, "IndexFollowingIT")
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(leaderClient()::bulk, listener, leaderClient().threadPool())
             .setBulkActions(bulkSize)
-            .setConcurrentRequests(4)
             .build();
         AtomicBoolean run = new AtomicBoolean(true);
         Semaphore availableDocs = new Semaphore(0);
@@ -524,7 +521,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
-                final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
+                Object[] args = new Object[] { counter++ };
+                final String source = Strings.format("{\"f\":%d}", args);
                 IndexRequest indexRequest = new IndexRequest("index1").source(source, XContentType.JSON)
                     .timeout(TimeValue.timeValueSeconds(1));
                 bulkProcessor.add(indexRequest);
@@ -640,7 +638,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int numDocs = between(10, 1024);
         logger.info("Indexing [{}] docs", numDocs);
         for (int i = 0; i < numDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -1157,7 +1155,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
         for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"new_field\":\"value %d\"}", i);
+            final String source = Strings.format("{\"new_field\":\"value %d\"}", i);
             leaderClient().prepareIndex("leader").setSource(source, XContentType.JSON).get();
         }
 
@@ -1199,7 +1197,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final IndexMetadata indexMetadata = currentState.metadata().index("leader");
@@ -1225,7 +1223,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         assertBusy(() -> {
             GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
             assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
@@ -1267,7 +1265,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
         final SetOnce<Long> settingVersionOnLeader = new SetOnce<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final IndexMetadata indexMetadata = currentState.metadata().index("leader");
@@ -1295,7 +1293,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         latch.await();
         assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
         GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
@@ -1405,7 +1403,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int numDocs = randomIntBetween(2, 64);
         logger.info("Indexing [{}] docs as first batch", numDocs);
         for (int i = 0; i < numDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
@@ -1425,7 +1423,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         afterPausingFollower.run();
 
         for (int i = 0; i < numDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
+            final String source = Strings.format("{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
         leaderClient().prepareDelete("index1", "1").get();

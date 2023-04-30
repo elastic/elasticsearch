@@ -13,13 +13,13 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.ingest.Processor;
@@ -38,6 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,10 +49,12 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
@@ -68,8 +72,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         final GetPipelineResponse response = client().admin()
             .cluster()
-            .getPipeline(new GetPipelineRequest("default_pipeline", "final_pipeline", "request_pipeline"))
-            .actionGet();
+            .prepareGetPipeline("default_pipeline", "final_pipeline", "request_pipeline")
+            .get();
         for (final PipelineConfiguration pipeline : response.pipelines()) {
             client().admin().cluster().deletePipeline(new DeletePipelineRequest(pipeline.getId())).actionGet();
         }
@@ -87,7 +91,32 @@ public class FinalPipelineIT extends ESIntegTestCase {
             IllegalStateException.class,
             () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
         );
-        assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
+    }
+
+    public void testFinalPipelineCantRerouteDestination() {
+        final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
+        createIndex("index", settings);
+
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
+        client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
+
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get()
+        );
+        assertThat(
+            e,
+            hasToString(
+                endsWith("final pipeline [final_pipeline] can't change the target index (from [index] to [target]) for document [1]")
+            )
+        );
     }
 
     public void testFinalPipelineOfOldDestinationIsNotInvoked() {
@@ -178,6 +207,73 @@ public class FinalPipelineIT extends ESIntegTestCase {
         SearchResponse target = client().prepareSearch("target").get();
         assertEquals(1, target.getHits().getTotalHits().value);
         assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
+    public void testDefaultPipelineOfRerouteDestinationIsInvoked() {
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .actionGet();
+
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
+            .actionGet();
+
+        IndexResponse indexResponse = client().prepareIndex("index")
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+        SearchResponse target = client().prepareSearch("target").get();
+        assertEquals(1, target.getHits().getTotalHits().value);
+        assertTrue(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
+    public void testAvoidIndexingLoop() {
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"reroute": {"dest": "target"}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .actionGet();
+
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"reroute": {"dest": "index"}}]}""");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
+            .actionGet();
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index")
+                .setId("1")
+                .setSource(Map.of("dest", "index"))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("index cycle detected while processing pipeline [target_default_pipeline] for document [1]: [index, target, index]")
+        );
     }
 
     public void testFinalPipeline() {
@@ -346,79 +442,168 @@ public class FinalPipelineIT extends ESIntegTestCase {
             final NodeEnvironment nodeEnvironment,
             final NamedWriteableRegistry namedWriteableRegistry,
             final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier
+            final Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            AllocationService allocationService
         ) {
             return List.of();
         }
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of("default", (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
+            return Map.of(
+                "default",
+                getDefault(parameters, randomBoolean()),
+                "final",
+                getFinal(parameters, randomBoolean()),
+                "request",
+                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                        ingestDocument.setFieldValue("request", true);
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "request";
+                    }
+                },
+                "changing_dest",
+                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "changing_dest";
+                    }
+
+                },
+                "reroute",
+                (processorFactories, tag, description, config) -> {
+                    final String dest = Objects.requireNonNullElse(
+                        ConfigurationUtils.readOptionalStringProperty(description, tag, config, "dest"),
+                        "target"
+                    );
+                    return new AbstractProcessor(tag, description) {
+                        @Override
+                        public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                            ingestDocument.reroute(dest);
+                            return ingestDocument;
+                        }
+
+                        @Override
+                        public String getType() {
+                            return "reroute";
+                        }
+
+                    };
+                }
+            );
+        }
+
+        private static Processor.Factory getDefault(Processor.Parameters parameters, boolean async) {
+            return (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
 
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                    // randomize over sync and async execution
-                    randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
-                        ingestDocument.setFieldValue("default", true);
-                        handler.accept(ingestDocument, null);
-                    });
+                    if (async) {
+                        // randomize over sync and async execution
+                        randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                            ingestDocument.setFieldValue("default", true);
+                            handler.accept(ingestDocument, null);
+                        });
+                    } else {
+                        throw new AssertionError("should not be called");
+                    }
                 }
 
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) {
-                    throw new AssertionError("should not be called");
+                    if (async) {
+                        throw new AssertionError("should not be called");
+                    } else {
+                        ingestDocument.setFieldValue("default", true);
+                        return ingestDocument;
+                    }
                 }
 
                 @Override
                 public String getType() {
                     return "default";
                 }
-            }, "final", (processorFactories, tag, description, config) -> {
+
+                @Override
+                public boolean isAsync() {
+                    return async;
+                }
+            };
+        }
+
+        private static Processor.Factory getFinal(Processor.Parameters parameters, boolean async) {
+            return (processorFactories, tag, description, config) -> {
                 final String exists = (String) config.remove("exists");
                 return new AbstractProcessor(tag, description) {
+
+                    @Override
+                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                        if (async) {
+                            // randomize over sync and async execution
+                            randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                                if (exists != null) {
+                                    if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                        handler.accept(
+                                            null,
+                                            new IllegalStateException(
+                                                "expected document to contain ["
+                                                    + exists
+                                                    + "] but was ["
+                                                    + ingestDocument.getSourceAndMetadata()
+                                            )
+                                        );
+                                    }
+                                }
+                                ingestDocument.setFieldValue("final", true);
+                                handler.accept(ingestDocument, null);
+                            });
+                        } else {
+                            throw new AssertionError("should not be called");
+                        }
+                    }
+
                     @Override
                     public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                        // this asserts that this pipeline is the final pipeline executed
-                        if (exists != null) {
-                            if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
-                                throw new AssertionError(
-                                    "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
-                                );
+                        if (async) {
+                            throw new AssertionError("should not be called");
+                        } else {
+                            // this asserts that this pipeline is the final pipeline executed
+                            if (exists != null) {
+                                if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                    throw new AssertionError(
+                                        "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
+                                    );
+                                }
                             }
+                            ingestDocument.setFieldValue("final", true);
+                            return ingestDocument;
                         }
-                        ingestDocument.setFieldValue("final", true);
-                        return ingestDocument;
                     }
 
                     @Override
                     public String getType() {
                         return "final";
                     }
+
+                    @Override
+                    public boolean isAsync() {
+                        return async;
+                    }
                 };
-            }, "request", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                    ingestDocument.setFieldValue("request", true);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "request";
-                }
-            }, "changing_dest", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                    ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "changing_dest";
-                }
-
-            });
+            };
         }
     }
 

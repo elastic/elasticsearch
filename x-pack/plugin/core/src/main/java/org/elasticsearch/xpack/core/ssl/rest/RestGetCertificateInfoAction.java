@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.core.ssl.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
@@ -26,6 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * A REST handler to obtain information about TLS/SSL (X.509) certificates
  * @see GetCertificateInfoAction
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
@@ -44,7 +46,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
             new RestBuilderListener<Response>(channel) {
                 @Override
                 public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
+                    return new RestResponse(RestStatus.OK, response.toXContent(builder, request));
                 }
             }
         );

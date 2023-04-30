@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -30,6 +29,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -39,10 +42,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -80,7 +85,12 @@ public final class DestinationIndex {
      * If the user needs other settings on the destination index they
      * should create the destination index before starting the analytics.
      */
-    private static final String[] PRESERVED_SETTINGS = new String[] { "index.number_of_shards", "index.number_of_replicas" };
+    private static final String[] PRESERVED_SETTINGS = new String[] {
+        "index.number_of_shards",
+        "index.number_of_replicas",
+        "index.analysis.*",
+        "index.similarity.*",
+        "index.mapping.*" };
 
     /**
      * This is the minimum compatible version of the destination index we can currently work with.
@@ -125,14 +135,9 @@ public final class DestinationIndex {
         AtomicReference<Settings> settingsHolder = new AtomicReference<>();
         AtomicReference<MappingMetadata> mappingsHolder = new AtomicReference<>();
 
-        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(
-            fieldCapabilitiesResponse -> {
-                listener.onResponse(
-                    createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse)
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesListener = ActionListener.wrap(fieldCapabilitiesResponse -> {
+            listener.onResponse(createIndexRequest(clock, config, settingsHolder.get(), mappingsHolder.get(), fieldCapabilitiesResponse));
+        }, listener::onFailure);
 
         ActionListener<MappingMetadata> mappingsListener = ActionListener.wrap(mappings -> {
             mappingsHolder.set(mappings);
@@ -207,24 +212,104 @@ public final class DestinationIndex {
     }
 
     private static Settings settings(GetSettingsResponse settingsResponse) {
-        Integer maxNumberOfShards = findMaxSettingValue(settingsResponse, IndexMetadata.SETTING_NUMBER_OF_SHARDS);
-        Integer maxNumberOfReplicas = findMaxSettingValue(settingsResponse, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
+        String[] settingsIndexKeys = {
+            IndexMetadata.SETTING_NUMBER_OF_SHARDS,
+            IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+            MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
+            MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(),
+            MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(),
+            MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(),
+            MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(),
+            MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey() };
 
         Settings.Builder settingsBuilder = Settings.builder();
-        if (maxNumberOfShards != null) {
-            settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, maxNumberOfShards);
+
+        for (String key : settingsIndexKeys) {
+            Long value = findMaxSettingValue(settingsResponse, key);
+            if (value != null) {
+                settingsBuilder.put(key, value);
+            }
         }
-        if (maxNumberOfReplicas != null) {
-            settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maxNumberOfReplicas);
+
+        Map<String, Tuple<String, Settings>> mergedSettings = new HashMap<>();
+
+        mergeSimilaritySettings(settingsResponse, mergedSettings);
+        mergeAnalysisSettings(settingsResponse, mergedSettings);
+
+        for (String settingsKey : Arrays.asList(
+            IndexModule.SIMILARITY_SETTINGS_PREFIX,
+            AnalysisRegistry.INDEX_ANALYSIS_FILTER,
+            AnalysisRegistry.INDEX_ANALYSIS_ANALYZER
+        )) {
+            for (Map.Entry<String, Tuple<String, Settings>> mergedSetting : mergedSettings.entrySet()) {
+                String index = mergedSetting.getValue().v1();
+                Set<String> settingsKeys = settingsResponse.getIndexToSettings().get(index).getAsSettings(settingsKey).keySet();
+                for (String key : settingsKeys) {
+                    settingsBuilder = settingsBuilder.copy(settingsKey + "." + key, settingsResponse.getIndexToSettings().get(index));
+                }
+            }
         }
         return settingsBuilder.build();
     }
 
+    private static void mergeSimilaritySettings(GetSettingsResponse settingsResponse, Map<String, Tuple<String, Settings>> mergedSettings) {
+        String settingsKey = IndexModule.SIMILARITY_SETTINGS_PREFIX;
+
+        for (Map.Entry<String, Settings> settingsEntry : settingsResponse.getIndexToSettings().entrySet()) {
+
+            Settings settings = settingsEntry.getValue().getAsSettings(settingsKey);
+            if (settings.isEmpty()) {
+                continue;
+            }
+
+            mergeSettings(settingsKey, settingsEntry.getKey(), settings, mergedSettings);
+        }
+    }
+
+    private static void mergeAnalysisSettings(GetSettingsResponse settingsResponse, Map<String, Tuple<String, Settings>> mergedSettings) {
+        for (String settingsKey : Arrays.asList(AnalysisRegistry.INDEX_ANALYSIS_FILTER, AnalysisRegistry.INDEX_ANALYSIS_ANALYZER)) {
+            for (Map.Entry<String, Settings> settingsEntry : settingsResponse.getIndexToSettings().entrySet()) {
+
+                Settings settings = settingsEntry.getValue().getAsSettings(settingsKey);
+                if (settings.isEmpty()) {
+                    continue;
+                }
+
+                for (String name : settings.names()) {
+                    Settings setting = settings.getAsSettings(name);
+                    String fullName = settingsKey + "." + name;
+
+                    mergeSettings(fullName, settingsEntry.getKey(), setting, mergedSettings);
+                }
+            }
+        }
+    }
+
+    private static void mergeSettings(String key, String index, Settings setting, Map<String, Tuple<String, Settings>> mergedSettings) {
+        if (mergedSettings.containsKey(key) == false) {
+            mergedSettings.put(key, new Tuple<>(index, setting));
+        } else {
+            Settings mergedSetting = mergedSettings.get(key).v2();
+            if (mergedSetting.equals(setting) == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "cannot merge settings because of differences for "
+                        + key
+                        + "; specified as [{}] in index [{}]; "
+                        + "specified as [{}] in index [{}]",
+                    mergedSettings.get(key).v2(),
+                    mergedSettings.get(key).v1(),
+                    setting.toString(),
+                    index
+                );
+            }
+        }
+    }
+
     @Nullable
-    private static Integer findMaxSettingValue(GetSettingsResponse settingsResponse, String settingKey) {
-        Integer maxValue = null;
+    private static Long findMaxSettingValue(GetSettingsResponse settingsResponse, String settingKey) {
+        Long maxValue = null;
         for (Settings settings : settingsResponse.getIndexToSettings().values()) {
-            Integer indexValue = settings.getAsInt(settingKey, null);
+            Long indexValue = settings.getAsLong(settingKey, null);
             if (indexValue != null) {
                 maxValue = maxValue == null ? indexValue : Math.max(indexValue, maxValue);
             }
@@ -335,7 +420,7 @@ public final class DestinationIndex {
             String createdVersionString = (String) version.get(CREATED);
             return Version.fromString(createdVersionString);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("[{}] Could not retrieve destination index version", jobId), e);
+            logger.error(() -> "[" + jobId + "] Could not retrieve destination index version", e);
             return null;
         }
     }

@@ -7,15 +7,21 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridBucket;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
+
+import java.io.IOException;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
@@ -27,8 +33,8 @@ public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected String hashAsString(double lng, double lat, int precision) {
-        return stringEncode(lng, lat, precision);
+    protected String[] hashAsStrings(double lng, double lat, int precision) {
+        return new String[] { stringEncode(lng, lat, precision) };
     }
 
     @Override
@@ -42,8 +48,20 @@ public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected Rectangle getTile(double lng, double lat, int precision) {
-        return Geohash.toBoundingBox(stringEncode(lng, lat, precision));
+    protected boolean intersects(String hash, GeoShapeValues.GeoShapeValue value) throws IOException {
+        final Rectangle boundingBox = GeoGridQueryBuilder.getQueryHash(hash);
+        return value.relate(
+            GeoEncodingUtils.encodeLongitude(boundingBox.getMinLon()),
+            GeoEncodingUtils.encodeLongitude(boundingBox.getMaxLon()),
+            GeoEncodingUtils.encodeLatitude(boundingBox.getMinLat()),
+            GeoEncodingUtils.encodeLatitude(boundingBox.getMaxLat())
+        ) != GeoRelation.QUERY_DISJOINT;
+    }
+
+    @Override
+    protected boolean intersectsBounds(String hash, GeoBoundingBox box) {
+        final GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(hash.length(), box);
+        return predicate.validHash(hash);
     }
 
     @Override

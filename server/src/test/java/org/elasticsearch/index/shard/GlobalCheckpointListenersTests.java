@@ -9,10 +9,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -187,17 +186,16 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             // the listener should be notified immediately
             if (failure) {
                 assertThat(globalCheckpoints[i], equalTo(Long.MIN_VALUE));
-                final ArgumentCaptor<ParameterizedMessage> message = ArgumentCaptor.forClass(ParameterizedMessage.class);
+                final ArgumentCaptor<org.apache.logging.log4j.util.Supplier<?>> message = ArgumentCaptor.forClass(
+                    org.apache.logging.log4j.util.Supplier.class
+                );
                 final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);
                 verify(mockLogger).warn(message.capture(), t.capture());
                 reset(mockLogger);
                 assertThat(
-                    message.getValue().getFormat(),
-                    equalTo("error notifying global checkpoint listener of updated global checkpoint [{}]")
+                    message.getValue().get(),
+                    equalTo("error notifying global checkpoint listener of updated global checkpoint [" + globalCheckpoint + "]")
                 );
-                assertNotNull(message.getValue().getParameters());
-                assertThat(message.getValue().getParameters().length, equalTo(1));
-                assertThat(message.getValue().getParameters()[0], equalTo(globalCheckpoint));
                 assertNotNull(t.getValue());
                 assertThat(t.getValue().getMessage(), equalTo("failure"));
             } else {
@@ -286,16 +284,15 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             }
         }
         if (failureCount > 0) {
-            final ArgumentCaptor<ParameterizedMessage> message = ArgumentCaptor.forClass(ParameterizedMessage.class);
+            final ArgumentCaptor<org.apache.logging.log4j.util.Supplier<?>> message = ArgumentCaptor.forClass(
+                org.apache.logging.log4j.util.Supplier.class
+            );
             final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);
             verify(mockLogger, times(failureCount)).warn(message.capture(), t.capture());
             assertThat(
-                message.getValue().getFormat(),
-                equalTo("error notifying global checkpoint listener of updated global checkpoint [{}]")
+                message.getValue().get(),
+                equalTo("error notifying global checkpoint listener of updated global checkpoint [" + globalCheckpoint + "]")
             );
-            assertNotNull(message.getValue().getParameters());
-            assertThat(message.getValue().getParameters().length, equalTo(1));
-            assertThat(message.getValue().getParameters()[0], equalTo(globalCheckpoint));
             assertNotNull(t.getValue());
             assertThat(t.getValue().getMessage(), equalTo("failure"));
         }
@@ -601,11 +598,9 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         }).when(mockLogger).warn(any(String.class), any(RuntimeException.class));
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, scheduler, mockLogger);
         final TimeValue timeout = TimeValue.timeValueMillis(randomIntBetween(1, 50));
-        globalCheckpointListeners.add(
-            NO_OPS_PERFORMED,
-            maybeMultipleInvocationProtectingListener((g, e) -> { throw new RuntimeException("failure"); }),
-            timeout
-        );
+        globalCheckpointListeners.add(NO_OPS_PERFORMED, maybeMultipleInvocationProtectingListener((g, e) -> {
+            throw new RuntimeException("failure");
+        }), timeout);
         latch.await();
         final ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
         final ArgumentCaptor<RuntimeException> t = ArgumentCaptor.forClass(RuntimeException.class);

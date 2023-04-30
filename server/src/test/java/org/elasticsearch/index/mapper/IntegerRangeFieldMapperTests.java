@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 
@@ -31,5 +32,15 @@ public class IntegerRangeFieldMapperTests extends RangeFieldMapperTests {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "integer_range");
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYGeometry;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
+import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeDocValuesQuery;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 
 import java.util.ArrayList;
@@ -35,7 +37,13 @@ import java.util.List;
 
 public class ShapeQueryProcessor {
 
-    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+    public Query shapeQuery(
+        Geometry shape,
+        String fieldName,
+        ShapeRelation relation,
+        SearchExecutionContext context,
+        boolean hasDocValues
+    ) {
         validateIsShapeFieldType(fieldName, context);
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0);
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
@@ -44,7 +52,7 @@ public class ShapeQueryProcessor {
         if (shape == null) {
             return new MatchNoDocsQuery();
         }
-        return getVectorQueryFromShape(shape, fieldName, relation, context);
+        return getVectorQueryFromShape(shape, fieldName, relation, context, hasDocValues);
     }
 
     private void validateIsShapeFieldType(String fieldName, SearchExecutionContext context) {
@@ -57,14 +65,26 @@ public class ShapeQueryProcessor {
         }
     }
 
-    private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+    private Query getVectorQueryFromShape(
+        Geometry queryShape,
+        String fieldName,
+        ShapeRelation relation,
+        SearchExecutionContext context,
+        boolean hasDocValues
+    ) {
         final LuceneGeometryCollector visitor = new LuceneGeometryCollector(fieldName, context);
         queryShape.visit(visitor);
-        final List<XYGeometry> geometries = visitor.geometries();
-        if (geometries.size() == 0) {
+        final List<XYGeometry> geomList = visitor.geometries();
+        if (geomList.size() == 0) {
             return new MatchNoDocsQuery();
         }
-        return XYShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries.toArray(new XYGeometry[geometries.size()]));
+        XYGeometry[] geometries = geomList.toArray(new XYGeometry[0]);
+        Query query = XYShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
+        if (hasDocValues) {
+            final Query queryDocValues = new CartesianShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
+            query = new IndexOrDocValuesQuery(query, queryDocValues);
+        }
+        return query;
     }
 
     private static class LuceneGeometryCollector implements GeometryVisitor<Void, RuntimeException> {

@@ -9,6 +9,7 @@ package org.elasticsearch.indices.state;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -20,9 +21,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -55,6 +58,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -168,7 +172,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
+        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
         assertBusy(() -> closeIndices(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
         assertIndexIsClosed(indexName);
@@ -187,7 +191,22 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                 .collect(toList())
         );
-        ensureYellowAndNoInitializingShards(indexName);
+
+        ClusterHealthResponse healthResponse = client().admin()
+            .cluster()
+            .prepareHealth(indexName)
+            .setWaitForYellowStatus()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setWaitForNodes(Integer.toString(cluster().size()))
+            .setTimeout(TimeValue.timeValueSeconds(60L))
+            .get();
+        if (healthResponse.isTimedOut()) {
+            logClusterState();
+        }
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        assertThat(healthResponse.getIndices().get(indexName).getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
 
         final CountDownLatch startClosing = new CountDownLatch(1);
         final Thread[] threads = new Thread[randomIntBetween(2, 5)];
@@ -358,13 +377,8 @@ public class CloseIndexIT extends ESIntegTestCase {
 
     public void testCloseIndexWaitForActiveShards() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // no replicas to avoid recoveries that could fail the index closing
-                .build()
-        );
+        // no replicas to avoid recoveries that could fail the index closing
+        createIndex(indexName, 2, 0);
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(
@@ -391,14 +405,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = "noop-peer-recovery-test";
         int numberOfReplicas = between(1, 2);
         internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                .put("index.routing.rebalance.enable", "none")
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, numberOfReplicas).put("index.routing.rebalance.enable", "none").build());
         int iterations = between(1, 3);
         for (int iter = 0; iter < iterations; iter++) {
             indexRandom(
@@ -437,14 +444,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             2,
             clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet())
         );
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 1).put("index.routing.allocation.include._name", String.join(",", dataNodes)).build());
         indexRandom(
             randomBoolean(),
             randomBoolean(),
@@ -487,14 +487,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = "closed-index";
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         // allocate shard to first data node
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", dataNodes.get(0))
-                .build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", dataNodes.get(0)).build());
         indexRandom(
             randomBoolean(),
             randomBoolean(),
@@ -505,11 +498,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         );
         assertAcked(client().admin().indices().prepareClose(indexName));
         // move single shard to second node
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put("index.routing.allocation.include._name", dataNodes.get(1)))
-            .get();
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", dataNodes.get(1)), indexName);
         ensureGreen(indexName);
         internalCluster().fullRestart();
         ensureGreen(indexName);
@@ -519,10 +508,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     public void testResyncPropagatePrimaryTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         final String indexName = "closed_indices_promotion";
-        createIndex(
-            indexName,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2).build()
-        );
+        createIndex(indexName, 1, 2);
         indexRandom(
             randomBoolean(),
             randomBoolean(),
@@ -553,13 +539,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     public void testSearcherId() throws Exception {
         final String indexName = "test_commit_id";
         final int numberOfShards = randomIntBetween(1, 5);
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        );
+        createIndex(indexName, numberOfShards, 0);
         indexRandom(
             randomBoolean(),
             randomBoolean(),
@@ -573,12 +553,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         if (randomBoolean()) {
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            );
+            setReplicaCount(1, indexName);
             internalCluster().ensureAtLeastNumDataNodes(2);
             ensureGreen(indexName);
         }

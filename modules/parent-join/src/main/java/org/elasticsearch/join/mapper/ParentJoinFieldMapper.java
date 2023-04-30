@@ -9,13 +9,14 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -32,13 +33,11 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -57,17 +55,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final String NAME = "join";
     public static final String CONTENT_TYPE = "join";
-
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.freeze();
-        }
-    }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
         String indexName = settings.getIndex().getName();
@@ -120,8 +107,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(eagerGlobalOrdinals, relations, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { eagerGlobalOrdinals, relations, meta };
         }
 
         @Override
@@ -167,7 +154,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
@@ -213,10 +200,15 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         boolean eagerGlobalOrdinals,
         List<Relations> relations
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         this.relations = relations;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -299,7 +291,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
+        Field field = new StringField(fieldType().name(), binaryValue, Field.Store.NO);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();

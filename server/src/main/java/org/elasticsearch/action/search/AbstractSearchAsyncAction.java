@@ -9,11 +9,11 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -53,6 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -413,7 +415,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Throwable cause = shardSearchFailures.length == 0
                 ? null
                 : ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", currentPhase.getName()), cause);
+            logger.debug(() -> "All shards failed for phase: [" + currentPhase.getName() + "]", cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
@@ -426,10 +428,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         int numShardFailures = shardSearchFailures.length;
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(
-                            () -> new ParameterizedMessage("{} shards failed for phase: [{}]", numShardFailures, currentPhase.getName()),
-                            cause
-                        );
+                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase.getName()), cause);
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                     return;
@@ -471,7 +470,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             phase.run();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
+                logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
             }
             onPhaseFailure(phase, "", e);
         }
@@ -496,7 +495,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]", shard, request, lastShard), e);
+        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
         if (lastShard) {
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
@@ -546,7 +545,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (TransportActions.isShardNotAvailableException(e)) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
             // temporary error.
-            e = new NoShardAvailableActionException(shardTarget.getShardId(), e.getMessage());
+            e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
         }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
@@ -709,11 +708,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
+            final TransportVersion minTransportVersion = clusterState.getMinTransportVersion();
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final String searchContextId;
             if (buildPointInTimeFromSearchResults()) {
-                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
+                searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minTransportVersion);
             } else {
                 if (request.source() != null && request.source().pointInTimeBuilder() != null) {
                     searchContextId = request.source().pointInTimeBuilder().getEncodedId();

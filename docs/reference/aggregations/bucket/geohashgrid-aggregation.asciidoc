@@ -38,17 +38,17 @@ PUT /museums
 
 POST /museums/_bulk?refresh
 {"index":{"_id":1}}
-{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
+{"location": "POINT (4.912350 52.374081)", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
-{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}
+{"location": "POINT (4.901618 52.369219)", "name": "Museum Het Rembrandthuis"}
 {"index":{"_id":3}}
-{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}
+{"location": "POINT (4.914722 52.371667)", "name": "Nederlands Scheepvaartmuseum"}
 {"index":{"_id":4}}
-{"location": "51.222900,4.405200", "name": "Letterenhuis"}
+{"location": "POINT (4.405200 51.222900)", "name": "Letterenhuis"}
 {"index":{"_id":5}}
-{"location": "48.861111,2.336389", "name": "Musée du Louvre"}
+{"location": "POINT (2.336389 48.861111)", "name": "Musée du Louvre"}
 {"index":{"_id":6}}
-{"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
+{"location": "POINT (2.327000 48.860000)", "name": "Musée d'Orsay"}
 
 POST /museums/_search?size=0
 {
@@ -104,8 +104,8 @@ POST /museums/_search?size=0
       "filter": {
         "geo_bounding_box": {
           "location": {
-            "top_left": "52.4, 4.9",
-            "bottom_right": "52.3, 5.0"
+            "top_left": "POINT (4.9 52.4)",
+            "bottom_right": "POINT (5.0 52.3)"
           }
         }
       },
@@ -218,8 +218,8 @@ POST /museums/_search?size=0
         "field": "location",
         "precision": 8,
         "bounds": {
-          "top_left": "53.4375, 4.21875",
-          "bottom_right": "52.03125, 5.625"
+          "top_left": "POINT (4.21875 53.4375)",
+          "bottom_right": "POINT (5.625 52.03125)"
         }
       }
     }

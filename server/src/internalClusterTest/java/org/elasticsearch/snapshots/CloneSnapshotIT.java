@@ -42,6 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -760,7 +761,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode(
             Settings.builder().put("thread_pool.snapshot.core", 1).put("thread_pool.snapshot.max", 1).build()
         );
-        final String dataNode = internalCluster().startDataOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         final String testIndex = "index-test";
@@ -778,6 +779,16 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         blockDataNode(repoName, dataNode);
         final ActionFuture<CreateSnapshotResponse> fullSnapshotFuture1 = startFullSnapshot(repoName, "full-snapshot-1");
         waitForBlock(dataNode, repoName);
+        // make sure we don't have so many files in the shard that will get blocked to fully clog up the snapshot pool on the data node
+        final var files = admin().indices()
+            .prepareStats("test-index-3")
+            .setSegments(true)
+            .setIncludeSegmentFileSizes(true)
+            .get()
+            .getPrimaries()
+            .getSegments()
+            .getFiles();
+        assertThat(files.size(), lessThan(LARGE_POOL_SIZE));
         final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, testIndex, testIndex2);
         awaitNumberOfSnapshotsInProgress(2);
         waitForBlock(masterNode, repoName);

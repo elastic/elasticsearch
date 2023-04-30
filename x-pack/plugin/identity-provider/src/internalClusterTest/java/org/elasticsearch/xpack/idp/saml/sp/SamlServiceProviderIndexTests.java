@@ -12,7 +12,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -75,7 +74,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
     @After
     public void deleteTemplateAndIndex() {
         client().admin().indices().delete(new DeleteIndexRequest(SamlServiceProviderIndex.INDEX_NAME + "*")).actionGet();
-        client().admin().indices().deleteTemplate(new DeleteIndexTemplateRequest(SamlServiceProviderIndex.TEMPLATE_NAME)).actionGet();
+        client().admin().indices().prepareDeleteTemplate(SamlServiceProviderIndex.TEMPLATE_NAME).get();
         serviceProviderIndex.close();
     }
 

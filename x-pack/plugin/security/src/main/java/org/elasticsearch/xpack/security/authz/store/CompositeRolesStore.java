@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -26,11 +25,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteIndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -48,6 +47,8 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -71,6 +72,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -104,6 +106,7 @@ public class CompositeRolesStore {
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
     private final Role xpackSecurityRole;
+    private final Role securityProfileRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final RestrictedIndices restrictedIndices;
@@ -151,11 +154,27 @@ public class CompositeRolesStore {
         }
         this.negativeLookupCache = nlcBuilder.build();
         this.restrictedIndices = restrictedIndices;
-        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices)
-            .build();
-        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
-        xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
-        asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        this.superuserRole = Role.buildFromRoleDescriptor(
+            ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
+        this.xpackSecurityRole = Role.buildFromRoleDescriptor(
+            XPackSecurityUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
+        this.securityProfileRole = Role.buildFromRoleDescriptor(
+            SecurityProfileUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
+        this.xpackUserRole = Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices);
+        this.asyncSearchUserRole = Role.buildFromRoleDescriptor(
+            AsyncSearchUser.ROLE_DESCRIPTOR,
+            fieldPermissionsCache,
+            this.restrictedIndices
+        );
 
         this.roleReferenceResolver = new RoleDescriptorStore(
             roleProviders,
@@ -170,11 +189,10 @@ public class CompositeRolesStore {
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
-        final AuthenticationContext authenticationContext = AuthenticationContext.fromAuthentication(authentication);
-        getRole(authenticationContext.getEffectiveSubject(), ActionListener.wrap(role -> {
-            if (authenticationContext.isRunAs()) {
+        getRole(authentication.getEffectiveSubject(), ActionListener.wrap(role -> {
+            if (authentication.isRunAs()) {
                 getRole(
-                    authenticationContext.getAuthenticatingSubject(),
+                    authentication.getAuthenticatingSubject(),
                     ActionListener.wrap(
                         authenticatingRole -> roleActionListener.onResponse(new Tuple<>(role, authenticatingRole)),
                         roleActionListener::onFailure
@@ -210,15 +228,22 @@ public class CompositeRolesStore {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
-                "the user [" + user.principal() + "] is the system user and we should never try to get its" + " roles"
+                "the user [" + user.principal() + "] is the system user and we should never try to get its roles"
+            );
+        }
+        if (CrossClusterAccessUser.is(user)) {
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the cross cluster access user and we should never try to get its roles"
             );
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
             return xpackSecurityRole;
+        }
+        if (SecurityProfileUser.is(user)) {
+            return securityProfileRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
@@ -240,6 +265,26 @@ public class CompositeRolesStore {
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
+            final Consumer<Exception> failureHandler = e -> {
+                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
+                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
+                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
+                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
+                // superuser role.
+                if (includesSuperuserRole(roleReference)) {
+                    logger.warn(
+                        () -> format(
+                            "there was a failure resolving the roles [%s], falling back to the [%s] role instead",
+                            roleReference.id(),
+                            Strings.arrayToCommaDelimitedString(superuserRole.names())
+                        ),
+                        e
+                    );
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    roleActionListener.onFailure(e);
+                }
+            };
             roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
                 if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
                     roleActionListener.onResponse(Role.EMPTY);
@@ -252,29 +297,10 @@ public class CompositeRolesStore {
                         rolesRetrievalResult.getMissingRoles(),
                         rolesRetrievalResult.isSuccess(),
                         invalidationCounter,
-                        roleActionListener
+                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
                     );
                 }
-            }, e -> {
-                // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
-                // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
-                // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
-                // in role retrieval). So if a role reference includes superuser, but role retrieval failed, we fallback to the static
-                // superuser role.
-                if (includesSuperuserRole(roleReference)) {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "there was a failure resolving the roles [{}], falling back to the [{}] role instead",
-                            roleReference.id(),
-                            Strings.arrayToCommaDelimitedString(superuserRole.names())
-                        ),
-                        e
-                    );
-                    roleActionListener.onResponse(superuserRole);
-                } else {
-                    roleActionListener.onFailure(e);
-                }
-            }));
+            }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
@@ -301,6 +327,16 @@ public class CompositeRolesStore {
     // for testing
     Role getAsyncSearchUserRole() {
         return asyncSearchUserRole;
+    }
+
+    // for testing
+    Role getXpackSecurityRole() {
+        return xpackSecurityRole;
+    }
+
+    // for testing
+    Role getSecurityProfileRole() {
+        return securityProfileRole;
     }
 
     private void buildThenMaybeCacheRole(
@@ -346,8 +382,8 @@ public class CompositeRolesStore {
             () -> {
                 final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
                 final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
-                    listener,
-                    roleReferences.size()
+                    roleReferences.size(),
+                    listener
                 );
 
                 roleReferences.forEach(roleReference -> {
@@ -363,11 +399,17 @@ public class CompositeRolesStore {
         );
     }
 
-    private static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+    // Package private for testing
+    static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
                 "the user [" + user.principal() + "] is the system user and we should never try to get its role descriptors"
+            );
+        }
+        if (CrossClusterAccessUser.is(user)) {
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the cross cluster access user and we should never try to get its role descriptors"
             );
         }
         if (XPackUser.is(user)) {
@@ -375,6 +417,9 @@ public class CompositeRolesStore {
         }
         if (XPackSecurityUser.is(user)) {
             return Optional.of(XPackSecurityUser.ROLE_DESCRIPTOR);
+        }
+        if (SecurityProfileUser.is(user)) {
+            return Optional.of(SecurityProfileUser.ROLE_DESCRIPTOR);
         }
         if (AsyncSearchUser.is(user)) {
             return Optional.of(AsyncSearchUser.ROLE_DESCRIPTOR);
@@ -394,16 +439,19 @@ public class CompositeRolesStore {
             return;
         }
 
-        Set<String> clusterPrivileges = new HashSet<>();
+        final Set<String> clusterPrivileges = new HashSet<>();
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
-        Set<String> runAs = new HashSet<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+        final Set<String> runAs = new HashSet<>();
+
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+
+        final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
 
         // Keyed by application + resource
-        Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
+        final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
 
-        List<String> roleNames = new ArrayList<>(roleDescriptors.size());
+        final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
@@ -415,8 +463,14 @@ public class CompositeRolesStore {
             if (descriptor.getRunAs() != null) {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
+
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
+
+            if (descriptor.hasRemoteIndicesPrivileges()) {
+                groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
+            }
+
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
                 applicationPrivilegesMap.compute(key, (k, v) -> {
@@ -453,6 +507,20 @@ public class CompositeRolesStore {
             )
         );
 
+        remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
+            remoteIndicesPrivilegesForCluster.forEach(
+                (privilege) -> builder.addRemoteGroup(
+                    clusterAliasKey,
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    ),
+                    privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
+                    IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
+                    privilege.allowRestrictedIndices(),
+                    newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
+                )
+            );
+        });
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
@@ -516,6 +584,25 @@ public class CompositeRolesStore {
         return negativeLookupCache.get(key) != null;
     }
 
+    private static void groupIndexPrivilegesByCluster(
+        final RemoteIndicesPrivileges[] remoteIndicesPrivileges,
+        final Map<Set<String>, Set<IndicesPrivileges>> remoteIndexPrivilegesByCluster
+    ) {
+        assert remoteIndicesPrivileges != null;
+        // if a remote index privilege is an explicit denial, then we treat it as non-existent to stay consistent with local index
+        // privileges
+        final boolean isExplicitDenial = remoteIndicesPrivileges.length == 1
+            && "none".equalsIgnoreCase(remoteIndicesPrivileges[0].indicesPrivileges().getPrivileges()[0]);
+        if (isExplicitDenial) {
+            return;
+        }
+        for (final RemoteIndicesPrivileges remoteIndicesPrivilege : remoteIndicesPrivileges) {
+            final IndicesPrivileges indicesPrivilege = remoteIndicesPrivilege.indicesPrivileges();
+            final Set<String> clusterAliasKey = newHashSet(remoteIndicesPrivilege.remoteClusters());
+            remoteIndexPrivilegesByCluster.computeIfAbsent(clusterAliasKey, k -> new HashSet<>()).add(indicesPrivilege);
+        }
+    }
+
     /**
      * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
      */
@@ -556,16 +643,19 @@ public class CompositeRolesStore {
         }
 
         private static void collatePrivilegesByIndices(
-            IndicesPrivileges[] indicesPrivileges,
-            boolean allowsRestrictedIndices,
-            Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
+            final IndicesPrivileges[] indicesPrivileges,
+            final boolean allowsRestrictedIndices,
+            final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
         ) {
+            // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
+            // merging
+            final boolean isExplicitDenial = indicesPrivileges.length == 1
+                && "none".equalsIgnoreCase(indicesPrivileges[0].getPrivileges()[0]);
+            if (isExplicitDenial) {
+                return;
+            }
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
-                // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
-                // merging
-                final boolean isExplicitDenial = indicesPrivileges.length == 1
-                    && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
-                if (isExplicitDenial || (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices)) {
+                if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());

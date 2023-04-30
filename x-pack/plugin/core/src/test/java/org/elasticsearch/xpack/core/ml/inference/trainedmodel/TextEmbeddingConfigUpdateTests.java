@@ -7,17 +7,12 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,32 +21,40 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTestCase<TextEmbeddingConfigUpdate> {
+public class TextEmbeddingConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextEmbeddingConfigUpdate> {
 
-    public void testFromMap() {
-        TextEmbeddingConfigUpdate expected = new TextEmbeddingConfigUpdate(
-            "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
-        );
+    public static TextEmbeddingConfigUpdate randomUpdate() {
+        TextEmbeddingConfigUpdate.Builder builder = new TextEmbeddingConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static TextEmbeddingConfigUpdate mutateForVersion(TextEmbeddingConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersion.V_8_1_0)) {
+            return new TextEmbeddingConfigUpdate(instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
+    @Override
+    Tuple<Map<String, Object>, TextEmbeddingConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        TextEmbeddingConfigUpdate expected = new TextEmbeddingConfigUpdate("ml-results", expectedTokenization);
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-                Map<String, Object> truncate = new HashMap<>();
-                truncate.put("truncate", "first");
-                Map<String, Object> bert = new HashMap<>();
-                bert.put("bert", truncate);
-                put("tokenization", bert);
             }
         };
-        assertThat(TextEmbeddingConfigUpdate.fromMap(config), equalTo(expected));
+        return Tuple.tuple(config, expected);
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> TextEmbeddingConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
-        );
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Override
+    TextEmbeddingConfigUpdate fromMap(Map<String, Object> map) {
+        return TextEmbeddingConfigUpdate.fromMap(map);
     }
 
     public void testApply() {
@@ -60,14 +63,24 @@ public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTest
         assertThat(originalConfig, sameInstance(new TextEmbeddingConfigUpdate.Builder().build().apply(originalConfig)));
 
         assertThat(
-            new TextEmbeddingConfig(originalConfig.getVocabularyConfig(), originalConfig.getTokenization(), "ml-results"),
+            new TextEmbeddingConfig(
+                originalConfig.getVocabularyConfig(),
+                originalConfig.getTokenization(),
+                "ml-results",
+                originalConfig.getEmbeddingSize()
+            ),
             equalTo(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
         );
 
         Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
         Tokenization tokenization = cloneWithNewTruncation(originalConfig.getTokenization(), truncate);
         assertThat(
-            new TextEmbeddingConfig(originalConfig.getVocabularyConfig(), tokenization, originalConfig.getResultsField()),
+            new TextEmbeddingConfig(
+                originalConfig.getVocabularyConfig(),
+                tokenization,
+                originalConfig.getResultsField(),
+                originalConfig.getEmbeddingSize()
+            ),
             equalTo(
                 new TextEmbeddingConfigUpdate.Builder().setTokenizationUpdate(
                     createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
@@ -88,31 +101,16 @@ public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTest
 
     @Override
     protected TextEmbeddingConfigUpdate createTestInstance() {
-        TextEmbeddingConfigUpdate.Builder builder = new TextEmbeddingConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
-    protected TextEmbeddingConfigUpdate mutateInstanceForVersion(TextEmbeddingConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new TextEmbeddingConfigUpdate(instance.getResultsField(), null);
-        }
-        return instance;
+    protected TextEmbeddingConfigUpdate mutateInstance(TextEmbeddingConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+    protected TextEmbeddingConfigUpdate mutateInstanceForVersion(TextEmbeddingConfigUpdate instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 }

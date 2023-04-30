@@ -53,6 +53,6 @@ final class DeleteVersionValue extends VersionValue {
 
     @Override
     public String toString() {
-        return "DeleteVersionValue{" + "version=" + version + ", seqNo=" + seqNo + ", term=" + term + ",time=" + time + '}';
+        return "DeleteVersionValue{version=" + version + ", seqNo=" + seqNo + ", term=" + term + ",time=" + time + '}';
     }
 }

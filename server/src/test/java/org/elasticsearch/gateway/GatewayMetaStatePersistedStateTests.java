@@ -31,14 +31,15 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -170,16 +171,9 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         return builder.build();
     }
 
-    private IndexMetadata createIndexMetadata(String indexName, int numberOfShards, long version) {
+    private static IndexMetadata createIndexMetadata(String indexName, int numberOfShards, long version) {
         return IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_UUID, indexName)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build()
-            )
+            .settings(indexSettings(Version.CURRENT, numberOfShards, 0).put(IndexMetadata.SETTING_INDEX_UUID, indexName).build())
             .version(version)
             .build();
     }
@@ -378,6 +372,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(value = "org.elasticsearch.gateway:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/87952")
     public void testDataOnlyNodePersistence() throws Exception {
         final List<Closeable> cleanup = new ArrayList<>(2);
 
@@ -417,7 +412,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 new MetaStateService(nodeEnvironment, xContentRegistry()),
                 null,
                 null,
-                persistedClusterStateService
+                persistedClusterStateService,
+                List.of()
             );
             final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
             assertThat(persistedState, instanceOf(GatewayMetaState.AsyncPersistedState.class));
@@ -434,7 +430,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
             persistedState.setCurrentTerm(state.term());
             persistedState.setLastAcceptedState(state);
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
             assertThat(
                 persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
@@ -452,7 +448,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             );
 
             persistedState.markLastAcceptedStateAsCommitted();
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
             CoordinationMetadata expectedCoordinationMetadata = CoordinationMetadata.builder(coordinationMetadata)
                 .lastCommittedConfiguration(coordinationMetadata.getLastAcceptedConfiguration())
@@ -506,7 +502,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertTrue(wroteState); // must write it at least once
             assertEquals(currentTerm, persistedState.getCurrentTerm());
             assertClusterStateEqual(state, persistedState.getLastAcceptedState());
-            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
+            assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()), 30, TimeUnit.SECONDS);
 
             gateway.close();
             assertTrue(cleanup.remove(gateway));
@@ -534,7 +530,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             () -> 0L
         ) {
             @Override
-            Directory createDirectory(Path path) {
+            protected Directory createDirectory(Path path) {
                 final MockDirectoryWrapper wrapper = newMockFSDirectory(path);
                 wrapper.setAllowRandomFileNotFoundException(randomBoolean());
                 wrapper.setRandomIOExceptionRate(ioExceptionRate.get());

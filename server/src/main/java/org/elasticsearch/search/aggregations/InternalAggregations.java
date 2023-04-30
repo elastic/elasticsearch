@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -34,9 +35,9 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     public static final InternalAggregations EMPTY = new InternalAggregations(Collections.emptyList());
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
-        if (agg1.isMapped() == agg2.isMapped()) {
+        if (agg1.canLeadReduction() == agg2.canLeadReduction()) {
             return 0;
-        } else if (agg1.isMapped() && agg2.isMapped() == false) {
+        } else if (agg1.canLeadReduction() && agg2.canLeadReduction() == false) {
             return -1;
         } else {
             return 1;
@@ -89,7 +90,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (tail.hasNext()) {
             return aggregation.sortValue(tail.next(), tail);
         }
-        return aggregation.sortValue(head.key());
+        // We can sort by either the `[value]` or `.value`
+        return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
     }
 
     /**

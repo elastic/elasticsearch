@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -38,6 +39,11 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
          */
         private boolean shouldStoreResult;
 
+        /**
+         * Should user added annotations be removed when the job is deleted?
+         */
+        private boolean deleteUserAnnotations;
+
         public Request(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
@@ -46,6 +52,11 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             force = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                deleteUserAnnotations = in.readBoolean();
+            } else {
+                deleteUserAnnotations = false;
+            }
         }
 
         public String getJobId() {
@@ -76,6 +87,14 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             return shouldStoreResult;
         }
 
+        public void setDeleteUserAnnotations(boolean deleteUserAnnotations) {
+            this.deleteUserAnnotations = deleteUserAnnotations;
+        }
+
+        public boolean getDeleteUserAnnotations() {
+            return deleteUserAnnotations;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -91,11 +110,14 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(force);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+                out.writeBoolean(deleteUserAnnotations);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, force);
+            return Objects.hash(jobId, force, deleteUserAnnotations);
         }
 
         @Override
@@ -107,7 +129,9 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             DeleteJobAction.Request other = (DeleteJobAction.Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(force, other.force);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(force, other.force)
+                && Objects.equals(deleteUserAnnotations, other.deleteUserAnnotations);
         }
     }
 }

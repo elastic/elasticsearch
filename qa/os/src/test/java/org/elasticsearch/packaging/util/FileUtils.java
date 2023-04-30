@@ -9,7 +9,7 @@
 package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 

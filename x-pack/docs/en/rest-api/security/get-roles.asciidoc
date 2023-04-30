@@ -17,8 +17,7 @@ Retrieves roles in the native realm.
 [[security-api-get-role-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_security` cluster
-privilege.
+* To use this API, you must have at least the `read_security` cluster privilege.
 
 [[security-api-get-role-desc]]
 ==== {api-description-title}
@@ -31,10 +30,10 @@ API cannot retrieve roles that are defined in roles files.
 ==== {api-path-parms-title}
 
 `name`::
-  (Optional, string) The name of the role. You can specify multiple roles as a 
-  comma-separated list. If you do not specify this parameter, the API 
+  (Optional, string) The name of the role. You can specify multiple roles as a
+  comma-separated list. If you do not specify this parameter, the API
   returns information about all roles.
-  
+
 [[security-api-get-role-response-body]]
 ==== {api-response-body-title}
 
@@ -49,7 +48,7 @@ If the role is not defined in the native realm, the request returns 404.
 [[security-api-get-role-example]]
 ==== {api-examples-title}
 
-The following example retrieves information about the `my_admin_role` role in 
+The following example retrieves information about the `my_admin_role` role in
 the native realm:
 
 [source,console]

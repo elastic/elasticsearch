@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -80,11 +80,11 @@ public class StringStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override

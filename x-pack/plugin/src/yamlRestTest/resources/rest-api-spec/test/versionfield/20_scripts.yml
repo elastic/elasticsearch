@@ -52,3 +52,36 @@ setup:
   - match: { hits.hits.0._source.version: "3.1.0" }
   - match: { hits.hits.1._source.version: "1.1.12" }
   - match: { hits.hits.2._source.version: "2.0.0-beta" }
+
+
+---
+"Sort script returning version value":
+  - skip:
+      version: " - 8.2.99"
+      reason: "order by script returning version supported in v 8.3"
+  - do:
+      search:
+        index: test_index
+        body:
+          sort: { "_script" : { "type" : "version", "script" : { "source": "doc['version'].value" } } }
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.version: "1.1.12" }
+  - match: { hits.hits.1._source.version: "2.0.0-beta" }
+  - match: { hits.hits.2._source.version: "3.1.0" }
+
+---
+"Sort script with field() returning version value":
+  - skip:
+      version: " - 8.2.99"
+      reason: "order by script returning version supported in v 8.3"
+  - do:
+      search:
+        index: test_index
+        body:
+          sort: { "_script" : { "type" : "version", "script" : { "source": "field('version').get(new Version('0'))" } } }
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.version: "1.1.12" }
+  - match: { hits.hits.1._source.version: "2.0.0-beta" }
+  - match: { hits.hits.2._source.version: "3.1.0" }

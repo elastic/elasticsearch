@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -25,7 +27,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.shards.LocalStateAutoscalingAndSearchableSnapshots;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.util.Collection;
 import java.util.List;
@@ -38,7 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.elasticsearch.license.LicenseService.SELF_GENERATED_LICENSE_TYPE;
+import static org.elasticsearch.license.LicenseSettings.SELF_GENERATED_LICENSE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,7 +64,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateAutoscalingAndSearchableSnapshots.class);
+        return List.of(BlobCachePlugin.class, LocalStateAutoscalingAndSearchableSnapshots.class);
     }
 
     @Override
@@ -72,7 +73,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (DiscoveryNode.hasRole(otherSettings, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)) {
-            builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
+            builder.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(10, ByteSizeUnit.MB));
         }
         return builder.build();
     }

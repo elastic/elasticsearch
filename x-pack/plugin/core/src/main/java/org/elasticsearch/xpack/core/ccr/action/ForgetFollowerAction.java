@@ -54,7 +54,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return new Request(parameters[0], parameters[1], parameters[2], parameters[3], leaderIndex);
         }
 
-        private String followerCluster;
+        private final String followerCluster;
 
         /**
          * The name of the cluster containing the follower index.
@@ -65,7 +65,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return followerCluster;
         }
 
-        private String followerIndex;
+        private final String followerIndex;
 
         /**
          * The name of the follower index.
@@ -76,7 +76,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return followerIndex;
         }
 
-        private String followerIndexUUID;
+        private final String followerIndexUUID;
 
         /**
          * The UUID of the follower index.
@@ -87,7 +87,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return followerIndexUUID;
         }
 
-        private String leaderRemoteCluster;
+        private final String leaderRemoteCluster;
 
         /**
          * The alias of the remote cluster containing the leader index.
@@ -98,7 +98,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             return leaderRemoteCluster;
         }
 
-        private String leaderIndex;
+        private final String leaderIndex;
 
         /**
          * The name of the leader index.
@@ -134,7 +134,7 @@ public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
             final String leaderRemoteCluster,
             final String leaderIndex
         ) {
-            super(new String[] { leaderIndex });
+            super(leaderIndex);
             this.followerCluster = Objects.requireNonNull(followerCluster);
             this.leaderIndex = Objects.requireNonNull(leaderIndex);
             this.leaderRemoteCluster = Objects.requireNonNull(leaderRemoteCluster);

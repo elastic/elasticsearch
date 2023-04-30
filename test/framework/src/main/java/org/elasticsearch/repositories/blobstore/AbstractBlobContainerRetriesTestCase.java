@@ -281,7 +281,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 .or(containsString("Read timed out"))
                 .or(containsString("unexpected end of file from server"))
         );
-        assertThat(exception.getSuppressed().length, equalTo(maxRetries));
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
+    }
+
+    protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
+        return equalTo(maxRetries);
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -330,7 +334,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("premature end of content-length delimited message body")
             ).or(containsString("connection closed prematurely"))
         );
-        assertThat(exception.getSuppressed().length, equalTo(Math.min(10, maxRetries)));
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
     }
 
     protected static byte[] randomBlobContent() {
@@ -369,7 +373,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return OptionalInt.of(Math.toIntExact(rangeEnd));
     }
 
-    protected void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
+    protected int sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
         final int rangeStart = getRangeStart(exchange);
         assertThat(rangeStart, lessThan(bytes.length));
         final OptionalInt rangeEnd = getRangeEnd(exchange);
@@ -391,6 +395,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (randomBoolean()) {
             exchange.getResponseBody().flush();
         }
+        return bytesToSend;
     }
 
     /**

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
@@ -45,7 +46,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
     }
 
-    public class Batch {
+    public static class Batch<TreeType extends Node<TreeType>> {
         private final String name;
         private final Rule<?, TreeType>[] rules;
         private final Limiter limit;
@@ -68,19 +69,19 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
     }
 
-    private final Iterable<Batch> batches = batches();
+    private final Iterable<Batch<TreeType>> batches = batches();
 
-    protected abstract Iterable<RuleExecutor<TreeType>.Batch> batches();
+    protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
     public class Transformation {
         private final TreeType before, after;
-        private final Rule<?, TreeType> rule;
+        private final String name;
         private Boolean lazyHasChanged;
 
-        Transformation(TreeType plan, Rule<?, TreeType> rule) {
-            this.rule = rule;
-            before = plan;
-            after = rule.apply(before);
+        Transformation(String name, TreeType plan, Function<TreeType, TreeType> transform) {
+            this.name = name;
+            this.before = plan;
+            this.after = transform.apply(before);
         }
 
         public boolean hasChanged() {
@@ -90,8 +91,8 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             return lazyHasChanged;
         }
 
-        public String ruleName() {
-            return rule.name();
+        public String name() {
+            return name;
         }
 
         public TreeType before() {
@@ -106,9 +107,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
     public class ExecutionInfo {
 
         private final TreeType before, after;
-        private final Map<Batch, List<Transformation>> transformations;
+        private final Map<Batch<TreeType>, List<Transformation>> transformations;
 
-        ExecutionInfo(TreeType before, TreeType after, Map<Batch, List<Transformation>> transformations) {
+        ExecutionInfo(TreeType before, TreeType after, Map<Batch<TreeType>, List<Transformation>> transformations) {
             this.before = before;
             this.after = after;
             this.transformations = transformations;
@@ -122,23 +123,23 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             return after;
         }
 
-        public Map<Batch, List<Transformation>> transformations() {
+        public Map<Batch<TreeType>, List<Transformation>> transformations() {
             return transformations;
         }
     }
 
-    protected TreeType execute(TreeType plan) {
+    protected final TreeType execute(TreeType plan) {
         return executeWithInfo(plan).after;
     }
 
-    protected ExecutionInfo executeWithInfo(TreeType plan) {
+    protected final ExecutionInfo executeWithInfo(TreeType plan) {
         TreeType currentPlan = plan;
 
         long totalDuration = 0;
 
-        Map<Batch, List<Transformation>> transformations = new LinkedHashMap<>();
+        Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
 
-        for (Batch batch : batches) {
+        for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
             List<Transformation> tfs = new ArrayList<>();
             transformations.put(batch, tfs);
@@ -156,7 +157,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }
-                    Transformation tf = new Transformation(currentPlan, rule);
+                    Transformation tf = new Transformation(rule.name(), currentPlan, transform(rule));
                     tfs.add(tf);
                     currentPlan = tf.after;
 
@@ -197,5 +198,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
         }
 
         return new ExecutionInfo(plan, currentPlan, transformations);
+    }
+
+    protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {
+        return rule::apply;
     }
 }

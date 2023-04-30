@@ -65,3 +65,137 @@ The jar name will be different for each Elasticsearch version (for example `elas
 thus the generic `VERSION` specified in the example above. Furthermore,
 if not running the command from the folder where the SQL CLI jar resides,
 you'd have to provide the full path, as well.
+
+
+
+[[cli-commands]]
+[discrete]
+=== CLI commands
+
+Apart from SQL queries, CLI can also execute some specific commands:
+
+
+`allow_partial_search_results = <boolean>` (default `false`)::
+
+If `true`, returns partial results if there are shard request timeouts or
+<<shard-failures,shard failures>>. If `false`, returns an error with
+no partial results.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> allow_partial_search_results = true;
+allow_partial_search_results set to true
+--------------------------------------------------
+
+
+`fetch_size = <number>` (default `1000`)::
+
+Allows to change the size of fetches for query execution.
+Each fetch is delimited by fetch separator (if explicitly set).
+
+[source,sqlcli]
+--------------------------------------------------
+sql> fetch_size = 2000;
+fetch size set to 2000
+--------------------------------------------------
+
+
+
+`fetch_separator = <string>` (empty string by default)::
+
+Allows to change the separator string between fetches.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> fetch_separator = "---------------------";
+fetch separator set to "---------------------"
+--------------------------------------------------
+
+
+`lenient = <boolean>` (default `false`)::
+
+If `false`, {es-sql} returns an error for fields containing <<array,array values>>.
+If `true`, {es-sql} returns the first value from the array with no guarantee of consistent results.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> lenient = true;
+lenient set to true
+--------------------------------------------------
+
+
+
+`info`::
+
+Returns server information.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> info;
+Node:mynode Cluster:elasticsearch Version:8.3
+--------------------------------------------------
+
+
+
+
+`exit`::
+
+Closes the CLI.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> exit;
+Bye!
+--------------------------------------------------
+
+
+
+`cls`::
+
+Clears the screen.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> cls;
+--------------------------------------------------
+
+
+
+`logo`::
+
+Prints Elastic logo.
+
+[source,sqlcli]
+--------------------------------------------------
+sql> logo;
+
+                       asticElasticE
+                     ElasticE  sticEla
+          sticEl  ticEl            Elast
+        lasti Elasti                   tic
+      cEl       ast                     icE
+     icE        as                       cEl
+     icE        as                       cEl
+     icEla     las                        El
+   sticElasticElast                     icElas
+ las           last                    ticElast
+El              asti                 asti    stic
+El              asticEla           Elas        icE
+El            Elas  cElasticE   ticEl           cE
+Ela        ticEl         ticElasti              cE
+ las     astic               last              icE
+   sticElas                   asti           stic
+     icEl                      sticElasticElast
+     icE                       sticE   ticEla
+     icE                       sti       cEla
+     icEl                      sti        Ela
+      cEl                      sti       cEl
+       Ela                    astic    ticE
+         asti               ElasticElasti
+           ticElasti  lasticElas
+              ElasticElast
+
+                       SQL
+                      8.3.0
+
+--------------------------------------------------

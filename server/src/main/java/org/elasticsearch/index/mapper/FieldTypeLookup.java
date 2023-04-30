@@ -23,8 +23,8 @@ import java.util.stream.Collectors;
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
 final class FieldTypeLookup {
-    private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
+    private final Map<String, MappedFieldType> fullNameToFieldType;
+    private final Map<String, DynamicFieldType> dynamicFieldTypes;
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -33,7 +33,7 @@ final class FieldTypeLookup {
      *
      * For convenience, the set of copied fields includes the field itself.
      */
-    private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+    private final Map<String, Set<String>> fieldToCopiedFields;
 
     private final int maxParentPathDots;
 
@@ -43,6 +43,9 @@ final class FieldTypeLookup {
         Collection<RuntimeField> runtimeFields
     ) {
 
+        final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+        final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
+        final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -71,6 +74,9 @@ final class FieldTypeLookup {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
             MappedFieldType fieldType = fullNameToFieldType.get(path);
+            if (fieldType == null) {
+                continue;
+            }
             fullNameToFieldType.put(aliasName, fieldType);
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(aliasName, (DynamicFieldType) fieldType);
@@ -81,9 +87,15 @@ final class FieldTypeLookup {
             // this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(fieldType.name(), fieldType);
         }
+        // make all fields into compact+fast immutable maps
+        this.fullNameToFieldType = Map.copyOf(fullNameToFieldType);
+        this.dynamicFieldTypes = Map.copyOf(dynamicFieldTypes);
+        // make values into more compact immutable sets to save memory
+        fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
+        this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
     }
 
-    private static int dotCount(String path) {
+    public static int dotCount(String path) {
         int dotCount = 0;
         for (int i = 0; i < path.length(); i++) {
             if (path.charAt(i) == '.') {

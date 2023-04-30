@@ -8,13 +8,16 @@
 package org.elasticsearch.test;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -41,6 +44,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -57,7 +61,6 @@ public class TestSearchContext extends SearchContext {
 
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
-    final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
     final QuerySearchResult queryResult = new QuerySearchResult();
     final SearchExecutionContext searchExecutionContext;
@@ -69,7 +72,8 @@ public class TestSearchContext extends SearchContext {
     SortAndFormats sort;
     boolean trackScores = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
-
+    RankShardContext rankShardContext;
+    CollectorManager<Collector, Void> aggCollectorManager;
     ContextIndexSearcher searcher;
     int from;
     int size;
@@ -463,12 +467,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadSize() {
-        return 0;
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         return null;
     }
 
@@ -478,13 +477,38 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public void addDfsResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
     public QuerySearchResult queryResult() {
         return queryResult;
     }
 
     @Override
+    public void addQueryResult() {
+        // this space intentionally left blank
+    }
+
+    @Override
+    public TotalHits getTotalHits() {
+        return queryResult.getTotalHits();
+    }
+
+    @Override
+    public float getMaxScore() {
+        return queryResult.getMaxScore();
+    }
+
+    @Override
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    @Override
+    public void addFetchResult() {
+        // this space intentionally left blank
     }
 
     @Override
@@ -503,8 +527,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
+    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+        return aggCollectorManager;
+    }
+
+    @Override
+    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collector) {
+        this.aggCollectorManager = collector;
     }
 
     @Override
@@ -528,6 +557,16 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public RankShardContext rankShardContext() {
+        return rankShardContext;
+    }
+
+    @Override
+    public void rankShardContext(RankShardContext rankShardContext) {
+        this.rankShardContext = rankShardContext;
+    }
+
+    @Override
     public void addRescore(RescoreContext rescore) {
 
     }
@@ -535,5 +574,10 @@ public class TestSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SourceLoader newSourceLoader() {
+        return searchExecutionContext.newSourceLoader(false);
     }
 }

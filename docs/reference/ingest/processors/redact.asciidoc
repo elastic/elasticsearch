@@ -1,0 +1,237 @@
+[[redact-processor]]
+=== Redact processor
+++++
+<titleabbrev>Redact</titleabbrev>
+++++
+
+experimental::[]
+
+The Redact processor uses the Grok rules engine to obscure
+text in the input document matching the given Grok patterns. The processor can
+be used to obscure Personal Identifying Information (PII) by configuring it to
+detect known patterns such as email or IP addresses. Text that matches a Grok
+pattern is replaced with a configurable string such as `<EMAIL>` where an email
+address is matched or simply replace all matches with the text `<REDACTED>`
+if preferred.
+
+{es} comes packaged with a number of useful predefined {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+that can be conveniently referenced by the Redact processor.
+If one of those does not suit your needs, create a new pattern with a
+custom pattern definition. The Redact processor replaces every occurrence
+of a match. If there are multiple matches all will be replaced with the
+pattern name.
+
+The Redact processor is compatible with {ecs-ref}/ecs-field-reference.html[Elastic Common Schema (ECS)]
+patterns. Legacy Grok patterns are not supported.
+
+[[using-redact]]
+
+==== Using the Redact processor in a pipeline
+
+[[redact-options]]
+.Redact Options
+[options="header"]
+|======
+| Name                   | Required  | Default             | Description
+| `field`                | yes       | -                   | The field to be redacted
+| `patterns`             | yes       | -                   | A list of grok expressions to match and redact named captures with
+| `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the processor. Patterns matching existing names will override the pre-existing definition
+| `prefix`               | no        | <                   | Start a redacted section with this token
+| `suffix`               | no        | >                   | End a redacted section with this token
+| `ignore_missing`       | no        | `true`              | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::common-options.asciidoc[]
+|======
+
+In this example the predefined `IP` Grok pattern is used to match
+and redact an IP addresses from the `message` text field. The pipeline
+is tested using the Simulate API.
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "description" : "Hide my IP",
+    "processors": [
+      {
+        "redact": {
+          "field": "message",
+          "patterns": ["%{IP:client}"]
+        }
+      }
+    ]
+  },
+  "docs":[
+    {
+      "_source": {
+        "message": "55.3.244.1 GET /index.html 15824 0.043"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The document in the response still contains the `message` field
+but now the IP address `55.3.244.1` is replaced by the text `<client>`.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "<client> GET /index.html 15824 0.043"
+        },
+        "_ingest": {
+          "timestamp": "2023-02-01T16:08:39.419056008Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-02-01T16:08:39.419056008Z/$body.docs.0.doc._ingest.timestamp/]
+
+The IP address is replaced with the word `client` because that is what is
+specified in the Grok pattern `%{IP:client}`. The `<` and `>` tokens which
+surround the pattern name are configurable using the `prefix` and `suffix` options.
+
+The next example defines multiple patterns both of which are replaced
+with the word `REDACTED` and the prefix and suffix tokens are set to `*`
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "description": "Hide my IP",
+    "processors": [
+      {
+        "redact": {
+          "field": "message",
+          "patterns": [
+            "%{IP:REDACTED}",
+            "%{EMAILADDRESS:REDACTED}"
+          ],
+          "prefix": "*",
+          "suffix": "*"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "message": "55.3.244.1 GET /index.html 15824 0.043 test@elastic.co"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+In the response both the IP `55.3.244.1` and email address `test@elastic.co`
+have been replaced by `*REDACTED*`.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "*REDACTED* GET /index.html 15824 0.043 *REDACTED*"
+        },
+        "_ingest": {
+          "timestamp": "2023-02-01T16:53:14.560005377Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
+
+[[redact-custom-patterns]]
+==== Custom patterns
+
+If one of the existing Grok {es-repo}blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1[patterns]
+does not fit your requirements custom patterns can be added with the
+`pattern_definitions` option. New patterns definitions are composed of
+a pattern name and the pattern itself. The pattern may be a regular
+expression or reference existing Grok patterns.
+
+This example defines the custom pattern `GITHUB_NAME` to match
+GitHub usernames. The pattern definition uses the existing
+`USERNAME` Grok https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns/ecs-v1/grok-patterns[pattern] prefixed by the
+literal `@`.
+
+NOTE: The {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] is a really
+useful tool for building custom patterns.
+
+[source,console]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "redact": {
+          "field": "message",
+          "patterns": [
+            "%{GITHUB_NAME:GITHUB_NAME}"
+          ],
+          "pattern_definitions": {
+            "GITHUB_NAME": "@%{USERNAME}"
+          }
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "message": "@elastic-data-management the PR is ready for review"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The username is redacted in the response.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "<GITHUB_NAME> the PR is ready for review"
+        },
+        "_ingest": {
+          "timestamp": "2023-02-01T16:53:14.560005377Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
+
+[[grok-watchdog-redact]]
+==== Grok watchdog
+
+The watchdog interrupts expressions that take too long to execute.
+When interrupted, the Redact processor fails with an error.
+The same <<grok-watchdog-options, settings>> that control the
+Grok Watchdog timeout also apply to the Redact processor.

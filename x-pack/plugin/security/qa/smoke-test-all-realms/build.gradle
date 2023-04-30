@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.Version
-
 /*
  * This QA test is intended to smoke test all security realms with minimal dependencies.
  * That is, it makes sure a node that has every realm configured can start, and tests those realms that can be tested without needing external services.
@@ -8,7 +6,7 @@ import org.elasticsearch.gradle.Version
  * This test is also intended to work correctly on FIPS mode because we also want to know if a realm breaks on FIPS.
  */
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
@@ -78,6 +76,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.realms.oidc.openid7.op.authorization_endpoint', 'https://op.example.com/auth'
   setting 'xpack.security.authc.realms.oidc.openid7.op.jwkset_path', 'oidc-jwkset.json'
   setting 'xpack.security.authc.realms.oidc.openid7.claims.principal', 'sub'
+  setting 'xpack.security.authc.realms.oidc.openid7.http.connection_pool_ttl', '1m'
   keystore 'xpack.security.authc.realms.oidc.openid7.rp.client_secret', 'this-is-my-secret'
   //  - JWT (works)
   setting 'xpack.security.authc.realms.jwt.jwt8.order', '8'
@@ -92,4 +91,5 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   rolesFile file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
+  user username: "index_and_app_user", password: "security-test-password", role: "all_index_privileges,all_application_privileges"
 }

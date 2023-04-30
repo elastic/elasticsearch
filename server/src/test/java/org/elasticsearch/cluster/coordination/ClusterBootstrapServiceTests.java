@@ -7,14 +7,19 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -104,9 +109,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             settings.put(UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING.getKey(), timeout + "ms");
         }
 
-        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(
-            () -> { throw new AssertionError("should not be called yet"); }
-        );
+        final AtomicReference<Supplier<Iterable<DiscoveryNode>>> discoveredNodesSupplier = new AtomicReference<>(() -> {
+            throw new AssertionError("should not be called yet");
+        });
 
         final AtomicBoolean bootstrapped = new AtomicBoolean();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
@@ -160,28 +165,27 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private void testDoesNothingWithSettings(Settings.Builder builder) {
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
-            builder.build(),
-            transportService,
-            () -> { throw new AssertionError("should not be called"); },
-            () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
-        );
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(builder.build(), transportService, () -> {
+            throw new AssertionError("should not be called");
+        }, () -> false, vc -> { throw new AssertionError("should not be called"); });
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
         deterministicTaskQueue.runAllTasks();
     }
 
     public void testThrowsExceptionOnDuplicates() {
-        final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
-            new ClusterBootstrapService(
+        final IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ClusterBootstrapService(
                 builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "duplicate-requirement", "duplicate-requirement").build(),
                 transportService,
                 Collections::emptyList,
                 () -> false,
-                vc -> { throw new AssertionError("should not be called"); }
-            );
-        });
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
+            )
+        );
 
         assertThat(illegalArgumentException.getMessage(), containsString(INITIAL_MASTER_NODES_SETTING.getKey()));
         assertThat(illegalArgumentException.getMessage(), containsString("duplicate-requirement"));
@@ -303,7 +307,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             Collections::emptyList,
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -326,7 +332,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -350,7 +358,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -366,7 +376,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(otherNode1, otherNode2).toList(),
             () -> true,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -390,7 +402,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -403,7 +417,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.onFoundPeersUpdated();
@@ -416,7 +432,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             () -> Stream.of(localNode, otherNode1, otherNode2).toList(),
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
         transportService.start();
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
@@ -455,7 +473,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -476,7 +496,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             discoveredNodes::get,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -562,7 +584,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             transportService,
             Collections::emptyList,
             () -> false,
-            vc -> { throw new AssertionError("should not be called"); }
+            vc -> {
+                throw new AssertionError("should not be called");
+            }
         );
 
         transportService.start();
@@ -601,7 +625,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             settings.build(),
             transportService,
-            () -> emptyList(),
+            Collections::emptyList,
             () -> false,
             vc -> {
                 assertTrue(bootstrapped.compareAndSet(false, true));
@@ -631,7 +655,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
+                () -> new ClusterBootstrapService(settings.build(), transportService, Collections::emptyList, () -> false, vc -> fail())
             ).getMessage(),
             containsString(
                 "setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " + "to [single-node]"
@@ -648,9 +672,98 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> new ClusterBootstrapService(settings.build(), transportService, () -> emptyList(), () -> false, vc -> fail())
+                () -> new ClusterBootstrapService(settings.build(), transportService, Collections::emptyList, () -> false, vc -> fail())
             ).getMessage(),
             containsString("node with [discovery.type] set to [single-node] must be master-eligible")
         );
+    }
+
+    public void testBootstrapStateLogging() {
+        final var mockAppender = new MockLogAppender();
+        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "fresh node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to [node1, node2]"
+                )
+            );
+
+            final var metadataBuilder = Metadata.builder().clusterUUIDCommitted(false);
+            if (randomBoolean()) {
+                metadataBuilder.clusterUUID(UUIDs.randomBase64UUID(random()));
+            }
+            new ClusterBootstrapService(
+                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "node1", "node2").build(),
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
+            ).logBootstrapState(metadataBuilder.build());
+
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping"
+                )
+            );
+
+            new ClusterBootstrapService(Settings.EMPTY, transportService, Collections::emptyList, () -> false, vc -> {
+                throw new AssertionError("should not be called");
+            }).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+            mockAppender.assertAllExpectationsMatched();
+
+            final var warningMessagePattern = """
+                this node is locked into cluster UUID [test-uuid] but [cluster.initial_master_nodes] is set to [node1, node2]; \
+                remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; \
+                for further information see \
+                https://www.elastic.co/guide/en/elasticsearch/reference/*/important-settings.html#initial_master_nodes""";
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message if bootstrapping still configured",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.WARN,
+                    warningMessagePattern
+                )
+            );
+
+            new ClusterBootstrapService(
+                Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "node1", "node2").build(),
+                transportService,
+                Collections::emptyList,
+                () -> false,
+                vc -> {
+                    throw new AssertionError("should not be called");
+                }
+            ).logBootstrapState(Metadata.builder().clusterUUID("test-uuid").clusterUUIDCommitted(true).build());
+
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "bootstrapped node message if bootstrapping still configured",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.WARN,
+                    warningMessagePattern
+                )
+            );
+
+            var startTime = deterministicTaskQueue.getCurrentTimeMillis();
+            while (deterministicTaskQueue.getCurrentTimeMillis() <= startTime + TimeValue.timeValueHours(12).millis()) {
+                deterministicTaskQueue.runAllRunnableTasks();
+                deterministicTaskQueue.advanceTime();
+            }
+
+            mockAppender.assertAllExpectationsMatched();
+        }
     }
 }

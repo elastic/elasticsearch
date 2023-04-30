@@ -2,14 +2,11 @@ import org.apache.tools.ant.filters.ReplaceTokens
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:plugin:core')
-  testImplementation project(':client:rest-high-level')
+  yamlRestTestImplementation project(':x-pack:plugin:core')
+  yamlRestTestImplementation project(':client:rest-high-level')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -18,7 +15,7 @@ def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.yamlRestTest.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 // location of generated keystores and certificates
 File keystoreDir = new File(project.buildDir, 'keystore')
@@ -37,9 +34,9 @@ def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
   into keystoreDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
+sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
 
-['processTestResources', 'integTest', 'filepermissions', 'forbiddenPatterns'].each {
+['processYamlRestTestResources', 'yamlRestTest', 'filepermissions', 'forbiddenPatterns'].each {
   tasks.named(it).configure {
     dependsOn(copyKeyCerts)
   }
@@ -47,14 +44,10 @@ sourceSets.test.resources.srcDir(keystoreDir)
 
 ext.pluginPaths = []
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
-    }
   pluginPaths << pluginProject.path
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.interval', '1s'
 
@@ -87,11 +80,16 @@ ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
 ]
 
-tasks.named("processTestResources").configure {
-  from(sourceSets.test.resources.srcDirs) {
+tasks.named("processYamlRestTestResources").configure {
+  from(sourceSets.yamlRestTest.resources.srcDirs) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
     filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
+}
+
+tasks.named('yamlRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
 }

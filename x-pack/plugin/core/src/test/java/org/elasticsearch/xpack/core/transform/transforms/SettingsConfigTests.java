@@ -23,31 +23,43 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SettingsConfigTests extends AbstractSerializingTransformTestCase<SettingsConfig> {
 
     private boolean lenient;
 
     public static SettingsConfig randomSettingsConfig() {
+        Integer unattended = randomBoolean() ? null : randomIntBetween(0, 1);
+
         return new SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1)
+            randomBoolean() ? null : randomIntBetween(0, 1),
+            // don't set retries if unattended is set to true
+            randomBoolean() ? null : Integer.valueOf(1).equals(unattended) ? null : randomIntBetween(-1, 100),
+            unattended
         );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
+        Integer unattended = randomIntBetween(0, 1);
+
         return new SettingsConfig(
             randomIntBetween(10, 10_000),
             randomFloat(),
             randomIntBetween(0, 1),
             randomIntBetween(0, 1),
             randomIntBetween(0, 1),
-            randomIntBetween(0, 1)
+            randomIntBetween(0, 1),
+            Integer.valueOf(1).equals(unattended) ? -1 : randomIntBetween(-1, 100),
+            unattended
         );
     }
 
@@ -69,6 +81,11 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     @Override
     protected SettingsConfig createTestInstance() {
         return randomSettingsConfig();
+    }
+
+    @Override
+    protected SettingsConfig mutateInstance(SettingsConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -97,52 +114,88 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         assertThat(fromString("{\"deduce_mappings\" : null}").getDeduceMappingsForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getDeduceMappingsForUpdate());
+
+        assertNull(fromString("{\"num_failure_retries\" : null}").getNumFailureRetries());
+        assertThat(fromString("{\"num_failure_retries\" : null}").getNumFailureRetriesForUpdate(), equalTo(-2));
+        assertNull(fromString("{}").getNumFailureRetries());
+        assertNull(fromString("{}").getNumFailureRetriesForUpdate());
     }
 
-    public void testUpdateUsingBuilder() throws IOException {
+    public void testUpdateMaxPageSearchSizeUsingBuilder() throws IOException {
         SettingsConfig config = fromString(
-            "{\"max_page_search_size\" : 10000, "
-                + "\"docs_per_second\" :42, "
+            "{\"max_page_search_size\": 10000, "
+                + "\"docs_per_second\": 42, "
                 + "\"dates_as_epoch_millis\": true, "
                 + "\"align_checkpoints\": false,"
                 + "\"use_point_in_time\": false,"
-                + "\"deduce_mappings\": false}"
+                + "\"deduce_mappings\": false,"
+                + "\"num_failure_retries\": 5,"
+                + "\"unattended\": false}"
         );
-
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
-        builder.update(fromString("{\"max_page_search_size\" : 100}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 5, false))));
 
-        assertThat(builder.build().getMaxPageSearchSize(), equalTo(100));
-        assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+        builder.update(fromString("{\"max_page_search_size\": 100}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(100, 42F, true, false, false, false, 5, false))));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
         assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
         assertThat(builder.build().getDeduceMappingsForUpdate(), equalTo(0));
+        assertThat(builder.build().getUnattendedForUpdate(), equalTo(0));
 
-        builder.update(fromString("{\"max_page_search_size\" : null}"));
-        assertNull(builder.build().getMaxPageSearchSize());
-        assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+        builder.update(fromString("{\"max_page_search_size\": null}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(null, 42F, true, false, false, false, 5, false))));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
         assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
         assertThat(builder.build().getDeduceMappingsForUpdate(), equalTo(0));
+        assertThat(builder.build().getUnattendedForUpdate(), equalTo(0));
 
         builder.update(
             fromString(
-                "{\"max_page_search_size\" : 77, "
-                    + "\"docs_per_second\" :null, "
+                "{\"max_page_search_size\": 77, "
+                    + "\"docs_per_second\": null, "
                     + "\"dates_as_epoch_millis\": null, "
                     + "\"align_checkpoints\": null,"
                     + "\"use_point_in_time\": null,"
-                    + "\"deduce_mappings\": null}"
+                    + "\"deduce_mappings\": null,"
+                    + "\"num_failure_retries\": null,"
+                    + "\"unattended\": null}"
             )
         );
-        assertThat(builder.build().getMaxPageSearchSize(), equalTo(77));
-        assertNull(builder.build().getDocsPerSecond());
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(77, null, (Boolean) null, null, null, null, null, null))));
         assertNull(builder.build().getDatesAsEpochMillisForUpdate());
         assertNull(builder.build().getAlignCheckpointsForUpdate());
         assertNull(builder.build().getUsePitForUpdate());
         assertNull(builder.build().getDeduceMappingsForUpdate());
+        assertNull(builder.build().getNumFailureRetriesForUpdate());
+        assertNull(builder.build().getUnattendedForUpdate());
+    }
+
+    public void testUpdateNumFailureRetriesUsingBuilder() throws IOException {
+        SettingsConfig config = fromString(
+            "{\"max_page_search_size\": 10000, "
+                + "\"docs_per_second\": 42, "
+                + "\"dates_as_epoch_millis\": true, "
+                + "\"align_checkpoints\": false,"
+                + "\"use_point_in_time\": false,"
+                + "\"deduce_mappings\": false,"
+                + "\"num_failure_retries\": 5}"
+        );
+        SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 5, null))));
+
+        builder.update(fromString("{\"num_failure_retries\": 6}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 6, null))));
+
+        builder.update(fromString("{\"num_failure_retries\": -1}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, -1, null))));
+
+        builder.update(fromString("{\"num_failure_retries\": null}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, null, null))));
+
+        builder.update(fromString("{\"num_failure_retries\": 55}"));
+        assertThat(builder.build(), is(equalTo(new SettingsConfig(10000, 42F, true, false, false, false, 55, null))));
     }
 
     public void testOmmitDefaultsOnWriteParser() throws IOException {
@@ -185,6 +238,19 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = fromString("{\"deduce_mappings\" : null}");
         assertThat(config.getDeduceMappingsForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"num_failure_retries\" : null}");
+        assertThat(config.getNumFailureRetries(), nullValue());
+        assertThat(config.getNumFailureRetriesForUpdate(), equalTo(-2));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"unattended\" : null}");
+        assertThat(config.getUnattendedForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
@@ -233,6 +299,126 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(null).build();
+        assertThat(config.getNumFailureRetries(), nullValue());
+        assertThat(config.getNumFailureRetriesForUpdate(), equalTo(-2));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setUnattended(null).build();
+        assertThat(config.getUnattendedForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+    }
+
+    public void testValidateMaxPageSearchSize() {
+        SettingsConfig config = new SettingsConfig.Builder().build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(null).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.max_page_search_size [-1] is out of range. The minimum value is 10 and the maximum is 65536")
+        );
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(-2).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.max_page_search_size [-2] is out of range. The minimum value is 10 and the maximum is 65536")
+        );
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(-1).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.max_page_search_size [-1] is out of range. The minimum value is 10 and the maximum is 65536")
+        );
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(0).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.max_page_search_size [0] is out of range. The minimum value is 10 and the maximum is 65536")
+        );
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(10).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(65536).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setMaxPageSearchSize(65537).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.max_page_search_size [65537] is out of range. The minimum value is 10 and the maximum is 65536")
+        );
+    }
+
+    public void testValidateNumFailureRetries() {
+        SettingsConfig config = new SettingsConfig.Builder().build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(null).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.num_failure_retries [-2] is out of range. The minimum value is -1 (infinity) and the maximum is 100")
+        );
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(-2).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.num_failure_retries [-2] is out of range. The minimum value is -1 (infinity) and the maximum is 100")
+        );
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(-1).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(0).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(1).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(100).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setNumFailureRetries(101).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.num_failure_retries [101] is out of range. The minimum value is -1 (infinity) and the maximum is 100")
+        );
+    }
+
+    public void testValidateUnattended() {
+        SettingsConfig config = new SettingsConfig.Builder().setUnattended(true).setNumFailureRetries(20).build();
+        assertThat(
+            config.validate(null).validationErrors(),
+            contains("settings.num_failure_retries [20] can not be set in unattended mode, unattended retries indefinitely")
+        );
+
+        config = new SettingsConfig.Builder().setUnattended(true).setNumFailureRetries(-1).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setUnattended(null).setNumFailureRetries(10).build();
+        assertThat(config.validate(null), is(nullValue()));
+
+        config = new SettingsConfig.Builder().setUnattended(false).setNumFailureRetries(10).build();
+        assertThat(config.validate(null), is(nullValue()));
+    }
+
+    public void testUnattendedVariants() {
+        SettingsConfig config = new SettingsConfig.Builder().build();
+        assertNull(config.getUnattended());
+
+        config = new SettingsConfig.Builder().setUnattended(null).build();
+        assertNull(config.getUnattended());
+
+        config = new SettingsConfig.Builder().setUnattended(true).build();
+        assertTrue(config.getUnattended());
+
+        config = new SettingsConfig.Builder().setUnattended(false).build();
+        assertFalse(config.getUnattended());
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

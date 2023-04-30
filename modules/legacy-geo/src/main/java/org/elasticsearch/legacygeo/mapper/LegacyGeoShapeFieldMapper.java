@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.legacygeo.mapper;
 
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -28,14 +29,15 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.ShapesAvailability;
 import org.elasticsearch.legacygeo.XShapeCollection;
@@ -251,8 +253,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 ignoreMalformed,
                 ignoreZValue,
@@ -264,8 +266,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 precision,
                 distanceErrorPct,
                 pointsOnly,
-                meta
-            );
+                meta };
         }
 
         public Builder coerce(boolean coerce) {
@@ -360,10 +361,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
-            if (name.isEmpty()) {
-                // Check for an empty name early so we can throw a consistent error message
-                throw new IllegalArgumentException("name cannot be empty string");
-            }
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);
             return new LegacyGeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
@@ -446,17 +443,17 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
         public Query geoShapeQuery(
-            Geometry shape,
+            SearchExecutionContext context,
             String fieldName,
             SpatialStrategy spatialStrategy,
             ShapeRelation relation,
-            SearchExecutionContext context
+            Geometry shape
         ) {
             return queryProcessor.geoShapeQuery(shape, fieldName, spatialStrategy, relation, context);
         }
@@ -559,7 +556,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         super(
             simpleName,
             mappedFieldType,
-            Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
@@ -570,6 +566,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         );
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -598,7 +599,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 }
                 return;
             } else if (shape instanceof Point == false) {
-                throw new MapperParsingException(
+                throw new DocumentParsingException(
+                    context.parser().getTokenLocation(),
                     "[{"
                         + fieldType().name()
                         + "}] is configured for points only but a "

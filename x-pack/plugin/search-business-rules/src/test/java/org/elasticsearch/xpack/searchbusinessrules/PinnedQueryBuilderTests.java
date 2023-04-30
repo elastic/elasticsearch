@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,7 +40,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
     }
 
-    private QueryBuilder createRandomQuery() {
+    private static QueryBuilder createRandomQuery() {
         if (randomBoolean()) {
             return new MatchAllQueryBuilder();
         } else {
@@ -49,7 +48,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
     }
 
-    private QueryBuilder createTestTermQueryBuilder() {
+    private static QueryBuilder createTestTermQueryBuilder() {
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
@@ -92,7 +91,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         return new TermQueryBuilder(fieldName, value);
     }
 
-    private Item[] generateRandomItems() {
+    private static Item[] generateRandomItems() {
         return randomArray(1, 100, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
     }
 
@@ -107,10 +106,14 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     @Override
+    protected PinnedQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        return new PinnedQueryBuilder(queryBuilder, "id");
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>();
         classpathPlugins.add(SearchBusinessRules.class);
-        classpathPlugins.add(TestGeoShapeFieldMapperPlugin.class);
         return classpathPlugins;
     }
 
@@ -154,13 +157,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "ids": [ "1", "2" ],
-                "boost": 1.0
+                "ids": [ "1", "2" ]
               }
             }""";
 
@@ -178,13 +179,11 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
                 "organic": {
                   "term": {
                     "tag": {
-                      "value": "tech",
-                      "boost": 1.0
+                      "value": "tech"
                     }
                   }
                 },
-                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
-                "boost": 1.0
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ]
               }
             }""";
 

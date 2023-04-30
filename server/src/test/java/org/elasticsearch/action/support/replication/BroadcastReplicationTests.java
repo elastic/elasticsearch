@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -18,8 +18,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -30,8 +30,8 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -88,7 +88,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         super.setUp();
         TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
-            Version.CURRENT,
+            TransportVersion.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -141,7 +141,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             )
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
@@ -160,7 +160,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(), ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
@@ -176,7 +176,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         int numShards = 1 + randomInt(3);
         setState(clusterService, stateWithAssignedPrimariesAndOneReplica(index, numShards));
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
         ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices(index), response);
         int succeeded = 0;
         int failed = 0;
@@ -213,7 +213,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     public void testNoShards() throws InterruptedException, ExecutionException, IOException {
         setState(clusterService, stateWithNoShard());
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        BroadcastResponse response = executeAndAssertImmediateResponse(broadcastReplicationAction, new DummyBroadcastRequest());
+        BaseBroadcastResponse response = executeAndAssertImmediateResponse(broadcastReplicationAction, new DummyBroadcastRequest());
         assertBroadcastResponse(0, 0, 0, response, null);
     }
 
@@ -234,7 +234,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
     private class TestBroadcastReplicationAction extends TransportBroadcastReplicationAction<
         DummyBroadcastRequest,
-        BroadcastResponse,
+        BaseBroadcastResponse,
         BasicReplicationRequest,
         ReplicationResponse> {
         protected final Set<Tuple<ShardId, ActionListener<ReplicationResponse>>> capturedShardRequests = ConcurrentCollections
@@ -254,13 +254,9 @@ public class BroadcastReplicationTests extends ESTestCase {
                 null,
                 actionFilters,
                 indexNameExpressionResolver,
-                null
+                null,
+                ThreadPool.Names.SAME
             );
-        }
-
-        @Override
-        protected ReplicationResponse newShardResponse() {
-            return new ReplicationResponse();
         }
 
         @Override
@@ -269,13 +265,13 @@ public class BroadcastReplicationTests extends ESTestCase {
         }
 
         @Override
-        protected BroadcastResponse newResponse(
+        protected BaseBroadcastResponse newResponse(
             int successfulShards,
             int failedShards,
             int totalNumCopies,
             List<DefaultShardOperationFailedException> shardFailures
         ) {
-            return new BroadcastResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
+            return new BaseBroadcastResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
         }
 
         @Override
@@ -302,16 +298,16 @@ public class BroadcastReplicationTests extends ESTestCase {
         return flushResponse;
     }
 
-    public BroadcastResponse executeAndAssertImmediateResponse(
-        TransportBroadcastReplicationAction<DummyBroadcastRequest, BroadcastResponse, ?, ?> broadcastAction,
+    public BaseBroadcastResponse executeAndAssertImmediateResponse(
+        TransportBroadcastReplicationAction<DummyBroadcastRequest, BaseBroadcastResponse, ?, ?> broadcastAction,
         DummyBroadcastRequest request
     ) {
-        PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
+        PlainActionFuture<BaseBroadcastResponse> response = PlainActionFuture.newFuture();
         ActionTestUtils.execute(broadcastAction, null, request, response);
         return response.actionGet("5s");
     }
 
-    private void assertBroadcastResponse(int total, int successful, int failed, BroadcastResponse response, Class<?> exceptionClass) {
+    private void assertBroadcastResponse(int total, int successful, int failed, BaseBroadcastResponse response, Class<?> exceptionClass) {
         assertThat(response.getSuccessfulShards(), equalTo(successful));
         assertThat(response.getTotalShards(), equalTo(total));
         assertThat(response.getFailedShards(), equalTo(failed));

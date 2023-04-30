@@ -91,7 +91,7 @@ public class ShrinkAction implements LifecycleAction {
             this.maxPrimaryShardSize = null;
         } else {
             this.numberOfShards = null;
-            this.maxPrimaryShardSize = new ByteSizeValue(in);
+            this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
     }
 
@@ -204,8 +204,8 @@ public class ShrinkAction implements LifecycleAction {
             cleanupShrinkIndexKey,
             numberOfShards
         );
-        // we generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
-        // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and he haven't generated a
+        // We generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
+        // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and we haven't generated a
         // shrink index name)
         CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(
             cleanupShrinkIndexKey,

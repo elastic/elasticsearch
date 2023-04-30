@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -31,6 +30,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class DelimitedTextStructureFinder implements TextStructureFinder {
 
@@ -120,7 +121,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
         sampleLines = null;
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         SortedMap<String, Object> fieldMappings = mappingsAndFieldStats.v1();
 
@@ -166,6 +167,7 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
+                .setEcsCompatibility(overrides.getEcsCompatibility())
                 .setIngestPipeline(
                     TextStructureUtils.makeIngestPipelineDefinition(
                         null,
@@ -175,7 +177,8 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                         timeField.v1(),
                         timeField.v2().getJavaTimestampFormats(),
                         needClientTimeZone,
-                        timeField.v2().needNanosecondPrecision()
+                        timeField.v2().needNanosecondPrecision(),
+                        overrides.getEcsCompatibility()
                     )
                 )
                 .setMultilineStartPattern(
@@ -205,7 +208,8 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                     null,
                     null,
                     false,
-                    false
+                    false,
+                    null
                 )
             );
             structureBuilder.setMultilineStartPattern(
@@ -661,14 +665,14 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
                         // as it may have and down stream effects
                         if (illFormattedRows.size() > Math.ceil(allowedFractionOfBadLines * totalNumberOfRows)) {
                             explanation.add(
-                                new ParameterizedMessage(
-                                    "Not {} because {} or more rows did not have the same number of fields "
-                                        + "as the first row ({}). Bad rows {}",
+                                format(
+                                    "Not %s because %s or more rows did not have the same number of fields "
+                                        + "as the first row (%s). Bad rows %s",
                                     formatName,
                                     illFormattedRows.size(),
                                     fieldsInFirstRow,
                                     illFormattedRows
-                                ).getFormattedMessage()
+                                )
                             );
                             return false;
                         }

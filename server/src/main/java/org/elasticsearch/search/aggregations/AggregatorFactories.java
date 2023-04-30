@@ -303,14 +303,8 @@ public class AggregatorFactories {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.aggregationBuilders.size());
-            for (AggregationBuilder factory : aggregationBuilders) {
-                out.writeNamedWriteable(factory);
-            }
-            out.writeVInt(this.pipelineAggregatorBuilders.size());
-            for (PipelineAggregationBuilder factory : pipelineAggregatorBuilders) {
-                out.writeNamedWriteable(factory);
-            }
+            out.writeCollection(this.aggregationBuilders, StreamOutput::writeNamedWriteable);
+            out.writeCollection(this.pipelineAggregatorBuilders, StreamOutput::writeNamedWriteable);
         }
 
         public boolean mustVisitAllDocs() {
@@ -395,7 +389,7 @@ public class AggregatorFactories {
 
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
-                return EMPTY;
+                return AggregatorFactories.EMPTY;
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
             int i = 0;

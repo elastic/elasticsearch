@@ -11,7 +11,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -136,7 +136,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endArray();
         builder.field(SLOP_FIELD.getPreferredName(), slop);
         builder.field(IN_ORDER_FIELD.getPreferredName(), inOrder);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -274,8 +274,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     /**
@@ -370,8 +370,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.ZERO;
         }
 
         @Override

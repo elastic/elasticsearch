@@ -10,7 +10,6 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -51,7 +50,7 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
                 return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
                     .toList();
             } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
+                logger.warn(() -> "failed to read file [" + unicastHostsFilePath + "]", e);
                 return Collections.emptyList();
             }
         }

@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 
 public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<QueryApiKeyResponse> {
 
@@ -32,7 +37,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     }
 
     @Override
-    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
+    protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) {
         final List<QueryApiKeyResponse.Item> items = Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
         switch (randomIntBetween(0, 3)) {
             case 0:
@@ -58,6 +63,24 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         }
     }
 
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+                )
+            )
+        );
+    }
+
     private QueryApiKeyResponse.Item randomItem() {
         return new QueryApiKeyResponse.Item(randomApiKeyInfo(), randomSortValues());
     }
@@ -70,7 +93,19 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         final Instant creation = Instant.ofEpochMilli(randomMillisUpToYear9999());
         final Instant expiration = randomBoolean() ? Instant.ofEpochMilli(randomMillisUpToYear9999()) : null;
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        return new ApiKey(name, id, creation, expiration, false, username, realm_name, metadata);
+        final List<RoleDescriptor> roleDescriptors = randomFrom(randomUniquelyNamedRoleDescriptors(0, 3), null);
+        return new ApiKey(
+            name,
+            id,
+            creation,
+            expiration,
+            false,
+            username,
+            realm_name,
+            metadata,
+            roleDescriptors,
+            randomUniquelyNamedRoleDescriptors(1, 3)
+        );
     }
 
     private Object[] randomSortValues() {

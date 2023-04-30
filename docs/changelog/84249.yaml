@@ -1,5 +1,0 @@
-pr: 84249
-summary: Add smoke test for JWT realm wiring
-area: Authentication
-type: feature
-issues: []

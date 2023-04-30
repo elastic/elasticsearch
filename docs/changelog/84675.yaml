@@ -1,6 +1,0 @@
-pr: 84675
-summary: Remove existing indices/datastreams/aliases before simulating index template
-area: Indices APIs
-type: bug
-issues:
- - 84256

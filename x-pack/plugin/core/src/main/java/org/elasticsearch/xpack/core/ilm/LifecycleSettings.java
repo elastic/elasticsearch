@@ -19,16 +19,16 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
     public static final String LIFECYCLE_NAME = IndexMetadata.LIFECYCLE_NAME;
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
-    public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
-    public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
-    public static final String LIFECYCLE_STEP_WAIT_TIME_THRESHOLD = "index.lifecycle.step.wait_time_threshold";
     public static final String LIFECYCLE_HISTORY_INDEX_ENABLED = "indices.lifecycle.history_index_enabled";
     public static final String LIFECYCLE_STEP_MASTER_TIMEOUT = "indices.lifecycle.step.master_timeout";
+    public static final String LIFECYCLE_STEP_WAIT_TIME_THRESHOLD = "index.lifecycle.step.wait_time_threshold";
+    public static final String LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS = "indices.lifecycle.rollover.only_if_has_documents";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
     public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
     public static final String SLM_MINIMUM_INTERVAL = "slm.minimum_interval";
+    public static final String SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD = "slm.health.failed_snapshot_warn_threshold";
 
     // This is not a setting configuring ILM per se, but certain ILM actions need to validate the managed index is not
     // already mounted as a searchable snapshot. Those ILM actions will check if the index has this setting name configured.
@@ -52,22 +52,10 @@ public class LifecycleSettings {
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
-    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
-        LIFECYCLE_ORIGINATION_DATE,
-        -1,
-        -1,
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
-    public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
-        LIFECYCLE_PARSE_ORIGINATION_DATE,
-        false,
-        Setting.Property.Dynamic,
-        Setting.Property.IndexScope
-    );
     public static final Setting<Boolean> LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(
         LIFECYCLE_HISTORY_INDEX_ENABLED,
         true,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     public static final Setting<TimeValue> LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -87,10 +75,18 @@ public class LifecycleSettings {
         Setting.Property.Dynamic,
         Setting.Property.IndexScope
     );
+    public static final Setting<Boolean> LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS_SETTING = Setting.boolSetting(
+        LIFECYCLE_ROLLOVER_ONLY_IF_HAS_DOCUMENTS,
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
+    );
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(
         SLM_HISTORY_INDEX_ENABLED,
         true,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
     public static final Setting<String> SLM_RETENTION_SCHEDULE_SETTING = Setting.simpleString(
@@ -123,6 +119,17 @@ public class LifecycleSettings {
     public static final Setting<TimeValue> SLM_MINIMUM_INTERVAL_SETTING = Setting.positiveTimeSetting(
         SLM_MINIMUM_INTERVAL,
         TimeValue.timeValueMinutes(15),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    /**
+     * The number of repeated failures allowed since the last successful SLM snapshot before a health warning is surfaced in the
+     * health API.
+     */
+    public static final Setting<Long> SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING = Setting.longSetting(
+        SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD,
+        5L,
+        1L,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

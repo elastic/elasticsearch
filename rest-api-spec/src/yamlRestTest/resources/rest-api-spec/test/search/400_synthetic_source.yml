@@ -1,0 +1,496 @@
+keyword:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+
+---
+stored text:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              text:
+                type: text
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: the quick brown fox
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        text: the quick brown fox
+
+---
+stored keyword:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                store: true
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: the quick brown fox
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        kwd: the quick brown fox
+
+---
+stored keyword without sibling fields:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"kwd": "the quick brown fox", "s": 1, "n": 1}'
+          - '{"index": {}}'
+          - '{"kwd": "jumped over the lazy dog", "s": 2}'
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: s
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - match:
+      hits.hits.0._source:
+        kwd: the quick brown fox
+        s: 1
+        n: 1
+  - match:
+      hits.hits.1._source:
+        kwd: jumped over the lazy dog
+        s: 2
+
+---
+force_synthetic_source_ok:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              obj:
+                properties:
+                  kwd:
+                    type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          obj.kwd: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        obj.kwd: foo
+
+  # When we force synthetic source dots in field names get turned into objects
+  - do:
+      search:
+        index: test
+        force_synthetic_source: true
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        obj:
+          kwd: foo
+
+---
+force_synthetic_source_bad_mapping:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1 # Use a single shard to get consistent error messages
+          mappings:
+            _source:
+              mode: stored
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          text: foo
+
+  # When _source is used in the fetch the original _source is perfect
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - match:
+      hits.hits.0._source:
+        text: foo
+
+  # Forcing synthetic source fails because the mapping is invalid
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        force_synthetic_source: true
+        body:
+          query:
+            ids:
+              values: [1]
+
+---
+doc values keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          s: 1
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          s: 2
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          s: 3
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: s
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - is_false: hits.hits.2.fields
+  - match:
+      hits.hits.0._source:
+        s: 1
+        kwd: the quick brown fox
+  - match:
+      hits.hits.1._source:
+        s: 2
+        kwd: short
+  - match:
+      hits.hits.2._source:
+        s: 3
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+
+---
+stored keyword with ignore_above:
+  - skip:
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false
+                store: true
+                ignore_above: 10
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          s: 1
+          kwd: the quick brown fox
+  - do:
+      index:
+        index:   test
+        id:      2
+        refresh: true
+        body:
+          s: 2
+          kwd: short
+  - do:
+      index:
+        index:   test
+        id:      3
+        refresh: true
+        body:
+          s: 3
+          kwd:
+            - jumped over the lazy dog
+            - short
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: s
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - is_false: hits.hits.2.fields
+  - match:
+      hits.hits.0._source:
+        s: 1
+        kwd: the quick brown fox
+  - match:
+      hits.hits.1._source:
+        s: 2
+        kwd: short
+  - match:
+      hits.hits.2._source:
+        s: 3
+        kwd:
+          - short
+          - jumped over the lazy dog # fields saved by ignore_above are returned after doc values fields
+
+---
+_source filtering:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+              extra:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        refresh: true
+        body:
+          kwd: foo
+          extra: bar
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: kwd
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        kwd: foo
+
+---
+_doc_count:
+  - skip:
+      version: " - 8.6.99"
+      reason: bug caused by many not having _doc_count fixed in 8.7.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+
+  - do:
+      index:
+        index:   test
+        id:      2
+        body:
+          foo: baz
+  - do:
+      index:
+        index:   test
+        id:      3
+        body:
+          foo: baz
+  - do:
+      index:
+        index:   test
+        id:      4
+        body:
+          foo: baz
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:
+          _doc_count: 3
+          foo: bar
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: foo.keyword
+  - is_false: hits.hits.0.fields
+  - is_false: hits.hits.1.fields
+  - match:
+      hits.hits.0._source:
+        _doc_count: 3
+        foo: bar
+  - match:
+      hits.hits.1._source:
+        foo: baz
+

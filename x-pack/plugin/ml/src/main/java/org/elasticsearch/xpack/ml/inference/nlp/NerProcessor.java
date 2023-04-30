@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
@@ -21,63 +19,57 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class NerProcessor extends NlpTask.Processor {
 
-    public enum Entity implements Writeable {
-        NONE,
-        MISC,
-        PER,
-        ORG,
-        LOC;
+    record IobTag(String tag, String entity) {
+        static IobTag fromTag(String tag) {
+            String entity = tag.toUpperCase(Locale.ROOT);
+            if (entity.startsWith("B-") || entity.startsWith("I-") || entity.startsWith("B_") || entity.startsWith("I_")) {
+                entity = entity.substring(2);
+                return new IobTag(tag, entity);
+            } else if (entity.equals("O")) {
+                return new IobTag(tag, entity);
+            } else {
+                throw new IllegalArgumentException("classification label [" + tag + "] is not an entity I-O-B tag.");
+            }
+        }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(this);
+        boolean isBeginning() {
+            return tag.startsWith("b") || tag.startsWith("B");
+        }
+
+        boolean isNone() {
+            return tag.equals("o") || tag.equals("O");
         }
 
         @Override
         public String toString() {
-            return name().toUpperCase(Locale.ROOT);
+            return tag;
         }
     }
 
-    // Inside-Outside-Beginning (IOB) tag
-    enum IobTag {
-        O(Entity.NONE),      // Outside a named entity
-        B_MISC(Entity.MISC), // Beginning of a miscellaneous entity right after another miscellaneous entity
-        I_MISC(Entity.MISC), // Miscellaneous entity
-        B_PER(Entity.PER),   // Beginning of a person's name right after another person's name
-        I_PER(Entity.PER),   // Person's name
-        B_ORG(Entity.ORG),   // Beginning of an organisation right after another organisation
-        I_ORG(Entity.ORG),   // Organisation
-        B_LOC(Entity.LOC),   // Beginning of a location right after another location
-        I_LOC(Entity.LOC);   // Location
-
-        private final Entity entity;
-
-        IobTag(Entity entity) {
-            this.entity = entity;
-        }
-
-        Entity getEntity() {
-            return entity;
-        }
-
-        boolean isBeginning() {
-            return name().toLowerCase(Locale.ROOT).startsWith("b");
-        }
-    }
+    static final IobTag[] DEFAULT_IOB_TAGS = new IobTag[] {
+        IobTag.fromTag("O"),       // Outside a named entity
+        IobTag.fromTag("B_MISC"),  // Beginning of a miscellaneous entity right after another miscellaneous entity
+        IobTag.fromTag("I_MISC"),  // Miscellaneous entity
+        IobTag.fromTag("B_PER"),   // Beginning of a person's name right after another person's name
+        IobTag.fromTag("I_PER"),   // Person's name
+        IobTag.fromTag("B_ORG"),   // Beginning of an organisation right after another organisation
+        IobTag.fromTag("I_ORG"),   // Organisation
+        IobTag.fromTag("B_LOC"),   // Beginning of a location right after another location
+        IobTag.fromTag("I_LOC")    // Location
+    };
 
     private final NlpTask.RequestBuilder requestBuilder;
     private final IobTag[] iobMap;
@@ -102,10 +94,10 @@ public class NerProcessor extends NlpTask.Processor {
         }
 
         ValidationException ve = new ValidationException();
-        EnumSet<IobTag> tags = EnumSet.noneOf(IobTag.class);
+        Set<IobTag> tags = new HashSet<>();
         for (String label : classificationLabels) {
             try {
-                IobTag iobTag = IobTag.valueOf(label);
+                IobTag iobTag = IobTag.fromTag(label);
                 if (tags.contains(iobTag)) {
                     ve.addValidationError("the classification label [" + label + "] is duplicated in the list " + classificationLabels);
                 }
@@ -114,23 +106,20 @@ public class NerProcessor extends NlpTask.Processor {
                 ve.addValidationError("classification label [" + label + "] is not an entity I-O-B tag.");
             }
         }
-
         if (ve.validationErrors().isEmpty() == false) {
-            ve.addValidationError("Valid entity I-O-B tags are " + Arrays.toString(IobTag.values()));
             throw ve;
         }
     }
 
     static IobTag[] buildIobMap(List<String> classificationLabels) {
         if (classificationLabels == null || classificationLabels.isEmpty()) {
-            return IobTag.values();
+            return DEFAULT_IOB_TAGS;
         }
 
         IobTag[] map = new IobTag[classificationLabels.size()];
         for (int i = 0; i < classificationLabels.size(); i++) {
-            map[i] = IobTag.valueOf(classificationLabels.get(i));
+            map[i] = IobTag.fromTag(classificationLabels.get(i));
         }
-
         return map;
     }
 
@@ -207,12 +196,14 @@ public class NerProcessor extends NlpTask.Processor {
 
             List<NerResults.EntityGroup> entities = groupTaggedTokens(
                 taggedTokens,
-                ignoreCase ? tokenization.getTokenization(0).input().toLowerCase(Locale.ROOT) : tokenization.getTokenization(0).input()
+                ignoreCase
+                    ? tokenization.getTokenization(0).input().get(0).toLowerCase(Locale.ROOT)
+                    : tokenization.getTokenization(0).input().get(0)
             );
 
             return new NerResults(
                 resultsField,
-                buildAnnotatedText(tokenization.getTokenization(0).input(), entities),
+                buildAnnotatedText(tokenization.getTokenization(0).input().get(0), entities),
                 entities,
                 tokenization.anyTruncated()
             );
@@ -255,7 +246,7 @@ public class NerProcessor extends NlpTask.Processor {
                 int maxScoreIndex = NlpHelpers.argmax(avgScores);
                 double score = avgScores[maxScoreIndex];
                 taggedTokens.add(
-                    new TaggedToken(tokenization.tokens().get(startTokenIndex - numSpecialTokens), iobMap[maxScoreIndex], score)
+                    new TaggedToken(tokenization.tokens().get(0).get(startTokenIndex - numSpecialTokens), iobMap[maxScoreIndex], score)
                 );
                 startTokenIndex = endTokenIndex + 1;
             }
@@ -279,7 +270,7 @@ public class NerProcessor extends NlpTask.Processor {
             int startTokenIndex = 0;
             while (startTokenIndex < tokens.size()) {
                 TaggedToken token = tokens.get(startTokenIndex);
-                if (token.tag.getEntity() == Entity.NONE) {
+                if (token.tag.isNone()) {
                     startTokenIndex++;
                     continue;
                 }
@@ -287,7 +278,7 @@ public class NerProcessor extends NlpTask.Processor {
                 double scoreSum = token.score;
                 while (endTokenIndex < tokens.size()) {
                     TaggedToken endToken = tokens.get(endTokenIndex);
-                    if (endToken.tag.isBeginning() || endToken.tag.getEntity() != token.tag.getEntity()) {
+                    if (endToken.tag.isBeginning() || endToken.tag.entity().equals(token.tag.entity()) == false) {
                         break;
                     }
                     scoreSum += endToken.score;
@@ -298,13 +289,7 @@ public class NerProcessor extends NlpTask.Processor {
                 int endPos = tokens.get(endTokenIndex - 1).token.endOffset();
                 String entity = inputSeq.substring(startPos, endPos);
                 entities.add(
-                    new NerResults.EntityGroup(
-                        entity,
-                        token.tag.getEntity().toString(),
-                        scoreSum / (endTokenIndex - startTokenIndex),
-                        startPos,
-                        endPos
-                    )
+                    new NerResults.EntityGroup(entity, token.tag.entity(), scoreSum / (endTokenIndex - startTokenIndex), startPos, endPos)
                 );
                 startTokenIndex = endTokenIndex;
             }
@@ -315,14 +300,7 @@ public class NerProcessor extends NlpTask.Processor {
         record TaggedToken(DelimitedToken token, IobTag tag, double score) {
             @Override
             public String toString() {
-                return new StringBuilder("{").append("token:")
-                    .append(token)
-                    .append(", ")
-                    .append(tag)
-                    .append(", ")
-                    .append(score)
-                    .append("}")
-                    .toString();
+                return "{" + "token:" + token + ", " + tag + ", " + score + "}";
             }
         }
     }

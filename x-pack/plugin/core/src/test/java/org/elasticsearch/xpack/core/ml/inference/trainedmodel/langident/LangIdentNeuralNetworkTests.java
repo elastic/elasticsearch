@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<LangIdentNeuralNetwork> {
+public class LangIdentNeuralNetworkTests extends AbstractXContentSerializingTestCase<LangIdentNeuralNetwork> {
 
     private boolean lenient;
 
@@ -42,6 +42,11 @@ public class LangIdentNeuralNetworkTests extends AbstractSerializingTestCase<Lan
     @Override
     protected LangIdentNeuralNetwork createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected LangIdentNeuralNetwork mutateInstance(LangIdentNeuralNetwork instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static LangIdentNeuralNetwork createRandom() {

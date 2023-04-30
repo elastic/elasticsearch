@@ -1,0 +1,5 @@
+pr: 94708
+summary: Return 200 when closing empty PIT or scroll
+area: Search
+type: bug
+issues: []

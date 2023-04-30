@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.PathUtils;
@@ -47,14 +48,14 @@ public class GeoIpCli extends Command {
     private final OptionSpec<String> targetDirectory;
 
     public GeoIpCli() {
-        super("A CLI tool to prepare local GeoIp database service", () -> {});
+        super("A CLI tool to prepare local GeoIp database service");
         sourceDirectory = parser.acceptsAll(Arrays.asList("s", "source"), "Source directory").withRequiredArg().required();
         targetDirectory = parser.acceptsAll(Arrays.asList("t", "target"), "Target directory").withRequiredArg();
 
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Path source = getPath(options.valueOf(sourceDirectory));
         String targetString = options.valueOf(targetDirectory);
         Path target = targetString != null ? getPath(targetString) : source;
@@ -153,9 +154,5 @@ public class GeoIpCli extends Command {
         System.arraycopy(checksumBytes, 0, buf, 148, 7);
 
         return buf;
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new GeoIpCli().main(args, Terminal.DEFAULT));
     }
 }

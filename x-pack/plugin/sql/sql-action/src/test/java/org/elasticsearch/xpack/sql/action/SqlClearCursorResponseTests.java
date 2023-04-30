@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Payloads;
 
 import java.io.IOException;
 
-public class SqlClearCursorResponseTests extends AbstractSerializingTestCase<SqlClearCursorResponse> {
+public class SqlClearCursorResponseTests extends AbstractXContentSerializingTestCase<SqlClearCursorResponse> {
 
     @Override
     protected SqlClearCursorResponse createXContextTestInstance(XContentType xContentType) {

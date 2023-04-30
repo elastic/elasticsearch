@@ -10,8 +10,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
@@ -49,7 +49,7 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
         if (failedFeature == null) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel, failedFeature));
+            return channel -> channel.sendResponse(new RestResponse(channel, failedFeature));
         }
     }
 

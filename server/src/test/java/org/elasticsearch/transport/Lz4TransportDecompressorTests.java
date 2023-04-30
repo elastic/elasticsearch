@@ -36,7 +36,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             byte randomByte = randomByte();
-            try (OutputStream lz4BlockStream = Compression.Scheme.lz4OutputStream(Streams.noCloseStream(output))) {
+            try (OutputStream lz4BlockStream = Compression.Scheme.lz4OutputStream(org.elasticsearch.core.Streams.noCloseStream(output))) {
                 lz4BlockStream.write(randomByte);
             }
 

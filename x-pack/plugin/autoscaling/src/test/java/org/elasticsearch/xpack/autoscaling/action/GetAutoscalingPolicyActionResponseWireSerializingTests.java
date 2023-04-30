@@ -28,6 +28,11 @@ public class GetAutoscalingPolicyActionResponseWireSerializingTests extends Abst
     }
 
     @Override
+    protected GetAutoscalingPolicyAction.Response mutateInstance(GetAutoscalingPolicyAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return AutoscalingTestCase.getAutoscalingNamedWriteableRegistry();
     }

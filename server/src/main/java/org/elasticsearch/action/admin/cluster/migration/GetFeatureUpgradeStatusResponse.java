@@ -48,7 +48,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
      */
     public GetFeatureUpgradeStatusResponse(StreamInput in) throws IOException {
         super(in);
-        this.featureUpgradeStatuses = in.readList(FeatureUpgradeStatus::new);
+        this.featureUpgradeStatuses = in.readImmutableList(FeatureUpgradeStatus::new);
         this.upgradeStatus = in.readEnum(UpgradeStatus.class);
     }
 
@@ -154,7 +154,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
             this.featureName = in.readString();
             this.minimumIndexVersion = Version.readVersion(in);
             this.upgradeStatus = in.readEnum(UpgradeStatus.class);
-            this.indexInfos = in.readList(IndexInfo::new);
+            this.indexInfos = in.readImmutableList(IndexInfo::new);
         }
 
         public String getFeatureName() {
@@ -335,7 +335,7 @@ public class GetFeatureUpgradeStatusResponse extends ActionResponse implements T
                 + version
                 + '\''
                 + ", exception='"
-                + exception.getMessage()
+                + (exception == null ? "null" : exception.getMessage())
                 + "'"
                 + '}';
         }

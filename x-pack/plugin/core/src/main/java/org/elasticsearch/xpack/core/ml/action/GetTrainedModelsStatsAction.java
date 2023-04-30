@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,20 +22,20 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStatsAction.Response> {
 
@@ -69,6 +70,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         }
 
         @Override
+        public String getCancelableTaskDescription() {
+            return format("get_trained_model_stats[%s]", getResourceId());
+        }
+
+        @Override
         public String getResourceIdField() {
             return TrainedModelConfig.MODEL_ID.getPreferredName();
         }
@@ -82,7 +88,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final TrainedModelSizeStats modelSizeStats;
             private final IngestStats ingestStats;
             private final InferenceStats inferenceStats;
-            private final AllocationStats deploymentStats;
+            private final AssignmentStats deploymentStats;
             private final int pipelineCount;
 
             private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
@@ -97,7 +103,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 IngestStats ingestStats,
                 int pipelineCount,
                 InferenceStats inferenceStats,
-                AllocationStats deploymentStats
+                AssignmentStats deploymentStats
             ) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.modelSizeStats = modelSizeStats;
@@ -112,7 +118,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
-                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                     modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
                 } else {
                     modelSizeStats = null;
@@ -120,8 +126,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
                 inferenceStats = in.readOptionalWriteable(InferenceStats::new);
-                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                    this.deploymentStats = in.readOptionalWriteable(AllocationStats::new);
+                if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+                    this.deploymentStats = in.readOptionalWriteable(AssignmentStats::new);
                 } else {
                     this.deploymentStats = null;
                 }
@@ -147,7 +153,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return inferenceStats;
             }
 
-            public AllocationStats getDeploymentStats() {
+            public AssignmentStats getDeploymentStats() {
                 return deploymentStats;
             }
 
@@ -161,7 +167,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 builder.field(PIPELINE_COUNT.getPreferredName(), pipelineCount);
                 if (pipelineCount > 0) {
                     // Ingest stats is a fragment
-                    ingestStats.toXContent(builder, params);
+                    ChunkedToXContent.wrapAsToXContent(ingestStats).toXContent(builder, params);
                 }
                 if (this.inferenceStats != null) {
                     builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);
@@ -176,13 +182,13 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(modelId);
-                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                     out.writeOptionalWriteable(modelSizeStats);
                 }
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
                 out.writeOptionalWriteable(inferenceStats);
-                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
                     out.writeOptionalWriteable(deploymentStats);
                 }
             }
@@ -228,24 +234,24 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         public static class Builder {
 
             private long totalModelCount;
-            private Map<String, Set<String>> expandedIdsWithAliases;
+            private Map<String, Set<String>> expandedModelIdsWithAliases;
             private Map<String, TrainedModelSizeStats> modelSizeStatsMap;
             private Map<String, IngestStats> ingestStatsMap;
             private Map<String, InferenceStats> inferenceStatsMap;
-            private Map<String, AllocationStats> allocationStatsMap;
+            private Map<String, AssignmentStats> assignmentStatsMap;
 
             public Builder setTotalModelCount(long totalModelCount) {
                 this.totalModelCount = totalModelCount;
                 return this;
             }
 
-            public Builder setExpandedIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
-                this.expandedIdsWithAliases = expandedIdsWithAliases;
+            public Builder setExpandedModelIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
+                this.expandedModelIdsWithAliases = expandedIdsWithAliases;
                 return this;
             }
 
-            public Map<String, Set<String>> getExpandedIdsWithAliases() {
-                return this.expandedIdsWithAliases;
+            public Map<String, Set<String>> getExpandedModelIdsWithAliases() {
+                return this.expandedModelIdsWithAliases;
             }
 
             public Builder setModelSizeStatsByModelId(Map<String, TrainedModelSizeStats> modelSizeStatsByModelId) {
@@ -263,30 +269,91 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
-            public Builder setDeploymentStatsByModelId(Map<String, AllocationStats> allocationStatsByModelId) {
-                this.allocationStatsMap = allocationStatsByModelId;
+            /**
+             * This sets the overall stats map and adds the models to the overall inference stats map
+             * @param assignmentStatsMap map of model_id to assignment stats
+             * @return the builder with inference stats map updated and assignment stats map set
+             */
+            public Builder setDeploymentStatsByDeploymentId(Map<String, AssignmentStats> assignmentStatsMap) {
+                this.assignmentStatsMap = assignmentStatsMap;
                 return this;
             }
 
-            public Response build() {
-                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIdsWithAliases.size());
-                expandedIdsWithAliases.keySet().forEach(id -> {
-                    TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(id);
-                    IngestStats ingestStats = ingestStatsMap.get(id);
-                    InferenceStats inferenceStats = inferenceStatsMap.get(id);
-                    AllocationStats allocationStats = allocationStatsMap.get(id);
-                    trainedModelStats.add(
-                        new TrainedModelStats(
-                            id,
-                            modelSizeStats,
-                            ingestStats,
-                            ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
-                            inferenceStats,
-                            allocationStats
-                        )
-                    );
+            public Response build(Map<String, Set<String>> modelToDeploymentIds) {
+                int numResponses = expandedModelIdsWithAliases.size();
+                // plus an extra response for every deployment after
+                // the first per model
+                for (var entry : modelToDeploymentIds.entrySet()) {
+                    assert expandedModelIdsWithAliases.containsKey(entry.getKey()); // model id
+                    assert entry.getValue().size() > 0; // must have a deployment
+                    numResponses += entry.getValue().size() - 1;
+                }
+
+                if (inferenceStatsMap == null) {
+                    inferenceStatsMap = Collections.emptyMap();
+                }
+
+                List<TrainedModelStats> trainedModelStats = new ArrayList<>(numResponses);
+                expandedModelIdsWithAliases.keySet().forEach(modelId -> {
+                    if (modelToDeploymentIds.containsKey(modelId) == false) { // not deployed
+                        TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                        IngestStats ingestStats = ingestStatsMap.get(modelId);
+                        InferenceStats inferenceStats = inferenceStatsMap.get(modelId);
+                        trainedModelStats.add(
+                            new TrainedModelStats(
+                                modelId,
+                                modelSizeStats,
+                                ingestStats,
+                                ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                inferenceStats,
+                                null // no assignment stats for undeployed models
+                            )
+                        );
+                    } else {
+                        for (var deploymentId : modelToDeploymentIds.get(modelId)) {
+                            AssignmentStats assignmentStats = assignmentStatsMap.get(deploymentId);
+                            if (assignmentStats == null) {
+                                continue;
+                            }
+                            InferenceStats inferenceStats = assignmentStats.getOverallInferenceStats();
+                            IngestStats ingestStats = ingestStatsMap.get(deploymentId);
+                            if (ingestStats == null) {
+                                // look up by model id
+                                ingestStats = ingestStatsMap.get(modelId);
+                            }
+                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                            trainedModelStats.add(
+                                new TrainedModelStats(
+                                    modelId,
+                                    modelSizeStats,
+                                    ingestStats,
+                                    ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                                    inferenceStats,
+                                    assignmentStats
+                                )
+                            );
+                        }
+                    }
                 });
-                trainedModelStats.sort(Comparator.comparing(TrainedModelStats::getModelId));
+
+                // Sort first by model id then by deployment id
+                trainedModelStats.sort((modelStats1, modelStats2) -> {
+                    var comparison = modelStats1.getModelId().compareTo(modelStats2.getModelId());
+                    if (comparison == 0) {
+                        var deploymentId1 = modelStats1.getDeploymentStats() == null
+                            ? null
+                            : modelStats1.getDeploymentStats().getDeploymentId();
+                        var deploymentId2 = modelStats2.getDeploymentStats() == null
+                            ? null
+                            : modelStats1.getDeploymentStats().getDeploymentId();
+
+                        assert deploymentId1 != null && deploymentId2 != null
+                            : "2 results for model " + modelStats1.getModelId() + " both should have deployment stats";
+
+                        comparison = deploymentId1.compareTo(deploymentId2);
+                    }
+                    return comparison;
+                });
                 return new Response(new QueryPage<>(trainedModelStats, totalModelCount, RESULTS_FIELD));
             }
         }

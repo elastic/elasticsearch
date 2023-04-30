@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -22,11 +23,13 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
@@ -36,6 +39,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -105,6 +109,7 @@ public final class AuthorizationUtils {
     public static void switchUserBasedOnActionOriginAndExecute(
         ThreadContext threadContext,
         SecurityContext securityContext,
+        TransportVersion version,
         Consumer<ThreadContext.StoredContext> consumer
     ) {
         final String actionOrigin = threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);
@@ -115,7 +120,10 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, Version.CURRENT, consumer);
+                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
+                break;
+            case SECURITY_PROFILE_ORIGIN:
+                securityContext.executeAsInternalUser(SecurityProfileUser.INSTANCE, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
@@ -125,6 +133,7 @@ public final class AuthorizationUtils {
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
             case INDEX_LIFECYCLE_ORIGIN:
+            case DLM_ORIGIN:
             case ENRICH_ORIGIN:
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
@@ -132,11 +141,12 @@ public final class AuthorizationUtils {
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:
             case FLEET_ORIGIN:
+            case ENT_SEARCH_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
-                securityContext.executeAsInternalUser(XPackUser.INSTANCE, Version.CURRENT, consumer);
+                securityContext.executeAsInternalUser(XPackUser.INSTANCE, version, consumer);
                 break;
             case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, Version.CURRENT, consumer);
+                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

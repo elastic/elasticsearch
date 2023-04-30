@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -31,6 +30,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils.extractFieldMappings;
 
 public final class SchemaUtil {
@@ -94,6 +94,7 @@ public final class SchemaUtil {
      */
     public static void deduceMappings(
         final Client client,
+        final Map<String, String> headers,
         final PivotConfig config,
         final String[] sourceIndex,
         final Map<String, Object> runtimeMappings,
@@ -142,6 +143,7 @@ public final class SchemaUtil {
 
         getSourceFieldMappings(
             client,
+            headers,
             sourceIndex,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             runtimeMappings,
@@ -200,21 +202,12 @@ public final class SchemaUtil {
             String destinationMapping = TransformAggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "Deduced mapping for: [{}], agg type [{}] to [{}]",
-                    targetFieldName,
-                    aggregationName,
-                    destinationMapping
-                )
+                () -> format("Deduced mapping for: [%s], agg type [%s] to [%s]", targetFieldName, aggregationName, destinationMapping)
             );
 
             if (TransformAggregations.isDynamicMapping(destinationMapping)) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "Dynamic target mapping set for field [{}] and aggregation [{}]",
-                        targetFieldName,
-                        aggregationName
-                    )
+                    () -> format("Dynamic target mapping set for field [%s] and aggregation [%s]", targetFieldName, aggregationName)
                 );
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
@@ -229,7 +222,7 @@ public final class SchemaUtil {
 
         fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
             String destinationMapping = fieldTypesForGrouping.computeIfAbsent(targetFieldName, (s) -> sourceMappings.get(sourceFieldName));
-            logger.debug(() -> new ParameterizedMessage("Deduced mapping for: [{}] to [{}]", targetFieldName, destinationMapping));
+            logger.debug(() -> format("Deduced mapping for: [%s] to [%s]", targetFieldName, destinationMapping));
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
@@ -253,6 +246,7 @@ public final class SchemaUtil {
      */
     static void getSourceFieldMappings(
         Client client,
+        Map<String, String> headers,
         String[] index,
         String[] fields,
         Map<String, Object> runtimeMappings,
@@ -266,7 +260,10 @@ public final class SchemaUtil {
             .fields(fields)
             .runtimeFields(runtimeMappings)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        client.execute(
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)

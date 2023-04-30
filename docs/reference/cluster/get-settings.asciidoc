@@ -37,7 +37,7 @@ defined, but can also include the default settings by calling the
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
-    (Optional, Boolean) If `true`, returns all default cluster settings. 
+    (Optional, Boolean) If `true`, returns default cluster settings from the local node. 
     Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

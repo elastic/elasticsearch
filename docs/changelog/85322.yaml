@@ -1,5 +1,0 @@
-pr: 85322
-summary: Give Lucene more opportunities to enable the filter-by-filter optimization
-area: Aggregations
-type: enhancement
-issues: []

@@ -267,7 +267,7 @@ public class RealmConfig {
     );
 
     static {
-        REALM_IDENTIFIER_PARSER.declareString(constructorArg(), new ParseField("name"));
         REALM_IDENTIFIER_PARSER.declareString(constructorArg(), new ParseField("type"));
+        REALM_IDENTIFIER_PARSER.declareString(constructorArg(), new ParseField("name"));
     }
 }

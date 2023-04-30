@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.operator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -69,13 +68,21 @@ public class FileOperatorUsersStore {
         // If not null, it will be compared exactly as well.
         // The special handling for realm name is because there can only be one file or native realm and it does
         // not matter what the name is.
+        final Authentication.RealmRef realm = authentication.getEffectiveSubject().getRealm();
+        if (realm == null) {
+            return false;
+        }
         return operatorUsersDescriptor.groups.stream().anyMatch(group -> {
-            final Authentication.RealmRef realm = authentication.getSourceRealm();
-            final boolean match = group.usernames.contains(authentication.getUser().principal())
+            final boolean match = group.usernames.contains(authentication.getEffectiveSubject().getUser().principal())
                 && group.authenticationType == authentication.getAuthenticationType()
                 && realm.getType().equals(group.realmType)
                 && (group.realmName == null || group.realmName.equals(realm.getName()));
-            logger.trace("Matching user [{}] against operator rule [{}] is [{}]", authentication.getUser(), group, match);
+            logger.trace(
+                "Matching user [{}] against operator rule [{}] is [{}]",
+                authentication.getEffectiveSubject().getUser(),
+                group,
+                match
+            );
             return match;
         });
     }
@@ -225,7 +232,7 @@ public class FileOperatorUsersStore {
                 logger.debug("operator user descriptor: [{}]", operatorUsersDescriptor);
                 return operatorUsersDescriptor;
             } catch (IOException | RuntimeException e) {
-                logger.error(new ParameterizedMessage("Failed to parse operator users file [{}].", file), e);
+                logger.error(() -> "Failed to parse operator users file [" + file + "].", e);
                 throw new ElasticsearchParseException("Error parsing operator users file [{}]", e, file.toAbsolutePath());
             }
         }

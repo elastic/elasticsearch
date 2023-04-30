@@ -50,7 +50,7 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.MonotonicBlockPackedReader;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacyBinaryDocValues;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacyBinaryDocValuesWrapper;
 import org.elasticsearch.xpack.lucene.bwc.codecs.index.LegacySortedSetDocValues;
@@ -1352,6 +1352,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             }
 
             @Override
+            public int docValueCount() {
+                return Math.toIntExact(endOffset - startOffset);
+            }
+
+            @Override
             public long getValueCount() {
                 return valueCount;
             }
@@ -1413,6 +1418,11 @@ final class Lucene54DocValuesProducer extends DocValuesProducer implements Close
             @Override
             public long getValueCount() {
                 return valueCount;
+            }
+
+            @Override
+            public int docValueCount() {
+                return Math.toIntExact(endOffset - startOffset);
             }
 
             @Override

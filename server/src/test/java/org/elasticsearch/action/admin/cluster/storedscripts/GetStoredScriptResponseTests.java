@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StoredScriptSource;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<GetStoredScriptResponse> {
+public class GetStoredScriptResponseTests extends AbstractXContentSerializingTestCase<GetStoredScriptResponse> {
 
     @Override
     protected GetStoredScriptResponse doParseInstance(XContentParser parser) throws IOException {
@@ -30,6 +30,11 @@ public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<Ge
     @Override
     protected GetStoredScriptResponse createTestInstance() {
         return new GetStoredScriptResponse(randomAlphaOfLengthBetween(1, 10), randomScriptSource());
+    }
+
+    @Override
+    protected GetStoredScriptResponse mutateInstance(GetStoredScriptResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

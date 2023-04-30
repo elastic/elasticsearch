@@ -38,7 +38,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
             try {
                 enableIndexBlock("test", blockSetting);
                 PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
-                assertNotNull(response.getPendingTasks());
+                assertNotNull(response.pendingTasks());
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -54,7 +54,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         try {
             setClusterReadOnly(true);
             PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
-            assertNotNull(response.getPendingTasks());
+            assertNotNull(response.pendingTasks());
         } finally {
             setClusterReadOnly(false);
         }
@@ -80,7 +80,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
             }
         });
 
-        assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().getPendingTasks());
+        assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().pendingTasks());
 
         // starting one more node allows the cluster to recover
         internalCluster().startNode();

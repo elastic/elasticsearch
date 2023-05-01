@@ -19,7 +19,6 @@ import org.elasticsearch.core.Releasables;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.BitSet;
 import java.util.Objects;
 
 @Aggregator
@@ -60,17 +59,9 @@ class CountDistinctBooleanAggregator {
 
     public static Block evaluateFinal(GroupingState state, IntVector selected) {
         LongBlock.Builder builder = LongBlock.newBlockBuilder(selected.getPositionCount());
-        final BitSet bitResults = new BitSet(2);
         for (int i = 0; i < selected.getPositionCount(); i++) {
             int group = selected.getInt(i);
-            bitResults.clear(0, 2);
-            if (state.bits.get(2 * group)) {
-                bitResults.set(0);
-            }
-            if (state.bits.get(2 * group + 1)) {
-                bitResults.set(1);
-            }
-            long count = bitResults.cardinality();
+            long count = (state.bits.get(2 * group) ? 1 : 0) + (state.bits.get(2 * group + 1) ? 1 : 0);
             builder.appendLong(count);
         }
         return builder.build();

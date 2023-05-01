@@ -76,6 +76,7 @@ public class AggregatorBenchmark {
 
     private static final String AVG = "avg";
     private static final String COUNT = "count";
+    private static final String COUNT_DISTINCT = "countdistinct";
     private static final String MIN = "min";
     private static final String MAX = "max";
     private static final String SUM = "sum";
@@ -100,7 +101,7 @@ public class AggregatorBenchmark {
     @Param({ NONE, LONGS, INTS, DOUBLES, BOOLEANS, BYTES_REFS, TWO_LONGS, LONGS_AND_BYTES_REFS })
     public String grouping;
 
-    @Param({ AVG, COUNT, MIN, MAX, SUM })
+    @Param({ AVG, COUNT, COUNT_DISTINCT, MIN, MAX, SUM })
     public String op;
 
     @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES })
@@ -180,6 +181,18 @@ public class AggregatorBenchmark {
                     long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).count() * 1024;
                     if (lValues.getLong(g) != expected) {
                         throw new AssertionError(prefix + "expected [" + expected + "] but was [" + lValues.getLong(g) + "]");
+                    }
+                }
+            }
+            case COUNT_DISTINCT -> {
+                LongBlock lValues = (LongBlock) values;
+                for (int g = 0; g < groups; g++) {
+                    long group = g;
+                    long expected = LongStream.range(0, BLOCK_LENGTH).filter(l -> l % groups == group).distinct().count();
+                    long count = lValues.getLong(g);
+                    // count should be within 10% from the expected value
+                    if (count < expected * 0.9 || count > expected * 1.1) {
+                        throw new AssertionError(prefix + "expected [" + expected + "] but was [" + count + "]");
                     }
                 }
             }
@@ -319,6 +332,15 @@ public class AggregatorBenchmark {
                 LongBlock lBlock = (LongBlock) block;
                 if (lBlock.getLong(0) != BLOCK_LENGTH * 1024) {
                     throw new AssertionError(prefix + "expected [" + (BLOCK_LENGTH * 1024) + "] but was [" + lBlock.getLong(0) + "]");
+                }
+            }
+            case COUNT_DISTINCT -> {
+                LongBlock lBlock = (LongBlock) block;
+                long expected = BLOCK_LENGTH;
+                long count = lBlock.getLong(0);
+                // count should be within 10% from the expected value
+                if (count < expected * 0.9 || count > expected * 1.1) {
+                    throw new AssertionError(prefix + "expected [" + expected + "] but was [" + count + "]");
                 }
             }
             case MIN -> {

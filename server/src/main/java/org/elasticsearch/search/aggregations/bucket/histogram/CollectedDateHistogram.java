@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
@@ -84,6 +85,11 @@ public class CollectedDateHistogram extends CollectedAggregator {
             // Get the iterators and stuff 'em in the queue
         }
         return reduced;
+    }
+
+    @Override
+    public IteratorAndCurrent<KeyComparable<?>> getKeysIteratorForOwningBucketOrd(long owningBucketOrd) {
+        return null;
     }
 
     @Override

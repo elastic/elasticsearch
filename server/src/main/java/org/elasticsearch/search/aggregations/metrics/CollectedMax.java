@@ -14,6 +14,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -60,6 +62,11 @@ public class CollectedMax extends CollectedAggregator {
 
     @Override
     public CollectedAggregator reduceTopLevel(List<CollectedAggregator> aggregators, AggregationReduceContext reduceContext) {
+        return null;
+    }
+
+    @Override
+    public IteratorAndCurrent<KeyComparable<?>> getKeysIteratorForOwningBucketOrd(long owningBucketOrd) {
         return null;
     }
 

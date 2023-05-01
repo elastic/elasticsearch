@@ -32,12 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardGetServiceTests extends IndexShardTestCase {
 
     public void testGetForUpdate() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
@@ -126,12 +121,6 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         Object expectedFooVal,
         boolean sourceOnlyFetchCreatesInMemoryReader
     ) throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping(Strings.format("""
             {
               "properties": {
@@ -143,7 +132,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
               },
               "_source": { %s }
               }
-            }""", fieldType, fieldType, sourceOptions)).settings(settings).primaryTerm(0, 1).build();
+            }""", fieldType, fieldType, sourceOptions)).settings(indexSettings(Version.CURRENT, 1, 1)).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, EngineTestCase.randomReaderWrapper());
         recoverShardFromStore(primary);
         LongSupplier translogInMemorySegmentCount = ((InternalEngine) primary.getEngine()).translogInMemorySegmentsCount::get;
@@ -208,13 +197,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
     }
 
     public void testTypelessGetForUpdate() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
         IndexMetadata metadata = IndexMetadata.builder("index").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+            { "properties": { "foo":  { "type": "text"}}}""").settings(indexSettings(Version.CURRENT, 1, 1)).primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(shard);
         Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");

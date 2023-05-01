@@ -111,11 +111,7 @@ public class SearchRedStateIndexIT extends ESIntegTestCase {
     }
 
     private void buildRedIndex(int numShards) throws Exception {
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(numShards, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();

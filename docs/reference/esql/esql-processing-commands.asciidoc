@@ -273,7 +273,7 @@ FROM employees
 | WHERE still_hired == true
 ----
 
-Which, because `still_hired` is a boolean field, can be simplified to:
+Which, if `still_hired` is a boolean field, can be simplified to:
 
 [source,esql]
 ----
@@ -284,28 +284,8 @@ FROM employees
 
 [discrete]
 ==== Operators
-These comparison operators are supported:
 
-* equality: `==`
-* inequality: `!=`
-* comparison: 
-** less than: `<`
-** less than or equal: `<=`
-** larger than: `>`
-** larger than or equal: `>=`
-
-You can use the following boolean operators:
-
-* `AND`
-* `OR`
-* `NOT`
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height, still_hired
-| WHERE height > 2 AND NOT still_hired
-----
+Refer to <<esql-operators>> for an overview of the supported operators.
 
 [discrete]
 ==== Functions 

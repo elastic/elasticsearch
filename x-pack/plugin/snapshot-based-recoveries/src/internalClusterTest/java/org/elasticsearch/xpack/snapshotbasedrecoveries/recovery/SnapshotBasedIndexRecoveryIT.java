@@ -296,10 +296,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.require._name", sourceNode)
                 .build()
@@ -366,10 +363,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.require._name", sourceNode)
                 .build()
@@ -422,10 +416,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             createIndex(
                 indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                     .put("index.routing.allocation.require._name", sourceNode)
                     .build()
@@ -478,10 +469,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.require._name", sourceNode)
                 .build()
@@ -520,10 +508,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
+            indexSettings(1, 0).put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.require._name", sourceNode)
                 .build()
         );
@@ -681,10 +666,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .build()
         );
@@ -742,10 +724,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                 .build()
@@ -807,10 +786,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .build()
         );
@@ -861,10 +837,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                 .build()
@@ -1179,10 +1152,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .put("index.routing.allocation.include._name", String.join(",", dataNodes))
                 .build()
@@ -1315,10 +1285,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 createIndex(
                     indexName,
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                         .put("index.routing.allocation.require._name", dataNodes.get(0))
                         .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
@@ -1381,10 +1348,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s")
                 .build()
         );

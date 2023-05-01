@@ -68,9 +68,13 @@ public class NodeSeenServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<TransportPutShutdownNodeAction.PutShutdownNodeTask>>any())).thenReturn(
-            taskQueue
-        );
+        when(
+            clusterService.createTaskQueue(
+                any(),
+                any(),
+                Mockito.<ClusterStateTaskExecutor<TransportPutShutdownNodeAction.PutShutdownNodeTask>>any()
+            )
+        ).thenReturn(taskQueue);
         action = new TransportPutShutdownNodeAction(
             transportService,
             clusterService,
@@ -100,7 +104,11 @@ public class NodeSeenServiceTests extends ESTestCase {
     }
 
     public void testNoop() throws Exception {
-        var type = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE, SingleNodeShutdownMetadata.Type.RESTART);
+        var type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            SingleNodeShutdownMetadata.Type.RESTART
+        );
         var allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
         var targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLength(5) : null;
         var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName, null);
@@ -126,7 +134,6 @@ public class NodeSeenServiceTests extends ESTestCase {
             .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(stableState, List.of(taskContext), () -> null));
         assertThat(gotState, sameInstance(stableState));
     }
-
 
     private void clearTaskQueueInvocations() {
         clearInvocations(taskQueue);

@@ -21,6 +21,8 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +34,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.containsString;
@@ -344,5 +347,66 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
         })));
         assertThat(e.getMessage(), containsString("Limit of total dimension fields [" + max + "] has been exceeded"));
+    }
+
+    public void testDeeplyNestedMapping() throws Exception {
+        final int maxDepth = INDEX_MAPPING_DEPTH_LIMIT_SETTING.get(Settings.EMPTY).intValue();
+        {
+            // test that the depth limit is enforced for object field
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+            for (int i = 0; i < maxDepth + 5; i++) {
+                builder.startObject("obj" + i);
+                builder.startObject("properties");
+            }
+            builder.startObject("foo").field("type", "keyword").endObject();
+            for (int i = 0; i < maxDepth + 5; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject().endObject().endObject();
+
+            MapperParsingException exc = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(Settings.builder().put(getIndexSettings()).build(), builder)
+            );
+            assertThat(exc.getMessage(), containsString("Limit of mapping depth [" + maxDepth + "] has been exceeded"));
+        }
+
+        {
+            // test that the limit is per individual field, so several object fields don't trip the limit
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+            for (int i = 0; i < maxDepth - 3; i++) {
+                builder.startObject("obj" + i);
+                builder.startObject("properties");
+            }
+
+            for (int i = 0; i < 2; i++) {
+                builder.startObject("sub_obj1" + i);
+                builder.startObject("properties");
+            }
+            builder.startObject("foo").field("type", "keyword").endObject();
+            for (int i = 0; i < 2; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+
+            for (int i = 0; i < 2; i++) {
+                builder.startObject("sub_obj2" + i);
+                builder.startObject("properties");
+            }
+            builder.startObject("foo2").field("type", "keyword").endObject();
+            for (int i = 0; i < 2; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+
+            for (int i = 0; i < maxDepth - 3; i++) {
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject().endObject().endObject();
+
+            createMapperService(Settings.builder().put(getIndexSettings()).build(), builder);
+        }
     }
 }

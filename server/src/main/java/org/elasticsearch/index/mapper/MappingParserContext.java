@@ -189,4 +189,40 @@ public class MappingParserContext {
             return true;
         }
     }
+
+    public MappingParserContext createObjectContext() {
+        return new ObjectParserContext(this);
+    }
+
+    static class ObjectParserContext extends MappingParserContext {
+        private final long depthLimit;
+        private int curDepth = 0;
+
+        private ObjectParserContext(MappingParserContext in) {
+            super(
+                in.similarityLookupService,
+                in.typeParsers,
+                in.runtimeFieldParsers,
+                in.indexVersionCreated,
+                in.clusterTransportVersion,
+                in.searchExecutionContextSupplier,
+                in.scriptCompiler,
+                in.indexAnalyzers,
+                in.indexSettings,
+                in.idFieldMapper
+            );
+            depthLimit = in.getIndexSettings().getMappingDepthLimit();
+        }
+
+        void incrementDepth() throws MapperParsingException {
+            curDepth++;
+            if (curDepth > depthLimit) {
+                throw new MapperParsingException("Limit of mapping depth [" + depthLimit + "] has been exceeded");
+            }
+        }
+
+        void decrementDepth() throws MapperParsingException {
+            curDepth--;
+        }
+    }
 }

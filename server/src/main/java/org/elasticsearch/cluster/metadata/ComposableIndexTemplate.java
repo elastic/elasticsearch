@@ -198,6 +198,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return componentTemplates;
     }
 
+    public boolean hasDataLifecycle() {
+        return template != null && template.lifecycle() != null;
+    }
+
     /**
      * Returns the <b>required</b> component templates, i.e. such that are not allowed to be missing, as in
      * {@link #ignoreMissingComponentTemplates}.

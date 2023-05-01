@@ -9,6 +9,7 @@
 package org.elasticsearch.dlm.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;

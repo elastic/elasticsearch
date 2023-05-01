@@ -10,9 +10,11 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,11 +33,35 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+
+    private final Client client;
+
+    public TransportPutComponentTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        this(
+            transportService,
+            clusterService,
+            threadPool,
+            indexTemplateService,
+            actionFilters,
+            indexNameExpressionResolver,
+            indexScopedSettings,
+            null
+        );
+    }
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -45,7 +71,8 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        Client client
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -59,6 +86,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.client = client;
     }
 
     @Override
@@ -91,14 +119,36 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ActionListener<AcknowledgedResponse> listener
     ) {
         ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
-        indexTemplateService.putComponentTemplate(
-            request.cause(),
-            request.create(),
-            request.name(),
-            request.masterNodeTimeout(),
-            componentTemplate,
-            listener
-        );
+        if (componentTemplate.hasDataLifecycle()) {
+            var composableTemplates = indexTemplateService.getTemplatesUsingComponent(state, request.name());
+            var indexPatterns = composableTemplates.values()
+                .stream()
+                .flatMap(it -> it.indexPatterns().stream())
+                .collect(Collectors.toUnmodifiableSet());
+            client.execute(
+                AuthorizeDataLifecycleAction.INSTANCE,
+                new AuthorizeDataLifecycleAction.Request(indexPatterns.toArray(new String[0])),
+                ActionListener.wrap(acknowledgedResponse -> {
+                    indexTemplateService.putComponentTemplate(
+                        request.cause(),
+                        request.create(),
+                        request.name(),
+                        request.masterNodeTimeout(),
+                        componentTemplate,
+                        listener
+                    );
+                }, listener::onFailure)
+            );
+        } else {
+            indexTemplateService.putComponentTemplate(
+                request.cause(),
+                request.create(),
+                request.name(),
+                request.masterNodeTimeout(),
+                componentTemplate,
+                listener
+            );
+        }
     }
 
     @Override

@@ -8,9 +8,11 @@
 package org.elasticsearch.dlm.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,6 +35,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
+    private final Client client;
 
     @Inject
     public TransportPutDataLifecycleAction(
@@ -42,7 +45,8 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Client client
     ) {
         super(
             PutDataLifecycleAction.NAME,
@@ -56,6 +60,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
+        this.client = client;
     }
 
     @Override
@@ -65,21 +70,27 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
-            indexNameExpressionResolver,
-            state,
-            request.getNames(),
-            request.indicesOptions()
-        );
-        for (String name : dataStreamNames) {
-            systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
-        }
-        metadataDataStreamsService.setLifecycle(
-            dataStreamNames,
-            request.getLifecycle(),
-            request.ackTimeout(),
-            request.masterNodeTimeout(),
-            listener
+        client.execute(
+            AuthorizeDataLifecycleAction.INSTANCE,
+            new AuthorizeDataLifecycleAction.Request(request.getNames()),
+            ActionListener.wrap(acknowledgedResponse -> {
+                List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
+                    indexNameExpressionResolver,
+                    state,
+                    request.getNames(),
+                    request.indicesOptions()
+                );
+                for (String name : dataStreamNames) {
+                    systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+                }
+                metadataDataStreamsService.setLifecycle(
+                    dataStreamNames,
+                    request.getLifecycle(),
+                    request.ackTimeout(),
+                    request.masterNodeTimeout(),
+                    listener
+                );
+            }, listener::onFailure)
         );
     }
 

@@ -49,7 +49,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testDlmPermissionsWithDataStreamLifecycleApis() throws Exception {
+    public void testAuthorizeDlmForDataStreamLifecycleActions() throws Exception {
         String dataStreamName = "dlm-test"; // Needs to match the pattern of the names in roles.yml
         createDataStreamAsAdmin(dataStreamName);
         Response dataStreamResponse = adminClient().performRequest(new Request("GET", "/_data_stream/" + dataStreamName));
@@ -79,7 +79,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
         }
     }
 
-    public void testDlmPermissionsWithIndexTemplates() throws IOException {
+    public void testAuthorizeDlmForIndexTemplateActions() throws IOException {
         String dataStreamName = "dlm-test";
         Request indexTemplateRequest = new Request("PUT", "/_index_template/my_template");
         indexTemplateRequest.setJsonEntity(Strings.format("""
@@ -114,7 +114,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
         makeRequest(client(), deniedIndexTemplateRequest, false);
     }
 
-    public void testDlmPermissionsWithComposedIndexTemplates() throws IOException {
+    public void testAuthorizeDlmForIndexTemplateActionsWithComponents() throws IOException {
         String dataStreamName = "dlm-test";
         String mappingsTemplateName = dataStreamName + "_mappings";
         Request mappingsRequest = new Request("PUT", "/_component_template/" + mappingsTemplateName);
@@ -159,6 +159,15 @@ public class DlmPermissionsIT extends ESRestTestCase {
                 "composed_of": [ "%s", "%s" ]
             }""", dataStreamName, mappingsTemplateName, lifecycleTemplateName));
         makeRequest(client(), indexTemplateRequest, true);
+
+        Request indexTemplateRequest2 = new Request("PUT", "/_index_template/" + dataStreamName + "_template");
+        indexTemplateRequest2.setJsonEntity(Strings.format("""
+            {
+                "index_patterns": ["%s*"],
+                "data_stream": { },
+                "composed_of": [ "%s" ]
+            }""", dataStreamName, mappingsTemplateName));
+        makeRequest(client(), indexTemplateRequest2, true);
 
         String otherDataStreamName = "composed-dlm-test";
         Request deniedIndexTemplateRequest = new Request("PUT", "/_index_template/" + otherDataStreamName + "_template");

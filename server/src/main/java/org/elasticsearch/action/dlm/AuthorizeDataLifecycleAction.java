@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.dlm.action;
+package org.elasticsearch.action.dlm;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -51,7 +51,8 @@ public class AuthorizeDataLifecycleAction extends ActionType<AcknowledgedRespons
 
         @Override
         public CorePrivilegesToCheck getPrivilegesToCheck() {
-            return new CorePrivilegesToCheck(indices);
+            // TODO hack hack hack
+            return indices.length == 0 ? null : new CorePrivilegesToCheck(indices);
         }
     }
 }

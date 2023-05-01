@@ -83,6 +83,10 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return template;
     }
 
+    public boolean hasDataLifecycle() {
+        return template != null && template.lifecycle() != null;
+    }
+
     @Nullable
     public Long version() {
         return version;

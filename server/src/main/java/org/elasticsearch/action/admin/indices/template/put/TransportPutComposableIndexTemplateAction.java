@@ -10,12 +10,15 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -28,6 +31,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,7 +43,8 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
 
     private final MetadataIndexTemplateService indexTemplateService;
 
-    @Inject
+    private final Client client;
+
     public TransportPutComposableIndexTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
@@ -47,6 +52,19 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        this(transportService, clusterService, threadPool, indexTemplateService, actionFilters, indexNameExpressionResolver, null);
+    }
+
+    @Inject
+    public TransportPutComposableIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -59,6 +77,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             ThreadPool.Names.SAME
         );
         this.indexTemplateService = indexTemplateService;
+        this.client = client;
     }
 
     @Override
@@ -74,15 +93,38 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ActionListener<AcknowledgedResponse> listener
     ) {
         verifyIfUsingReservedComponentTemplates(request, state);
-        ComposableIndexTemplate indexTemplate = request.indexTemplate();
-        indexTemplateService.putIndexTemplateV2(
-            request.cause(),
-            request.create(),
-            request.name(),
-            request.masterNodeTimeout(),
-            indexTemplate,
-            listener
-        );
+        var indexTemplate = request.indexTemplate();
+        var componentTemplatesWithLifecycles = state.metadata().componentTemplates().entrySet().stream().filter(componentTemplateEntry -> {
+            ComponentTemplate componentTemplate = componentTemplateEntry.getValue();
+            return indexTemplate.composedOf().contains(componentTemplateEntry.getKey()) && componentTemplate.hasDataLifecycle();
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        boolean needsDlmAuthorizationCheck = indexTemplate.hasDataLifecycle() || false == componentTemplatesWithLifecycles.isEmpty();
+        if (needsDlmAuthorizationCheck) {
+            client.execute(
+                AuthorizeDataLifecycleAction.INSTANCE,
+                new AuthorizeDataLifecycleAction.Request(indexTemplate.indexPatterns().toArray(new String[0])),
+                ActionListener.wrap(
+                    acknowledgedResponse -> indexTemplateService.putIndexTemplateV2(
+                        request.cause(),
+                        request.create(),
+                        request.name(),
+                        request.masterNodeTimeout(),
+                        indexTemplate,
+                        listener
+                    ),
+                    listener::onFailure
+                )
+            );
+        } else {
+            indexTemplateService.putIndexTemplateV2(
+                request.cause(),
+                request.create(),
+                request.name(),
+                request.masterNodeTimeout(),
+                indexTemplate,
+                listener
+            );
+        }
     }
 
     public static void verifyIfUsingReservedComponentTemplates(
@@ -92,7 +134,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ComposableIndexTemplate indexTemplate = request.indexTemplate();
         Set<String> composedOfKeys = indexTemplate.composedOf()
             .stream()
-            .map(c -> ReservedComposableIndexTemplateAction.reservedComponentName(c))
+            .map(ReservedComposableIndexTemplateAction::reservedComponentName)
             .collect(Collectors.toSet());
 
         List<String> errors = new ArrayList<>();

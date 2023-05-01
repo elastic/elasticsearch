@@ -94,36 +94,34 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
         Map<String, Object> searchApplicationsUsage = new HashMap<>();
 
-        ActionListener<ListSearchApplicationAction.Response> searchApplicationsCountListener = ActionListener.wrap(
-            response -> {
-                addSearchApplicationsUsage(response, searchApplicationsUsage);
-                listener.onResponse(
-                    new XPackUsageFeatureResponse(
-                        new EnterpriseSearchFeatureSetUsage(
-                            enabled,
-                            LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                            searchApplicationsUsage
-                        )
+        ActionListener<ListSearchApplicationAction.Response> searchApplicationsCountListener = ActionListener.wrap(response -> {
+            addSearchApplicationsUsage(response, searchApplicationsUsage);
+            listener.onResponse(
+                new XPackUsageFeatureResponse(
+                    new EnterpriseSearchFeatureSetUsage(
+                        enabled,
+                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                        searchApplicationsUsage
                     )
-                );
-            },
-            e -> {
-                logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
-                listener.onResponse(
-                    new XPackUsageFeatureResponse(
-                        new EnterpriseSearchFeatureSetUsage(
-                            enabled,
-                            LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                            searchApplicationsUsage
-                        )
+                )
+            );
+        }, e -> {
+            logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
+            listener.onResponse(
+                new XPackUsageFeatureResponse(
+                    new EnterpriseSearchFeatureSetUsage(
+                        enabled,
+                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                        searchApplicationsUsage
                     )
-                );
-            }
+                )
+            );
+        });
+
+        ListSearchApplicationAction.Request searchApplicationsCountRequest = new ListSearchApplicationAction.Request(
+            null,
+            new PageParams(0, 10_000)
         );
-
-
-        ListSearchApplicationAction.Request searchApplicationsCountRequest =
-            new ListSearchApplicationAction.Request(null, new PageParams(0, 10_000));
         clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
     }
 
@@ -138,7 +136,6 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
             addSearchApplicationSchemaStats(searchApplication, usage);
 
-
             searchApplications.add(usage);
         }
 
@@ -147,8 +144,10 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
     private void addSearchApplicationSchemaStats(SearchApplicationListItem searchApplication, Map<String, Object> searchApplicationUsage) {
         try {
-            FieldCapabilitiesResponse fieldCapsResp =
-                clientWithOrigin.prepareFieldCaps(searchApplication.indices()).setFields("*").execute().get();
+            FieldCapabilitiesResponse fieldCapsResp = clientWithOrigin.prepareFieldCaps(searchApplication.indices())
+                .setFields("*")
+                .execute()
+                .get();
             Map<String, Map<String, FieldCapabilities>> fieldCaps = fieldCapsResp.get();
 
             int totalSchemaFields = fieldCaps.size();

@@ -1382,6 +1382,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         verifyNotClosed();
         final long time = System.nanoTime();
+        // TODO: Transition this method to async to support async flush
         PlainActionFuture<Engine.FlushResult> future = PlainActionFuture.newFuture();
         getEngine().flush(force, waitIfOngoing, future);
         Engine.FlushResult flushResult = future.actionGet();

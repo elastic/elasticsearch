@@ -1959,7 +1959,7 @@ public class InternalEngine extends Engine {
         );
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
         if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
-            flush();
+            flush(false, false, ActionListener.noop());
             return;
         }
 
@@ -2243,9 +2243,8 @@ public class InternalEngine extends Engine {
                     this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
-                    PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
-                    flush(false, true, future);
-                    future.actionGet();
+                    // TODO: Migrate to using async apic
+                    flush(false, true);
 
                     // If any merges happened then we need to release the unmerged input segments so they can be deleted. A periodic refresh
                     // will do this eventually unless the user has disabled refreshes or isn't searching this shard frequently, in which
@@ -2302,9 +2301,9 @@ public class InternalEngine extends Engine {
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
             logger.trace("start flush for snapshot");
-            // TODO: Is it a concern to block here?
+            // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
             PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
-            flush(false, true, future);
+            flush(false, true);
             future.actionGet();
             logger.trace("finish flush for snapshot");
         }

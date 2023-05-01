@@ -46,7 +46,11 @@ public class CollectedMax extends CollectedAggregator {
     }
 
     @Override
-    public CollectedAggregator reduceBuckets(CollectedAggregator reductionTarget, List<MultiBucketsAggregation.Bucket> buckets, AggregationReduceContext reduceContext) {
+    public CollectedAggregator reduceBuckets(
+        CollectedAggregator reductionTarget,
+        List<MultiBucketsAggregation.Bucket> buckets,
+        AggregationReduceContext reduceContext
+    ) {
         // Will ths be called once? or once per parent key?
         // If this is called once per parent key, where do we create and store the BigArray for the holding the reduced values?
         // I almost feel like we should create a new instance to hold the reduced values, and call this once on the new instance?
@@ -71,7 +75,11 @@ public class CollectedMax extends CollectedAggregator {
     }
 
     @Override
-    public CollectedAggregator reducePipelines(CollectedAggregator agg, AggregationReduceContext context, PipelineAggregator.PipelineTree pipelines) {
+    public CollectedAggregator reducePipelines(
+        CollectedAggregator agg,
+        AggregationReduceContext context,
+        PipelineAggregator.PipelineTree pipelines
+    ) {
         // NOCOMMIT - do this
         throw new UnsupportedOperationException();
     }

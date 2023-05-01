@@ -94,10 +94,7 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
         AggregationReduceContext reduceContext
     );
 
-    public abstract CollectedAggregator reduceTopLevel(
-        List<CollectedAggregator> aggregators,
-        AggregationReduceContext reduceContext
-    );
+    public abstract CollectedAggregator reduceTopLevel(List<CollectedAggregator> aggregators, AggregationReduceContext reduceContext);
 
     /**
      * Signal the framework if the {@linkplain CollectedAggregator#reduceBuckets(CollectedAggregator, List, AggregationReduceContext)} phase needs to be called

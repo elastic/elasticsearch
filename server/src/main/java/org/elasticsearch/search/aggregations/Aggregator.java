@@ -166,6 +166,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public CollectedAggregator getDenseRepresentation() {
         throw new UnsupportedOperationException();
     }
+
     /**
      * Collect debug information to add to the profiling results. This will
      * only be called if the aggregation is being profiled.

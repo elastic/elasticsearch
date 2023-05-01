@@ -50,7 +50,11 @@ public class CollectedDateHistogram extends CollectedAggregator {
     }
 
     @Override
-    public CollectedAggregator reduceBuckets(CollectedAggregator reductionTarget, List<MultiBucketsAggregation.Bucket> buckets, AggregationReduceContext reduceContext) {
+    public CollectedAggregator reduceBuckets(
+        CollectedAggregator reductionTarget,
+        List<MultiBucketsAggregation.Bucket> buckets,
+        AggregationReduceContext reduceContext
+    ) {
         return null;
     }
 

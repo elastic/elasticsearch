@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -404,7 +405,7 @@ public class AuthenticationTestHelper {
 
         public AuthenticationTestBuilder internal(User user) {
             assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
-            assert User.isInternal(user) : "user must be internal for internal authentication";
+            assert InternalUsers.isInternal(user) : "user must be internal for internal authentication";
             resetShortcutRelatedVariables();
             this.user = user;
             realmRef = null;
@@ -413,7 +414,7 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder user(User user) {
-            if (User.isInternal(user)) {
+            if (InternalUsers.isInternal(user)) {
                 return internal(user);
             } else if (user instanceof AnonymousUser) {
                 return anonymous(user);
@@ -495,7 +496,7 @@ public class AuthenticationTestHelper {
                 if (user == null) {
                     user = randomUser();
                 }
-                assert false == User.isInternal(user) && false == user instanceof AnonymousUser
+                assert false == InternalUsers.isInternal(user) && false == user instanceof AnonymousUser
                     : "cannot run-as internal or anonymous user";
                 if (realmRef == null) {
                     realmRef = randomRealmRef(isRealmUnderDomain == null ? ESTestCase.randomBoolean() : isRealmUnderDomain);
@@ -608,7 +609,7 @@ public class AuthenticationTestHelper {
                         if (user == null) {
                             user = ESTestCase.randomFrom(INTERNAL_USERS);
                         }
-                        assert User.isInternal(user) : "user must be internal for internal authentication";
+                        assert InternalUsers.isInternal(user) : "user must be internal for internal authentication";
                         assert realmRef == null : "cannot specify realm type for internal authentication";
                         String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
                         if (user == SystemUser.INSTANCE) {

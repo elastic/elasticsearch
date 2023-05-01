@@ -6,41 +6,36 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.SystemPrivilege;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
  * Internal user that is applied to all requests made elasticsearch itself
  */
-public class SystemUser extends User {
+public class SystemUser extends InternalUser {
 
     public static final String NAME = UsernamesField.SYSTEM_NAME;
+
+    @Deprecated
     public static final String ROLE_NAME = UsernamesField.SYSTEM_ROLE;
 
-    public static final User INSTANCE = new SystemUser();
+    public static final SystemUser INSTANCE = new SystemUser();
 
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {
-        super(NAME, Strings.EMPTY_ARRAY);
-        // the following traits, and especially the run-as one, go with all the internal users
-        // TODO abstract in a base `InternalUser` class
-        assert enabled();
-        assert roles() != null && roles().length == 0;
+        super(NAME);
     }
 
     @Override
-    public boolean equals(Object o) {
-        return o == INSTANCE;
+    public Optional<RoleDescriptor> getRoleDescriptor() {
+        return Optional.empty();
     }
 
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
+    @Deprecated
     public static boolean is(User user) {
         return INSTANCE.equals(user);
     }

@@ -352,17 +352,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             User user = ((Subject) i.getArguments()[0]).getUser();
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
-            if (XPackUser.is(user)) {
+            if (XPackUser.INSTANCE.equals(user)) {
                 listener.onResponse(Role.buildFromRoleDescriptor(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES));
                 return Void.TYPE;
             }
-            if (XPackSecurityUser.is(user)) {
+            if (XPackSecurityUser.INSTANCE.equals(user)) {
                 listener.onResponse(
                     Role.buildFromRoleDescriptor(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
                 );
                 return Void.TYPE;
             }
-            if (AsyncSearchUser.is(user)) {
+            if (AsyncSearchUser.INSTANCE.equals(user)) {
                 listener.onResponse(
                     Role.buildFromRoleDescriptor(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES)
                 );

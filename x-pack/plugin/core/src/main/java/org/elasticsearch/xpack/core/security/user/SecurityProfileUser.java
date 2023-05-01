@@ -6,19 +6,20 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * internal user that manages the security profile index. Has no cluster permission.
  */
-public class SecurityProfileUser extends User {
+public class SecurityProfileUser extends InternalUser {
+
+    public static final SecurityProfileUser INSTANCE = new SecurityProfileUser();
 
     public static final String NAME = UsernamesField.SECURITY_PROFILE_NAME;
-    public static final SecurityProfileUser INSTANCE = new SecurityProfileUser();
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.SECURITY_PROFILE_ROLE,
         null,
@@ -36,25 +37,12 @@ public class SecurityProfileUser extends User {
     );
 
     private SecurityProfileUser() {
-        super(NAME, Strings.EMPTY_ARRAY);
-        // the following traits, and especially the run-as one, go with all the internal users
-        // TODO abstract in a base `InternalUser` class
-        assert enabled();
-        assert roles() != null && roles().length == 0;
+        super(NAME);
     }
 
     @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
+    public Optional<RoleDescriptor> getRoleDescriptor() {
+        return Optional.of(ROLE_DESCRIPTOR);
     }
 
 }

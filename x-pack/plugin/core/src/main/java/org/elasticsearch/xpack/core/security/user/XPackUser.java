@@ -6,14 +6,15 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+
+import java.util.Optional;
 
 /**
  * XPack internal user that manages xpack. Has all cluster/indices permissions for x-pack to operate excluding security permissions.
  */
-public class XPackUser extends User {
+public class XPackUser extends InternalUser {
 
     public static final String NAME = UsernamesField.XPACK_NAME;
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
@@ -31,25 +32,12 @@ public class XPackUser extends User {
     public static final XPackUser INSTANCE = new XPackUser();
 
     private XPackUser() {
-        super(NAME, Strings.EMPTY_ARRAY);
-        // the following traits, and especially the run-as one, go with all the internal users
-        // TODO abstract in a base `InternalUser` class
-        assert enabled();
-        assert roles() != null && roles().length == 0;
+        super(NAME);
     }
 
     @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
+    public Optional<RoleDescriptor> getRoleDescriptor() {
+        return Optional.of(ROLE_DESCRIPTOR);
     }
 
 }

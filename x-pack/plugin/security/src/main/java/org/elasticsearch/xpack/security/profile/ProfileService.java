@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -196,7 +197,8 @@ public class ProfileService {
             return;
         }
 
-        if (User.isInternal(subject.getUser())) {
+        User user = subject.getUser();
+        if (InternalUsers.isInternal(user)) {
             listener.onFailure(
                 new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
             );

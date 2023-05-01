@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
@@ -19,8 +18,9 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Optional;
 
-public class CrossClusterAccessUser extends User {
+public class CrossClusterAccessUser extends InternalUser {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
 
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
@@ -54,24 +54,17 @@ public class CrossClusterAccessUser extends User {
         null
     );
 
-    public static final User INSTANCE = new CrossClusterAccessUser();
+    public static final InternalUser INSTANCE = new CrossClusterAccessUser();
 
     private CrossClusterAccessUser() {
-        super(NAME, Strings.EMPTY_ARRAY);
-        // the following traits, and especially the run-as one, go with all the internal users
-        // TODO abstract in a base `InternalUser` class
-        assert enabled();
-        assert roles() != null && roles().length == 0;
+        super(NAME);
     }
 
     @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
+    public Optional<RoleDescriptor> getRoleDescriptor() {
+        // The __user__ doesn't have a role descriptor.
+        // There is role descriptor define above, but that is only used for Remote Access Subjects
+        return Optional.empty();
     }
 
     public static boolean is(User user) {

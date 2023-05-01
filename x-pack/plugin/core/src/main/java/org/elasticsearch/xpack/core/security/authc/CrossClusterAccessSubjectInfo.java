@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -212,7 +213,7 @@ public final class CrossClusterAccessSubjectInfo {
                 );
                 assert false : "role descriptors bytes list for internal cross cluster access user must be empty";
             }
-        } else if (User.isInternal(user)) {
+        } else if (InternalUsers.isInternal(user)) {
             throw new IllegalArgumentException(
                 "received cross cluster request from an unexpected internal user [" + user.principal() + "]"
             );

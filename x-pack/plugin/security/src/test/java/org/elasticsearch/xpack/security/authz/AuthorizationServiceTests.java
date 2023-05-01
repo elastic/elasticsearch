@@ -150,6 +150,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -2581,7 +2582,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     private Authentication createAuthentication(User user, @Nullable User authenticatingUser) {
         final Authentication authentication;
-        if (User.isInternal(user)) {
+        if (InternalUsers.isInternal(user)) {
             assert authenticatingUser == null;
             authentication = AuthenticationTestHelper.builder().internal(user).build();
         } else if (user instanceof AnonymousUser) {

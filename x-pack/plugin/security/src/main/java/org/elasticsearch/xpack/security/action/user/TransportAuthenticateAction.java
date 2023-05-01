@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
@@ -50,12 +51,14 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         }
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
-        } else if (User.isInternal(authUser)) {
+        } else if (InternalUsers.isInternal(authUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
-        } else if (User.isInternal(runAsUser)) {
-            listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
+            if (InternalUsers.isInternal(runAsUser)) {
+                listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
+            } else {
+                listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
+            }
         }
     }
 }

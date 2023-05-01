@@ -8,11 +8,9 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-
 import java.util.Iterator;
 
-public class IteratorAndCurrent<B extends InternalMultiBucketAggregation.InternalBucket> implements Iterator<B> {
+public class IteratorAndCurrent<B extends MultiBucketsAggregation.Bucket> implements Iterator<B> {
     private final Iterator<B> iterator;
     private B current;
 

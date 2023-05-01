@@ -8,12 +8,15 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.CollectedAggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -60,7 +63,27 @@ public class CollectedDateHistogram extends CollectedAggregator {
 
     @Override
     public CollectedAggregator reduceTopLevel(List<CollectedAggregator> aggregators, AggregationReduceContext reduceContext) {
-        return null;
+        CollectedDateHistogram reduced = new CollectedDateHistogram(
+            name,
+            metadata,
+            reduceContext.bigArrays().newLongArray(1),
+            // TODO: We can probably make a better size estimate here
+            LongKeyedBucketOrds.build(reduceContext.bigArrays(), CardinalityUpperBound.MANY)
+        );
+        // Build the priority queue of key iterators
+        final PriorityQueue<IteratorAndCurrent<InternalDateHistogram.Bucket>> pq = new PriorityQueue<>(aggregators.size()) {
+            @Override
+            protected boolean lessThan(
+                IteratorAndCurrent<InternalDateHistogram.Bucket> a,
+                IteratorAndCurrent<InternalDateHistogram.Bucket> b
+            ) {
+                return a.current().key < b.current().key;
+            }
+        };
+        for (CollectedAggregator agg : aggregators) {
+            // Get the iterators and stuff 'em in the queue
+        }
+        return reduced;
     }
 
     @Override

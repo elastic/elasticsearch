@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -83,7 +84,8 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      *
-     * @param reductionTarget
+     * @param reductionTarget - {@link CollectedAggregator} with a mutable {@link org.elasticsearch.common.util.BigArray} that will be used
+     *                        to hold the results of the reduction.
      * @param buckets         - List of compatible {@link CollectedAggregator} from the other data nodes
      * @param reduceContext   - The current reduction context
      * @see #mustReduceOnSingleInternalAgg()
@@ -94,11 +96,18 @@ public abstract class CollectedAggregator implements Releasable, VersionedNamedW
         AggregationReduceContext reduceContext
     );
 
+    /**
+     * Reduce the given aggregations as top level aggregators.  Essentially, this means reducing with a parent bucket key of 0.
+     * @param aggregators - The list of aggregators to reduce
+     * @param reduceContext - source for {@link BigArrays} to store the reduced data
+     * @return - a single {@link CollectedAggregator} holding the reduced buckets for all the input aggregators
+     */
     public abstract CollectedAggregator reduceTopLevel(List<CollectedAggregator> aggregators, AggregationReduceContext reduceContext);
 
+    public abstract IteratorAndCurrent<KeyComparable<?>> getKeysIteratorForOwningBucketOrd(long owningBucketOrd);
     /**
-     * Signal the framework if the {@linkplain CollectedAggregator#reduceBuckets(CollectedAggregator, List, AggregationReduceContext)} phase needs to be called
-     * when there is only one {@linkplain CollectedAggregator}.
+     * Signal the framework if the {@linkplain CollectedAggregator#reduceBuckets(CollectedAggregator, List, AggregationReduceContext)}
+     * phase needs to be called when there is only one {@linkplain CollectedAggregator}.
      */
     // NOCOMMIT: does this still make sense in the new design?
     protected abstract boolean mustReduceOnSingleInternalAgg();

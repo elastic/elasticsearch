@@ -11,7 +11,7 @@ Retrieves the current data lifecycle status for one or more data stream backing 
 [[dlm-explain-lifecycle-request]]
 ==== {api-request-title}
 
-`GET <target>/_lifecycle/explain`
+`POST <target>/_lifecycle/explain`
 
 [[dlm-explain-lifecycle-desc]]
 ==== {api-description-title}
@@ -43,7 +43,7 @@ The following example retrieves the lifecycle state of the index `.ds-metrics-20
 
 [source,console]
 --------------------------------------------------
-GET .ds-metrics-2023.03.22-000001/_lifecycle/explain
+POST .ds-metrics-2023.03.22-000001/_lifecycle/explain
 --------------------------------------------------
 // TEST[skip:we're not setting up DLM in these tests]
 

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.ParentAct
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -88,7 +89,12 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testSetInternalUser() {
-        final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final InternalUser internalUser = randomFrom(
+            SystemUser.INSTANCE,
+            XPackUser.INSTANCE,
+            XPackSecurityUser.INSTANCE,
+            AsyncSearchUser.INSTANCE
+        );
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
         securityContext.setInternalUser(internalUser, TransportVersion.CURRENT);
@@ -116,7 +122,7 @@ public class SecurityContextTests extends ESTestCase {
             original = null;
         }
 
-        final User executionUser = randomFrom(
+        final InternalUser executionUser = randomFrom(
             SystemUser.INSTANCE,
             XPackUser.INSTANCE,
             XPackSecurityUser.INSTANCE,

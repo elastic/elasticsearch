@@ -195,8 +195,7 @@ public class CompositeRolesStore {
             return;
         }
 
-        User user = subject.getUser();
-        assert false == InternalUsers.isInternal(user) : "Internal user should not pass here";
+        assert false == InternalUsers.isInternal(subject.getUser()) : "Internal user should not pass here";
 
         final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
         roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
@@ -357,9 +356,8 @@ public class CompositeRolesStore {
 
     // Package private for testing
     static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
-        final User user = subject.getUser();
-        if (InternalUsers.isInternal(user)) {
-            return Optional.of(InternalUsers.getRoleDescriptor(user));
+        if (InternalUsers.isInternal(subject.getUser())) {
+            return Optional.of(InternalUsers.getRoleDescriptor(subject.getUser()));
         } else {
             return Optional.empty();
         }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -78,7 +79,7 @@ public class AuthenticationTestHelper {
         AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE
     );
 
-    private static final Set<User> INTERNAL_USERS = Set.of(
+    private static final Set<InternalUser> INTERNAL_USERS = Set.of(
         SystemUser.INSTANCE,
         XPackUser.INSTANCE,
         XPackSecurityUser.INSTANCE,
@@ -98,7 +99,7 @@ public class AuthenticationTestHelper {
         );
     }
 
-    public static User randomInternalUser() {
+    public static InternalUser randomInternalUser() {
         return ESTestCase.randomFrom(INTERNAL_USERS);
     }
 
@@ -403,7 +404,7 @@ public class AuthenticationTestHelper {
             return internal(ESTestCase.randomFrom(INTERNAL_USERS));
         }
 
-        public AuthenticationTestBuilder internal(User user) {
+        public AuthenticationTestBuilder internal(InternalUser user) {
             assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             assert InternalUsers.isInternal(user) : "user must be internal for internal authentication";
             resetShortcutRelatedVariables();
@@ -414,8 +415,8 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder user(User user) {
-            if (InternalUsers.isInternal(user)) {
-                return internal(user);
+            if (user instanceof InternalUser internalUser) {
+                return internal(internalUser);
             } else if (user instanceof AnonymousUser) {
                 return anonymous(user);
             } else {
@@ -609,16 +610,30 @@ public class AuthenticationTestHelper {
                         if (user == null) {
                             user = ESTestCase.randomFrom(INTERNAL_USERS);
                         }
-                        assert InternalUsers.isInternal(user) : "user must be internal for internal authentication";
-                        assert realmRef == null : "cannot specify realm type for internal authentication";
-                        String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
-                        if (user == SystemUser.INSTANCE) {
-                            authentication = ESTestCase.randomFrom(
-                                Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName),
-                                Authentication.newInternalFallbackAuthentication(user, nodeName)
-                            );
+                        if (user instanceof InternalUser internalUser) {
+                            assert InternalUsers.isInternal(internalUser) : "user must be internal for internal authentication";
+                            assert realmRef == null : "cannot specify realm type for internal authentication";
+                            String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
+                            if (internalUser == SystemUser.INSTANCE) {
+                                authentication = ESTestCase.randomFrom(
+                                    Authentication.newInternalAuthentication(internalUser, TransportVersion.CURRENT, nodeName),
+                                    Authentication.newInternalFallbackAuthentication(user, nodeName)
+                                );
+                            } else {
+                                authentication = Authentication.newInternalAuthentication(internalUser, TransportVersion.CURRENT, nodeName);
+                            }
                         } else {
-                            authentication = Authentication.newInternalAuthentication(user, TransportVersion.CURRENT, nodeName);
+                            throw new IllegalArgumentException(
+                                "Cannot have authentication type ["
+                                    + authenticationType
+                                    + "] ("
+                                    + candidateAuthenticationTypes
+                                    + ") with non-internal user ["
+                                    + user
+                                    + "] ("
+                                    + user.getClass().getName()
+                                    + ")"
+                            );
                         }
                     }
                     default -> throw new IllegalArgumentException("unknown authentication type [" + authenticationType + "]");

@@ -216,8 +216,7 @@ public class AuthorizationService {
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
-        User user = subject.getUser();
-        if (InternalUsers.isInternal(user)) {
+        if (InternalUsers.isInternal(subject.getUser())) {
             final String message = "the user ["
                 + subject.getUser().principal()
                 + "] is an internal user and we should never try to retrieve its roles descriptors towards a remote cluster";
@@ -353,8 +352,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            User user = authentication.getEffectiveSubject().getUser();
-            if (InternalUsers.isInternal(user)) {
+            if (InternalUsers.isInternal(authentication.getEffectiveSubject().getUser())) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrailService.get().tamperedRequest(null, authentication, action, originalRequest);

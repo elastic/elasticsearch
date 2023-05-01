@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -184,7 +185,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(InternalUser.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
@@ -237,7 +238,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertNotEquals(user, sendingUser.get());
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
-        verify(securityContext).executeAsInternalUser(any(User.class), eq(TransportVersion.CURRENT), anyConsumer());
+        verify(securityContext).executeAsInternalUser(any(InternalUser.class), eq(TransportVersion.CURRENT), anyConsumer());
     }
 
     public void testSendWithoutUser() throws Exception {
@@ -282,7 +283,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
-        verify(securityContext, never()).executeAsInternalUser(any(User.class), any(TransportVersion.class), anyConsumer());
+        verify(securityContext, never()).executeAsInternalUser(any(InternalUser.class), any(TransportVersion.class), anyConsumer());
     }
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {

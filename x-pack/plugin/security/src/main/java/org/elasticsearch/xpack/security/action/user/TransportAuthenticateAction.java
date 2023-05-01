@@ -53,12 +53,10 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
         } else if (InternalUsers.isInternal(authUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
+        } else if (InternalUsers.isInternal(runAsUser)) {
+            listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            if (InternalUsers.isInternal(runAsUser)) {
-                listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
-            } else {
-                listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
-            }
+            listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
         }
     }
 }

@@ -35,7 +35,7 @@ public class InternalUsers {
     }
 
     public static boolean isInternal(User user) {
-        return INTERNAL_USERS.get(user.principal()) == user;
+        return user != null && INTERNAL_USERS.get(user.principal()) == user;
     }
 
     public static InternalUser getUser(String username) {

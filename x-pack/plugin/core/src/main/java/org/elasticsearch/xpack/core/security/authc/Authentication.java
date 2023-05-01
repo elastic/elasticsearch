@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -381,11 +382,10 @@ public final class Authentication implements ToXContentObject {
       *  Therefore, using this method in more places other than its current usage requires careful consideration.
       */
     public Authentication maybeAddAnonymousRoles(@Nullable AnonymousUser anonymousUser) {
-        User user1 = getEffectiveSubject().getUser();
         final boolean shouldAddAnonymousRoleNames = anonymousUser != null
             && anonymousUser.enabled()
             && false == anonymousUser.equals(getEffectiveSubject().getUser())
-            && false == InternalUsers.isInternal(user1)
+            && false == InternalUsers.isInternal(getEffectiveSubject().getUser())
             && false == isApiKey()
             && false == isCrossClusterAccess()
             && false == isServiceAccount();
@@ -508,8 +508,7 @@ public final class Authentication implements ToXContentObject {
 
         // There is no reason for internal users to run-as. This check prevents either internal user itself
         // or a token created for it (though no such thing in current code) to run-as.
-        User user = getEffectiveSubject().getUser();
-        if (InternalUsers.isInternal(user)) {
+        if (InternalUsers.isInternal(getEffectiveSubject().getUser())) {
             return false;
         }
 
@@ -838,8 +837,7 @@ public final class Authentication implements ToXContentObject {
             );
         }
         checkNoDomain(authenticatingRealm, "Internal");
-        User user = authenticatingSubject.getUser();
-        if (false == InternalUsers.isInternal(user)) {
+        if (false == InternalUsers.isInternal(authenticatingSubject.getUser())) {
             throw new IllegalArgumentException("Internal authentication must have internal user");
         }
         checkNoRunAs(this, "Internal");
@@ -946,8 +944,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static void checkNoInternalUser(Subject subject, String prefixMessage) {
-        User user = subject.getUser();
-        if (InternalUsers.isInternal(user)) {
+        if (InternalUsers.isInternal(subject.getUser())) {
             throw new IllegalArgumentException(
                 Strings.format(prefixMessage + " authentication cannot have internal user [%s]", subject.getUser().principal())
             );
@@ -1190,8 +1187,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     // TODO is a newer version than the node's a valid value?
-    public static Authentication newInternalAuthentication(User internalUser, TransportVersion version, String nodeName) {
-        // TODO create a system user class, so that the type system guarantees that this is only invoked for internal users
+    public static Authentication newInternalAuthentication(InternalUser internalUser, TransportVersion version, String nodeName) {
         assert InternalUsers.isInternal(internalUser);
         final Authentication.RealmRef authenticatedBy = newInternalAttachRealmRef(nodeName);
         Authentication authentication = new Authentication(
@@ -1483,6 +1479,7 @@ public final class Authentication implements ToXContentObject {
         }
 
         private static void writeInternalUser(User user, StreamOutput output) throws IOException {
+            assert user instanceof InternalUser;
             assert InternalUsers.isInternal(user);
             output.writeBoolean(true);
             output.writeString(InternalUsers.getInternalUserName(user));

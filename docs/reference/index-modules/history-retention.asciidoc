@@ -1,8 +1,6 @@
 [[index-modules-history-retention]]
 == History retention
 
-NOTE: {ccr-cap} will not function if soft deletes are disabled.
-
 {es} sometimes needs to replay some of the operations that were performed on a
 shard. For instance, if a replica is briefly offline then it may be much more
 efficient to replay the few operations it missed while it was offline than to
@@ -57,6 +55,8 @@ setting. If soft deletes are disabled then peer recoveries can still sometimes
 take place by copying just the missing operations from the translog
 <<index-modules-translog-retention,as long as those operations are retained
 there>>.
+
+NOTE: {ccr-cap} will not function if soft deletes are disabled.
 
 [discrete]
 === History retention settings

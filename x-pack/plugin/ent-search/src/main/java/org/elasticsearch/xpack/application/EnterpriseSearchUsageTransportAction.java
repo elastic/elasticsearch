@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -23,6 +25,7 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.search.SearchApplicationListItem;
 import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -32,9 +35,12 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
@@ -89,7 +95,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         Map<String, Object> searchApplicationsUsage = new HashMap<>();
 
         ActionListener<ListSearchApplicationAction.Response> searchApplicationsCountListener = ActionListener.wrap(
-            respnose ->
+            response -> {
+                addSearchApplicationsUsage(response, searchApplicationsUsage);
                 listener.onResponse(
                     new XPackUsageFeatureResponse(
                         new EnterpriseSearchFeatureSetUsage(
@@ -98,7 +105,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
                             searchApplicationsUsage
                         )
                     )
-                ),
+                );
+            },
             e -> {
                 logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
                 listener.onResponse(
@@ -114,7 +122,45 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         );
 
 
-        ListSearchApplicationAction.Request searchApplicationsCountRequest = new ListSearchApplicationAction.Request(null, new PageParams(0, 0));
+        ListSearchApplicationAction.Request searchApplicationsCountRequest = new ListSearchApplicationAction.Request(null, new PageParams(0, 10_000));
         clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
+    }
+
+    private void addSearchApplicationsUsage(ListSearchApplicationAction.Response response, Map<String, Object> searchApplicationsUsage) {
+        searchApplicationsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, response.queryPage().count());
+
+        List<Map<String, Object>> searchApplications = new ArrayList<>();
+
+        for (SearchApplicationListItem searchApplication : response.queryPage().results()) {
+            Map<String, Object> usage = new HashMap<>();
+            usage.put(EnterpriseSearchFeatureSetUsage.NAME, searchApplication.name());
+
+            addSearchApplicationSchemaStats(searchApplication, usage);
+
+
+            searchApplications.add(usage);
+        }
+
+        searchApplicationsUsage.put(EnterpriseSearchFeatureSetUsage.SEARCH_APPLICATIONS, searchApplications);
+    }
+
+    private void addSearchApplicationSchemaStats(SearchApplicationListItem searchApplication, Map<String, Object> searchApplicationUsage) {
+        try {
+            FieldCapabilitiesResponse fieldCapsResp = clientWithOrigin.prepareFieldCaps(searchApplication.indices()).setFields("*").execute().get();
+            Map<String, Map<String, FieldCapabilities>> fieldCaps = fieldCapsResp.get();
+
+            int totalSchemaFields = fieldCaps.size();
+            int totalSchemaFieldConflicts = 0;
+            for (Map<String, FieldCapabilities> field : fieldCaps.values()) {
+                if (field.size() > 1) {
+                    totalSchemaFieldConflicts++;
+                }
+            }
+
+            searchApplicationUsage.put(EnterpriseSearchFeatureSetUsage.SCHEMA_FIELD_COUNT, totalSchemaFields);
+            searchApplicationUsage.put(EnterpriseSearchFeatureSetUsage.SCHEMA_FIELD_CONFLICT_COUNT, totalSchemaFieldConflicts);
+        } catch (ExecutionException | InterruptedException ignored) {
+            logger.warn("oops!", ignored);
+        }
     }
 }

@@ -21,6 +21,10 @@ import java.util.Objects;
 public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public static final String SEARCH_APPLICATIONS = "search_applications";
+    public static final String COUNT = "count";
+    public static final String NAME = "name";
+    public static final String SCHEMA_FIELD_COUNT = "schema_field_count";
+    public static final String SCHEMA_FIELD_CONFLICT_COUNT = "schema_field_conflict_count";
     private final Map<String, Object> searchApplicationsUsage;
 
     public EnterpriseSearchFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> searchApplicationsUsage) {

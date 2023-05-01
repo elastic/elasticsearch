@@ -58,8 +58,54 @@ FROM employees
 ----
 
 [discrete]
+[[esql-operators]]
+=== Operators
+These comparison operators are supported:
+
+* equality: `==`
+* inequality: `!=`
+* comparison: 
+** less than: `<`
+** less than or equal: `<=`
+** larger than: `>`
+** larger than or equal: `>=`
+
+For string comparison using wildcards or regular expressions, use `LIKE` or
+`RLIKE`:
+
+* Use `LIKE` to match strings using wildcards. The following wildcard characters
+are supported:
++
+--
+** `*` matches zero or more characters. 
+** `?` matches one character. 
+
+[source,esql]
+----
+FROM employees 
+| WHERE first_name LIKE "?b*" 
+| PROJECT first_name, last_name
+----
+--
+
+* Use `RLIKE` to match strings using <<regexp-syntax,regular expressions>>:
++
+[source,esql]
+----
+FROM employees 
+| WHERE first_name RLIKE ".leja.*" 
+| PROJECT first_name, last_name
+----
+
+The following boolean operators are supported:
+
+* `AND`
+* `OR`
+* `NOT`
+
+[discrete]
 [[esql-timespan-literals]]
-=== ESQL timespan literals
+=== Timespan literals
 
 Datetime intervals and timespans can be expressed using timespan literals.
 Timespan literals are a combination of a number and a qualifier. These

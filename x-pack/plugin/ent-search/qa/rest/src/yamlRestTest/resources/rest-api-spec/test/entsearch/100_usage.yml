@@ -34,7 +34,10 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 0 }
+      search_applications: {
+        count: 0,
+        search_applications: []
+      }
     }
   }
 
@@ -51,7 +54,12 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 1 }
+      search_applications: {
+        count: 1,
+        search_applications: [
+          { name: "test-search-application-1", schema_field_count: 0, schema_field_conflict_count: 0 }
+        ]
+      }
     }
   }
 
@@ -68,7 +76,13 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 2 }
+      search_applications: {
+        count: 2,
+        search_applications: [
+          { name: "test-search-application-1", schema_field_count: 0, schema_field_conflict_count: 0 },
+          { name: "test-search-application-2", schema_field_count: 0, schema_field_conflict_count: 0 }
+        ]
+      }
     }
   }
 
@@ -83,6 +97,11 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 1 }
+      search_applications: {
+        count: 1,
+        search_applications: [
+          { name: "test-search-application-1", schema_field_count: 0, schema_field_conflict_count: 0 }
+        ]
+      }
     }
   }

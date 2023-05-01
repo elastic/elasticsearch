@@ -183,6 +183,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
         while (blobNames.hasNext()) {
             try {
                 IOUtils.rm(path.resolve(blobNames.next()));
+            } catch (FileNotFoundException e) {
+                // Ignore since this is "delete while ignoring not exists" method
             } catch (IOException e) {
                 // track up to 10 delete exceptions and try to continue deleting on exceptions
                 if (ioe == null) {

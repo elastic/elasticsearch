@@ -52,11 +52,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
     // see #2896
     public void testStopOneNodePreferenceWithRedState() throws IOException {
-        assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put("index.number_of_shards", cluster().numDataNodes() + 2).put("index.number_of_replicas", 0)
-            )
-        );
+        assertAcked(prepareCreate("test").setSettings(indexSettings(cluster().numDataNodes() + 2, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();

@@ -3128,4 +3128,13 @@ public class InternalEngine extends Engine {
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
         this.flushListener.addOrNotify(location, listener);
     }
+
+    @Override
+    public void addFlushDurabilityListener(long generation, ActionListener<Void> listener) {
+        ensureOpen();
+        if (lastCommittedSegmentInfos.getGeneration() < generation) {
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
+        }
+        listener.onResponse(null);
+    }
 }

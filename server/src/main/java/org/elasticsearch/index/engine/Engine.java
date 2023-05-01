@@ -1968,6 +1968,15 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Adds a listener which will be executed once the request generation has been durably persisted.
+     */
+    public void addFlushDurabilityListener(long generation, ActionListener<Void> listener) {
+        listener.onFailure(
+            new UnsupportedOperationException("Engine type " + this.getClass() + " does not support generation durability listeners.")
+        );
+    }
+
+    /**
      * Captures the result of a refresh operation on the index shard.
      * <p>
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>

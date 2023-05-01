@@ -4,19 +4,13 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/dlm-put-lifecycle.html",
       "description":"Updates the data lifecycle of the selected data streams."
     },
-    "stability":"stable",
+    "stability":"experimental",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },
-    "url":{
-      "paths":[
-        {
-          "path":"/_data_stream/_lifecycle",
-          "methods":[
-            "PUT"
-          ]
-        },
+    "url": {
+      "paths": [
         {
           "path":"/_data_stream/{name}/_lifecycle",
           "methods":[

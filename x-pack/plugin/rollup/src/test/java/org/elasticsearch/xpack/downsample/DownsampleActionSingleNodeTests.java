@@ -175,10 +175,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
          * check that the value of the label (last value) matches the value
          * of the corresponding metric which uses a last_value metric type.
          */
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+        Settings.Builder settings = indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
             .put(
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
@@ -1088,10 +1085,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template indexTemplate = new Template(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),
             new CompressedXContent("""

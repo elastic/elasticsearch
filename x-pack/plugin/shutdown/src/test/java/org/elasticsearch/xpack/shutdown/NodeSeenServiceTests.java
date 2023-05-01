@@ -7,21 +7,24 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeExecutor;
-import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeTask;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -38,17 +41,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-public class TransportPutShutdownNodeActionTests extends ESTestCase {
+public class NodeSeenServiceTests extends ESTestCase {
 
     private ClusterService clusterService;
     private TransportPutShutdownNodeAction action;
 
     // must use member mock for generic
     @Mock
-    private TaskContext<PutShutdownNodeTask> taskContext;
+    private ClusterStateTaskExecutor.TaskContext<TransportPutShutdownNodeAction.PutShutdownNodeTask> taskContext;
 
     @Mock
-    private MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
+    private MasterServiceTaskQueue<TransportPutShutdownNodeAction.PutShutdownNodeTask> taskQueue;
+
+    private ClusterState state;
+
+    private DiscoveryNode localNode;
+
+    private DiscoveryNode otherNode;
 
     @Before
     public void init() {
@@ -59,7 +68,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(
+        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<TransportPutShutdownNodeAction.PutShutdownNodeTask>>any())).thenReturn(
             taskQueue
         );
         action = new TransportPutShutdownNodeAction(
@@ -69,16 +78,35 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             actionFilters,
             indexNameExpressionResolver
         );
+        localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        state = ClusterState.builder(ClusterName.DEFAULT)
+            .version(1L)
+            .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build())
+            .metadata(
+                Metadata.builder()
+                    .clusterUUID("clusteruuid")
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
+                            .term(2)
+                            .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG)
+                            .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG)
+                            .build()
+                    )
+                    .build()
+            )
+            .stateUUID("stateuuid")
+            .build();
     }
 
     public void testNoop() throws Exception {
-        var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
-        var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
-        var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
+        var type = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE, SingleNodeShutdownMetadata.Type.RESTART);
+        var allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
+        var targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLength(5) : null;
         var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName, null);
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-        var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
-        var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
+        var updateTask = ArgumentCaptor.forClass(TransportPutShutdownNodeAction.PutShutdownNodeTask.class);
+        var taskExecutor = ArgumentCaptor.forClass(TransportPutShutdownNodeAction.PutShutdownNodeExecutor.class);
         verify(clusterService).createTaskQueue(any(), any(), taskExecutor.capture());
         verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
@@ -99,7 +127,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         assertThat(gotState, sameInstance(stableState));
     }
 
-    @SuppressWarnings("unchecked")
+
     private void clearTaskQueueInvocations() {
         clearInvocations(taskQueue);
     }

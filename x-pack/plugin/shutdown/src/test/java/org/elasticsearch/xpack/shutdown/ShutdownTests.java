@@ -69,7 +69,6 @@ public class ShutdownTests extends ESTestCase {
                     )
                 )
             );
-        // assertThat(true, NodeSeenService.keepShutdownMetadata())
 
         TimeValue grace = new TimeValue(1000);
         SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()

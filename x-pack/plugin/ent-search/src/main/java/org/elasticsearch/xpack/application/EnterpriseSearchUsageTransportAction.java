@@ -160,8 +160,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
             searchApplicationUsage.put(EnterpriseSearchFeatureSetUsage.SCHEMA_FIELD_COUNT, totalSchemaFields);
             searchApplicationUsage.put(EnterpriseSearchFeatureSetUsage.SCHEMA_FIELD_CONFLICT_COUNT, totalSchemaFieldConflicts);
-        } catch (ExecutionException | InterruptedException ignored) {
-            logger.warn("oops!", ignored);
+        } catch (ExecutionException | InterruptedException e) {
+            logger.warn("Failed to get search application schema field counts in Enterprise Search usage", e);
         }
     }
 }

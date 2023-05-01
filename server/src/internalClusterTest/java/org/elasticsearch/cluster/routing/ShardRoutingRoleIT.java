@@ -235,10 +235,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
 
         Settings getIndexSettings() {
             logger.info("--> numShards={}, numReplicas={}", numShards, numReplicas);
-            return Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                .build();
+            return indexSettings(numShards, numReplicas).build();
         }
     }
 
@@ -387,6 +384,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "ES-4677")
     public void testRelocation() {
         var routingTableWatcher = new RoutingTableWatcher();
 

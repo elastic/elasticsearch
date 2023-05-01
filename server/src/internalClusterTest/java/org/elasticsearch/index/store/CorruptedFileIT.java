@@ -147,10 +147,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                indexSettings(1, 1).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                     // no checkindex - we corrupt shards on purpose
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     // no translog based flush - it might change the .liv / segments.N files
@@ -347,10 +344,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         var unluckyNode = dataNodes.get(1);
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put("index.routing.allocation.include._name", primariesNode.getName())
+                indexSettings(1, 0).put("index.routing.allocation.include._name", primariesNode.getName())
                     .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
                     .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
             )
@@ -404,9 +398,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
+                indexSettings(between(1, 4), 0) // don't go crazy here it must recovery fast
                     // This does corrupt files on the replica, so we can't check:
                     .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
                     .put("index.routing.allocation.include._name", primariesNode.getName())

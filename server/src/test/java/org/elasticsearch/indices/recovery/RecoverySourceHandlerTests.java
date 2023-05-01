@@ -708,15 +708,14 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
-                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                indexSettings(VersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    UUIDs.randomBase64UUID(random())
+                )
             );
         if (randomBoolean()) {
             indexMetadata.state(IndexMetadata.State.CLOSE);
@@ -788,7 +787,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
     public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
         runPrimaryPermitsLeakTest((shard, cancellableThreads) -> {
-            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads);
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, shard, cancellableThreads);
         });
     }
 
@@ -797,7 +796,6 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             PlainActionFuture.<Void, RuntimeException>get(
                 future -> RecoverySourceHandler.runUnderPrimaryPermit(
                     listener -> listener.onResponse(null),
-                    "test",
                     shard,
                     cancellableThreads,
                     future
@@ -818,7 +816,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), any());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();
@@ -1145,13 +1143,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
             final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                        .build()
-                )
+                .settings(indexSettings(Version.CURRENT, 1, 0))
                 .build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             when(shard.indexSettings()).thenReturn(indexSettings);

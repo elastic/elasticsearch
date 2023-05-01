@@ -26,8 +26,8 @@ public class GeoIpUpgradeIT extends AbstractUpgradeTestCase {
             assertBusy(() -> {
                 Response response = client().performRequest(new Request("GET", "_ingest/geoip/stats"));
                 String tasks = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-                // The geoip downloader doesn't actually do anything since there are no geoip processors:
-                assertThat(tasks, Matchers.containsString("failed_downloads\":0"));
+                // The geoip downloader should be executed since a geoip processors is present in behavioral analytics default pipeline:
+                assertThat(tasks, Matchers.containsString("failed_downloads\":1"));
                 assertThat(tasks, Matchers.containsString("successful_downloads\":0"));
             });
         }

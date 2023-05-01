@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-analytics-collection.html",
       "description": "Returns the existing behavioral analytics collections."
     },
-    "stability": "beta",
+    "stability": "experimental",
     "visibility": "public",
     "headers": {
       "accept": [

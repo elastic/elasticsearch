@@ -169,7 +169,13 @@ public class TransportWriteActionTests extends ESTestCase {
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
-            verify(testAction.postWriteRefresh).refreshShard(eq(RefreshPolicy.IMMEDIATE), eq(indexShard), any(), refreshListener.capture());
+            verify(testAction.postWriteRefresh).refreshShard(
+                eq(RefreshPolicy.IMMEDIATE),
+                eq(indexShard),
+                any(),
+                refreshListener.capture(),
+                eq(request.timeout())
+            );
 
             // Now we can fire the listener manually and we'll get a response
             refreshListener.getValue().onResponse(true);
@@ -208,7 +214,8 @@ public class TransportWriteActionTests extends ESTestCase {
                 eq(RefreshPolicy.WAIT_UNTIL),
                 eq(indexShard),
                 any(),
-                refreshListener.capture()
+                refreshListener.capture(),
+                eq(request.timeout())
             );
 
             // Now we can fire the listener manually and we'll get a response
@@ -547,7 +554,7 @@ public class TransportWriteActionTests extends ESTestCase {
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), anyActionListener(), anyString(), any());
+        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), anyActionListener(), anyString());
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
             final RoutingNode node = state.getRoutingNodes().node(state.nodes().getLocalNodeId());

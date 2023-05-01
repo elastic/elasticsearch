@@ -45,7 +45,7 @@ public class PostWriteRefresh {
             case WAIT_UNTIL -> waitUntil(indexShard, location, new ActionListener<>() {
                 @Override
                 public void onResponse(Boolean forced) {
-                    if (indexShard.getReplicationGroup().getRoutingTable().unpromotableShards().size() > 0 && location != null) {
+                    if (indexShard.routingEntry().isSearchable() == false && location != null) {
                         refreshUnpromotables(indexShard, location, listener, forced, postWriteRefreshTimeout);
                     } else {
                         listener.onResponse(forced);
@@ -116,17 +116,27 @@ public class PostWriteRefresh {
             return;
         }
 
-        engineOrNull.addFlushListener(location, new ActionListener<>() {
+        engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
+                engineOrNull.addFlushDurabilityListener(generation, ActionListener.wrap(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                }));
             }
 
             @Override
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        });
+        }));
     }
 
     private void sendUnpromotableRequests(

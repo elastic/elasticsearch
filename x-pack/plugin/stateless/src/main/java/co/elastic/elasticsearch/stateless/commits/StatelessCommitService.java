@@ -10,9 +10,14 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -21,31 +26,36 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import static java.util.Objects.requireNonNull;
 
 public class StatelessCommitService {
 
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
-    private final ConcurrentHashMap<ShardId, Map<String, BlobFile>> fileToBlobFile = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ShardId, ShardCommitState> fileToBlobFile = new ConcurrentHashMap<>();
     private final Supplier<String> nodeEphemeralIdSupplier;
+    private final ThreadContext threadContext;
 
-    public StatelessCommitService(Supplier<String> nodeEphemeralIdSupplier) {
+    public StatelessCommitService(Supplier<String> nodeEphemeralIdSupplier, ThreadContext threadContext) {
         this.nodeEphemeralIdSupplier = nodeEphemeralIdSupplier;
+        this.threadContext = threadContext;
     }
 
     public void markFileUploaded(ShardId shardId, String name, BlobLocation objectStoreLocation) {
-        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
-        synchronized (fileMap) {
-            fileMap.get(name).setBlobLocation(objectStoreLocation);
+        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        synchronized (commitState) {
+            commitState.fileMap.get(name).setBlobLocation(objectStoreLocation);
         }
     }
 
     public List<String> resolveMissingFiles(ShardId shardId, Collection<String> commitFiles) {
-        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
-        synchronized (fileMap) {
+        ShardCommitState shardCommitState = getSafe(fileToBlobFile, shardId);
+        synchronized (shardCommitState) {
             return commitFiles.stream()
                 .filter(s -> s.startsWith(IndexFileNames.SEGMENTS) == false)
-                .filter(f -> fileMap.get(f).isUploaded() == false)
+                .filter(f -> shardCommitState.fileMap.get(f).isUploaded() == false)
                 .toList();
         }
     }
@@ -56,18 +66,18 @@ public class StatelessCommitService {
         long primaryTerm,
         Map<String, Long> commitFiles
     ) {
-        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
+        ShardCommitState shardCommitState = getSafe(fileToBlobFile, shardId);
         StatelessCompoundCommit.Writer writer = new StatelessCompoundCommit.Writer(
             shardId,
             generation,
             primaryTerm,
             nodeEphemeralIdSupplier.get()
         );
-        synchronized (fileMap) {
+        synchronized (shardCommitState) {
             for (Map.Entry<String, Long> commitFile : commitFiles.entrySet()) {
                 String fileName = commitFile.getKey();
                 if (fileName.startsWith(IndexFileNames.SEGMENTS) == false) {
-                    BlobFile blobFile = fileMap.get(fileName);
+                    BlobFile blobFile = shardCommitState.fileMap.get(fileName);
                     assert blobFile.isUploaded();
                     writer.addReferencedBlobFile(fileName, blobFile.location());
                 } else {
@@ -79,8 +89,9 @@ public class StatelessCommitService {
     }
 
     public void markNewCommit(ShardId shardId, Collection<String> commitFiles, Set<String> additionalFiles) {
-        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
-        synchronized (fileMap) {
+        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        synchronized (commitState) {
+            Map<String, BlobFile> fileMap = commitState.fileMap;
             for (String file : commitFiles) {
                 if (additionalFiles.contains(file)) {
                     BlobFile existing = fileMap.put(file, new BlobFile());
@@ -92,9 +103,18 @@ public class StatelessCommitService {
         }
     }
 
+    public void markCommitUploaded(ShardId shardId, StatelessCompoundCommit commit) {
+        ShardCommitState commitState = fileToBlobFile.get(shardId);
+        // It is fine to ignore if that shard has been closed
+        if (commitState != null) {
+            commitState.markUploadedGeneration(commit.generation());
+        }
+    }
+
     public void markCommitDeleted(ShardId shardId, Collection<String> commitFiles) {
-        Map<String, BlobFile> fileMap = getSafe(fileToBlobFile, shardId);
-        synchronized (fileMap) {
+        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        synchronized (commitState) {
+            Map<String, BlobFile> fileMap = commitState.fileMap;
             for (String file : commitFiles) {
                 boolean shouldRemove = fileMap.get(file).decRef();
                 if (shouldRemove) {
@@ -105,26 +125,127 @@ public class StatelessCommitService {
     }
 
     public void register(ShardId shardId) {
-        Map<String, BlobFile> existing = fileToBlobFile.put(shardId, new HashMap<>());
+        ShardCommitState existing = fileToBlobFile.put(shardId, new ShardCommitState(shardId));
         assert existing == null : shardId + " already registered";
     }
 
     public void unregister(ShardId shardId) {
-        Map<String, BlobFile> removed = fileToBlobFile.remove(shardId);
+        ShardCommitState removed = fileToBlobFile.remove(shardId);
         assert removed != null : shardId + " not registered";
+        removed.close();
+    }
+
+    public void addOrNotify(ShardId shardId, long generation, ActionListener<Void> listener) {
+        requireNonNull(listener, "listener cannot be null");
+        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        commitState.addOrNotify(generation, listener);
     }
 
     // Visible for testing
     Map<String, BlobFile> getFileToBlobFile(ShardId shardId) {
-        return fileToBlobFile.get(shardId);
+        return fileToBlobFile.get(shardId).fileMap;
     }
 
-    private static Map<String, BlobFile> getSafe(ConcurrentHashMap<ShardId, Map<String, BlobFile>> map, ShardId shardId) {
-        final Map<String, BlobFile> fileMap = map.get(shardId);
-        if (fileMap == null) {
+    private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
+        final ShardCommitState commitState = map.get(shardId);
+        if (commitState == null) {
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
-        return fileMap;
+        return commitState;
+    }
+
+    private class ShardCommitState {
+
+        private final ShardId shardId;
+
+        private final Map<String, BlobFile> fileMap = new HashMap<>();
+        private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
+        private long generationUploaded = -1;
+        private boolean isClosed;
+
+        private ShardCommitState(ShardId shardId) {
+            this.shardId = shardId;
+        }
+
+        private void markUploadedGeneration(long newGeneration) {
+            List<ActionListener<Void>> listenersToFire = null;
+            List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
+            synchronized (this) {
+                generationUploaded = Math.max(generationUploaded, newGeneration);
+
+                // No listeners to check or generation did not increase so just bail early
+                if (generationListeners == null || generationUploaded != newGeneration) {
+                    return;
+                }
+
+                for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
+                    Long generation = tuple.v1();
+                    if (generationUploaded >= generation) {
+                        if (listenersToFire == null) {
+                            listenersToFire = new ArrayList<>();
+                        }
+                        listenersToFire.add(tuple.v2());
+                    } else {
+                        if (listenersToReregister == null) {
+                            listenersToReregister = new ArrayList<>();
+                        }
+                        listenersToReregister.add(tuple);
+                    }
+                }
+                generationListeners = listenersToReregister;
+            }
+
+            if (listenersToFire != null) {
+                ActionListener.onResponse(listenersToFire, null);
+            }
+        }
+
+        private void addOrNotify(long generation, ActionListener<Void> listener) {
+
+            boolean completeListenerSuccess = false;
+            boolean completeListenerClosed = false;
+            synchronized (this) {
+                if (isClosed) {
+                    completeListenerClosed = true;
+                } else if (generationUploaded >= generation) {
+                    // Location already visible, just call the listener
+                    completeListenerSuccess = true;
+                } else {
+                    List<Tuple<Long, ActionListener<Void>>> listeners = generationListeners;
+                    ActionListener<Void> contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+                        listener,
+                        threadContext
+                    );
+                    if (listeners == null) {
+                        listeners = new ArrayList<>();
+                    }
+                    listeners.add(new Tuple<>(generation, contextPreservingListener));
+                    generationListeners = listeners;
+                }
+            }
+
+            if (completeListenerClosed) {
+                listener.onFailure(new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
+            } else if (completeListenerSuccess) {
+                listener.onResponse(null);
+            }
+        }
+
+        private void close() {
+            List<Tuple<Long, ActionListener<Void>>> listenersToFail;
+            synchronized (this) {
+                isClosed = true;
+                listenersToFail = generationListeners;
+                generationListeners = null;
+            }
+
+            if (listenersToFail != null) {
+                ActionListener.onFailure(
+                    listenersToFail.stream().map(Tuple::v2).collect(Collectors.toList()),
+                    new AlreadyClosedException("shard closed")
+                );
+            }
+        }
     }
 
     private static class BlobFile extends AbstractRefCounted {

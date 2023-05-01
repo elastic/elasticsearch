@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.store.AlreadyClosedException;
@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -59,18 +60,25 @@ public class IndexEngine extends InternalEngine {
     );
 
     private final TranslogReplicator translogReplicator;
-    private final ObjectStoreService objectStoreService;
+    private final StatelessCommitService statelessCommitService;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final AtomicLong lastFlushNanos;
+    private final Function<String, BlobContainer> translogBlobContainer;
     private volatile TimeValue indexFlushInterval;
     private volatile Scheduler.ScheduledCancellable cancellableFlushTask;
     private final ReleasableLock flushLock = new ReleasableLock(new ReentrantLock());
 
-    public IndexEngine(EngineConfig engineConfig, TranslogReplicator translogReplicator, ObjectStoreService objectStoreService) {
+    public IndexEngine(
+        EngineConfig engineConfig,
+        TranslogReplicator translogReplicator,
+        Function<String, BlobContainer> translogBlobContainer,
+        StatelessCommitService statelessCommitService
+    ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
         this.translogReplicator = translogReplicator;
-        this.objectStoreService = objectStoreService;
+        this.translogBlobContainer = translogBlobContainer;
+        this.statelessCommitService = statelessCommitService;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushNanos = new AtomicLong(relativeTimeInNanosSupplier.getAsLong());
         this.indexFlushInterval = INDEX_FLUSH_INTERVAL_SETTING.get(config().getIndexSettings().getSettings());
@@ -122,21 +130,22 @@ public class IndexEngine extends InternalEngine {
 
     // visible for testing
     void performScheduledFlush() {
-        flush(false, false);
+        flush(false, false, ActionListener.noop());
     }
 
     @Override
-    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         try (ReleasableLock locked = waitIfOngoing ? flushLock.acquire() : flushLock.tryAcquire()) {
             if (locked == null) {
-                return false;
+                listener.onResponse(FlushResult.NO_FLUSH);
             }
             long newLastFlushNanos = relativeTimeInNanosSupplier.getAsLong();
-            boolean result = super.flush(force, waitIfOngoing);
-            if (result) {
+            long generationBeforeFlush = getLastCommittedSegmentInfos().getGeneration();
+            super.flush(force, waitIfOngoing, listener);
+            // If the generation advanced a new commit was made with this call.
+            if (getLastCommittedSegmentInfos().getGeneration() > generationBeforeFlush) {
                 lastFlushNanos.set(newLastFlushNanos);
             }
-            return result;
         }
     }
 
@@ -153,7 +162,8 @@ public class IndexEngine extends InternalEngine {
     @Override
     public RefreshResult refresh(String source) throws EngineException {
         if (source.equals(TransportShardRefreshAction.SOURCE_API) || source.equals(PostWriteRefresh.FORCED_REFRESH_AFTER_INDEX)) {
-            flush(true, true);
+            // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
+            flush(true, true, ActionListener.noop());
         }
         return super.refresh(source);
     }
@@ -217,7 +227,7 @@ public class IndexEngine extends InternalEngine {
         Optional<String> nodeEphemeralId = searchDirectory.getCurrentMetadataNodeEphemeralId();
         if (nodeEphemeralId.isPresent()) {
             logger.debug("new translog snapshot seqnos [{}]-[{}] and node ephemeral id [{}]", fromSeqNo, toSeqNo, nodeEphemeralId.get());
-            BlobContainer translogBlobContainer = objectStoreService.getTranslogBlobContainer(nodeEphemeralId.get());
+            BlobContainer translogBlobContainer = this.translogBlobContainer.apply(nodeEphemeralId.get());
             TranslogReplicatorReader reader = new TranslogReplicatorReader(translogBlobContainer, shardId, fromSeqNo, toSeqNo);
             return new Translog.Snapshot() {
                 @Override
@@ -258,4 +268,18 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
+    @Override
+    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+        try {
+            ensureOpen();
+        } catch (AlreadyClosedException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (getLastCommittedSegmentInfos().getGeneration() < generation) {
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
+        } else {
+            statelessCommitService.addOrNotify(shardId, generation, listener);
+        }
+    }
 }

@@ -22,7 +22,9 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.TranslogReplicatorReader;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -450,7 +452,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
         assertThat(active, equalTo(maxUploadTasks));
 
-        flush(indexName);
+        ActionFuture<FlushResponse> flushFuture = client().admin().indices().prepareFlush(indexName).execute();
 
         var indexShard = findIndexShard(resolveIndex(indexName), 0);
         // we must hold a ref on the store to allow assertThatObjectStoreIsConsistentWithLastCommit
@@ -460,6 +462,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             latch.countDown();
             assertThatObjectStoreIsConsistentWithLastCommit(indexShard);
             assertAcked(future.actionGet());
+            assertEquals(0, flushFuture.actionGet().getFailedShards());
         } finally {
             indexShard.store().decRef();
         }

@@ -478,6 +478,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 final ActionListener<StatelessCompoundCommit> releaseCommitListener = ActionListener.runBefore(
                     ActionListener.wrap(compoundCommit -> {
                         assert compoundCommit != null;
+                        commitService.markCommitUploaded(shardId, compoundCommit);
                         final long end = threadPool.relativeTimeInNanos();
                         logger.debug(
                             () -> format(
@@ -509,8 +510,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 final ActionListener<Void> allCommitFilesListener = ActionListener.wrap(releaseCommitListener.delegateFailure((l, v) -> {
                     // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
                     // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the
-                    // bucket
-                    // in the object store will be able to access a consistent set of commit files (assuming read after write
+                    // bucket in the object store will be able to access a consistent set of commit files (assuming read after write
                     // consistency).
                     String commitFileName = StatelessCompoundCommit.NAME + generation;
                     StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(

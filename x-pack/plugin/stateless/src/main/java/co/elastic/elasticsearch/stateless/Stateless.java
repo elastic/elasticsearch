@@ -69,6 +69,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -149,6 +150,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         return Objects.requireNonNull(this.objectStoreService.get());
     }
 
+    private StatelessCommitService getCommitService() {
+        return Objects.requireNonNull(this.commitService.get());
+    }
+
     public Stateless(Settings settings) {
         validateSettings(settings);
         // It is dangerous to retain these settings because they will be further modified after this ctor due
@@ -206,7 +211,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         // use the settings that include additional settings.
         Settings settings = environment.settings();
-        var commitService = setAndGet(this.commitService, new StatelessCommitService(() -> clusterService.localNode().getEphemeralId()));
+        var commitService = setAndGet(
+            this.commitService,
+            createStatelessCommitService(() -> clusterService.localNode().getEphemeralId(), threadPool.getThreadContext())
+        );
         var objectStoreService = setAndGet(
             this.objectStoreService,
             new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, commitService, client)
@@ -227,6 +235,10 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             )
         );
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);
+    }
+
+    protected StatelessCommitService createStatelessCommitService(Supplier<String> nodeEphemeralIdSupplier, ThreadContext threadContext) {
+        return new StatelessCommitService(nodeEphemeralIdSupplier, threadContext);
     }
 
     private static <T> T setAndGet(SetOnce<T> ref, T service) {
@@ -416,7 +428,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary()
                 );
-                return new IndexEngine(newConfig, translogReplicator.get(), getObjectStoreService());
+                return new IndexEngine(
+                    newConfig,
+                    translogReplicator.get(),
+                    getObjectStoreService()::getTranslogBlobContainer,
+                    getCommitService()
+                );
             } else {
                 return new SearchEngine(config);
             }

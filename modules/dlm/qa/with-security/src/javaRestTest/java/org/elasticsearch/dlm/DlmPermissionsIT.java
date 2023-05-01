@@ -180,6 +180,49 @@ public class DlmPermissionsIT extends ESRestTestCase {
         makeRequest(client(), deniedIndexTemplateRequest, false);
     }
 
+    public void testAuthorizeDlmForComponentTemplateActions() throws IOException {
+        makeRequest(client(), newRequest("PUT", "/_component_template/lifecycle", """
+            {
+              "template": {
+                  "settings": {
+                    "number_of_shards": 1
+                  }
+              }
+            }"""), true);
+
+        makeRequest(client(), newRequest("PUT", "/_index_template/dlm_test_template", """
+            {
+                "index_patterns": ["dlm-test*"],
+                "data_stream": { },
+                "composed_of": [ "lifecycle" ]
+            }"""), true);
+
+        makeRequest(client(), newRequest("PUT", "/_index_template/dlm_test_template_2", """
+            {
+                "index_patterns": ["other-dlm-test*"],
+                "data_stream": { },
+                "composed_of": [ "lifecycle" ]
+            }"""), true);
+
+        makeRequest(client(), newRequest("PUT", "/_component_template/lifecycle", """
+            {
+              "template": {
+                  "lifecycle": {
+                    "data_retention": "60d"
+                  },
+                  "settings": {
+                    "number_of_shards": 1
+                  }
+              }
+            }"""), false);
+    }
+
+    private Request newRequest(String method, String endpoint, String jsonBody) {
+        var request = new Request(method, endpoint);
+        request.setJsonEntity(jsonBody);
+        return request;
+    }
+
     /*
      * This makes the given request with the given client. It asserts a 200 response if expectSuccess is true, and asserts an exception
      * with a 403 response if expectStatus is false.

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +38,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+        Settings settings = indexSettings(1, 1).put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
             .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
             .build();

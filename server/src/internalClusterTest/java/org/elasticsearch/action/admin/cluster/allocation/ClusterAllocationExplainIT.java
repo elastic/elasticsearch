@@ -1213,12 +1213,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("idx")
-                .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", numPrimaries)
-                        .put("index.number_of_replicas", numReplicas)
-                        .put(settings)
-                )
+                .setSettings(indexSettings(numPrimaries, numReplicas).put(settings))
                 .setWaitForActiveShards(activeShardCount)
                 .get()
         );

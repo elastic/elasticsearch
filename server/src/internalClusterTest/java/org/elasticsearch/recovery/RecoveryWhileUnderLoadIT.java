@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -41,8 +40,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -73,10 +70,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 1,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
 
@@ -137,10 +131,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 1,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
 
@@ -198,10 +189,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 2,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
+                indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             )
         );
 
@@ -314,11 +302,10 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             prepareCreate(
                 "test",
                 3,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numReplicas)
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))
+                indexSettings(numShards, numReplicas).put(
+                    IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(),
+                    Translog.Durability.ASYNC
+                ).put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))
             )
         );
 

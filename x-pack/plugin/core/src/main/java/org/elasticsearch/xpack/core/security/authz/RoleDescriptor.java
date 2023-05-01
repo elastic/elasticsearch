@@ -218,6 +218,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return clusterPrivileges.length != 0;
     }
 
+    public boolean hasIndicesPrivileges() {
+        return indicesPrivileges.length != 0;
+    }
+
     public boolean hasApplicationPrivileges() {
         return applicationPrivileges.length != 0;
     }
@@ -801,7 +805,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     privileges = readStringArray(roleName, parser, true);
                 } else {
                     throw new ElasticsearchParseException(
-                        "failed to parse indices privileges for role [{}]. [{}] field must not present",
+                        "failed to parse indices privileges for role [{}]. field [{}] must not present",
                         roleName,
                         Fields.PRIVILEGES.getPreferredName()
                     );
@@ -1156,6 +1160,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         public boolean isUsingFieldLevelSecurity() {
             return hasDeniedFields() || hasGrantedFields();
+        }
+
+        public boolean isUsingDocumentOrFieldLevelSecurity() {
+            return isUsingDocumentLevelSecurity() || isUsingFieldLevelSecurity();
         }
 
         public boolean allowRestrictedIndices() {

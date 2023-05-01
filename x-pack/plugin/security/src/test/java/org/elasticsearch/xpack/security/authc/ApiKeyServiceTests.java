@@ -36,6 +36,9 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -2109,6 +2112,43 @@ public class ApiKeyServiceTests extends ESTestCase {
             () -> ApiKeyService.buildDelimitedStringWithLimit(randomIntBetween(-5, 0), "not-relevant-for-this-test")
         );
         assertThat(e.getMessage(), equalTo("limit must be positive number"));
+    }
+
+    public void testCreateCrossClusterApiKeyMinVersionConstraint() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        createApiKeyRequest.setType(ApiKey.Type.CROSS_CLUSTER);
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        final Version minNodeVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        when(discoveryNodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool
+        );
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+
+        assertThat(
+            e.getMessage(),
+            containsString("all nodes must have version [8.9.0] or higher to support creating cross cluster API keys")
+        );
+
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {

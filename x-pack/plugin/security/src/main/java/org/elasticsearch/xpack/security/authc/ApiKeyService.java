@@ -299,28 +299,25 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
+            // TODO: change to transport version
             final Version version = getMinNodeVersion();
-            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-                if (hasRemoteIndices(request.getRoleDescriptors())) {
-                    // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "all nodes must have version ["
-                                + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-                                + "] or higher to support remote indices privileges for API keys"
-                        )
-                    );
-                    return;
-                }
-                if (request.getType() == ApiKey.Type.CROSS_CLUSTER) {
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "all nodes must have version ["
-                                + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
-                                + "] or higher to support creating cross cluster API keys"
-                        )
-                    );
-                }
+            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
+                // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "all nodes must have version ["
+                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                            + "] or higher to support remote indices privileges for API keys"
+                    )
+                );
+                return;
+            }
+            if (version.before(Version.V_8_9_0) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "all nodes must have version [" + Version.V_8_9_0 + "] or higher to support creating cross cluster API keys"
+                    )
+                );
             }
 
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(

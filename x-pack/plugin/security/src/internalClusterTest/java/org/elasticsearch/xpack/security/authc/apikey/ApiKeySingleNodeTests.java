@@ -20,6 +20,7 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -33,9 +34,11 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -73,6 +76,8 @@ import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -408,6 +413,47 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Invalidate it again won't change the timestamp
         client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, true)).actionGet();
         assertThat((long) getApiKeyDocument(apiKeyId).get("invalidation_time"), equalTo(invalidationTime));
+    }
+
+    public void testCreateCrossClusterApiKey() throws IOException {
+        final String name = randomAlphaOfLengthBetween(3, 8);
+        final RoleDescriptor roleDescriptor = new RoleDescriptor(
+            name,
+            new String[] { "cross_cluster_access" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .build() },
+            null
+        );
+        final var createApiKeyRequest = new CreateApiKeyRequest(name, List.of(roleDescriptor), null);
+        createApiKeyRequest.setType(ApiKey.Type.CROSS_CLUSTER);
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, createApiKeyRequest, future);
+        final CreateApiKeyResponse createApiKeyResponse = future.actionGet();
+
+        final Map<String, Object> document = client().execute(
+            GetAction.INSTANCE,
+            new GetRequest(SECURITY_MAIN_ALIAS, createApiKeyResponse.getId())
+        ).actionGet().getSource();
+
+        assertThat(document.get("type"), equalTo("cross_cluster"));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> roleDescriptors = (Map<String, Object>) document.get("role_descriptors");
+        assertThat(roleDescriptors.keySet(), contains(name));
+        @SuppressWarnings("unchecked")
+        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parse(
+            name,
+            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get(name), XContentType.JSON),
+            false,
+            XContentType.JSON
+        );
+
+        assertThat(actualRoleDescriptor, equalTo(roleDescriptor));
+        assertThat((Map<?, ?>) document.get("limited_by_role_descriptors"), anEmptyMap());
     }
 
     private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
@@ -153,6 +154,17 @@ public final class CreateApiKeyRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
+        if (Assertions.ENABLED && type == ApiKey.Type.CROSS_CLUSTER) {
+            assert roleDescriptors.size() == 1;
+            final RoleDescriptor roleDescriptor = roleDescriptors.iterator().next();
+            assert roleDescriptor.getName().equals(name);
+            assert false == roleDescriptor.hasApplicationPrivileges();
+            assert false == roleDescriptor.hasRunAs();
+            assert false == roleDescriptor.hasConfigurableClusterPrivileges();
+            assert false == roleDescriptor.hasRemoteIndicesPrivileges();
+            assert roleDescriptor.hasClusterPrivileges();
+            assert roleDescriptor.hasIndicesPrivileges();
+        }
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(name)) {
             validationException = addValidationError("api key name is required", validationException);

@@ -107,10 +107,6 @@ public class AggregationPhase {
         Aggregator[] aggregators = context.aggregations().aggregators();
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        if (context.aggregations().factories().context() != null) {
-            // Rollup can end up here with a null context but not null factories.....
-            context.aggregations().factories().context().multiBucketConsumer().reset();
-        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();

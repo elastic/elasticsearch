@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -56,10 +55,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 0)
-                        .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
+                    indexSettings(5, 0).put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "lowercase", "synonym_filter")
                         .put("analysis.analyzer." + synonymGraphAnalyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + synonymGraphAnalyzerName + ".filter", "lowercase", "synonym_graph_filter")
@@ -137,10 +133,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 0)
-                        .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "whitespace")
+                    indexSettings(5, 0).put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "my_multiplexer")
                         .put("analysis.filter.synonym_filter.type", "synonym")
                         .put("analysis.filter.synonym_filter.updateable", "true")
@@ -223,10 +216,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 0)
-                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
+                    indexSettings(5, 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "synonym_filter")
                         .put("analysis.filter.synonym_filter.type", "synonym")
                         .put("analysis.filter.synonym_filter.updateable", "true")
@@ -249,10 +239,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 0)
-                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
+                    indexSettings(5, 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "my_multiplexer")
                         .put("analysis.filter.synonym_filter.type", "synonym")
                         .put("analysis.filter.synonym_filter.updateable", "true")
@@ -282,10 +269,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 0)
-                        .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
+                    indexSettings(5, 0).put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "keyword_marker_filter", "stemmer")
                         .put("analysis.filter.keyword_marker_filter.type", "keyword_marker")
                         .put("analysis.filter.keyword_marker_filter.updateable", "true")

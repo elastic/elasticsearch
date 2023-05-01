@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -26,8 +25,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
@@ -538,10 +535,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject();
-        assertAcked(
-            prepareCreate("idx3").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping(mapping)
-        );
+        assertAcked(prepareCreate("idx3").setSettings(indexSettings(1, 0)).setMapping(mapping));
 
         client().prepareIndex("idx3")
             .setId("1")

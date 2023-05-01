@@ -318,7 +318,12 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     private static void verifyEnrichMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("""
-            {"query": {"term": {"type": "enrich_coordinator_stats"}}}""");
+            {
+              "query": {"term": {"type": "enrich_coordinator_stats"}},
+              "sort": [{"timestamp": "desc"}],
+              "size": 5
+            }
+            """);
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -345,6 +350,14 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
                 hit
             );
             maxExecutedSearchesTotal = Math.max(maxExecutedSearchesTotal, foundExecutedSearchesTotal);
+        }
+
+        // the asserts after this if block keep failing randomly,
+        // so here we're going to pre-check early and fail with more useful information for debugging purposes
+        // that is, given that the search result didn't have a positive value for these, but it does have a non-zero number
+        // of hits, what's in it!? and maybe the size of search result is the interesting thing (since we only get 10 hits by default...)?
+        if (maxRemoteRequestsTotal == 0 || maxExecutedSearchesTotal == 0) {
+            assertThat(response.toString(), equalTo(""));
         }
 
         assertThat(maxRemoteRequestsTotal, greaterThanOrEqualTo(1));

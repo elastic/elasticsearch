@@ -82,7 +82,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
@@ -112,11 +111,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
-        Settings indexSettings = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).build();
         searchExecutionContext = new SearchExecutionContext(
             0,
             0,
@@ -1121,11 +1116,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .primaryTerm(0, 3L)
             .build();
 
-        Settings indexSettings = Settings.builder()
-            .put("index.version.created", Version.CURRENT)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 

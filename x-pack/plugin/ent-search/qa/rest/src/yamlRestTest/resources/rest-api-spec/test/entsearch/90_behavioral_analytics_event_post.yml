@@ -2,6 +2,7 @@ setup:
   - do:
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
+        ignore: 400 # Sometimes teardown does not delete the collection and tests get flaky - this fixes it
 
 ---
 teardown:

@@ -494,6 +494,7 @@ public class IndexLifecycleService
         final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(
             state,
             SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
@@ -541,6 +542,7 @@ public class IndexLifecycleService
                 return true;
             case REPLACE:
             case REMOVE:
+            case SIGTERM:
                 Set<String> indices = indicesOnShuttingDownNodesInDangerousStep(clusterService.state(), nodeId);
                 return indices.isEmpty();
             default:

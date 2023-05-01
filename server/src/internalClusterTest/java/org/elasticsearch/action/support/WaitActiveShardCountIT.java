@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,11 +29,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class WaitActiveShardCountIT extends ESIntegTestCase {
     public void testReplicationWaitsForActiveShardCount() throws Exception {
-        CreateIndexResponse createIndexResponse = prepareCreate(
-            "test",
-            1,
-            Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)
-        ).get();
+        CreateIndexResponse createIndexResponse = prepareCreate("test", 1, indexSettings(1, 2)).get();
 
         assertAcked(createIndexResponse);
 

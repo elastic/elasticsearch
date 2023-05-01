@@ -454,8 +454,8 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return false;
+    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        listener.onResponse(FlushResult.NO_FLUSH);
     }
 
     @Override

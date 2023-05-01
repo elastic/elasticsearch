@@ -17,11 +17,15 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -44,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toCollection;
@@ -53,6 +58,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCase {
 
@@ -67,6 +76,20 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
         public TestStateless(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Supplier<String> nodeEphemeralIdSupplier,
+            ThreadContext threadContext
+        ) {
+            StatelessCommitService commitService = spy(super.createStatelessCommitService(nodeEphemeralIdSupplier, threadContext));
+            doAnswer(invocation -> {
+                ActionListener<Void> argument = invocation.getArgument(2);
+                argument.onResponse(null);
+                return null;
+            }).when(commitService).addOrNotify(any(ShardId.class), anyLong(), any());
+            return commitService;
         }
 
         @Override

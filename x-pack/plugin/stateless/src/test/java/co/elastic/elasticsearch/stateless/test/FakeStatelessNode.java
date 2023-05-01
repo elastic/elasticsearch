@@ -188,7 +188,7 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            commitService = new StatelessCommitService(() -> clusterService.localNode().getEphemeralId());
+            commitService = new StatelessCommitService(() -> clusterService.localNode().getEphemeralId(), threadPool.getThreadContext());
             commitService.register(shardId);
             objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, commitService, client);
             objectStoreService.start();

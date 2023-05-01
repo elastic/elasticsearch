@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -376,6 +377,40 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 }
             }
         }
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+    }
+
+    public void testRefreshOnBulkWithNewShardAllocation() throws Exception {
+        startIndexNodes(1);
+        startSearchNodes(1);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+                .build()
+        );
+
+        ensureGreen(indexName);
+        int docsToIndex = randomIntBetween(10, 20);
+        var bulkRequest = client().prepareBulk();
+        for (int i = 0; i < docsToIndex; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+
+        bulkRequest.setRefreshPolicy(WAIT_UNTIL);
+        var bulkResponse = bulkRequest.get();
+
+        assertNoFailures(bulkResponse);
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
         var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
         assertNoFailures(searchResponse);
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);

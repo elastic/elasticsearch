@@ -11,6 +11,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -84,6 +85,9 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractEngineTestCase extends ESTestCase {
@@ -133,15 +137,23 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
-        return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class));
+        StatelessCommitService commitService = mock(StatelessCommitService.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> argument = invocation.getArgument(2);
+            argument.onResponse(null);
+            return null;
+        }).when(commitService).addOrNotify(any(ShardId.class), anyLong(), any());
+        return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class), commitService);
     }
 
     protected IndexEngine newIndexEngine(
         final EngineConfig indexConfig,
         final TranslogReplicator translogReplicator,
-        final ObjectStoreService objectStoreService
+        final ObjectStoreService objectStoreService,
+        final StatelessCommitService commitService
     ) {
-        var indexEngine = new IndexEngine(indexConfig, translogReplicator, objectStoreService) {
+        var indexEngine = new IndexEngine(indexConfig, translogReplicator, objectStoreService::getTranslogBlobContainer, commitService) {
+
             @Override
             public void close() throws IOException {
                 try {

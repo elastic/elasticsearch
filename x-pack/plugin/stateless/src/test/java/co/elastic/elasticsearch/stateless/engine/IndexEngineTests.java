@@ -76,7 +76,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             Thread manualFlushThread = new Thread(() -> {
                 while (Thread.currentThread().isInterrupted() == false) {
                     if (randomBoolean()) {
-                        engine.flush(false, false);
+                        engine.flush();
                     }
                     try {
                         Thread.sleep(randomIntBetween(10, 50));

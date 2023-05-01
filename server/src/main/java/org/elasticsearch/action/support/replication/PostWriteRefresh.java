@@ -119,17 +119,7 @@ public class PostWriteRefresh {
         engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                engineOrNull.addFlushDurabilityListener(generation, ActionListener.wrap(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                }));
+                sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
             }
 
             @Override

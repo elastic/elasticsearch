@@ -122,7 +122,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
         );
 
 
-        ListSearchApplicationAction.Request searchApplicationsCountRequest = new ListSearchApplicationAction.Request(null, new PageParams(0, 10_000));
+        ListSearchApplicationAction.Request searchApplicationsCountRequest =
+            new ListSearchApplicationAction.Request(null, new PageParams(0, 10_000));
         clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
     }
 
@@ -146,7 +147,8 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
     private void addSearchApplicationSchemaStats(SearchApplicationListItem searchApplication, Map<String, Object> searchApplicationUsage) {
         try {
-            FieldCapabilitiesResponse fieldCapsResp = clientWithOrigin.prepareFieldCaps(searchApplication.indices()).setFields("*").execute().get();
+            FieldCapabilitiesResponse fieldCapsResp =
+                clientWithOrigin.prepareFieldCaps(searchApplication.indices()).setFields("*").execute().get();
             Map<String, Map<String, FieldCapabilities>> fieldCaps = fieldCapsResp.get();
 
             int totalSchemaFields = fieldCaps.size();

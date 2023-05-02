@@ -8,23 +8,20 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.authenticate.HttpAuthenticator;
+import org.elasticsearch.http.netty4.authenticate.HttpHeadersWithAuthenticationContext;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.http.netty4.Netty4HttpRequest.getHttpHeadersAsMap;
 import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMethod;
@@ -95,51 +92,6 @@ public final class HttpHeadersAuthenticatorUtils {
             return null;
         }
         return (HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).getNettyRequest().headers());
-    }
-
-    /**
-     * {@link HttpHeaders} implementation that carries along the {@link ThreadContext.StoredContext} iff
-     * the HTTP headers have been authenticated successfully.
-     */
-    public static final class HttpHeadersWithAuthenticationContext extends DefaultHttpHeaders {
-
-        public final SetOnce<ThreadContext.StoredContext> authenticationContextSetOnce;
-
-        public HttpHeadersWithAuthenticationContext(HttpHeaders httpHeaders) {
-            this(httpHeaders, new SetOnce<>());
-        }
-
-        private HttpHeadersWithAuthenticationContext(
-            HttpHeaders httpHeaders,
-            SetOnce<ThreadContext.StoredContext> authenticationContextSetOnce
-        ) {
-            // the constructor implements the same logic as HttpHeaders#copy
-            super();
-            set(httpHeaders);
-            this.authenticationContextSetOnce = authenticationContextSetOnce;
-        }
-
-        private HttpHeadersWithAuthenticationContext(HttpHeaders httpHeaders, ThreadContext.StoredContext authenticationContext) {
-            this(httpHeaders);
-            if (authenticationContext != null) {
-                setAuthenticationContext(authenticationContext);
-            }
-        }
-
-        /**
-         * Must be called at most once in order to mark the http headers as successfully authenticated.
-         * The intent of the {@link ThreadContext.StoredContext} parameter is to associate the resulting
-         * thread context post authentication, that will later be restored when dispatching the request.
-         */
-        public void setAuthenticationContext(ThreadContext.StoredContext authenticationContext) {
-            this.authenticationContextSetOnce.set(Objects.requireNonNull(authenticationContext));
-        }
-
-        @Override
-        public HttpHeaders copy() {
-            // copy the headers but also STILL CARRY the same validation result
-            return new HttpHeadersWithAuthenticationContext(super.copy(), authenticationContextSetOnce.get());
-        }
     }
 
     /**

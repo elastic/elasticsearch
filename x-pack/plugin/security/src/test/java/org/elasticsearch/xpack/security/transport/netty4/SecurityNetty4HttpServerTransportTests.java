@@ -29,6 +29,7 @@ import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.Netty4HttpResponse;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.authenticate.HttpHeadersWithAuthenticationContext;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -328,10 +329,9 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 HttpMessage authenticableMessage = HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
                     new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unauthenticated_request")
                 );
-                ((HttpHeadersAuthenticatorUtils.HttpHeadersWithAuthenticationContext) authenticableMessage.headers())
-                    .setAuthenticationContext(() -> {
-                        throw new ElasticsearchException("Boom");
-                    });
+                ((HttpHeadersWithAuthenticationContext) authenticableMessage.headers()).setAuthenticationContext(() -> {
+                    throw new ElasticsearchException("Boom");
+                });
                 ch.writeInbound(authenticableMessage);
                 ch.writeInbound(new DefaultLastHttpContent());
                 ch.flushInbound();

@@ -14,7 +14,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.HttpHeadersAuthenticatorUtils.HttpHeadersWithAuthenticationContext;
+import org.elasticsearch.http.netty4.authenticate.HttpHeadersWithAuthenticationContext;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;

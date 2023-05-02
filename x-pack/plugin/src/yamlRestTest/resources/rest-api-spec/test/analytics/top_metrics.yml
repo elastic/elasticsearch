@@ -811,15 +811,15 @@
                       field: salary
                     sort:
                       birth_date: asc
-                    size: 10
+                    size: 1
 
   - length: { aggregations.groupby.buckets: 2}
   - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
   - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
-  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 3000}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
   - match: { aggregations.groupby.buckets.1.key.gender_comp: 2}
   - match: { aggregations.groupby.buckets.1.top_salary.top.0.sort.0: 1981}
-  - match: { aggregations.groupby.buckets.1.top_salary.top.0.metrics.salary: 9000}
+  - match: { aggregations.groupby.buckets.1.top_salary.top.0.metrics.salary: 7000}
 
   # Similar to a SQL query with HAVING clause:
   #
@@ -850,15 +850,15 @@
                       field: salary
                     sort:
                       birth_date: asc
-                    size: 10
+                    size: 1
                 having.top_salary:
                   bucket_selector:
                     buckets_path:
-                      ts: top_salary
-                    script: "params.ts < 8000"
+                      ts: top_salary[salary]
+                    script: "params.ts < 6000"
 
   # The bucket for gender '2' gets filtered out by the selector.
   - length: { aggregations.groupby.buckets: 1}
   - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
   - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
-  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 3000}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}

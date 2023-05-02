@@ -10,6 +10,10 @@
       }
     },
     "mappings": {
+      /*
+      Enable source as the main purpose of this index is to store relatively few BLOBs.
+      Disabling source is another option, but adds the 'recovery_source' extra storage costs.
+      */
       "_source": {
         "enabled": true
       },
@@ -27,6 +31,7 @@
           "store": false
         },
         "Symbfile.file.id": {
+          /* 'binary' type fields don't allow using 'index: true'. */
           "type": "keyword",
           "index": true,
           "doc_values": false,
@@ -38,6 +43,7 @@
           "doc_values": false,
           "store": false
         },
+        /* This is the number of parts for the file.id. It only exists in the last part. */
         "Symbfile.parts": {
           "type": "short",
           "index": false,

@@ -2,4 +2,5 @@ pr: 95740
 summary: Include search idle info to shard stats
 area: "TSDB, Search"
 type: enhancement
-issues: []
+issues:
+ - 95727

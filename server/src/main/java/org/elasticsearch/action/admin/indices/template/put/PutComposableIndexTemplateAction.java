@@ -11,14 +11,11 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.PrivilegesCheckRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +39,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
     /**
      * A request for putting a single index template into the cluster state
      */
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest, PrivilegesCheckRequest {
+    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest {
         private final String name;
         @Nullable
         private String cause;
@@ -187,20 +184,6 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
                 && Objects.equals(this.cause, other.cause)
                 && Objects.equals(this.indexTemplate, other.indexTemplate)
                 && this.create == other.create;
-        }
-
-        @Override
-        public CorePrivilegesToCheck getPrivilegesToCheck() {
-            // TODO deal with composed-of
-            Template template = indexTemplate.template();
-            if (template == null) {
-                return null;
-            }
-            DataLifecycle lifecycle = template.lifecycle();
-            if (lifecycle == null) {
-                return null;
-            }
-            return new CorePrivilegesToCheck(indices());
         }
     }
 

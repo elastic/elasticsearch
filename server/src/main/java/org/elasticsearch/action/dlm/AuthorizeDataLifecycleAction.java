@@ -10,7 +10,6 @@ package org.elasticsearch.action.dlm;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.PrivilegesCheckRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,22 +25,22 @@ public class AuthorizeDataLifecycleAction extends ActionType<AcknowledgedRespons
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements PrivilegesCheckRequest {
-        private final String[] indices;
+    public static final class Request extends AcknowledgedRequest<Request> {
+        private final String[] dataStreamPatterns;
 
-        public Request(String[] indices) {
-            this.indices = indices;
+        public Request(String[] dataStreamPatterns) {
+            this.dataStreamPatterns = dataStreamPatterns;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.indices = in.readOptionalStringArray();
+            this.dataStreamPatterns = in.readOptionalStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringArray(indices);
+            out.writeOptionalStringArray(dataStreamPatterns);
         }
 
         @Override
@@ -49,10 +48,8 @@ public class AuthorizeDataLifecycleAction extends ActionType<AcknowledgedRespons
             return null;
         }
 
-        @Override
-        public CorePrivilegesToCheck getPrivilegesToCheck() {
-            // TODO hack hack hack
-            return indices.length == 0 ? null : new CorePrivilegesToCheck(indices);
+        public String[] getDataStreamPatterns() {
+            return dataStreamPatterns;
         }
     }
 }

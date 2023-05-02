@@ -16,7 +16,6 @@
 package org.elasticsearch.xpack.core.security.action.dlm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.PrivilegesCheckRequest;
 import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -37,8 +36,8 @@ public class TransportAuthorizeDataLifecycleAction extends HandledTransportActio
     AuthorizeDataLifecycleAction.Request,
     AcknowledgedResponse> {
 
-    private final Client client;
     private final SecurityContext securityContext;
+    private final Client client;
 
     @Inject
     public TransportAuthorizeDataLifecycleAction(
@@ -48,37 +47,34 @@ public class TransportAuthorizeDataLifecycleAction extends HandledTransportActio
         Client client
     ) {
         super(AuthorizeDataLifecycleAction.NAME, transportService, actionFilters, AuthorizeDataLifecycleAction.Request::new);
-        this.client = client;
         this.securityContext = securityContext;
+        this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, AuthorizeDataLifecycleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        PrivilegesCheckRequest.CorePrivilegesToCheck privilegesToCheck = ((PrivilegesCheckRequest) request).getPrivilegesToCheck();
+        String[] dataStreamPatterns = request.getDataStreamPatterns();
         // TODO hack hack hack
-        if (privilegesToCheck == null) {
+        if (dataStreamPatterns.length == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
 
-        String[] indices = privilegesToCheck.indices();
         RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges(IndexPrivilege.MANAGE.name()).build() };
-
+            RoleDescriptor.IndicesPrivileges.builder().indices(dataStreamPatterns).privileges(IndexPrivilege.MANAGE.name()).build() };
         HasPrivilegesRequest hasPrivilegesRequest = new HasPrivilegesRequest();
         hasPrivilegesRequest.username(securityContext.getAuthentication().getEffectiveSubject().getUser().principal());
         hasPrivilegesRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
         hasPrivilegesRequest.indexPrivileges(indicesPrivilegesToCheck);
         hasPrivilegesRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
-        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(response -> {
-            if (response.isCompleteMatch()) {
+        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(hasPrivilegesResponse -> {
+            if (hasPrivilegesResponse.isCompleteMatch()) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 // TODO more detailed failure message
-                listener.onFailure(Exceptions.authorizationError("insufficient privileges to configure data lifecycle"));
+                listener.onFailure(Exceptions.authorizationError("insufficient privileges to configure DLM"));
             }
-
         }, listener::onFailure));
     }
 }

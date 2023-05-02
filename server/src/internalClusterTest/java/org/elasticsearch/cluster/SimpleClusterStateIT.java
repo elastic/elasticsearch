@@ -211,9 +211,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
      * that the cluster state returns coherent data for both routing table and metadata.
      */
     private void testFilteringByIndexWorks(String[] indices, String[] expected) {
-        ClusterStateResponse clusterState = client().admin()
-            .cluster()
-            .prepareState()
+        ClusterStateResponse clusterState = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
@@ -280,13 +278,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testIndicesOptions() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setMetadata(true)
-            .setIndices("f*")
-            .get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().setMetadata(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(2));
         ensureGreen("fuu");
 
@@ -298,9 +290,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices("f*")
@@ -311,9 +301,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices("fzzbzz")
@@ -324,9 +312,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        clusterStateResponse = client().admin()
-            .cluster()
-            .prepareState()
+        clusterStateResponse = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices("a*")
@@ -350,14 +336,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            client().admin()
-                .cluster()
-                .prepareState()
-                .clear()
-                .setMetadata(true)
-                .setIndices("fzzbzz")
-                .setIndicesOptions(allowNoIndices)
-                .get();
+            clusterAdmin().prepareState().clear().setMetadata(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [fzzbzz]"));

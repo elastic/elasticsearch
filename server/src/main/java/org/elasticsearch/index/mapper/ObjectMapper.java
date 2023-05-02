@@ -180,11 +180,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
-            if (parserContext instanceof MappingParserContext.ObjectParserContext objectParserContext) {
-                objectParserContext.incrementDepth(); // throws MapperParsingException if depth limit is exceeded
-            } else {
-                parserContext = parserContext.createObjectContext();
-            }
+            parserContext.incrementObjectDepth(); // throws MapperParsingException if depth limit is exceeded
             Explicit<Boolean> subobjects = parseSubobjects(node);
             ObjectMapper.Builder builder = new Builder(name, subobjects);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -195,9 +191,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     iterator.remove();
                 }
             }
-            if (parserContext instanceof MappingParserContext.ObjectParserContext objectParserContext) {
-                objectParserContext.decrementDepth();
-            }
+            parserContext.decrementObjectDepth();
             return builder;
         }
 

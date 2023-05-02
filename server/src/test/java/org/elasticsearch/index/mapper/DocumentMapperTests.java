@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -407,6 +408,45 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             builder.endObject().endObject().endObject();
 
             createMapperService(Settings.builder().put(getIndexSettings()).build(), builder);
+        }
+        {
+            // test that parsing correct objects in parallel using the same MapperService don't trip the limit
+            final int numThreads = randomIntBetween(2, 5);
+            final XContentBuilder[] builders = new XContentBuilder[numThreads];
+
+            for (int i = 0; i < numThreads; i++) {
+                builders[i] = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("properties");
+                for (int j = 0; j < maxDepth - 1; j++) {
+                    builders[i].startObject("obj" + i + "_" + j);
+                    builders[i].startObject("properties");
+                }
+                builders[i].startObject("foo").field("type", "keyword").endObject();
+                for (int j = 0; j < maxDepth - 1; j++) {
+                    builders[i].endObject();
+                    builders[i].endObject();
+                }
+                builders[i].endObject().endObject().endObject();
+            }
+
+            final MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Thread[] threads = new Thread[numThreads];
+            for (int i = 0; i < threads.length; i++) {
+                final int threadId = i;
+                threads[threadId] = new Thread(() -> {
+                    try {
+                        latch.await();
+                        mapperService.parseMapping("_doc", new CompressedXContent(Strings.toString(builders[threadId])));
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                threads[threadId].start();
+            }
+            latch.countDown();
+            for (Thread thread : threads) {
+                thread.join();
+            }
         }
     }
 }

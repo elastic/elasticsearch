@@ -37,6 +37,8 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
+    private final long objectDepthLimit;
+    private ThreadLocal<Long> objectDepth = ThreadLocal.withInitial(() -> 0L);
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -60,6 +62,7 @@ public class MappingParserContext {
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
         this.idFieldMapper = idFieldMapper;
+        this.objectDepthLimit = indexSettings.getMappingDepthLimit();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -129,6 +132,19 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
+    void incrementObjectDepth() throws MapperParsingException {
+        Long curDepth = objectDepth.get();
+        curDepth++;
+        if ((curDepth) > objectDepthLimit) {
+            throw new MapperParsingException("Limit of mapping depth [" + objectDepthLimit + "] has been exceeded");
+        }
+        objectDepth.set(curDepth);
+    }
+
+    void decrementObjectDepth() throws MapperParsingException {
+        objectDepth.set(objectDepth.get() - 1);
+    }
+
     public MappingParserContext createMultiFieldContext() {
         return new MultiFieldParserContext(this);
     }
@@ -187,42 +203,6 @@ public class MappingParserContext {
         @Override
         public boolean isFromDynamicTemplate() {
             return true;
-        }
-    }
-
-    public MappingParserContext createObjectContext() {
-        return new ObjectParserContext(this);
-    }
-
-    static class ObjectParserContext extends MappingParserContext {
-        private final long depthLimit;
-        private int curDepth = 0;
-
-        private ObjectParserContext(MappingParserContext in) {
-            super(
-                in.similarityLookupService,
-                in.typeParsers,
-                in.runtimeFieldParsers,
-                in.indexVersionCreated,
-                in.clusterTransportVersion,
-                in.searchExecutionContextSupplier,
-                in.scriptCompiler,
-                in.indexAnalyzers,
-                in.indexSettings,
-                in.idFieldMapper
-            );
-            depthLimit = in.getIndexSettings().getMappingDepthLimit();
-        }
-
-        void incrementDepth() throws MapperParsingException {
-            curDepth++;
-            if (curDepth > depthLimit) {
-                throw new MapperParsingException("Limit of mapping depth [" + depthLimit + "] has been exceeded");
-            }
-        }
-
-        void decrementDepth() throws MapperParsingException {
-            curDepth--;
         }
     }
 }

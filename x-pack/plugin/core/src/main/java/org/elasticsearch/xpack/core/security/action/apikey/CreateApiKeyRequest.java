@@ -158,12 +158,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
             assert roleDescriptors.size() == 1;
             final RoleDescriptor roleDescriptor = roleDescriptors.iterator().next();
             assert roleDescriptor.getName().equals(name);
-            assert false == roleDescriptor.hasApplicationPrivileges();
-            assert false == roleDescriptor.hasRunAs();
-            assert false == roleDescriptor.hasConfigurableClusterPrivileges();
-            assert false == roleDescriptor.hasRemoteIndicesPrivileges();
-            assert roleDescriptor.hasClusterPrivileges();
-            assert roleDescriptor.hasIndicesPrivileges();
+            CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);
         }
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(name)) {

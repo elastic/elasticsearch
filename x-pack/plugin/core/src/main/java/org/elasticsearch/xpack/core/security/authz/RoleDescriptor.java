@@ -218,10 +218,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return clusterPrivileges.length != 0;
     }
 
-    public boolean hasIndicesPrivileges() {
-        return indicesPrivileges.length != 0;
-    }
-
     public boolean hasApplicationPrivileges() {
         return applicationPrivileges.length != 0;
     }

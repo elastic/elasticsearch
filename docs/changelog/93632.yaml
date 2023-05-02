@@ -1,5 +1,5 @@
 pr: 93632
-summary: Streamline AsyncShardFetch#getNumberOfInFlightFetches
+summary: Streamline `AsyncShardFetch#getNumberOfInFlightFetches`
 area: Allocation
 type: bug
 issues:

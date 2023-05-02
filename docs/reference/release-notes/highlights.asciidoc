@@ -24,6 +24,78 @@ Other versions:
 // tag::notable-highlights[]
 
 [discrete]
+[[encode_using_40_48_56_bits_per_value]]
+=== Encode using 40, 48 and 56 bits per value
+We use the encoding as follows:
+* for values taking [33, 40] bits per value, encode using 40 bits per value
+* for values taking [41, 48] bits per value, encode using 48 bits per value
+* for values taking [49, 56] bits per value, encode using 56 bits per value
+
+This is an improvement over the encoding used by ForUtils which does not
+apply any compression for values taking more than 32 bits per value.
+
+Note that 40, 48 and 56 bits per value represent exact multiples of
+bytes (5, 6 and 7 bytes per value). As a result, we always write values
+using 3, 2 or 1 byte less than the 8 bytes required for a long value.
+
+Looking at the savings in stored bytes, for a block of 128 (long) values we
+would normally store 128 x 8 bytes = 1024 bytes, while now we have the following:
+* 40 bits per value: write 645 bytes instead of 1024, saving 379 bytes (37%)
+* 48 bits per value: write 772 bytes instead of 1024, saving 252 bytes (24%)
+* 56 bits per value: write 897 bytes instead of 1024, saving 127 bytes (12%)
+
+We also apply compression to gauge metrics under the assumption that
+compressing values taking more than 32 bits per value works well for
+floating point values, because of the way floating point values are
+represented (IEEE 754 format).
+
+{es-pull}93371[#93371]
+
+[discrete]
+[[add_support_for_reciprocal_rank_fusion_rrf_to_search_api]]
+=== Add support for Reciprocal Rank Fusion (RRF) to the search API
+This change adds reciprocal rank fusion (RRF) which follows the basic formula
+for merging `1...n` sets of results sets together with `sum(1/(k+d))` where `k`
+is a ranking constant and `d` is a document's scored position within a result set
+from a query. The main advantage of ranking this way is the scores for the sets
+of results do not have to be normalized relative to each other because RRF only
+relies upon positions within each result set.
+
+The API for this change adds a `rank` top-level element to the search
+endpoint. An example:
+
+[source,Java]
+----
+{
+  "query": {
+    "match": {
+      "product": {
+        "query": "brown shoes"
+      }
+    }
+  },
+  "knn": {
+    "field": "product-vector",
+    "query_vector": [54, 10, -2],
+    "k": 20,
+    "num_candidates": 75
+  },
+  "rank": {
+     "rrf": {
+        "window_size": 100,
+        "rank_constant": 20
+     }
+  }
+}
+----
+
+The above example will execute the search query and the knn search separately.
+It will preserve separate result sets up to the point where the queries are
+ranked on the coordinating node using RRF.
+
+{es-pull}93396[#93396]
+
+[discrete]
 [[add_new_similarity_field_to_knn_clause_in_search]]
 === Add new `similarity` field to `knn` clause in `_search`
 This adds a new parameter to `knn` that allows filtering nearest
@@ -42,6 +114,13 @@ relates to: https://github.com/elastic/elasticsearch/issues/84929 &&
 https://github.com/elastic/elasticsearch/pull/93574
 
 {es-pull}94828[#94828]
+
+[discrete]
+[[ga_release_of_jwt_realm]]
+=== GA release of the JWT realm
+This PR removes the beta label for JWT realm feature to make it GA.
+
+{es-pull}95398[#95398]
 
 // end::notable-highlights[]
 

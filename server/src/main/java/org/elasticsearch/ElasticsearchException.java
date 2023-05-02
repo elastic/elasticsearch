@@ -1839,7 +1839,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.http.HttpHeadersValidationException.class,
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
-            TransportVersion.V_8_8_0
+            TransportVersion.V_8_9_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

@@ -235,7 +235,7 @@ PUT my-index-000001/_doc/1
 You can specify a list of patterns using a JSON array for either the
 `match` or `unmatch` fields.
 
-The next example matches all fields whose name starts with `ip_` or ends with `_ip`,
+The next example matches all fields whose name starts with `ip_` or ends with `_ip`, 
 except for fields which start with `one` or end with `two` and maps them
 as `ip` fields:
 
@@ -271,12 +271,6 @@ PUT my-index/_doc/1
 <2> The `ip_two` field is unmatched, so uses the default mapping of `text`.
 <3> The `three_ip` field is mapped as type `ip`.
 <4> The `ip_four` field is mapped as type `ip`.
-
-
-*Note:* when specifying patterns (for `match`, `unmatch`, etc.) in an array,
-{es} enforces that all values must be strings. However, for backwards
-compatibility, {es} allows non-string values (such as numbers) for
-single-valued match (and unmatch) fields.
 
 
 [[path-match-unmatch]]

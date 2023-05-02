@@ -39,6 +39,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
@@ -88,6 +89,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_OR
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -821,7 +823,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 );
                 headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
                 headerValueReference.set(randomAlphaOfLengthBetween(4, 8));
-                validationResultExceptionReference.set(new Exception());
+                validationResultExceptionReference.set(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
                 try (Netty4HttpClient client = new Netty4HttpClient()) {
                     FullHttpRequest request = new DefaultFullHttpRequest(
                         HttpVersion.HTTP_1_1,
@@ -830,7 +832,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     );
                     request.headers().set(headerReference.get(), headerValueReference.get());
                     FullHttpResponse response = client.send(remoteAddress.address(), request);
-                    assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+                    assertThat(response.status(), is(HttpResponseStatus.UNAUTHORIZED));
                 }
             }
         }

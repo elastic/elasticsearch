@@ -1017,8 +1017,7 @@ public class Node implements Closeable {
             HealthApiStats healthApiStats = new HealthApiStats();
 
             List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
-            pluginsService.filterPlugins(ReloadAwarePlugin.class)
-                .forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
+            pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);

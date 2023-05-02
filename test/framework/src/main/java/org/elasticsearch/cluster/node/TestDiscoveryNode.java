@@ -13,11 +13,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-<<<<<<< HEAD
 import java.util.Map;
 import java.util.Set;
-=======
->>>>>>> upstream/main
 
 public class TestDiscoveryNode {
 

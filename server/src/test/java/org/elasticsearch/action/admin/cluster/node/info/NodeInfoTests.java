@@ -11,7 +11,6 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -36,22 +35,28 @@ public class NodeInfoTests extends ESTestCase {
      */
     public void testGetInfo() {
         NodeInfo nodeInfo = new NodeInfo(
-                Version.CURRENT,
-                TransportVersion.CURRENT,
-                Build.CURRENT,
-                TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random())),
-                null,
-                null,
-                null,
-                JvmInfo.jvmInfo(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
+            Version.CURRENT,
+            TransportVersion.CURRENT,
+            Build.CURRENT,
+            TestDiscoveryNode.create(
+                "test_node",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                emptySet(),
+                VersionUtils.randomVersion(random())
+            ),
+            null,
+            null,
+            null,
+            JvmInfo.jvmInfo(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
         );
 
         // OsInfo is absent

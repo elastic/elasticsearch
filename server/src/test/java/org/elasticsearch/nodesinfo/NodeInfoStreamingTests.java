@@ -105,7 +105,13 @@ public class NodeInfoStreamingTests extends ESTestCase {
 
     private static NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
-        DiscoveryNode node = TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
+        DiscoveryNode node = TestDiscoveryNode.create(
+            "test_node",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            VersionUtils.randomVersion(random())
+        );
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
         if (randomBoolean()) {

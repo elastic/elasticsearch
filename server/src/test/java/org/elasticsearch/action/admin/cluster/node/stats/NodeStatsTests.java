@@ -710,7 +710,13 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
+        DiscoveryNode node = TestDiscoveryNode.create(
+            "test_node",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            VersionUtils.randomVersion(random())
+        );
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
             final Index indexTest = new Index("test", "_na_");

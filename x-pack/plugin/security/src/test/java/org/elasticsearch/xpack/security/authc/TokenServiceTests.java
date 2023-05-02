@@ -1077,7 +1077,13 @@ public class TokenServiceTests extends ESTestCase {
     ) {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
-        final DiscoveryNode anotherDataNode = TestDiscoveryNode.create("another_data_node#" + version, buildNewFakeTransportAddress(), Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.DATA_ROLE), version);
+        final DiscoveryNode anotherDataNode = TestDiscoveryNode.create(
+            "another_data_node#" + version,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+            version
+        );
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);

@@ -105,10 +105,7 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
         client().bulk(bulkRequest).actionGet();
 
         {
-            NodesStatsResponse nodesStatsResponse = client().admin()
-                .cluster()
-                .nodesStats(new NodesStatsRequest().addMetric("ingest"))
-                .actionGet();
+            NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest().addMetric("ingest")).actionGet();
             assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
 
             NodeStats stats = nodesStatsResponse.getNodes().get(0);

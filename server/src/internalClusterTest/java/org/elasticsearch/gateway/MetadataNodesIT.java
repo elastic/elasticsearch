@@ -69,7 +69,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
         logger.debug("relocating index...");
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "_name", node2), index);
-        client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).get();
+        clusterAdmin().prepareHealth().setWaitForNoRelocatingShards(true).get();
         ensureGreen();
         assertIndexDirectoryDeleted(node1, resolveIndex);
         assertIndexInMetaState(node2, index);
@@ -98,7 +98,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         logger.info("--> close index");
         client().admin().indices().prepareClose(index).get();
         // close the index
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().get();
         assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed

@@ -558,7 +558,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     private long requestBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
         long estimated = 0;
         for (NodeStats nodeStats : stats.getNodes()) {
             estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();

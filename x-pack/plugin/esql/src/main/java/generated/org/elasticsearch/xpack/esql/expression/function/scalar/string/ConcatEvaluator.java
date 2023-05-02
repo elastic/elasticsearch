@@ -71,13 +71,14 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
       valuesScratch[i] = new BytesRef();
     }
     position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < values.length; i++) {
+      for (int i = 0; i < valuesBlocks.length; i++) {
         if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
           result.appendNull();
           continue position;
         }
       }
-      for (int i = 0; i < values.length; i++) {
+      // unpack valuesBlocks into valuesValues
+      for (int i = 0; i < valuesBlocks.length; i++) {
         int o = valuesBlocks[i].getFirstValueIndex(p);
         valuesValues[i] = valuesBlocks[i].getBytesRef(o, valuesScratch[i]);
       }
@@ -95,7 +96,8 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
       valuesScratch[i] = new BytesRef();
     }
     position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < values.length; i++) {
+      // unpack valuesVectors into valuesValues
+      for (int i = 0; i < valuesVectors.length; i++) {
         valuesValues[i] = valuesVectors[i].getBytesRef(p, valuesScratch[i]);
       }
       result.appendBytesRef(Concat.process(scratch, valuesValues));

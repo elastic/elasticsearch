@@ -91,13 +91,14 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
         result.appendNull();
         continue position;
       }
-      for (int i = 0; i < cidrs.length; i++) {
+      for (int i = 0; i < cidrsBlocks.length; i++) {
         if (cidrsBlocks[i].isNull(p) || cidrsBlocks[i].getValueCount(p) != 1) {
           result.appendNull();
           continue position;
         }
       }
-      for (int i = 0; i < cidrs.length; i++) {
+      // unpack cidrsBlocks into cidrsValues
+      for (int i = 0; i < cidrsBlocks.length; i++) {
         int o = cidrsBlocks[i].getFirstValueIndex(p);
         cidrsValues[i] = cidrsBlocks[i].getBytesRef(o, cidrsScratch[i]);
       }
@@ -116,7 +117,8 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
       cidrsScratch[i] = new BytesRef();
     }
     position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < cidrs.length; i++) {
+      // unpack cidrsVectors into cidrsValues
+      for (int i = 0; i < cidrsVectors.length; i++) {
         cidrsValues[i] = cidrsVectors[i].getBytesRef(p, cidrsScratch[i]);
       }
       result.appendBoolean(CIDRMatch.process(ipVector.getBytesRef(p, ipScratch), cidrsValues));

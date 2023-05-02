@@ -138,7 +138,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
         this.clusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "dlm-clusterstate-update",
-            Priority.NORMAL,
+            Priority.LOW,
             STATE_UPDATE_TASK_EXECUTOR
         );
     }

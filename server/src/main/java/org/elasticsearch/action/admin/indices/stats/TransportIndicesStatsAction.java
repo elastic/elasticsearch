@@ -119,6 +119,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             CommitStats commitStats;
             SeqNoStats seqNoStats;
             RetentionLeaseStats retentionLeaseStats;
+            boolean isSearchIdle = indexShard.isSearchIdle();
+            long searchIdleTime = indexShard.searchIdleTime();
             try {
                 commitStats = indexShard.commitStats();
                 seqNoStats = indexShard.seqNoStats();
@@ -135,7 +137,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 commonStats,
                 commitStats,
                 seqNoStats,
-                retentionLeaseStats
+                retentionLeaseStats,
+                isSearchIdle,
+                searchIdleTime
             );
         });
     }

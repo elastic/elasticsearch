@@ -52,9 +52,6 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 4 shards + 1 replica = 8 shards used (30 - 8 = 22 > 10 available shards)
         createIndex(4, 1);
 
-        ensureStableCluster(internalCluster.getNodeNames().length);
-        waitForHealthMetadata();
-
         var result = fetchShardsCapacityIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.GREEN);
         assertEquals(result.symptom(), "The cluster has enough room to add new shards.");
@@ -66,9 +63,6 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 11 shards + 1 replica = 22 shards used (30 - 22 < 10 available shards)
         createIndex(10, 1);
 
-        ensureStableCluster(internalCluster.getNodeNames().length);
-        waitForHealthMetadata();
-
         var result = fetchShardsCapacityIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.YELLOW);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
@@ -79,9 +73,6 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
     public void testRed() throws Exception {
         // index: 13 shards + 1 replica = 26 shards used (30 - 26 < 5 available shards)
         createIndex(13, 1);
-
-        ensureStableCluster(internalCluster.getNodeNames().length);
-        waitForHealthMetadata();
 
         var result = fetchShardsCapacityIndicatorResult(internalCluster);
         assertEquals(result.status(), HealthStatus.RED);
@@ -95,11 +86,15 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
     }
 
     private HealthIndicatorResult fetchShardsCapacityIndicatorResult(InternalTestCluster internalCluster) throws Exception {
+        ensureStableCluster(internalCluster.getNodeNames().length);
         var healthNode = ESIntegTestCase.waitAndGetHealthNode(internalCluster);
         assertNotNull(healthNode);
-        var healthNodeName = healthNode.getName();
-        var healthService = internalCluster.getInstance(HealthService.class, healthNodeName);
-        var healthIndicatorResults = getHealthServiceResults(healthService, healthNodeName);
+
+        waitForShardLimitsMetadata();
+
+        var randomNode = internalCluster.getRandomNodeName();
+        var healthService = internalCluster.getInstance(HealthService.class, randomNode);
+        var healthIndicatorResults = getHealthServiceResults(healthService, randomNode);
         assertThat(healthIndicatorResults, hasSize(1));
         return healthIndicatorResults.get(0);
     }
@@ -122,7 +117,7 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         return resultListReference.get();
     }
 
-    private void waitForHealthMetadata() throws Exception {
+    private void waitForShardLimitsMetadata() throws Exception {
         assertBusy(() -> {
             var healthMetadata = HealthMetadata.getFromClusterState(internalCluster().clusterService().state());
 

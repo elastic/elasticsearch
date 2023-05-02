@@ -15,6 +15,10 @@ setup:
                 type: text
               other_field:
                 type: keyword
+              just_index_1_field:
+                type: text
+              just_index_1_field_2:
+                type: text
 
   - do:
       indices.create:
@@ -32,6 +36,8 @@ setup:
                 type: text
               other_field:
                 type: keyword
+              just_index_2_field:
+                type: integer
 
 ---
 teardown:
@@ -84,7 +90,7 @@ teardown:
         search_applications: [
           {
             name: "test-search-application-1",
-            schema_field_count: 16,
+            schema_field_count: 19,
             schema_field_conflict_count: 1
           }
         ]

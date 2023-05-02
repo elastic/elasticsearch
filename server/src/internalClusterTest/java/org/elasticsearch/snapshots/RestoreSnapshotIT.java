@@ -916,7 +916,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
         final SnapshotRestoreException snapshotRestoreException = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin().cluster().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet()
+            () -> clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet()
         );
         assertThat(
             snapshotRestoreException.getMessage(),

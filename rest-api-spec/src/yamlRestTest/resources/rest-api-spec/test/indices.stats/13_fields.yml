@@ -4,13 +4,12 @@ setup:
   - do:
       indices.create:
           index:  test1
-          wait_for_active_shards: all
           body:
               settings:
                 # Limit the number of shards so that shards are unlikely
                 # to be relocated or being initialized between the test
                 # set up and the test execution
-                index.number_of_shards: 3
+                index.number_of_shards: 2
               mappings:
                   properties:
                       bar:
@@ -28,6 +27,7 @@ setup:
 
   - do:
       cluster.health:
+        index: test1
         wait_for_no_relocating_shards: true
 
   - do:
@@ -41,17 +41,6 @@ setup:
           index: test1
           id:    "2"
           body:  { "bar": "foo", "baz": "foo" }
-
-  - do:
-      indices.refresh: {}
-
-  # Enforce creating an extra segment in at least one shard,
-  # otherwise no global ordinals will be built.
-  - do:
-      index:
-        index: test1
-        id: "2"
-        body: { "bar": "foo", "baz": "foo" }
 
   - do:
       indices.refresh: {}
@@ -84,18 +73,6 @@ setup:
         body:
           sort: [ "bar", "baz" ]
 
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        body:
-          aggs:
-            my_agg_1:
-              terms:
-                field: bar
-            my_agg_2:
-              terms:
-                field: baz
-
 ---
 "Fields - blank":
   - do:
@@ -104,23 +81,6 @@ setup:
   - match: { _shards.failed: 0}
   - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields
-
----
-"Fields - blank - global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: {}
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields
-  - gte:       { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
-  - is_false:   _all.total.fielddata.global_ordinals.fields
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - is_false:   _all.total.completion.fields
 
@@ -137,26 +97,6 @@ setup:
   - is_false:   _all.total.completion.fields.bar
 
 ---
-"Fields - one global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: bar }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.bar
-
----
 "Fields - multi":
   - do:
       indices.stats: { fields: "bar,baz.completion" }
@@ -165,27 +105,6 @@ setup:
   - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.bar\.completion
-  - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
-
----
-"Fields - multi global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: "bar,baz.completion" }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - is_false:   _all.total.completion.fields.bar\.completion
   - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
@@ -204,29 +123,6 @@ setup:
   - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
 
 ---
-"Fields - star global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: "*" }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
-
-
----
 "Fields - pattern":
   - do:
       indices.stats: { fields: "bar*" }
@@ -238,27 +134,6 @@ setup:
   - gt:       { _all.total.completion.size_in_bytes: 0 }
   - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
   - is_false:   _all.total.completion.fields.baz\.completion
-
----
-"Fields - pattern global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: "bar*" }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\.completion
-
 
 ---
 "Fields - _all metric":
@@ -274,26 +149,6 @@ setup:
   - is_false:   _all.total.completion.fields.baz\.completion
 
 ---
-"Fields - _all metric global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: "bar*", metric: _all }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\.completion
-
----
 "Fields - fielddata metric":
   - do:
       indices.stats: { fields: "bar*", metric: fielddata }
@@ -303,25 +158,6 @@ setup:
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - is_false:   _all.total.completion
-
----
-"Fields - fielddata metric global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: "bar*", metric: fielddata }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - is_false:   _all.total.completion
-
 
 ---
 "Fields - completion metric":
@@ -348,26 +184,6 @@ setup:
   - is_false:   _all.total.completion.fields.baz\.completion
 
 ---
-"Fields - multi metric global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fields: "bar*" , metric: [ completion, fielddata, search ]}
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\.completion
-
----
 "Fielddata fields - one":
   - do:
       indices.stats: { fielddata_fields: bar }
@@ -378,22 +194,6 @@ setup:
   - is_false:   _all.total.completion.fields
 
 ---
-"Fielddata fields - one global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: bar }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-
----
 "Fielddata fields - multi":
   - do:
       indices.stats: { fielddata_fields: "bar,baz,baz.completion" }
@@ -401,25 +201,6 @@ setup:
   - match: { _shards.failed: 0}
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields
-
----
-"Fielddata fields - multi global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: "bar,baz,baz.completion" }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
   - is_false:   _all.total.completion.fields
 
 ---
@@ -433,25 +214,6 @@ setup:
   - is_false:   _all.total.completion.fields
 
 ---
-"Fielddata fields - star global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: "*" }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.baz.shard_max_value_count: 1 }
-  - is_false:   _all.total.completion.fields
-
----
 "Fielddata fields - pattern":
   - do:
       indices.stats: { fielddata_fields: "*r" }
@@ -459,23 +221,6 @@ setup:
   - match: { _shards.failed: 0}
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
-  - is_false:   _all.total.completion.fields
-
----
-"Fielddata fields - pattern global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: "*r" }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion.fields
 
 ---
@@ -489,23 +234,6 @@ setup:
   - is_false:   _all.total.completion.fields
 
 ---
-"Fielddata fields - all metric global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: "*r", metric: _all }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - is_false:   _all.total.completion.fields
-
----
 "Fielddata fields - one metric":
   - do:
       indices.stats: { fielddata_fields: "*r", metric: fielddata }
@@ -516,23 +244,6 @@ setup:
   - is_false:   _all.total.completion.fields
 
 ---
-"Fielddata fields - one metric global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: "*r", metric: fielddata }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
-  - is_false:   _all.total.completion.fields
-
----
 "Fielddata fields - multi metric":
   - do:
       indices.stats: { fielddata_fields: "*r", metric: [ fielddata, search] }
@@ -540,23 +251,6 @@ setup:
   - match: { _shards.failed: 0}
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
-  - is_false:   _all.total.completion.fields
-
----
-"Fielddata fields - multi metric global_ordinals":
-  - skip:
-      version: " - 8.7.99"
-      reason: "global_ordinals introduced in 8.8.0"
-
-  - do:
-      indices.stats: { fielddata_fields: "*r", metric: [ fielddata, search] }
-
-  - match: { _shards.failed: 0}
-  - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
-  - is_false:   _all.total.fielddata.fields.baz
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.build_time_in_millis: 0 }
-  - gte: { _all.total.fielddata.global_ordinals.fields.bar.shard_max_value_count: 1 }
-  - is_false: _all.total.fielddata.global_ordinals.fields.baz
   - is_false:   _all.total.completion.fields
 
 ---

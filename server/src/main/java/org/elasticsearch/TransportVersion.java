@@ -173,7 +173,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_7_0;
+    public static final TransportVersion MINIMUM_CCS_VERSION = V_8_8_0;
 
     static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();

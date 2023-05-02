@@ -79,7 +79,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertEquals(
             "recovery of [index][0] to "
                 + node.descriptionWithoutAttributes()
-                + " [recoveryId=1, targetAllocationId=allocationId, startingSeqNo=-2, primaryRelocation=false, canDownloadSnapshotFiles=true]",
+                + " [recoveryId=1, targetAllocationId=allocationId, startingSeqNo=-2, "
+                + "primaryRelocation=false, canDownloadSnapshotFiles=true]",
             new StartRecoveryRequest(
                 new ShardId("index", "uuid", 0),
                 "allocationId",

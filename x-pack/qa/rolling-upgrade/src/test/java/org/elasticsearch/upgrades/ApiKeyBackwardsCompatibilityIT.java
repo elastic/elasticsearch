@@ -125,7 +125,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "all nodes must have transport version [8.8.0] or higher to support remote indices privileges for API keys"
+                            "all nodes must have transport version [8080099] or higher to support remote indices privileges for API keys"
                         )
                     );
                     e = expectThrows(
@@ -135,7 +135,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     assertThat(
                         e.getMessage(),
                         containsString(
-                            "all nodes must have transport version [8.8.0] or higher to support remote indices privileges for API keys"
+                            "all nodes must have transport version [8080099] or higher to support remote indices privileges for API keys"
                         )
                     );
                 } finally {

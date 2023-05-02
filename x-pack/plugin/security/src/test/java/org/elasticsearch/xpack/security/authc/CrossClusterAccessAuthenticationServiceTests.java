@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -58,11 +58,17 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     public void init() throws Exception {
         this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
-        this.clusterService = mockClusterServiceWithMinNodeVersion(Version.CURRENT);
+        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.CURRENT);
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
-        clusterService = mockClusterServiceWithMinNodeVersion(VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_8_0));
+        clusterService = mockClusterServiceWithMinTransportVersion(
+            TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.MINIMUM_COMPATIBLE,
+                TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_8_0)
+            )
+        );
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         final var threadContext = new ThreadContext(Settings.EMPTY);
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
@@ -243,9 +249,9 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         return argThat(arg -> arg.principal().equals(credentials.principal()) && arg.credentials().equals(credentials.credentials()));
     }
 
-    private static ClusterService mockClusterServiceWithMinNodeVersion(final Version version) {
+    private static ClusterService mockClusterServiceWithMinTransportVersion(final TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
-        when(clusterService.state().nodes().getMinNodeVersion()).thenReturn(version);
+        when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
         return clusterService;
     }
 }

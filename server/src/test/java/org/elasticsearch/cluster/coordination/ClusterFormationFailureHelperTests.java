@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
@@ -822,12 +821,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         );
 
         final DiscoveryNode otherMasterNode = makeDiscoveryNode("other-master");
-        final DiscoveryNode otherNonMasterNode = new DiscoveryNode(
+        final DiscoveryNode otherNonMasterNode = TestDiscoveryNode.create(
             "other-non-master",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList()),
-            Version.CURRENT
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
         );
 
         String[] configNodeIds = new String[] { "n1", "n2" };
@@ -1134,7 +1132,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         if (randomBoolean()) {
             attributes.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles(), Version.CURRENT);
+        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

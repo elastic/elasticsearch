@@ -306,12 +306,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
-                DiscoveryNode node = new DiscoveryNode(
+                DiscoveryNode node = TestDiscoveryNode.create(
                     "server_node_id",
                     new TransportAddress(serverAddress),
                     attributes,
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 );
 
                 new Thread(() -> {
@@ -354,12 +353,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             try (MockTransportService serviceC = buildService("TS_C", version0, transportVersion0, settings)) {
                 HashMap<String, String> attributes = new HashMap<>();
                 attributes.put("server_name", sniIp);
-                DiscoveryNode node = new DiscoveryNode(
+                DiscoveryNode node = TestDiscoveryNode.create(
                     "server_node_id",
                     new TransportAddress(serverAddress),
                     attributes,
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 );
 
                 ConnectTransportException connectException = expectThrows(

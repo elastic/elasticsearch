@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -124,7 +123,6 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final Client client;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -161,6 +159,7 @@ public class MetadataIndexTemplateService {
         }
     }
 
+    @Inject
     public MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
@@ -170,29 +169,6 @@ public class MetadataIndexTemplateService {
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders
     ) {
-        this(
-            clusterService,
-            metadataCreateIndexService,
-            indicesService,
-            indexScopedSettings,
-            xContentRegistry,
-            systemIndices,
-            indexSettingProviders,
-            null
-        );
-    }
-
-    @Inject
-    public MetadataIndexTemplateService(
-        ClusterService clusterService,
-        MetadataCreateIndexService metadataCreateIndexService,
-        IndicesService indicesService,
-        IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry,
-        SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders,
-        Client client
-    ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
         this.indicesService = indicesService;
@@ -201,7 +177,6 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
-        this.client = client;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {

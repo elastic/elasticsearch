@@ -1,5 +1,0 @@
-pr: 95371
-summary: "[7.17] Bump bundled JDK to Java 20.0.1"
-area: Packaging
-type: upgrade
-issues: []

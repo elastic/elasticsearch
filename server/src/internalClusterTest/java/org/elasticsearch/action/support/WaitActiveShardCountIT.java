@@ -55,9 +55,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
 
         allowNodes("test", 2);
 
-        ClusterHealthResponse clusterHealth = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForActiveShards(2)
             .setWaitForYellowStatus()
@@ -99,9 +97,7 @@ public class WaitActiveShardCountIT extends ESIntegTestCase {
         }
 
         allowNodes("test", 3);
-        clusterHealth = client().admin()
-            .cluster()
-            .prepareHealth()
+        clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForActiveShards(3)
             .setWaitForGreenStatus()

@@ -1,5 +1,5 @@
 pr: 95614
-summary: "[Behavioral Analytics] Use a a client with ent-search origin in the `BulkProcessorFactory`"
+summary: "[Behavioral Analytics] Use a client with ent-search origin in the `BulkProcessorFactory`"
 area: Application
 type: bug
 issues: []

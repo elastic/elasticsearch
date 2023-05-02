@@ -1,5 +1,5 @@
 pr: 94719
-summary: Fix '_terms_enum' on docvalue-only keywords fields
+summary: Fix `_terms_enum` on docvalue-only keywords fields
 area: Search
 type: bug
 issues:

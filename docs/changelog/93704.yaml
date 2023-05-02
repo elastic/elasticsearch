@@ -1,5 +1,5 @@
 pr: 93704
-summary: Merge two histograms usign the higher number of digits among all histograms
+summary: Merge two histograms using the higher number of digits among all histograms
 area: Aggregations
 type: bug
 issues:

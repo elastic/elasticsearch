@@ -29,15 +29,20 @@ import java.util.stream.Stream;
 public class DynamicTemplate implements ToXContentObject {
 
     public enum MatchType {
-        SIMPLE {
+        /**
+         * DEFAULT is set when the user did not explicitly set a match_pattern in their dynamic_templates entry.
+         * DEFAULT uses the functionality of SIMPLE for matching, but does additional validation
+         * to detect whether the user appears to be using regex notation, in order to provide a warning.
+         */
+        DEFAULT {
             @Override
             public boolean matches(String pattern, String value) {
-                return Regex.simpleMatch(pattern, value);
+                return MatchType.SIMPLE.matches(pattern, value);
             }
 
             @Override
             public String toString() {
-                return "simple";
+                return "default";
             }
 
             /**
@@ -46,7 +51,7 @@ public class DynamicTemplate implements ToXContentObject {
              * regular ES field name (or dotted path) with no regex metacharacters.
              *
              * The method looks for the presence of standard regex metacharacters
-             * like $, ^, |, .*, ?, or paired braces or parens.
+             * like $, ^, |, .*, or paired braces or brackets.
              * If found, it will then attempt to compile it as a regex to determine
              * if it is a valid regex.
              *
@@ -59,39 +64,23 @@ public class DynamicTemplate implements ToXContentObject {
              */
             @Override
             public void isValidPattern(String pattern) {
-                // if (Regex.isSimpleMatchPattern(pattern) == false) {
-                // throw new IllegalArgumentException("Simple pattern [" + pattern + "] has no wildcard [*]");
-                // }
+                // regex's cannot start with '*' so we assume this is valid (not a regex)
                 if (pattern.startsWith("*")) {
                     return;
                 }
 
                 boolean regexCandidate = false;
-                if (pattern.startsWith("^")) {
+                if (pattern.startsWith(".*")) {  // .* is valid for SIMPLE because of ES dotted field names, except at string start
                     regexCandidate = true;
-                    // TODO: MP - .* might still be OK? -> need to test if that works with simple and path_name currently!
-                } else if (pattern.startsWith(".*")) {  // .* is valid for simple matches because of ES dotted field names, except string
-                                                        // start
+                } else if (pattern.contains("^")) {
                     regexCandidate = true;
                 } else if (pattern.contains("$")) {
-                    regexCandidate = true;
-                } else if (pattern.contains("?")) {
-                    regexCandidate = true;
-                } else if (pattern.contains("+")) {
                     regexCandidate = true;
                 } else if (pattern.contains("|")) {
                     regexCandidate = true;
                 } else if (pattern.contains("[") && pattern.contains("]")) {
                     regexCandidate = true;
-                } else if (pattern.contains("(") && pattern.contains(")")) {
-                    regexCandidate = true;
                 } else if (pattern.contains("{") && pattern.contains("}")) {
-                    regexCandidate = true;
-                } else if (pattern.contains("\\d") || pattern.contains("\\D")) {
-                    regexCandidate = true;
-                } else if (pattern.contains("\\s") || pattern.contains("\\S")) {
-                    regexCandidate = true;
-                } else if (pattern.contains("\\w") || pattern.contains("\\W")) {
                     regexCandidate = true;
                 }
 
@@ -105,6 +94,22 @@ public class DynamicTemplate implements ToXContentObject {
                         // does not compile to a regex, so cannot be one, so ignore
                     }
                 }
+            }
+        },
+        SIMPLE {
+            @Override
+            public boolean matches(String pattern, String value) {
+                return Regex.simpleMatch(pattern, value);
+            }
+
+            @Override
+            public String toString() {
+                return "simple";
+            }
+
+            @Override
+            public void isValidPattern(String pattern) {
+                // no-op. All patterns are valid if user explicitly set match_pattern=simple
             }
         },
         REGEX {
@@ -237,7 +242,7 @@ public class DynamicTemplate implements ToXContentObject {
         Map<String, Object> mapping = null;
         boolean runtime = false;
         String matchMappingType = null;
-        String matchPattern = MatchType.SIMPLE.toString();
+        String matchPattern = MatchType.DEFAULT.toString();
 
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
             String propName = entry.getKey();
@@ -346,9 +351,10 @@ public class DynamicTemplate implements ToXContentObject {
             try {
                 matchType.isValidPattern(pattern);
             } catch (IllegalArgumentException e) {
-                if (matchType == MatchType.SIMPLE) {
-                    // simple patterns only warrant a warning, not failing the dynamic_template call
-                    HeaderWarning.addWarning(e.getMessage());
+                if (matchType == MatchType.DEFAULT) {
+                    // simple patterns only warrant a warning and only if the user did not explicitly set match_pattern=simple
+                    String warning = e.getMessage() + ". To remove this warning, set [match_pattern] in the dynamic template.";
+                    HeaderWarning.addWarning(warning);
                 } else {
                     // fail dynamic_template calls that have invalid regexes
                     throw new MapperParsingException(
@@ -560,7 +566,7 @@ public class DynamicTemplate implements ToXContentObject {
         } else if (xContentFieldTypes.length == 1) {
             builder.field("match_mapping_type", xContentFieldTypes[0]);
         }
-        if (matchType != MatchType.SIMPLE) {
+        if (matchType != MatchType.DEFAULT) {
             builder.field("match_pattern", matchType);
         }
         // use a sorted map for consistent serialization

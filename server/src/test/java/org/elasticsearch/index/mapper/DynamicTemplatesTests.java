@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -1956,27 +1957,22 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         // patterns that appear to be regexes when using simple matching show up as warnings in the headers
         assertWarnings(
-            "Pattern [.*two$] appears to be a regular expression, not a simple wildcard pattern",
-            "Pattern [^xyz.*] appears to be a regular expression, not a simple wildcard pattern"
+            "Pattern [.*two$] appears to be a regular expression, not a simple wildcard pattern. "
+                + "To remove this warning, set [match_pattern] in the dynamic template.",
+            "Pattern [^xyz.*] appears to be a regular expression, not a simple wildcard pattern. "
+                + "To remove this warning, set [match_pattern] in the dynamic template."
         );
     }
 
-    public void testSimpleMatchWithArrayOfFieldNamesMixingGlobsAndRegexInPathMatchAndUnmatch() throws IOException {
-        /*
-           Currently fails with these header warnings:
-                but: <[299 Elasticsearch-8.9.0-SNAPSHOT-unknown
-                "Pattern [[xyz]*.*] appears to be a regular expression, not a simple wildcard pattern",
-                "Pattern [four.\\d] appears to be a regular expression, not a simple wildcard pattern"]>
-         */
+    public void testDefaultMatchTypeWithArrayOfFieldNamesMixingGlobsAndRegexInPathMatchAndUnmatch() throws IOException {
         String mapping = """
             {
               "_doc": {
                 "dynamic_templates": [
                   {
                     "test": {
-                      "match_pattern": "simple",
                       "path_match": "*.*",
-                      "path_unmatch": [".middle*", "foo.*.bar", "[xyz]*.*", "zero.one*", "*two.three$", "four.\\d"],
+                      "path_unmatch": ["foo.*.bar", "[xyz]*.*", "*.iptwo", "*two.three$", "^quux.*"],
                       "mapping": {
                         "type": "ip"
                       }
@@ -1988,9 +1984,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             """;
         String docJson = """
             {
+              "outer": {
                 "oneip": "11.11.11.120",
                 "iptwo": "10.10.10.10",
                 "threeip": "12.12.12.12"
+              }
             }
             """;
 
@@ -1998,29 +1996,84 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
-        // LuceneDocument doc = parsedDoc.rootDoc();
-        //
-        // assertEquals(InetAddressPoint.class, doc.getField("oneip").getClass());
-        // Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("oneip");
-        // assertNotNull(fieldMapper);
-        // assertEquals("ip", fieldMapper.typeName());
-        //
-        // // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
-        // assertNotEquals(InetAddressPoint.class, doc.getField("iptwo").getClass());
-        // fieldMapper = mapperService.documentMapper().mappers().getMapper("iptwo");
-        // assertNotNull(fieldMapper);
-        // assertEquals("text", fieldMapper.typeName());
-        //
-        // assertNotEquals(InetAddressPoint.class, doc.getField("threeip").getClass());
-        // fieldMapper = mapperService.documentMapper().mappers().getMapper("threeip");
-        // assertNotNull(fieldMapper);
-        // assertEquals("text", fieldMapper.typeName());
+        LuceneDocument doc = parsedDoc.rootDoc();
 
-        // patterns that appear to be regexes when using simple matching show up as warnings in the headers
-        // assertWarnings(
-        // "Pattern [.*two$] appears to be a regular expression, not a simple wildcard pattern",
-        // "Pattern [^xyz.*] appears to be a regular expression, not a simple wildcard pattern"
-        // );
+        assertEquals(InetAddressPoint.class, doc.getField("outer.oneip").getClass());
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.oneip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
+        assertNotEquals(InetAddressPoint.class, doc.getField("outer.iptwo").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.iptwo");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+
+        assertEquals(InetAddressPoint.class, doc.getField("outer.threeip").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.threeip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        assertWarnings(
+            "Pattern [[xyz]*.*] appears to be a regular expression, not a simple wildcard pattern. "
+                + "To remove this warning, set [match_pattern] in the dynamic template.",
+            "Pattern [^quux.*] appears to be a regular expression, not a simple wildcard pattern. "
+                + "To remove this warning, set [match_pattern] in the dynamic template."
+        );
+    }
+
+    public void testSimpleMatchTypeWithArrayOfFieldNamesMixingGlobsAndRegexInPathMatchAndUnmatch() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match_pattern": "simple",
+                      "path_match": "*.*",
+                      "path_unmatch": ["foo.*.bar", "[xyz]*.*", "*.iptwo", "*two.three$", "^quux.*"],
+                      "mapping": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+              "outer": {
+                "oneip": "11.11.11.120",
+                "iptwo": "10.10.10.10",
+                "threeip": "12.12.12.12"
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+
+        LuceneDocument doc = parsedDoc.rootDoc();
+
+        assertEquals(InetAddressPoint.class, doc.getField("outer.oneip").getClass());
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.oneip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        // this one will not match and be an IP field because it was specified with a regex but match_pattern is implicit "simple"
+        assertNotEquals(InetAddressPoint.class, doc.getField("outer.iptwo").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.iptwo");
+        assertNotNull(fieldMapper);
+        assertEquals("text", fieldMapper.typeName());
+
+        assertEquals(InetAddressPoint.class, doc.getField("outer.threeip").getClass());
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("outer.threeip");
+        assertNotNull(fieldMapper);
+        assertEquals("ip", fieldMapper.typeName());
+
+        // no warnings expected here, since match_pattern=simple was explicitly set
     }
 
     public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields() throws IOException {
@@ -2321,46 +2374,43 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
     }
 
-    public void testSimpleMatchTypeIsValidPattern() {
-        record RegexCandidate(String pattern, boolean isRegex) {}
+    public void testIsValidPatternForDefaultMatchType() {
+        record MatchPattern(String pattern, boolean isValid) {}
 
-        RegexCandidate[] candidates = new RegexCandidate[] {
-            new RegexCandidate("", false),    // has no metacharacters
-            new RegexCandidate("foo", false), // has no metacharacters
-            new RegexCandidate("user.name", false), // regular ES dotted field, so not a "field regex"
-            new RegexCandidate("*foo", false),
-            new RegexCandidate("foo*", false),       // matches simple wildcard, so not considered an ES field regex
-            new RegexCandidate("*.*", false),        // legitimate simple pattern for dotted path name
-            new RegexCandidate("foo.*.bar", false),  // legitimate simple pattern for dotted path name
-            new RegexCandidate(".middle*", false),
-            new RegexCandidate("zero.one*", false),
-            new RegexCandidate(".*foo", true),
-            new RegexCandidate("^foo", true),
-            new RegexCandidate("foo$", true),
-            new RegexCandidate("f.*oo$", true),
-            new RegexCandidate("foo?", true),
-            new RegexCandidate("foo+", true),
-            new RegexCandidate("a|b", true),
-            new RegexCandidate("a|b", true),
-            new RegexCandidate("a[cb]", true),
-            new RegexCandidate("a(cb)", true),
-            new RegexCandidate("a{1,2}", true),
-            new RegexCandidate("xyz\\d", true),
-            new RegexCandidate("xyz\\D", true),
-            new RegexCandidate("xyz\\w", true),
-            new RegexCandidate("xyz\\W", true),
-            new RegexCandidate("xyz\\s", true),
-            new RegexCandidate("xyz\\S", true),
-            new RegexCandidate("[xyz]*.*", true),
-            new RegexCandidate("four.\\d", true),
-            new RegexCandidate("*two.three$", false), // doesn't compile to regex
-            new RegexCandidate("$^[foo", false)       // doesn't compile to regex
-        };
+        MatchPattern[] candidates = new MatchPattern[] {
+            // valid match_pattern=DEFAULT entries
+            new MatchPattern("", true),    // has no metacharacters
+            new MatchPattern("foo", true), // has no metacharacters
+            new MatchPattern("user.name", true), // regular ES dotted field, so not a "field regex"
+            new MatchPattern("*foo", true),
+            new MatchPattern("foo*", true),       // matches simple wildcard, so not considered an ES field regex
+            new MatchPattern("foo?", true),
+            new MatchPattern("foo+", true),
+            new MatchPattern("a(cb)", true),
+            new MatchPattern("*.*", true),        // legitimate simple pattern for dotted path name
+            new MatchPattern("foo.*.bar", true),  // legitimate simple pattern for dotted path name
+            new MatchPattern(".middle*", true),
+            new MatchPattern("zero.one*", true),
+            new MatchPattern("*two.three$", true), // doesn't compile to regex
+            new MatchPattern("$^[foo", true),      // doesn't compile to regex
 
-        DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.SIMPLE;
+            // invalid match_pattern=DEFAULT entries
+            new MatchPattern(".*foo", false),
+            new MatchPattern("^foo", false),
+            new MatchPattern("foo$", false),
+            new MatchPattern("f.*oo$", false),
+            new MatchPattern("a|b", false),
+            new MatchPattern("a[cb]", false),
+            new MatchPattern("a{1,2}", false),
+            new MatchPattern("[xyz]*.*", false) };
 
-        for (RegexCandidate c : candidates) {
-            if (c.isRegex) {
+        DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.DEFAULT;
+
+        for (MatchPattern c : candidates) {
+            if (c.isValid) {
+                // should not throw an Exception
+                matchType.isValidPattern(c.pattern);
+            } else {
                 Exception e = expectThrows(
                     IllegalArgumentException.class,
                     "pattern tested: " + c.pattern,
@@ -2370,10 +2420,89 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                     e.getMessage(),
                     containsString("Pattern [" + c.pattern + "] appears to be a regular expression, not a simple wildcard pattern")
                 );
+            }
+        }
+    }
 
-            } else {
+    public void testIsValidPatternForSimpleMatchType() {
+        record MatchPattern(String pattern) {}
+
+        // match_pattern=simple does not reject any entries
+        MatchPattern[] candidates = new MatchPattern[] {
+            // invalid match_pattern=REGEX entries
+            new MatchPattern("*foo"),
+            new MatchPattern("a(cb)"),
+            new MatchPattern("*.*"),
+            new MatchPattern("*two.three$"),
+            new MatchPattern("$^[foo"),
+            new MatchPattern("zero.one*"),
+            new MatchPattern(".middle*"),
+            new MatchPattern("foo.*.bar"),
+            new MatchPattern("foo*"),
+            new MatchPattern("foo?"),
+            new MatchPattern("foo+"),
+            new MatchPattern(""),
+            new MatchPattern("foo"),
+            new MatchPattern("user.name"),
+            new MatchPattern(".*foo"),
+            new MatchPattern("^foo"),
+            new MatchPattern("foo$"),
+            new MatchPattern("f.*oo$"),
+            new MatchPattern("a|b"),
+            new MatchPattern("a[cb]"),
+            new MatchPattern("a{1,2}"),
+            new MatchPattern("[xyz]*.*") };
+
+        DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.SIMPLE;
+
+        for (MatchPattern c : candidates) {
+            // should not throw an Exception
+            matchType.isValidPattern(c.pattern);
+        }
+    }
+
+    public void testIsValidPatternForRegexMatchType() {
+        record MatchPattern(String pattern, boolean isValid) {}
+
+        MatchPattern[] candidates = new MatchPattern[] {
+            // invalid match_pattern=REGEX entries
+            new MatchPattern("*foo", false),
+            new MatchPattern("*.*", false),
+            new MatchPattern("*two.three$", false),
+            new MatchPattern("$^[foo", false),
+
+            // valid match_pattern=REGEX entries
+            new MatchPattern("a(cb)", true),
+            new MatchPattern("zero.one*", true),
+            new MatchPattern(".middle*", true),
+            new MatchPattern("foo.*.bar", true),
+            new MatchPattern("foo*", true),
+            new MatchPattern("foo?", true),
+            new MatchPattern("foo+", true),
+            new MatchPattern("", true),
+            new MatchPattern("foo", true),
+            new MatchPattern("user.name", true),
+            new MatchPattern(".*foo", true),
+            new MatchPattern("^foo", true),
+            new MatchPattern("foo$", true),
+            new MatchPattern("f.*oo$", true),
+            new MatchPattern("a|b", true),
+            new MatchPattern("a[cb]", true),
+            new MatchPattern("a{1,2}", true),
+            new MatchPattern("[xyz]*.*", true) };
+
+        DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.REGEX;
+
+        for (MatchPattern c : candidates) {
+            if (c.isValid) {
                 // should not throw an Exception
                 matchType.isValidPattern(c.pattern);
+            } else {
+                Exception e = expectThrows(
+                    PatternSyntaxException.class,
+                    "pattern tested: " + c.pattern,
+                    () -> matchType.isValidPattern(c.pattern)
+                );
             }
         }
     }

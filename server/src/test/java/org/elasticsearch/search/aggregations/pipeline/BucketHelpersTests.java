@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.ESTestCase;
@@ -157,7 +158,17 @@ public class BucketHelpersTests extends ESTestCase {
         MultiBucketsAggregation agg = newDummyAggregation();
 
         InternalMultiBucketAggregation.InternalBucket bucket = new InternalMultiBucketAggregation.InternalBucket() {
-            private final InternalAggregation internalAggregation = new InternalAggregation("internal", null) {
+            private final InternalMultiValueAggregation internalAggregation = new InternalMultiValueAggregation("internal", null) {
+                @Override
+                public Iterable<String> valueNames() {
+                    return null;
+                }
+
+                @Override
+                public List<String> getValuesAsStrings(String name) {
+                    return null;
+                }
+
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {}
 

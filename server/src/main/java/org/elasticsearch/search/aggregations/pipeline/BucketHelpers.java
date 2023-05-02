@@ -14,10 +14,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -216,9 +216,9 @@ public class BucketHelpers {
                     } catch (NumberFormatException ex) {
                         throw formatResolutionError(agg, aggPathAsList, propertyValue);
                     }
-                } else if (propertyValue instanceof InternalAggregation) {
+                } else if (propertyValue instanceof InternalMultiValueAggregation) {
                     try {
-                        value = ((InternalAggregation) propertyValue).sortValue(aggPathAsList.get(aggPathAsList.size() - 1))
+                        value = ((InternalMultiValueAggregation) propertyValue).sortValue(aggPathAsList.get(aggPathAsList.size() - 1))
                             .numberValue()
                             .doubleValue();
                     } catch (NumberFormatException | NullPointerException ex) {

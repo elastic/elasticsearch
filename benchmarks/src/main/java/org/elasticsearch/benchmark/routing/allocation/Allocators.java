@@ -94,7 +94,7 @@ public final class Allocators {
 
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
         return new DiscoveryNode(
-            "",
+            null,
             nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
             attributes,

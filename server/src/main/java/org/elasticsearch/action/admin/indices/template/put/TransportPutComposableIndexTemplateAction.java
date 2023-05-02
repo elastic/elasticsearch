@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
-import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -40,7 +39,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     PutComposableIndexTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
-    private final DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck;
+    private final DataLifecycleAuthorizationCheck authorizationCheck;
 
     public TransportPutComposableIndexTemplateAction(
         TransportService transportService,
@@ -61,7 +60,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck
+        DataLifecycleAuthorizationCheck authorizationCheck
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -74,7 +73,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             ThreadPool.Names.SAME
         );
         this.indexTemplateService = indexTemplateService;
-        this.dataLifecycleAuthorizationCheck = dataLifecycleAuthorizationCheck;
+        this.authorizationCheck = authorizationCheck;
     }
 
     @Override
@@ -101,8 +100,8 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             });
         boolean needsDlmAuthorizationCheck = indexTemplate.hasDataLifecycle() || hasComponentTemplatesWithDataLifecycles;
         if (needsDlmAuthorizationCheck) {
-            dataLifecycleAuthorizationCheck.check(
-                new AuthorizeDataLifecycleAction.Request(indexTemplate.indexPatterns().toArray(new String[0])),
+            authorizationCheck.check(
+                indexTemplate.indexPatterns().toArray(new String[0]),
                 ActionListener.wrap(
                     ignored -> indexTemplateService.putIndexTemplateV2(
                         request.cause(),

@@ -8,7 +8,6 @@
 package org.elasticsearch.dlm.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -70,7 +69,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        authorizationCheck.check(new AuthorizeDataLifecycleAction.Request(request.getNames()), ActionListener.wrap(acknowledgedResponse -> {
+        authorizationCheck.check(request.getNames(), ActionListener.wrap(acknowledgedResponse -> {
             List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
                 indexNameExpressionResolver,
                 state,

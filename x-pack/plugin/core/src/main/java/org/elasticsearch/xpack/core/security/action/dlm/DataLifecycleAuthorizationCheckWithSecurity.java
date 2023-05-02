@@ -8,55 +8,35 @@
 package org.elasticsearch.xpack.core.security.action.dlm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-public class TransportAuthorizeDataLifecycleAction extends HandledTransportAction<
-    AuthorizeDataLifecycleAction.Request,
-    AcknowledgedResponse> {
-
+public class DataLifecycleAuthorizationCheckWithSecurity implements DataLifecycleAuthorizationCheck {
     private final SecurityContext securityContext;
     private final Client client;
 
     @Inject
-    public TransportAuthorizeDataLifecycleAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        SecurityContext securityContext,
-        Client client
-    ) {
-        super(AuthorizeDataLifecycleAction.NAME, transportService, actionFilters, AuthorizeDataLifecycleAction.Request::new);
+    public DataLifecycleAuthorizationCheckWithSecurity(SecurityContext securityContext, Client client) {
         this.securityContext = securityContext;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(Task task, AuthorizeDataLifecycleAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        String[] dataStreamPatterns = request.getDataStreamPatterns();
-        // TODO hack hack hack
-        if (dataStreamPatterns.length == 0) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return;
-        }
-
-        RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder().indices(dataStreamPatterns).privileges(IndexPrivilege.MANAGE.name()).build() };
+    public void check(String[] dataStreamPatterns, ActionListener<AcknowledgedResponse> listener) {
+        RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = dataStreamPatterns.length == 0
+            ? new RoleDescriptor.IndicesPrivileges[0]
+            : new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder().indices(dataStreamPatterns).privileges("manage").build() };
         HasPrivilegesRequest hasPrivilegesRequest = new HasPrivilegesRequest();
         hasPrivilegesRequest.username(securityContext.getAuthentication().getEffectiveSubject().getUser().principal());
-        hasPrivilegesRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
+        hasPrivilegesRequest.clusterPrivileges("manage_dlm");
         hasPrivilegesRequest.indexPrivileges(indicesPrivilegesToCheck);
         hasPrivilegesRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 

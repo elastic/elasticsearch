@@ -8,7 +8,6 @@
 package org.elasticsearch.dlm.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -35,7 +34,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
-    private final DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck;
+    private final DataLifecycleAuthorizationCheck authorizationCheck;
 
     @Inject
     public TransportDeleteDataLifecycleAction(
@@ -46,7 +45,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         SystemIndices systemIndices,
-        DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck
+        DataLifecycleAuthorizationCheck authorizationCheck
     ) {
         super(
             DeleteDataLifecycleAction.NAME,
@@ -60,7 +59,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
-        this.dataLifecycleAuthorizationCheck = dataLifecycleAuthorizationCheck;
+        this.authorizationCheck = authorizationCheck;
     }
 
     @Override
@@ -70,21 +69,18 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataLifecycleAuthorizationCheck.check(
-            new AuthorizeDataLifecycleAction.Request(request.getNames()),
-            ActionListener.wrap(acknowledgedResponse -> {
-                List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
-                    indexNameExpressionResolver,
-                    state,
-                    request.getNames(),
-                    request.indicesOptions()
-                );
-                for (String name : dataStreamNames) {
-                    systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
-                }
-                metadataDataStreamsService.removeLifecycle(dataStreamNames, request.ackTimeout(), request.masterNodeTimeout(), listener);
-            }, listener::onFailure)
-        );
+        authorizationCheck.check(request.getNames(), ActionListener.wrap(acknowledgedResponse -> {
+            List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
+                indexNameExpressionResolver,
+                state,
+                request.getNames(),
+                request.indicesOptions()
+            );
+            for (String name : dataStreamNames) {
+                systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+            }
+            metadataDataStreamsService.removeLifecycle(dataStreamNames, request.ackTimeout(), request.masterNodeTimeout(), listener);
+        }, listener::onFailure));
     }
 
     @Override

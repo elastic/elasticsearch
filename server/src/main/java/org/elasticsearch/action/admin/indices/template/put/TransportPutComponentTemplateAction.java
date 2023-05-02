@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
-import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -39,7 +38,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
-    private final DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck;
+    private final DataLifecycleAuthorizationCheck authorizationCheck;
 
     public TransportPutComponentTemplateAction(
         TransportService transportService,
@@ -71,7 +70,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck
+        DataLifecycleAuthorizationCheck authorizationCheck
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -85,7 +84,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
-        this.dataLifecycleAuthorizationCheck = dataLifecycleAuthorizationCheck;
+        this.authorizationCheck = authorizationCheck;
     }
 
     @Override
@@ -124,8 +123,8 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
                 .stream()
                 .flatMap(it -> it.indexPatterns().stream())
                 .collect(Collectors.toUnmodifiableSet());
-            dataLifecycleAuthorizationCheck.check(
-                new AuthorizeDataLifecycleAction.Request(indexPatterns.toArray(new String[0])),
+            authorizationCheck.check(
+                indexPatterns.toArray(new String[0]),
                 ActionListener.wrap(
                     ignored -> indexTemplateService.putComponentTemplate(
                         request.cause(),

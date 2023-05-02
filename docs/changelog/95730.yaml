@@ -1,0 +1,5 @@
+pr: 95730
+summary: Also support GET for the _lifecycle/explain API
+area: DLM
+type: bug
+issues: []

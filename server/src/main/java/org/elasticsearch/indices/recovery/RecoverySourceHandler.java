@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -1004,7 +1005,7 @@ public class RecoverySourceHandler {
      *                            and synced.
      */
     private <R> void updateRetentionLease(Function<ActionListener<Void>, R> updateLeaseFunction, ActionListener<R> outerListener) {
-        final var leasesSyncedStep = new StepListener<Void>();
+        final var leasesSyncedStep = new SubscribableListener<Void>();
         runUnderPrimaryPermit(
             resultListener -> ActionListener.completeWith(
                 // NB completing resultListener releases the permit, so must do this immediately

@@ -7,7 +7,6 @@ Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::[\{release-state}\"!=\"unreleased\"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
 
 // Add previous release to the list
 Other versions:
@@ -16,6 +15,7 @@ Other versions:
 | {ref-bare}/8.2/release-highlights.html[8.2]
 | {ref-bare}/8.1/release-highlights.html[8.1]
 | {ref-bare}/8.0/release-highlights.html[8.0]
+endif::[]
 
 // tag::notable-highlights[]
 

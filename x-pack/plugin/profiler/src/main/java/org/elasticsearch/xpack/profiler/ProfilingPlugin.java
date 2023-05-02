@@ -50,7 +50,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
     public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
         "xpack.profiling.enabled",
-        true,
+        false,
         Setting.Property.NodeScope
     );
     public static final String PROFILING_THREAD_POOL_NAME = "profiling";

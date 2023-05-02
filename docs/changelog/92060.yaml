@@ -1,0 +1,6 @@
+pr: 92060
+summary: Add support for dynamic pruning to cardinality aggregations on low-cardinality
+  keyword fields
+area: Aggregations
+type: enhancement
+issues: []

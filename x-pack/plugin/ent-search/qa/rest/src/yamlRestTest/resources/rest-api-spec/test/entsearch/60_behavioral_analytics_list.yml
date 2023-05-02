@@ -14,6 +14,11 @@ teardown:
         name: my-test-analytics-collection
         ignore: 404
 
+  - do:
+      search_application.delete_behavioral_analytics:
+        name: my-test-analytics-collection2
+        ignore: 404
+
 ---
 "Get Analytics Collection for a particular collection":
   - do:

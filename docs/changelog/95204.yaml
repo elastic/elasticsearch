@@ -1,5 +1,5 @@
 pr: 95204
-summary: Feature/dlm auto force merge
+summary: Add auto force merge functionality to DLM
 area: DLM
 type: enhancement
 issues: []

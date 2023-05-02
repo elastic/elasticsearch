@@ -7,7 +7,6 @@ Here are the highlights of what's new and improved in {es} {minor-version}!
 ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-
 <% if (priorVersions.size() > 0) { %>
 // Add previous release to the list
 Other versions:
@@ -18,7 +17,6 @@ print "\n"
 }
 %>
 endif::[]
-
 <%
 /* The `notable-highlights` tag needs to exist, whether or not we actually have any notable highlights. */
 if (notableHighlights.isEmpty()) { %>

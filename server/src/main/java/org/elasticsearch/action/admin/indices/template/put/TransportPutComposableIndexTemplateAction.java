@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -31,7 +30,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -94,11 +92,15 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     ) {
         verifyIfUsingReservedComponentTemplates(request, state);
         var indexTemplate = request.indexTemplate();
-        var componentTemplatesWithLifecycles = state.metadata().componentTemplates().entrySet().stream().filter(componentTemplateEntry -> {
-            ComponentTemplate componentTemplate = componentTemplateEntry.getValue();
-            return indexTemplate.composedOf().contains(componentTemplateEntry.getKey()) && componentTemplate.hasDataLifecycle();
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        boolean needsDlmAuthorizationCheck = indexTemplate.hasDataLifecycle() || false == componentTemplatesWithLifecycles.isEmpty();
+        var hasComponentTemplatesWithDataLifecycles = state.metadata()
+            .componentTemplates()
+            .entrySet()
+            .stream()
+            .anyMatch(componentTemplateEntry -> {
+                var componentTemplate = componentTemplateEntry.getValue();
+                return indexTemplate.composedOf().contains(componentTemplateEntry.getKey()) && componentTemplate.hasDataLifecycle();
+            });
+        boolean needsDlmAuthorizationCheck = indexTemplate.hasDataLifecycle() || hasComponentTemplatesWithDataLifecycles;
         if (needsDlmAuthorizationCheck) {
             client.execute(
                 AuthorizeDataLifecycleAction.INSTANCE,

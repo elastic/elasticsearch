@@ -12,7 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
@@ -31,7 +30,6 @@ import org.elasticsearch.dlm.action.DeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.ExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.GetDataLifecycleAction;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
-import org.elasticsearch.dlm.action.TransportAuthorizeDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportGetDataLifecycleAction;
@@ -163,7 +161,6 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionHandler<>(GetDataLifecycleAction.INSTANCE, TransportGetDataLifecycleAction.class));
         actions.add(new ActionHandler<>(DeleteDataLifecycleAction.INSTANCE, TransportDeleteDataLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataLifecycleAction.INSTANCE, TransportExplainDataLifecycleAction.class));
-        actions.add(new ActionHandler<>(AuthorizeDataLifecycleAction.INSTANCE, TransportAuthorizeDataLifecycleAction.class));
         return actions;
     }
 

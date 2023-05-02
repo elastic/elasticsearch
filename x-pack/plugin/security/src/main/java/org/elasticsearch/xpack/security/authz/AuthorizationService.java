@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.PrivilegesCheckRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -64,7 +63,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
@@ -453,31 +451,9 @@ public class AuthorizationService {
                         return;
                     }
                 }
-                if (result.isGranted() && request instanceof PrivilegesCheckRequest) {
-                    PrivilegesCheckRequest.CorePrivilegesToCheck privilegesToCheck = ((PrivilegesCheckRequest) request)
-                        .getPrivilegesToCheck();
-                    if (privilegesToCheck == null) {
-                        clusterAuthzListener.onResponse(result);
-                        return;
-                    }
-                    checkPrivileges(
-                        authentication.getEffectiveSubject(),
-                        toXPackPrivilegesToCheck(privilegesToCheck),
-                        Set.of(), // TODO we don't need application privileges checking for now, but should we still handle it?
-                        ActionListener.wrap(
-                            // TODO need meaningful deny error messages
-                            privilegesCheckResult -> clusterAuthzListener.onResponse(
-                                privilegesCheckResult.allChecksSuccess() ? AuthorizationResult.granted() : AuthorizationResult.deny()
-                            ),
-                            clusterAuthzListener::onFailure
-                        )
-                    );
-                    return;
-                }
                 clusterAuthzListener.onResponse(result);
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
-            assert false == (request instanceof PrivilegesCheckRequest) : "only cluster actions can have privileges check requests";
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
@@ -534,21 +510,6 @@ public class AuthorizationService {
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
             listener.onFailure(actionDenied(authentication, authzInfo, action, request));
         }
-    }
-
-    private AuthorizationEngine.PrivilegesToCheck toXPackPrivilegesToCheck(
-        PrivilegesCheckRequest.CorePrivilegesToCheck corePrivilegesToCheck
-    ) {
-        String[] indices = corePrivilegesToCheck.indices();
-        RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("manage").build() };
-
-        return new AuthorizationEngine.PrivilegesToCheck(
-            new String[] {},
-            indicesPrivilegesToCheck,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {},
-            false
-        );
     }
 
     private void handleIndexActionAuthorizationResult(

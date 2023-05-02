@@ -27,9 +27,7 @@ public class UpdateSettingsValidationIT extends ESIntegTestCase {
         createIndex("test");
         NumShards test = getNumShards("test");
 
-        ClusterHealthResponse healthResponse = client().admin()
-            .cluster()
-            .prepareHealth("test")
+        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("3")
             .setWaitForGreenStatus()
@@ -39,9 +37,7 @@ public class UpdateSettingsValidationIT extends ESIntegTestCase {
         assertThat(healthResponse.getIndices().get("test").getActiveShards(), equalTo(test.totalNumShards));
 
         setReplicaCount(0, "test");
-        healthResponse = client().admin()
-            .cluster()
-            .prepareHealth("test")
+        healthResponse = clusterAdmin().prepareHealth("test")
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .execute()

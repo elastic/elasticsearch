@@ -153,7 +153,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         prepareCreate("test").get();
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
-        String nodeId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
+        String nodeId = clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId();
 
         final Settings dataPathSettings = internalCluster().dataPathSettings(node);
         internalCluster().stopRandomDataNode();
@@ -235,7 +235,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);
         dataPaths.forEach(path -> assertTrue(Files.isRegularFile(path.resolve("nodes"))));
-        assertEquals(nodeId, client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId());
+        assertEquals(nodeId, clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);

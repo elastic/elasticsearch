@@ -32,6 +32,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.PendingReplicationActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1381,9 +1382,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          */
         verifyNotClosed();
         final long time = System.nanoTime();
-        boolean flushHappened = getEngine().flush(force, waitIfOngoing);
+        // TODO: Transition this method to async to support async flush
+        PlainActionFuture<Engine.FlushResult> future = PlainActionFuture.newFuture();
+        getEngine().flush(force, waitIfOngoing, future);
+        Engine.FlushResult flushResult = future.actionGet();
         flushMetric.inc(System.nanoTime() - time);
-        return flushHappened;
+        return flushResult.flushPerformed();
     }
 
     /**

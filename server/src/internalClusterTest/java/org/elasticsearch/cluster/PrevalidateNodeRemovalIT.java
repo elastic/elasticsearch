@@ -207,9 +207,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
 
     private void ensureRed(String indexName) throws Exception {
         assertBusy(() -> {
-            ClusterHealthResponse healthResponse = client().admin()
-                .cluster()
-                .prepareHealth(indexName)
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
                 .setWaitForStatus(ClusterHealthStatus.RED)
                 .setWaitForEvents(Priority.LANGUID)
                 .execute()

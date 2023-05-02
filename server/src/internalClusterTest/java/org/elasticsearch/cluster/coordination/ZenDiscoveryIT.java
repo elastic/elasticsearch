@@ -35,9 +35,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         internalCluster().startNodes(2, masterNodeSettings);
         Settings dateNodeSettings = dataNode();
         internalCluster().startNodes(2, dateNodeSettings);
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes("4")
             .setWaitForNoRelocatingShards(true)
@@ -74,7 +72,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ); // see https://github.com/elastic/elasticsearch/issues/24388
 
         logger.info("--> request node discovery stats");
-        NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();
+        NodesStatsResponse statsResponse = clusterAdmin().prepareNodesStats().clear().setDiscovery(true).get();
         assertThat(statsResponse.getNodes().size(), equalTo(1));
 
         DiscoveryStats stats = statsResponse.getNodes().get(0).getDiscoveryStats();

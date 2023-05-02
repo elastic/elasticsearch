@@ -9,15 +9,14 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -303,7 +302,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes_givenAssignedPersistentTask() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(TestDiscoveryNode.create("node1"))
             .localNodeId("node1")
             .masterNodeId("node1")
             .build();
@@ -331,7 +330,7 @@ public class PersistentTasksCustomMetadataTests extends ChunkedToXContentDiffabl
 
     public void testDisassociateDeadNodes() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT))
+            .add(TestDiscoveryNode.create("node1"))
             .localNodeId("node1")
             .masterNodeId("node1")
             .build();

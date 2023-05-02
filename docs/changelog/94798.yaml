@@ -1,6 +1,0 @@
-pr: 94798
-summary: Fix `.nodes.fs` deduplication in `_cluster/stats`
-area: Stats
-type: bug
-issues:
- - 24472

@@ -1,5 +1,0 @@
-pr: 95356
-summary: Fix `NullPointerException` when the start time of the last successful snapshot run is unknown
-area: Health
-type: bug
-issues: []

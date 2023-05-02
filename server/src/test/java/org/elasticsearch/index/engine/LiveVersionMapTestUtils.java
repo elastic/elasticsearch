@@ -15,6 +15,10 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+
 public class LiveVersionMapTestUtils {
 
     public static LiveVersionMap newLiveVersionMap(LiveVersionMapArchive archiver) {
@@ -51,8 +55,16 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
-    public static VersionValue versionLookupPut(LiveVersionMap.VersionLookup versionLookup, BytesRef key, VersionValue versionValue) {
-        return versionLookup.put(key, versionValue);
+    static IndexVersionValue randomIndexVersionValue() {
+        return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    static Translog.Location randomTranslogLocation() {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            return new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
+        }
     }
 
     public static int VersionLookupSize(LiveVersionMap.VersionLookup lookup) {

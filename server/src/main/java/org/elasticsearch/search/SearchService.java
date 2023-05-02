@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -133,7 +134,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -502,107 +502,81 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        final ActionRunnable<T> runnable = new ActionRunnable<>(listener) {
-            final Executor executor = getExecutor(shard);
+        final long waitForCheckpoint = request.waitForCheckpoint();
+        final Executor executor = getExecutor(shard);
+        try {
+            if (waitForCheckpoint <= UNASSIGNED_SEQ_NO) {
+                runAsync(executor, executable, listener);
+                return;
+            }
+            if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
+                listener.onFailure(new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]"));
+                return;
+            }
 
-            @Override
-            protected void doRun() {
-                final TimeValue timeout = request.getWaitForCheckpointsTimeout();
-                final long waitForCheckpoint = request.waitForCheckpoint();
-                if (waitForCheckpoint > UNASSIGNED_SEQ_NO) {
-                    if (shard.indexSettings().getRefreshInterval().getMillis() <= 0) {
-                        listener.onFailure(
-                            new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]")
-                        );
+            final AtomicBoolean isDone = new AtomicBoolean(false);
+            final TimeValue timeout = request.getWaitForCheckpointsTimeout();
+            final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
+                if (isDone.compareAndSet(false, true)) {
+                    listener.onFailure(
+                        new ElasticsearchTimeoutException("Wait for seq_no [{}] refreshed timed out [{}]", waitForCheckpoint, timeout)
+                    );
+                }
+            }, timeout, Names.SAME);
+            shard.addRefreshListener(waitForCheckpoint, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
+                    // it is possible that a stale shard could return uncommitted documents.
+                    if (shard.getLastKnownGlobalCheckpoint() >= waitForCheckpoint) {
+                        searchReady();
                         return;
                     }
-
-                    final AtomicBoolean isDone = new AtomicBoolean(false);
-                    final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
-                    final ActionListener<Void> readyListener = new ActionListener<>() {
+                    shard.addGlobalCheckpointListener(waitForCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
                         @Override
-                        public void onResponse(Void unused) {
-                            // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
-                            // it is possible that a stale shard could return uncommitted documents.
-                            if (shard.getLastKnownGlobalCheckpoint() < waitForCheckpoint) {
-                                TimeValue gclTimeout = NO_TIMEOUT.equals(timeout) == false ? null : timeout;
-                                shard.addGlobalCheckpointListener(
-                                    waitForCheckpoint,
-                                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
-                                        @Override
-                                        public Executor executor() {
-                                            return threadPool.executor(Names.SAME);
-                                        }
+                        public Executor executor() {
+                            return threadPool.executor(Names.SAME);
+                        }
 
-                                        @Override
-                                        public void accept(long g, Exception e) {
-                                            if (g != UNASSIGNED_SEQ_NO) {
-                                                assert waitForCheckpoint <= g
-                                                    : shard.shardId()
-                                                        + " only advanced to ["
-                                                        + g
-                                                        + "] while waiting for ["
-                                                        + waitForCheckpoint
-                                                        + "]";
-                                                searchReady();
-                                            } else {
-                                                assert e != null;
-                                                // Ignore TimeoutException, our scheduled timeout task will handle this
-                                                if (e instanceof TimeoutException == false) {
-                                                    onFailure(e);
-                                                }
-                                            }
-                                        }
-                                    },
-                                    gclTimeout
-                                );
-                            } else {
+                        @Override
+                        public void accept(long g, Exception e) {
+                            if (g != UNASSIGNED_SEQ_NO) {
+                                assert waitForCheckpoint <= g
+                                    : shard.shardId() + " only advanced to [" + g + "] while waiting for [" + waitForCheckpoint + "]";
                                 searchReady();
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (isDone.compareAndSet(false, true)) {
-                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
-                                if (localTimeoutTask != null) {
-                                    localTimeoutTask.cancel();
+                            } else {
+                                assert e != null;
+                                // Ignore TimeoutException, our scheduled timeout task will handle this
+                                if (e instanceof TimeoutException == false) {
+                                    onFailure(e);
                                 }
-                                listener.onFailure(e);
                             }
                         }
-
-                        private void searchReady() {
-                            if (isDone.compareAndSet(false, true)) {
-                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
-                                if (localTimeoutTask != null) {
-                                    localTimeoutTask.cancel();
-                                }
-                                runAsync(executor, executable, listener);
-                            }
-                        }
-                    };
-                    if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
-                        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(
-                            () -> readyListener.onFailure(
-                                new ElasticsearchTimeoutException(
-                                    "Wait for seq_no [{}] refreshed timed out [{}]",
-                                    waitForCheckpoint,
-                                    timeout
-                                )
-                            ),
-                            timeout,
-                            Names.SAME
-                        );
-                        timeoutTask.set(scheduled);
-                    }
-                    shard.addRefreshListener(waitForCheckpoint, readyListener);
-                } else {
-                    runAsync(executor, executable, listener);
+                    }, NO_TIMEOUT.equals(timeout) == false ? null : timeout);
                 }
-            }
-        };
-        runnable.run();
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (isDone.compareAndSet(false, true)) {
+                        if (timeoutTask != null) {
+                            timeoutTask.cancel();
+                        }
+                        listener.onFailure(e);
+                    }
+                }
+
+                private void searchReady() {
+                    if (isDone.compareAndSet(false, true)) {
+                        if (timeoutTask != null) {
+                            timeoutTask.cancel();
+                        }
+                        runAsync(executor, executable, listener);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private IndexShard getShard(ShardSearchRequest request) {
@@ -619,7 +593,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
-        executor.execute(ActionRunnable.supply(listener, executable::get));
+        executor.execute(ActionRunnable.supply(listener, executable));
     }
 
     /**
@@ -1011,6 +985,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
+            if (request.rankQueryBuilders().isEmpty() == false) {
+                List<Query> rankQueries = new ArrayList<>();
+                for (QueryBuilder queryBuilder : request.rankQueryBuilders()) {
+                    rankQueries.add(queryBuilder.toQuery(context.getSearchExecutionContext()));
+                }
+                context.rankShardContext(request.source().rankBuilder().buildRankShardContext(rankQueries, context.from()));
+            }
             context.setTask(task);
 
             context.preProcess();
@@ -1247,7 +1228,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                  */
                 () -> context.rewrittenQuery() == null ? new MatchAllDocsQuery() : context.rewrittenQuery(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
-                multiBucketConsumerService.create(),
+                multiBucketConsumerService.getLimit(),
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
                 context.bitsetFilterCache(),
                 context.indexShard().shardId().hashCode(),

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -354,6 +356,41 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             containsString("which has an incompatible wire format")
         );
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
+    }
+
+    @SuppressForbidden(reason = "Sets property for testing")
+    public void testAcceptsMismatchedServerlessBuildHash() {
+        assumeTrue("Current build needs to be a snapshot", Build.CURRENT.isSnapshot());
+        assumeTrue("Security manager needs to be disabled", System.getSecurityManager() == null);
+        System.setProperty("es.serverless", Boolean.TRUE.toString());   // security manager blocks this
+        try {
+            final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
+            final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
+            transportInterceptorA.setModifyBuildHash(true);
+            transportInterceptorB.setModifyBuildHash(true);
+            final Settings settings = Settings.builder()
+                .put("cluster.name", "a")
+                .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
+                .build();
+            final TransportService transportServiceA = startServices(
+                "TS_A",
+                settings,
+                TransportVersion.CURRENT,
+                Version.CURRENT,
+                transportInterceptorA
+            );
+            final TransportService transportServiceB = startServices(
+                "TS_B",
+                settings,
+                TransportVersion.CURRENT,
+                Version.CURRENT,
+                transportInterceptorB
+            );
+            AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
+            assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
+        } finally {
+            System.clearProperty("es.serverless");
+        }
     }
 
     public void testAcceptsMismatchedBuildHashFromDifferentVersion() {

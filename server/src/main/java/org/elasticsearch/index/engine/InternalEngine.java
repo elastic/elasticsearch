@@ -765,6 +765,20 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper);
+        }
+    }
+
     protected GetResult realtimeGetUnderLock(
         Get get,
         MappingLookup mappingLookup,
@@ -2863,7 +2877,8 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    boolean isSafeAccessRequired() {
+    // visible only for testing
+    public boolean isSafeAccessRequired() {
         return versionMap.isSafeAccessRequired();
     }
 

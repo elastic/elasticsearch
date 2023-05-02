@@ -43,7 +43,7 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
+    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
@@ -145,6 +145,7 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
             return result;
         }
 
+        @Override
         public IndicesRequest indices(String... names) {
             this.names = names;
             return this;

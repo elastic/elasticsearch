@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTem
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -311,7 +312,7 @@ public class ClusterPrivilegeResolver {
             TRANSPORT_CLIENT,
             MANAGE_SECURITY,
             READ_SECURITY,
-            MANAGE_DLM,
+            DataLifecycle.isEnabled() ? MANAGE_DLM : null,
             MANAGE_SAML,
             MANAGE_OIDC,
             MANAGE_API_KEY,

@@ -303,10 +303,6 @@ All {Ilm} operations relating to managing the execution of policies of an index
 or data stream. This includes operations such as retrying policies and removing
 a policy from an index or data stream.
 
-`manage_dlm`::
-All {Dlm} operations relating to reading and managing the lifecycle of a data stream.
-This includes operations such as adding and removing a lifecycle from a data stream.
-
 `manage_leader_index`::
 All actions that are required to manage the lifecycle of a leader index, which
 includes <<ccr-post-forget-follower,forgetting a follower>>. This

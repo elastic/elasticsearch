@@ -90,9 +90,9 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         var healthNode = ESIntegTestCase.waitAndGetHealthNode(internalCluster);
         assertNotNull(healthNode);
 
-        waitForShardLimitsMetadata();
-
         var randomNode = internalCluster.getRandomNodeName();
+        waitForShardLimitsMetadata(randomNode);
+
         var healthService = internalCluster.getInstance(HealthService.class, randomNode);
         var healthIndicatorResults = getHealthServiceResults(healthService, randomNode);
         assertThat(healthIndicatorResults, hasSize(1));
@@ -117,9 +117,9 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         return resultListReference.get();
     }
 
-    private void waitForShardLimitsMetadata() throws Exception {
+    private void waitForShardLimitsMetadata(String node) throws Exception {
         assertBusy(() -> {
-            var healthMetadata = HealthMetadata.getFromClusterState(internalCluster().clusterService().state());
+            var healthMetadata = HealthMetadata.getFromClusterState(internalCluster().clusterService(node).state());
 
             assertNotNull(healthMetadata);
             assertNotNull(healthMetadata.getShardLimitsMetadata());

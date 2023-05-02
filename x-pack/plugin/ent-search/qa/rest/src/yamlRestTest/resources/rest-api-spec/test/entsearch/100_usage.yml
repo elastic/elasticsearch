@@ -7,6 +7,31 @@ setup:
             index:
               number_of_shards: 1
               number_of_replicas: 0
+          mappings:
+            properties:
+              conflict_field:
+                type: integer
+              non_conflict_field:
+                type: text
+              other_field:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test-index2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              conflict_field:
+                type: text
+              non_conflict_field:
+                type: text
+              other_field:
+                type: keyword
 
 ---
 teardown:
@@ -16,13 +41,13 @@ teardown:
         ignore: 404
 
   - do:
-      search_application.delete:
-        name: test-search-application-2
+      indices.delete:
+        index: test-index1
         ignore: 404
 
   - do:
       indices.delete:
-        index: test-index1
+        index: test-index2
         ignore: 404
 
 ---
@@ -45,7 +70,7 @@ teardown:
       search_application.put:
         name: test-search-application-1
         body:
-          indices: [ "test-index1" ]
+          indices: [ "test-index1", "test-index2" ]
 
   - do:
       xpack.usage: {}
@@ -57,50 +82,11 @@ teardown:
       search_applications: {
         count: 1,
         search_applications: [
-          { name: "test-search-application-1", schema_field_count: 0, schema_field_conflict_count: 0 }
-        ]
-      }
-    }
-  }
-
-  - do:
-      search_application.put:
-        name: test-search-application-2
-        body:
-          indices: [ "test-index1" ]
-
-  - do:
-      xpack.usage: {}
-
-  - match: {
-    enterprise_search: {
-      enabled: true,
-      available: true,
-      search_applications: {
-        count: 2,
-        search_applications: [
-          { name: "test-search-application-1", schema_field_count: 0, schema_field_conflict_count: 0 },
-          { name: "test-search-application-2", schema_field_count: 0, schema_field_conflict_count: 0 }
-        ]
-      }
-    }
-  }
-
-  - do:
-      search_application.delete:
-        name: test-search-application-2
-
-  - do:
-      xpack.usage: {}
-
-  - match: {
-    enterprise_search: {
-      enabled: true,
-      available: true,
-      search_applications: {
-        count: 1,
-        search_applications: [
-          { name: "test-search-application-1", schema_field_count: 0, schema_field_conflict_count: 0 }
+          {
+            name: "test-search-application-1",
+            schema_field_count: 16,
+            schema_field_conflict_count: 1
+          }
         ]
       }
     }

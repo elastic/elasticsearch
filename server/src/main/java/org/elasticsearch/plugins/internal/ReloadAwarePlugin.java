@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.stateless;
+package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -17,7 +17,7 @@ import java.util.List;
  * A plugin that may receive a list of {@link ReloadablePlugin}s in order to
  * call their {@link ReloadablePlugin#reload(Settings)} method.
  */
-public interface ReloadingPlugin {
+public interface ReloadAwarePlugin {
 
     /**
      * Provide a list of reloadable plugins.

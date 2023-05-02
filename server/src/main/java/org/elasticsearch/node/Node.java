@@ -175,7 +175,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
-import org.elasticsearch.plugins.stateless.ReloadingPlugin;
+import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -1017,7 +1017,7 @@ public class Node implements Closeable {
             HealthApiStats healthApiStats = new HealthApiStats();
 
             List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
-            pluginsService.filterPlugins(ReloadingPlugin.class).forEach(p -> p.setReloadablePlugins(reloadablePlugins));
+            pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadablePlugins(reloadablePlugins));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);

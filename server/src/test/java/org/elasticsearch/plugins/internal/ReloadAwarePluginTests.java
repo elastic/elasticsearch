@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.stateless;
+package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
@@ -23,27 +23,27 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESTestCase.WithoutSecurityManager
-public class ReloadingPluginTests extends ESTestCase {
+public class ReloadAwarePluginTests extends ESTestCase {
 
     public void testNodeInitializesReloadingPlugin() throws IOException {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        try (MockNode node = new MockNode(settings, List.of(TestReloadablePlugin.class, TestReloadingPlugin.class, Netty4Plugin.class));) {
+        try (MockNode node = new MockNode(settings, List.of(TestReloadablePlugin.class, TestReloadAwarePlugin.class, Netty4Plugin.class));) {
             PluginsService pluginsService = node.injector().getInstance(PluginsService.class);
 
-            var reloadingPlugins = pluginsService.filterPlugins(ReloadingPlugin.class).stream().toList();
+            var reloadingPlugins = pluginsService.filterPlugins(ReloadAwarePlugin.class).stream().toList();
             var reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).stream().toList();
 
             assertThat(reloadingPlugins.size(), equalTo(1));
 
-            ReloadingPlugin plugin = reloadingPlugins.get(0);
+            ReloadAwarePlugin plugin = reloadingPlugins.get(0);
 
-            assertThat(plugin, instanceOf(TestReloadingPlugin.class));
+            assertThat(plugin, instanceOf(TestReloadAwarePlugin.class));
 
-            assertThat(((TestReloadingPlugin) plugin).getReloadablePlugins(), equalTo(reloadablePlugins));
+            assertThat(((TestReloadAwarePlugin) plugin).getReloadablePlugins(), equalTo(reloadablePlugins));
         }
     }
 
-    public static class TestReloadingPlugin extends Plugin implements ReloadingPlugin {
+    public static class TestReloadAwarePlugin extends Plugin implements ReloadAwarePlugin {
         private List<ReloadablePlugin> reloadablePlugins;
 
         @Override

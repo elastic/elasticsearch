@@ -182,17 +182,19 @@ public class FsBlobContainer extends AbstractBlobContainer {
         long suppressedExceptions = 0;
         while (blobNames.hasNext()) {
             try {
-                IOUtils.rm(path.resolve(blobNames.next()));
-            } catch (FileNotFoundException e) {
-                // Ignore since this is "delete while ignoring not exists" method
+                Path resolve = path.resolve(blobNames.next());
+                IOUtils.rm(resolve);
             } catch (IOException e) {
-                // track up to 10 delete exceptions and try to continue deleting on exceptions
-                if (ioe == null) {
-                    ioe = e;
-                } else if (ioe.getSuppressed().length < 10) {
-                    ioe.addSuppressed(e);
-                } else {
-                    ++suppressedExceptions;
+                // IOUtils.rm puts the original exception as a string in the IOException message. Ignore no such file exception.
+                if (e.getMessage().contains("NoSuchFileException") == false) {
+                    // track up to 10 delete exceptions and try to continue deleting on exceptions
+                    if (ioe == null) {
+                        ioe = e;
+                    } else if (ioe.getSuppressed().length < 10) {
+                        ioe.addSuppressed(e);
+                    } else {
+                        ++suppressedExceptions;
+                    }
                 }
             }
         }

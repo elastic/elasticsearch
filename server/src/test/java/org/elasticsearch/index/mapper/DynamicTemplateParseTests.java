@@ -505,6 +505,26 @@ public class DynamicTemplateParseTests extends ESTestCase {
             assertTrue(template.match("my_template", "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
             assertFalse(template.match(null, "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
         }
+        // match name with number rather than string (is allowed)
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", 12);
+            templateDef.put("mapping", Map.of());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.match("my_template", "foo.bar", "foo", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match(null, null, "12", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match("not_template_name", null, "12", randomFrom(XContentFieldType.values())));
+            assertTrue(template.match("my_template", "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+            assertFalse(template.match(null, "foo.bar", "not_match_name", randomFrom(XContentFieldType.values())));
+        }
+        // match name with array of patterns with non-strings (not allowed)
+        {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", List.of("baz*", "*quux", 12));
+            templateDef.put("mapping", Map.of());
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef));
+            assertEquals("[match] values must either be a string or list of strings, but was [[baz*, *quux, 12]]", e.getMessage());
+        }
         // no match condition
         {
             Map<String, Object> templateDef = new HashMap<>();

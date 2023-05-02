@@ -18,9 +18,14 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 public interface ReloadAwarePlugin {
 
     /**
-     * Provide a reloadable plugin for later use
+     * Provide a callback for reloading plugins
+     *
+     * <p>This callback is in the form of an implementation of {@link ReloadablePlugin},
+     * but the implementation does not need to be a {@link org.elasticsearch.plugins.Plugin},
+     * or be registered with {@link org.elasticsearch.plugins.PluginsService}.
+     *
      * @param reloadablePlugin A plugin that this plugin may be able to reload
      */
-    void setReloadablePlugin(ReloadablePlugin reloadablePlugin);
+    void setReloadCallback(ReloadablePlugin reloadablePlugin);
 
 }

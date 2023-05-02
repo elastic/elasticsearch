@@ -52,7 +52,7 @@ public class ReloadAwarePluginTests extends ESTestCase {
         private ReloadablePlugin reloadablePlugin;
 
         @Override
-        public void setReloadablePlugin(ReloadablePlugin reloadablePlugin) {
+        public void setReloadCallback(ReloadablePlugin reloadablePlugin) {
             this.reloadablePlugin = reloadablePlugin;
         }
 

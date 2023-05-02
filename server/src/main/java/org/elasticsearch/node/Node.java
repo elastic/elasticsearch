@@ -1018,7 +1018,7 @@ public class Node implements Closeable {
 
             List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
             pluginsService.filterPlugins(ReloadAwarePlugin.class)
-                .forEach(p -> p.setReloadablePlugin(wrapPlugins(reloadablePlugins)));
+                .forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);

@@ -86,7 +86,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             UNASSIGNED_SEQ_NO,
             UNASSIGNED_PRIMARY_TERM,
             fetchSourceContext,
-            forceSyntheticSource
+            forceSyntheticSource,
+            false
         );
     }
 
@@ -99,7 +100,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        boolean translogOnly
     ) throws IOException {
         currentMetric.inc();
         try {
@@ -113,7 +115,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 ifSeqNo,
                 ifPrimaryTerm,
                 fetchSourceContext,
-                forceSyntheticSource
+                forceSyntheticSource,
+                translogOnly
             );
 
             if (getResult.isExists()) {
@@ -127,6 +130,29 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
+    public GetResult getFromTranslog(
+        String id,
+        String[] gFields,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        FetchSourceContext fetchSourceContext,
+        boolean forceSyntheticSource
+    ) throws IOException {
+        return get(
+            id,
+            gFields,
+            realtime,
+            version,
+            versionType,
+            UNASSIGNED_SEQ_NO,
+            UNASSIGNED_PRIMARY_TERM,
+            fetchSourceContext,
+            forceSyntheticSource,
+            true
+        );
+    }
+
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
         return get(
             id,
@@ -137,6 +163,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             ifSeqNo,
             ifPrimaryTerm,
             FetchSourceContext.FETCH_SOURCE,
+            false,
             false
         );
     }
@@ -197,23 +224,33 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         long ifSeqNo,
         long ifPrimaryTerm,
         FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        boolean translogOnly
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-        try (
-            Engine.GetResult get = indexShard.get(
-                new Engine.Get(realtime, realtime, id).version(version)
-                    .versionType(versionType)
-                    .setIfSeqNo(ifSeqNo)
-                    .setIfPrimaryTerm(ifPrimaryTerm)
-            )
-        ) {
+        try (Engine.GetResult get = getFromIndexShard(id, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, translogOnly)) {
             if (get.exists() == false) {
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetFetch(id, gFields, fetchSourceContext, get, forceSyntheticSource);
         }
+    }
+
+    private Engine.GetResult getFromIndexShard(
+        String id,
+        boolean realtime,
+        long version,
+        VersionType versionType,
+        long ifSeqNo,
+        long ifPrimaryTerm,
+        boolean translogOnly
+    ) {
+        var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+            .versionType(versionType)
+            .setIfSeqNo(ifSeqNo)
+            .setIfPrimaryTerm(ifPrimaryTerm);
+        return translogOnly ? indexShard.getFromTranslog(engineGet) : indexShard.get(engineGet);
     }
 
     private GetResult innerGetFetch(

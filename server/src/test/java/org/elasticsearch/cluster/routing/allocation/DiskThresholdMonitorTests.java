@@ -66,9 +66,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private void doTestMarkFloodStageIndicesReadOnly(boolean testMaxHeadroom) {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
         Metadata metadata = Metadata.builder()
@@ -435,9 +433,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
         Metadata metadata = Metadata.builder()
@@ -774,9 +770,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
         AtomicReference<ClusterState> currentClusterState = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
         Metadata metadata = Metadata.builder()

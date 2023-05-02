@@ -110,10 +110,12 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     private SearchExecutionContext searchExecutionContext;
 
     private ThreadPool testThreadPool;
+
     @Before
     public void setupThreadPool() {
         testThreadPool = new TestThreadPool(getTestName());
     }
+
     @After
     public void teardownThreadPool() {
         terminate(testThreadPool);

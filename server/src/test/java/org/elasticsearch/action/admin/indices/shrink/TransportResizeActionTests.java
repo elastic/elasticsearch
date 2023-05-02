@@ -50,10 +50,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransportResizeActionTests extends ESTestCase {
 
     private static ThreadPool testThreadPool;
+
     @BeforeClass
     public static void setupThreadPool() {
         testThreadPool = new TestThreadPool(getTestClass().getName());
     }
+
     @AfterClass
     public static void teardownThreadPool() {
         terminate(testThreadPool);

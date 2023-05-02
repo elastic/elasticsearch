@@ -64,10 +64,12 @@ import static org.hamcrest.Matchers.not;
 public class AllocationServiceTests extends ESTestCase {
 
     private ThreadPool testThreadPool;
+
     @Before
     public void setupThreadPool() {
         testThreadPool = new TestThreadPool(getTestName());
     }
+
     @After
     public void teardownThreadPool() {
         terminate(testThreadPool);

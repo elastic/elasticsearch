@@ -47,9 +47,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
     public void testSingleIndexStartedShard() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 
@@ -152,9 +150,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
     public void testSingleIndexShardFailed() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 

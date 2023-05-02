@@ -74,9 +74,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 
@@ -796,9 +794,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardToNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 
@@ -869,9 +865,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardFromNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 

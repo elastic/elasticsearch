@@ -331,9 +331,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testShardsAndPreferNodeRouting() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 

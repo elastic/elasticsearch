@@ -34,9 +34,7 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
 
     public void testSingleIndexFirstStartPrimaryThenBackups() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 

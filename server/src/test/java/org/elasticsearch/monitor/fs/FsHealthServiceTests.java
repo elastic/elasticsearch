@@ -66,13 +66,14 @@ public class FsHealthServiceTests extends ESTestCase {
                 if (deterministicTaskQueue.hasRunnableTasks()) {
                     deterministicTaskQueue.runRandomTask();
                 } else {
-                    assertThat(deterministicTaskQueue.getLatestDeferredExecutionTime(),
-                        is(baseTimeMills + refreshInterval * (rescheduledCount + 1)));
+                    assertThat(
+                        deterministicTaskQueue.getLatestDeferredExecutionTime(),
+                        is(baseTimeMills + refreshInterval * (rescheduledCount + 1))
+                    );
                     deterministicTaskQueue.advanceTime();
                     rescheduledCount++;
                 }
-                assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis,
-                    is(refreshInterval * rescheduledCount));
+                assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(refreshInterval * rescheduledCount));
             }
 
             fsHealthService.doStop();

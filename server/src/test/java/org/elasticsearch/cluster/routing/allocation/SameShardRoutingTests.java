@@ -50,9 +50,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
     public void testSameHost() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
-                .build(),
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build(),
             testThreadPool
         );
 
@@ -255,9 +253,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
     public void testSameHostCheckDisabledByAutoExpandReplicas() {
         final AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
-                .build(),
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build(),
             testThreadPool
         );
 

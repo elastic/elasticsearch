@@ -715,7 +715,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                         allocation.setHasPendingAsyncFetch();
                     }
                 }
-            }, testThreadPool
+            },
+            testThreadPool
         );
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."

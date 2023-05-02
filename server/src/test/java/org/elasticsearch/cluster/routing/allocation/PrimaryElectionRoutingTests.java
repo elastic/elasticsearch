@@ -34,9 +34,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
     public void testBackupElectionToPrimaryWhenPrimaryCanBeAllocatedToAnotherNode() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 
@@ -91,9 +89,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
     public void testRemovingInitializingReplicasIfPrimariesFails() {
         AllocationService allocation = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 

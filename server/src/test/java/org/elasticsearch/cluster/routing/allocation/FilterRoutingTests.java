@@ -186,8 +186,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
      * to `node1` and `node2`.
      */
     private void testClusterFilters(Settings.Builder allocationServiceSettings, DiscoveryNodes.Builder nodes) {
-        final AllocationService strategy = createAllocationService(
-            allocationServiceSettings.build(), testThreadPool);
+        final AllocationService strategy = createAllocationService(allocationServiceSettings.build(), testThreadPool);
 
         logger.info("Building initial routing table");
 
@@ -299,8 +298,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
      * on updating the index allocation settings the shards should be relocated to nodes `node1` and `node4`.
      */
     private void testIndexFilters(Settings.Builder initialIndexSettings, Settings.Builder updatedIndexSettings, Builder nodesBuilder) {
-        AllocationService strategy = createAllocationService(
-            Settings.builder().build(), testThreadPool);
+        AllocationService strategy = createAllocationService(Settings.builder().build(), testThreadPool);
 
         logger.info("Building initial routing table");
 
@@ -362,8 +360,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
     }
 
     public void testConcurrentRecoveriesAfterShardsCannotRemainOnNode() {
-        AllocationService strategy = createAllocationService(
-            Settings.builder().build(), testThreadPool);
+        AllocationService strategy = createAllocationService(Settings.builder().build(), testThreadPool);
 
         logger.info("Building initial routing table");
         Metadata metadata = Metadata.builder()

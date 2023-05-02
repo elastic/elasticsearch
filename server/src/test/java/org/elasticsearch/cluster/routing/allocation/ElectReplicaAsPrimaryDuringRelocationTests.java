@@ -32,9 +32,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
 
     public void testElectReplicaAsPrimaryDuringRelocation() {
         AllocationService strategy = createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-                .build(),
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
             testThreadPool
         );
 

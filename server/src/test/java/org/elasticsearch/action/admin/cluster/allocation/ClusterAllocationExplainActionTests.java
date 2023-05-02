@@ -52,10 +52,12 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Collections.emptyList());
 
     private ThreadPool testThreadPool;
+
     @Before
     public void setupThreadPool() {
         testThreadPool = new TestThreadPool(getTestName());
     }
+
     @After
     public void teardownThreadPool() {
         terminate(testThreadPool);

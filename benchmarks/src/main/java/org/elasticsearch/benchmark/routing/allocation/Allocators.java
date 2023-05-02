@@ -74,7 +74,9 @@ public final class Allocators {
 
     public static AllocationService createAllocationService(Settings settings, ThreadPool threadPool) {
         return createAllocationService(
-            settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool
+            settings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
         );
     }
 

@@ -569,8 +569,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testFailAllReplicasInitializingOnPrimaryFail() {
-        AllocationService allocation = createAllocationService(
-            Settings.builder().build(), testThreadPool);
+        AllocationService allocation = createAllocationService(Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -642,8 +641,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testFailAllReplicasInitializingOnPrimaryFailWhileHavingAReplicaToElect() {
-        AllocationService allocation = createAllocationService(
-            Settings.builder().build(), testThreadPool);
+        AllocationService allocation = createAllocationService(Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -701,8 +699,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testReplicaOnNewestVersionIsPromoted() {
-        AllocationService allocation = createAllocationService(
-            Settings.builder().build(), testThreadPool);
+        AllocationService allocation = createAllocationService(Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))

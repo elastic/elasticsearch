@@ -127,7 +127,8 @@ public class AllocationBenchmark {
         threadPool = new ThreadPool(Settings.EMPTY);
 
         strategy = Allocators.createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build(), threadPool
+            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build(),
+            threadPool
         );
 
         Metadata.Builder mb = Metadata.builder();

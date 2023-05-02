@@ -94,6 +94,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     public static void setupThreadPool() {
         testThreadPool = new TestThreadPool(getTestClass().getName());
     }
+
     @AfterClass
     public static void teardownThreadPool() {
         terminate(testThreadPool);
@@ -114,7 +115,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(
-        Settings settings, GatewayAllocator gatewayAllocator, ThreadPool threadPool) {
+        Settings settings,
+        GatewayAllocator gatewayAllocator,
+        ThreadPool threadPool
+    ) {
         return createAllocationService(
             settings,
             gatewayAllocator,
@@ -125,7 +129,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(
-        Settings settings, ClusterInfoService clusterInfoService, ThreadPool threadPool) {
+        Settings settings,
+        ClusterInfoService clusterInfoService,
+        ThreadPool threadPool
+    ) {
         return createAllocationService(
             settings,
             new TestGatewayAllocator(),
@@ -136,7 +143,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(
-        Settings settings, SnapshotsInfoService snapshotsInfoService, ThreadPool threadPool) {
+        Settings settings,
+        SnapshotsInfoService snapshotsInfoService,
+        ThreadPool threadPool
+    ) {
         return createAllocationService(
             settings,
             new TestGatewayAllocator(),

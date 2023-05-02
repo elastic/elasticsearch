@@ -1018,7 +1018,7 @@ public class Node implements Closeable {
 
             List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
             pluginsService.filterPlugins(ReloadAwarePlugin.class)
-                .forEach(p -> p.setReloadablePlugin(ReloadAwarePlugin.wrapPlugins(reloadablePlugins)));
+                .forEach(p -> p.setReloadablePlugin(wrapPlugins(reloadablePlugins)));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1209,6 +1209,23 @@ public class Node implements Closeable {
                 }
             }
         }
+    }
+
+    /**
+     * Wrap a group of reloadable plugins into a single reloadable plugin interface
+     * @param reloadablePlugins A list of reloadable plugins
+     * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
+     */
+    private static ReloadablePlugin wrapPlugins(List<ReloadablePlugin> reloadablePlugins) {
+        return settings -> {
+            for (ReloadablePlugin plugin : reloadablePlugins) {
+                try {
+                    plugin.reload(settings);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
     }
 
     private Tracer getTracer(PluginsService pluginsService, Settings settings) {

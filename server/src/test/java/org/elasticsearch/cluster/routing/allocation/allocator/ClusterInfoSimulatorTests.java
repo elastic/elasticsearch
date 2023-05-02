@@ -72,14 +72,12 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
 
     public void testInitializeNewPrimaryWithKnownExpectedSize() {
 
-        var newPrimary = newShardRouting("index-1", 0, null, true, UNASSIGNED)
-            .initialize("node-0", null, 100);
+        var newPrimary = newShardRouting("index-1", 0, null, true, UNASSIGNED).initialize("node-0", null, 100);
 
         var simulator = new ClusterInfoSimulator(
             new ClusterInfoTestBuilder() //
                 .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                 .withNode("node-1", new DiskUsageBuilder(1000, 1000))
-                .withShard(newPrimary, 0)
                 .build()
         );
         simulator.simulateShardStarted(newPrimary);

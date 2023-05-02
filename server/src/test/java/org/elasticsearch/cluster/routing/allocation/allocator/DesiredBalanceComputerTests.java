@@ -681,7 +681,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var iteration = new AtomicInteger(0);
 
-        long diskSize = Math.max(totalShardsSize / nodes, usedDiskSpace.values().stream().max(Long::compare).get()) * 120 / 100;
+        long diskSize = Math.max(totalShardsSize / nodes, usedDiskSpace.values().stream().max(Long::compare).get()) * 110 / 100;
         assertTrue("Should have enough space for all shards", diskSize * nodes > totalShardsSize);
 
         var diskUsage = usedDiskSpace.entrySet()

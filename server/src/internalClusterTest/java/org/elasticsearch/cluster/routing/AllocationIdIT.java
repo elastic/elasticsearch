@@ -143,11 +143,7 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
-        final ClusterHealthStatus indexHealthStatus = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest(indexName))
-            .actionGet()
-            .getStatus();
+        final ClusterHealthStatus indexHealthStatus = clusterAdmin().health(new ClusterHealthRequest(indexName)).actionGet().getStatus();
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
@@ -173,9 +169,8 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private Set<String> getAllocationIds(String indexName) {
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final Set<String> allocationIds = state.metadata().index(indexName).inSyncAllocationIds(0);
-        return allocationIds;
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        return state.metadata().index(indexName).inSyncAllocationIds(0);
     }
 
     private IndexSettings getIndexSettings(String indexName, String nodeName) {
@@ -204,9 +199,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(shardId.id())
                 .setPrimary(true)

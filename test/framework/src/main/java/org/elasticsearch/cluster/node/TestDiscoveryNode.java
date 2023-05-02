@@ -29,6 +29,17 @@ public class TestDiscoveryNode {
         );
     }
 
+    public static DiscoveryNode create(String name, String id) {
+        return new DiscoveryNode(
+            name,
+            id,
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            null
+        );
+    }
+
     public static DiscoveryNode create(String id, TransportAddress address) {
         return new DiscoveryNode("", id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), null);
     }
@@ -49,5 +60,15 @@ public class TestDiscoveryNode {
         Version version
     ) {
         return new DiscoveryNode("", id, address, attributes, roles, version);
+    }
+
+    public static DiscoveryNode create(
+        String nodeName,
+        String nodeId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles
+    ) {
+        return new DiscoveryNode(nodeName, nodeId, address, attributes, roles, null);
     }
 }

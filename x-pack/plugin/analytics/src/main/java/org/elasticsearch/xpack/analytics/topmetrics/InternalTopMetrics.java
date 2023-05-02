@@ -174,7 +174,10 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     public final SortValue sortValue(String key) {
         int index = metricNames.indexOf(key);
         if (index < 0) {
-            throw new IllegalArgumentException("unknown metric [" + key + "]");
+            // The requested key may not match any leaf metric name, in the case of nested aggregations, e.g. when
+            // combining TopMetrics with BucketSelector. In this case, check if there's a single leaf metric to return.
+            if (key.equals(name) && metricNames.size() == 1) index = 0;
+            else throw new IllegalArgumentException("unknown metric [" + key + "]");
         }
         if (topMetrics.isEmpty()) {
             return SortValue.empty();

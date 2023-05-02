@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -177,6 +178,7 @@ public class BucketHelpers {
      *            The gap policy to apply if empty buckets are found
      * @return The value extracted from <code>bucket</code> found at
      *         <code>aggPath</code>
+     * @throws AggregationExecutionException when the bucket spec is malformed.
      */
     public static Double resolveBucketValue(
         MultiBucketsAggregation agg,
@@ -212,6 +214,14 @@ public class BucketHelpers {
                     try {
                         value = ((NumericMetricsAggregation.MultiValue) propertyValue).value(aggPathAsList.get(aggPathAsList.size() - 1));
                     } catch (NumberFormatException ex) {
+                        throw formatResolutionError(agg, aggPathAsList, propertyValue);
+                    }
+                } else if (propertyValue instanceof InternalAggregation) {
+                    try {
+                        value = ((InternalAggregation) propertyValue).sortValue(aggPathAsList.get(aggPathAsList.size() - 1))
+                            .numberValue()
+                            .doubleValue();
+                    } catch (NumberFormatException | NullPointerException ex) {
                         throw formatResolutionError(agg, aggPathAsList, propertyValue);
                     }
                 } else {

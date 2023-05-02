@@ -271,6 +271,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             if (targetNodeName != null) {
                 builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), targetNodeName);
             }
+            if (gracePeriod != null) {
+                builder.field(GRACE_PERIOD_FIELD.getPreferredName(), gracePeriod.getStringRep());
+            }
         }
         builder.endObject();
 

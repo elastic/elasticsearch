@@ -1015,7 +1015,7 @@ public class Node implements Closeable {
             LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
-            
+
             List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
             pluginsService.filterPlugins(ReloadingPlugin.class).forEach(p -> p.setReloadablePlugins(reloadablePlugins));
 

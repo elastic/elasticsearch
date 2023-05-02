@@ -29,6 +29,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.oneOf;
 
 public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -73,6 +74,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
@@ -133,7 +135,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95501")
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -157,7 +158,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
                 assertThatTrainedModelAssignmentMetadataIsEmpty(modelId);
-
             }
             default -> throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
@@ -263,11 +263,14 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             "_cluster/state?filter_path=metadata.trained_model_assignment." + modelId
         );
         Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), containsString("{}"));
+        String responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_assignment\":{}}}"));
 
+        // deprecated name
         getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
+        responseBody = EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity());
+        assertThat(responseBody, oneOf("{}", "{\"metadata\":{\"trained_model_allocation\":{}}}"));
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {

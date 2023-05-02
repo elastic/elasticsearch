@@ -187,6 +187,20 @@ s:double
 5
 ;
 
+mvAvg
+from employees | where emp_no > 10008 | eval salary_change = mv_avg(salary_change) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+# TODO sort only keeps the first value in a multivalue field
+emp_no:integer | salary_change.int:integer | salary_change:double
+10009          | null                      | null
+10010          | -6                        |  3.7800000000000002
+10011          | -7                        |  3.685
+10012          | 0                         |  0.04
+10013          | null                      | null
+10014          | -1                        |  3.5900000000000003
+10015          | 12                        | 13.325
+;
+
 mvMax
 from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
 
@@ -213,4 +227,18 @@ emp_no:integer | salary_change.int:integer | salary_change:integer
 10013          | null                      | null
 10014          | -1                        | -1
 10015          | 12                        | 12
+;
+
+mvSum
+from employees | where emp_no > 10008 | eval salary_change = mv_sum(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
+
+# TODO sort only keeps the first value in a multivalue field
+emp_no:integer | salary_change.int:integer | salary_change:integer
+10009          | null                      | null
+10010          | -6                        | 15
+10011          | -7                        | 14
+10012          | 0                         | 0
+10013          | null                      | null
+10014          | -1                        | 8
+10015          | 12                        | 26
 ;

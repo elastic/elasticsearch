@@ -13,14 +13,11 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.planner.Mappable;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
@@ -45,9 +42,10 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return resolveFieldType();
     }
+
+    protected abstract TypeResolution resolveFieldType();
 
     @Override
     public final Object fold() {

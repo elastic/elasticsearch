@@ -11,19 +11,20 @@ import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMax}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
  * This class is generated. Do not edit it.
  */
-public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMaxDoubleEvaluator(EvalOperator.ExpressionEvaluator field) {
+public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
+  public MvSumDoubleEvaluator(EvalOperator.ExpressionEvaluator field) {
     super(field);
   }
 
   @Override
   public String name() {
-    return "MvMax";
+    return "MvSum";
   }
 
   @Override
@@ -31,6 +32,7 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
+    CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -39,12 +41,11 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
       }
       int first = v.getFirstValueIndex(p);
       int end = first + valueCount;
-      double value = v.getDouble(first);
-      for (int i = first + 1; i < end; i++) {
-        double next = v.getDouble(i);
-        value = MvMax.process(value, next);
+      for (int i = first; i < end; i++) {
+        double value = v.getDouble(i);
+        MvSum.process(work, value);
       }
-      double result = value;
+      double result = MvSum.finish(work);
       builder.appendDouble(result);
     }
     return builder.build();
@@ -55,16 +56,16 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     double[] values = new double[positionCount];
+    CompensatedSum work = new CompensatedSum();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
       int end = first + valueCount;
-      double value = v.getDouble(first);
-      for (int i = first + 1; i < end; i++) {
-        double next = v.getDouble(i);
-        value = MvMax.process(value, next);
+      for (int i = first; i < end; i++) {
+        double value = v.getDouble(i);
+        MvSum.process(work, value);
       }
-      double result = value;
+      double result = MvSum.finish(work);
       values[p] = result;
     }
     return new DoubleArrayVector(values, positionCount);

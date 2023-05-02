@@ -63,6 +63,11 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         return EsqlDataTypes.types().stream().filter(DataType::isNumeric).toArray(DataType[]::new);
     }
 
+    protected final DataType[] representableNumerics() {
+        // TODO numeric should only include representable numbers but that is a change for a followup
+        return EsqlDataTypes.types().stream().filter(DataType::isNumeric).filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
+    }
+
     protected final DataType[] representable() {
         return EsqlDataTypes.types().stream().filter(EsqlDataTypes::isRepresentable).toArray(DataType[]::new);
     }
@@ -149,7 +154,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(Arrays.asList(rationals()))) {
             return "double";
         }
-        if (withoutNull.equals(Arrays.asList(numerics()))) {
+        if (withoutNull.equals(Arrays.asList(numerics())) || withoutNull.equals(Arrays.asList(representableNumerics()))) {
             return "numeric";
         }
         if (validTypes.equals(Set.copyOf(Arrays.asList(representable())))) {

@@ -25,9 +25,9 @@ public class Methods {
         ExecutableElement result = findMethod(declarationType, names, filter);
         if (result == null) {
             if (names.length == 1) {
-                throw new IllegalArgumentException(names[0] + " is required");
+                throw new IllegalArgumentException(declarationType + "#" + names[0] + " is required");
             }
-            throw new IllegalArgumentException("one of " + Arrays.toString(names) + " is required");
+            throw new IllegalArgumentException("one of " + declarationType + "#" + Arrays.toString(names) + " is required");
         }
         return result;
     }

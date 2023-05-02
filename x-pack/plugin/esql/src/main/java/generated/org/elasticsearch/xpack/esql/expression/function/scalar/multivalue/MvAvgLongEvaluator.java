@@ -9,26 +9,27 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMax}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvAvg}.
  * This class is generated. Do not edit it.
  */
-public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  public MvMaxDoubleEvaluator(EvalOperator.ExpressionEvaluator field) {
+public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
+  public MvAvgLongEvaluator(EvalOperator.ExpressionEvaluator field) {
     super(field);
   }
 
   @Override
   public String name() {
-    return "MvMax";
+    return "MvAvg";
   }
 
   @Override
   public Block evalNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
+    LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
     for (int p = 0; p < positionCount; p++) {
@@ -39,12 +40,12 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
       }
       int first = v.getFirstValueIndex(p);
       int end = first + valueCount;
-      double value = v.getDouble(first);
+      long value = v.getLong(first);
       for (int i = first + 1; i < end; i++) {
-        double next = v.getDouble(i);
-        value = MvMax.process(value, next);
+        long next = v.getLong(i);
+        value = MvAvg.process(value, next);
       }
-      double result = value;
+      double result = MvAvg.finish(value, valueCount);
       builder.appendDouble(result);
     }
     return builder.build();
@@ -52,19 +53,19 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
 
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
+    LongBlock v = (LongBlock) fieldVal;
     int positionCount = v.getPositionCount();
     double[] values = new double[positionCount];
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
       int end = first + valueCount;
-      double value = v.getDouble(first);
+      long value = v.getLong(first);
       for (int i = first + 1; i < end; i++) {
-        double next = v.getDouble(i);
-        value = MvMax.process(value, next);
+        long next = v.getLong(i);
+        value = MvAvg.process(value, next);
       }
-      double result = value;
+      double result = MvAvg.finish(value, valueCount);
       values[p] = result;
     }
     return new DoubleArrayVector(values, positionCount);

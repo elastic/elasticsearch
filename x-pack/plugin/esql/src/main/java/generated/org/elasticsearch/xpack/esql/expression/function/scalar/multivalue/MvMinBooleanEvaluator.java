@@ -44,7 +44,8 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
         boolean next = v.getBoolean(i);
         value = MvMin.process(value, next);
       }
-      builder.appendBoolean(value);
+      boolean result = value;
+      builder.appendBoolean(result);
     }
     return builder.build();
   }
@@ -63,7 +64,8 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
         boolean next = v.getBoolean(i);
         value = MvMin.process(value, next);
       }
-      values[p] = value;
+      boolean result = value;
+      values[p] = result;
     }
     return new BooleanArrayVector(values, positionCount);
   }

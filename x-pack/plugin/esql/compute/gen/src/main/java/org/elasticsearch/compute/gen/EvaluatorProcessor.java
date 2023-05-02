@@ -79,8 +79,12 @@ public class EvaluatorProcessor implements Processor {
                     AggregatorProcessor.write(
                         evaluatorMethod,
                         "evaluator",
-                        new MvEvaluatorImplementer(env.getElementUtils(), (ExecutableElement) evaluatorMethod, mvEvaluatorAnn.extraName())
-                            .sourceFile(),
+                        new MvEvaluatorImplementer(
+                            env.getElementUtils(),
+                            (ExecutableElement) evaluatorMethod,
+                            mvEvaluatorAnn.extraName(),
+                            mvEvaluatorAnn.finish()
+                        ).sourceFile(),
                         env
                     );
                 }

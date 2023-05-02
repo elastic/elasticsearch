@@ -31,11 +31,11 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
 
   @Override
   public Block evalNullable(Block fieldVal) {
-    BytesRef firstScratch = new BytesRef();
-    BytesRef nextScratch = new BytesRef();
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
     BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount);
+    BytesRef firstScratch = new BytesRef();
+    BytesRef nextScratch = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       if (valueCount == 0) {
@@ -49,18 +49,19 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
         BytesRef next = v.getBytesRef(i, nextScratch);
         MvMin.process(value, next);
       }
-      builder.appendBytesRef(value);
+      BytesRef result = value;
+      builder.appendBytesRef(result);
     }
     return builder.build();
   }
 
   @Override
   public Vector evalNotNullable(Block fieldVal) {
-    BytesRef firstScratch = new BytesRef();
-    BytesRef nextScratch = new BytesRef();
     BytesRefBlock v = (BytesRefBlock) fieldVal;
     int positionCount = v.getPositionCount();
     BytesRefArray values = new BytesRefArray(positionCount, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRef firstScratch = new BytesRef();
+    BytesRef nextScratch = new BytesRef();
     for (int p = 0; p < positionCount; p++) {
       int valueCount = v.getValueCount(p);
       int first = v.getFirstValueIndex(p);
@@ -70,7 +71,8 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
         BytesRef next = v.getBytesRef(i, nextScratch);
         MvMin.process(value, next);
       }
-      values.append(value);
+      BytesRef result = value;
+      values.append(result);
     }
     return new BytesRefArrayVector(values, positionCount);
   }

@@ -44,7 +44,8 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
         double next = v.getDouble(i);
         value = MvMin.process(value, next);
       }
-      builder.appendDouble(value);
+      double result = value;
+      builder.appendDouble(result);
     }
     return builder.build();
   }
@@ -63,7 +64,8 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
         double next = v.getDouble(i);
         value = MvMin.process(value, next);
       }
-      values[p] = value;
+      double result = value;
+      values[p] = result;
     }
     return new DoubleArrayVector(values, positionCount);
   }

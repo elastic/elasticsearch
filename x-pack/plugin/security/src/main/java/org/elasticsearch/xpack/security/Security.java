@@ -1713,6 +1713,7 @@ public class Security extends Plugin
                 if (authenticationThreadContext != null) {
                     authenticationThreadContext.restore();
                 } else {
+                    // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
                     throw new ElasticsearchSecurityException("Request is not authenticated");
                 }
             }

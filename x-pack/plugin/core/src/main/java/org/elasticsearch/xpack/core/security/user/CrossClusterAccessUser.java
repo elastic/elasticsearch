@@ -23,7 +23,7 @@ import java.util.Optional;
 public class CrossClusterAccessUser extends InternalUser {
     public static final String NAME = UsernamesField.CROSS_CLUSTER_ACCESS_NAME;
 
-    public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
+    public static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
         new String[] {
             "cross_cluster_access",
@@ -60,11 +60,21 @@ public class CrossClusterAccessUser extends InternalUser {
         super(NAME);
     }
 
+    /**
+     * @return {@link Optional#empty()} because this user is not permitted to execute actions that originate on the local cluster,
+     * its only purpose is to execute actions from a remote cluster
+     * @see #getRemoteAccessRole()
+     */
     @Override
-    public Optional<RoleDescriptor> getRoleDescriptor() {
-        // The __user__ doesn't have a role descriptor.
-        // There is role descriptor define above, but that is only used for Remote Access Subjects
+    public Optional<RoleDescriptor> getLocalClusterRole() {
+        // This user has no role for actions that originate from the current cluster
+        // It does, however, have a descriptor for the role to be applied when actions originate from another cluster
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<RoleDescriptor> getRemoteAccessRole() {
+        return Optional.of(REMOTE_ACCESS_ROLE_DESCRIPTOR);
     }
 
     public static boolean is(User user) {

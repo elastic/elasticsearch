@@ -51,7 +51,7 @@ public class InternalUsers {
     }
 
     public static RoleDescriptor getRoleDescriptor(User user) {
-        return findInternalUser(user).getRoleDescriptor().orElseThrow(() -> {
+        return findInternalUser(user).getLocalClusterRole().orElseThrow(() -> {
             throw new IllegalArgumentException("should never try to get the roles for internal user [" + user.principal() + "]");
         });
     }
@@ -59,8 +59,8 @@ public class InternalUsers {
     public static Map<String, RoleDescriptor> getRoleDescriptors() {
         return INTERNAL_USERS.values()
             .stream()
-            .filter(instance -> instance.getRoleDescriptor().isPresent())
-            .collect(Collectors.toMap(instance -> instance.principal(), instance -> instance.getRoleDescriptor().get()));
+            .filter(instance -> instance.getLocalClusterRole().isPresent())
+            .collect(Collectors.toMap(instance -> instance.principal(), instance -> instance.getLocalClusterRole().get()));
     }
 
     private static InternalUser findInternalUser(User user) {

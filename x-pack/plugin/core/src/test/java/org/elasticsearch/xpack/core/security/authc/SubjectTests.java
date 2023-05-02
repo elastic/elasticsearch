@@ -299,7 +299,7 @@ public class SubjectTests extends ESTestCase {
         final FixedRoleReference fixedRoleReference = (FixedRoleReference) roleReferences.get(index);
         assertThat(
             fixedRoleReference.id(),
-            equalTo(new RoleKey(Set.of(CrossClusterAccessUser.ROLE_DESCRIPTOR.getName()), "cross_cluster_access_internal"))
+            equalTo(new RoleKey(Set.of(CrossClusterAccessUser.REMOTE_ACCESS_ROLE_DESCRIPTOR.getName()), "cross_cluster_access_internal"))
         );
     }
 

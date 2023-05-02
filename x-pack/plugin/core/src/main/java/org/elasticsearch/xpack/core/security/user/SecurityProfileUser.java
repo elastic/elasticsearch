@@ -41,8 +41,16 @@ public class SecurityProfileUser extends InternalUser {
     }
 
     @Override
-    public Optional<RoleDescriptor> getRoleDescriptor() {
+    public Optional<RoleDescriptor> getLocalClusterRole() {
         return Optional.of(ROLE_DESCRIPTOR);
+    }
+
+    /**
+     * @return {@link Optional#empty()} because this user is not permitted to execute actions that originate from a remote cluster
+     */
+    @Override
+    public Optional<RoleDescriptor> getRemoteAccessRole() {
+        return Optional.empty();
     }
 
 }

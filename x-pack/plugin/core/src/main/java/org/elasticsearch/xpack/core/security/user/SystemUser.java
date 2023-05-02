@@ -30,8 +30,20 @@ public class SystemUser extends InternalUser {
         super(NAME);
     }
 
+    /**
+     * @return {@link Optional#empty()} because the {@code _system} user does not use role based security
+     * @see #isAuthorized(String)
+     */
     @Override
-    public Optional<RoleDescriptor> getRoleDescriptor() {
+    public Optional<RoleDescriptor> getLocalClusterRole() {
+        return Optional.empty();
+    }
+
+    /**
+     * @return {@link Optional#empty()} because this user is not permitted to execute actions that originate from a remote cluster
+     */
+    @Override
+    public Optional<RoleDescriptor> getRemoteAccessRole() {
         return Optional.empty();
     }
 

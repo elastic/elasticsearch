@@ -31,7 +31,19 @@ public abstract class InternalUser extends User {
     }
 
     /**
-     * The role descriptor assigned to this internal user, or {@link Optional#empty()} is this user does not have a role
+     * The local-cluster role descriptor assigned to this internal user, or {@link Optional#empty()} is this user does not have a role.
+     * This {@link RoleDescriptor} defines the privileges that the internal-user has for requests that originate from a node within the
+     * local cluster.
+     * @see #getRemoteAccessRole()
      */
-    public abstract Optional<RoleDescriptor> getRoleDescriptor();
+    public abstract Optional<RoleDescriptor> getLocalClusterRole();
+
+    /**
+     * The remote-access role descriptor assigned to this internal user, or {@link Optional#empty()} is this user is not permitted to
+     * make cross-cluster requests.
+     * This {@link RoleDescriptor} defines the privileges that the internal-user has for requests that run on the current cluster, but
+     * originate from a node within an external cluster (via CCS/CCR).
+     * @see #getLocalClusterRole()
+     */
+    public abstract Optional<RoleDescriptor> getRemoteAccessRole();
 }

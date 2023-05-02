@@ -26,6 +26,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -71,18 +72,21 @@ public final class Allocators {
         throw new AssertionError("Do not instantiate");
     }
 
-    public static AllocationService createAllocationService(Settings settings) {
-        return createAllocationService(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    public static AllocationService createAllocationService(Settings settings, ThreadPool threadPool) {
+        return createAllocationService(
+            settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool
+        );
     }
 
-    public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
+    public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         return new AllocationService(
             defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE,
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            threadPool
         );
     }
 

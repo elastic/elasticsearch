@@ -46,7 +46,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         );
-        AllocationService service = createAllocationService(settings.build());
+        AllocationService service = createAllocationService(settings.build(), testThreadPool);
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
         assertThat(clusterState.getRoutingNodes().node("node0").numberOfShardsWithState(STARTED), equalTo(9));
@@ -92,7 +92,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
             ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         ).put("cluster.routing.allocation.node_concurrent_recoveries", 2);
-        AllocationService service = createAllocationService(settings.build());
+        AllocationService service = createAllocationService(settings.build(), testThreadPool);
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
         assertThat(clusterState.getRoutingNodes().node("node0").numberOfShardsWithState(STARTED), equalTo(9));
@@ -157,7 +157,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         )
             .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100);
-        AllocationService service = createAllocationService(settings.build());
+        AllocationService service = createAllocationService(settings.build(), testThreadPool);
 
         ClusterState clusterState = initCluster(service, 1, 3, 3, 1);
         assertThat(clusterState.getRoutingNodes().node("node0").numberOfShardsWithState(STARTED), equalTo(9));

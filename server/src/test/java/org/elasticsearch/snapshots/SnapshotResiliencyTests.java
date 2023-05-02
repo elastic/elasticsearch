@@ -1755,7 +1755,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .put(settings)
                         .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                         .build(),
-                    snapshotsInfoService
+                    snapshotsInfoService,
+                    threadPool
                 );
                 assertCriticalWarnings(
                     "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."

@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
 
     private static ClusterState createClusterStateWithAllShardsAssigned() {
-        AllocationService allocationService = createAllocationService(Settings.EMPTY);
+        AllocationService allocationService = createAllocationService(Settings.EMPTY, testThreadPool);
 
         final int numberOfNodes = randomIntBetween(1, 5);
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
@@ -209,7 +209,8 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(clusterSettings),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            testThreadPool
         );
     }
 

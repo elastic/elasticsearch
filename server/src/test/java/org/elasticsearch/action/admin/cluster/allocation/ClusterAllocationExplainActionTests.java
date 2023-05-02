@@ -28,9 +28,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -46,6 +50,16 @@ import static org.hamcrest.Matchers.containsString;
 public class ClusterAllocationExplainActionTests extends ESTestCase {
 
     private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Collections.emptyList());
+
+    private ThreadPool testThreadPool;
+    @Before
+    public void setupThreadPool() {
+        testThreadPool = new TestThreadPool(getTestName());
+    }
+    @After
+    public void teardownThreadPool() {
+        terminate(testThreadPool);
+    }
 
     public void testInitializingOrRelocatingShardExplanation() throws Exception {
         ShardRoutingState shardRoutingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING);
@@ -78,7 +92,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, testThreadPool)
         );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());

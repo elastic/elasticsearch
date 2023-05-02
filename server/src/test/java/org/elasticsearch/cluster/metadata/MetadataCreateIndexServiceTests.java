@@ -60,6 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -107,6 +108,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private CreateIndexClusterStateUpdateRequest request;
     private SearchExecutionContext searchExecutionContext;
+
+    private ThreadPool testThreadPool;
+    @Before
+    public void setupThreadPool() {
+        testThreadPool = new TestThreadPool(getTestName());
+    }
+    @After
+    public void teardownThreadPool() {
+        terminate(testThreadPool);
+    }
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
@@ -264,7 +275,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            testThreadPool
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -367,7 +379,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            testThreadPool
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -516,7 +529,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            testThreadPool
         );
 
         final RoutingTable initialRoutingTable = service.reroute(initialClusterState, "reroute", ActionListener.noop()).routingTable();

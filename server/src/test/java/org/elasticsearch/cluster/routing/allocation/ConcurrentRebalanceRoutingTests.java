@@ -37,7 +37,8 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", 3)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");

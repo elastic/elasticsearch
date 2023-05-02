@@ -47,7 +47,10 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
     public void testSingleIndexStartedShard() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -149,7 +152,10 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
     public void testSingleIndexShardFailed() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+            Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -206,7 +212,8 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         final int numberOfIndices = 50;
@@ -317,7 +324,8 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         final int numberOfIndices = 10;

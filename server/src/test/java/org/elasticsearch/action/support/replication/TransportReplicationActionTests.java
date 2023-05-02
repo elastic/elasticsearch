@@ -531,7 +531,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             .shardRoutingTable(shardId)
             .shardsWithState(ShardRoutingState.INITIALIZING)
             .get(0);
-        AllocationService allocationService = ESAllocationTestCase.createAllocationService();
+        AllocationService allocationService = ESAllocationTestCase.createAllocationService(threadPool);
         ClusterState updatedState = ESAllocationTestCase.startShardsAndReroute(allocationService, state, relocationTarget);
 
         setState(clusterService, updatedState);

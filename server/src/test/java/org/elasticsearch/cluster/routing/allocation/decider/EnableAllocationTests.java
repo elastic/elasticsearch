@@ -48,7 +48,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
     public void testClusterEnableNone() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name()).build()
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name()).build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -77,7 +78,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
     public void testClusterEnableOnlyPrimaries() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.PRIMARIES.name()).build()
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.PRIMARIES.name()).build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -110,7 +112,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
     }
 
     public void testIndexEnableNone() {
-        AllocationService strategy = createAllocationService(Settings.builder().build());
+        AllocationService strategy = createAllocationService(Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(
@@ -385,7 +387,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            testThreadPool
         );
     }
 }

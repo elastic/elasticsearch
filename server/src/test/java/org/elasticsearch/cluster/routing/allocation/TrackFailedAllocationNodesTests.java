@@ -34,7 +34,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
 
     public void testTrackFailedNodes() {
         int maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
-        AllocationService allocationService = createAllocationService();
+        AllocationService allocationService = createAllocationService(testThreadPool);
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();

@@ -37,7 +37,8 @@ public class ShardVersioningTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
                 )
-                .build()
+                .build(),
+            testThreadPool
         );
 
         Metadata metadata = Metadata.builder()

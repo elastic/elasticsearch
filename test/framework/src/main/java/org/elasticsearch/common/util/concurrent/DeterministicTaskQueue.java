@@ -52,7 +52,7 @@ public class DeterministicTaskQueue {
     private final List<Runnable> runnableTasks = new ArrayList<>();
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
-    private long currentTimeMillis;
+    private long currentTimeMillis = System.currentTimeMillis();
     private long nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
     private long executionDelayVariabilityMillis;
     private long latestDeferredExecutionTime;
@@ -310,7 +310,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public long relativeTimeInNanos() {
-                throw new AssertionError("DeterministicTaskQueue does not support nanosecond-precision timestamps");
+                return TimeValue.timeValueMillis(currentTimeMillis).nanos();
             }
 
             @Override

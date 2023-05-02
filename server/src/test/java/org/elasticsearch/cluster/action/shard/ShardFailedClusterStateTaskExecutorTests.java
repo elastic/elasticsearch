@@ -66,7 +66,8 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 8)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
         numberOfReplicas = randomIntBetween(2, 16);
         metadata = Metadata.builder()
@@ -189,7 +190,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     public void testMarkAsStaleWhenFailingShard() throws Exception {
-        final MockAllocationService allocation = createAllocationService();
+        final MockAllocationService allocation = createAllocationService(testThreadPool);
         ClusterState clusterState = createClusterStateWithStartedShards("test markAsStale");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(INDEX).shard(0);

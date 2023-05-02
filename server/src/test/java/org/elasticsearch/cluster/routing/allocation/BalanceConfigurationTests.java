@@ -60,7 +60,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
 
-        AllocationService strategy = createAllocationService(settings.build());
+        AllocationService strategy = createAllocationService(settings.build(), testThreadPool);
 
         ClusterState clusterState = initCluster(strategy);
         assertIndexBalance(
@@ -111,7 +111,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), replicaBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
 
-        AllocationService strategy = createAllocationService(settings.build());
+        AllocationService strategy = createAllocationService(settings.build(), testThreadPool);
 
         ClusterState clusterState = initCluster(strategy);
         assertReplicaBalance(

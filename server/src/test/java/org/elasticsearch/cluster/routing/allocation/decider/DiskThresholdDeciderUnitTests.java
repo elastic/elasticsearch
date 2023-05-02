@@ -723,7 +723,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
 
-        AllocationService allocationService = createAllocationService();
+        AllocationService allocationService = createAllocationService(testThreadPool);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = allocationService.reroute(clusterState, "foo", ActionListener.noop());
 

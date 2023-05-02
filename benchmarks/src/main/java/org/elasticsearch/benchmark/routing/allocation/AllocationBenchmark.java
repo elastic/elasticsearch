@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -29,6 +30,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Collections;
@@ -111,6 +113,8 @@ public class AllocationBenchmark {
     private AllocationService strategy;
     private ClusterState initialClusterState;
 
+    private ThreadPool threadPool;
+
     @Setup
     public void setUp() throws Exception {
         final String[] params = indicesShardsReplicasNodes.split("\\|");
@@ -120,8 +124,10 @@ public class AllocationBenchmark {
         int numReplicas = toInt(params[2]);
         int numNodes = toInt(params[3]);
 
+        threadPool = new ThreadPool(Settings.EMPTY);
+
         strategy = Allocators.createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build()
+            Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build(), threadPool
         );
 
         Metadata.Builder mb = Metadata.builder();
@@ -152,6 +158,11 @@ public class AllocationBenchmark {
             .nodes(nb)
             .transportVersions(transportVersions)
             .build();
+    }
+
+    @TearDown
+    public void tearDownThreadPool() {
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     private int toInt(String v) {

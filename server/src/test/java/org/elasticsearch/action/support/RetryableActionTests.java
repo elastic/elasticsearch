@@ -23,11 +23,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RetryableActionTests extends ESTestCase {
 
     private DeterministicTaskQueue taskQueue;
+    private long baseTimeMillis;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         taskQueue = new DeterministicTaskQueue();
+        baseTimeMillis = taskQueue.getCurrentTimeMillis();
     }
 
     public void testRetryableActionNoRetries() {
@@ -98,7 +100,7 @@ public class RetryableActionTests extends ESTestCase {
             assertTrue(taskQueue.hasDeferredTasks());
             final long deferredExecutionTime = taskQueue.getLatestDeferredExecutionTime();
             final long millisBound = 10 << i;
-            assertThat(deferredExecutionTime, lessThanOrEqualTo(millisBound + previousDeferredTime));
+            assertThat(deferredExecutionTime, lessThanOrEqualTo(baseTimeMillis + millisBound + previousDeferredTime));
             previousDeferredTime = deferredExecutionTime;
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();
@@ -138,7 +140,7 @@ public class RetryableActionTests extends ESTestCase {
         retryableAction.run();
         taskQueue.runAllRunnableTasks();
         long previousDeferredTime = 0;
-        while (previousDeferredTime < 1000) {
+        while (previousDeferredTime < baseTimeMillis + 1000) {
             assertTrue(taskQueue.hasDeferredTasks());
             previousDeferredTime = taskQueue.getLatestDeferredExecutionTime();
             taskQueue.advanceTime();
@@ -279,10 +281,10 @@ public class RetryableActionTests extends ESTestCase {
         retryableAction.run();
         taskQueue.runAllRunnableTasks();
         long previousDeferredTime = 0;
-        while (previousDeferredTime < 1000) {
+        while (previousDeferredTime < baseTimeMillis + 1000) {
             assertTrue(taskQueue.hasDeferredTasks());
             long latestDeferredExecutionTime = taskQueue.getLatestDeferredExecutionTime();
-            assertThat(latestDeferredExecutionTime - previousDeferredTime, lessThanOrEqualTo(50L));
+            assertThat(latestDeferredExecutionTime - previousDeferredTime, lessThanOrEqualTo(baseTimeMillis + 50L));
             previousDeferredTime = latestDeferredExecutionTime;
             taskQueue.advanceTime();
             taskQueue.runAllRunnableTasks();

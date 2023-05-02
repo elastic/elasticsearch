@@ -47,7 +47,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
     @Before
     public void setupAllocationService() {
-        allocation = createAllocationService();
+        allocation = createAllocationService(testThreadPool);
         failedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null);
     }
 

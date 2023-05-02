@@ -77,7 +77,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .build();
 
-        AllocationService strategy = createAllocationService();
+        AllocationService strategy = createAllocationService(testThreadPool);
         clusterState = ClusterState.builder(clusterState)
             .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
             .build();
@@ -110,7 +110,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .build();
 
-        AllocationService strategy = createAllocationService();
+        AllocationService strategy = createAllocationService(testThreadPool);
         RoutingTable source = strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();

@@ -53,7 +53,8 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
-                .build()
+                .build(),
+            testThreadPool
         );
         this.numberOfShards = randomIntBetween(1, 5);
         this.numberOfReplicas = randomIntBetween(0, 5);

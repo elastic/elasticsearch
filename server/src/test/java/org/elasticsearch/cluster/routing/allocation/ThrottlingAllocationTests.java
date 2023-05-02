@@ -72,7 +72,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .build(),
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService
+            snapshotsInfoService,
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -131,7 +132,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
                 .build(),
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService
+            snapshotsInfoService,
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -199,7 +201,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             settings,
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService
+            snapshotsInfoService,
+            testThreadPool
         );
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
@@ -263,7 +266,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             Settings.builder().put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", 1).build(),
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService
+            snapshotsInfoService,
+            testThreadPool
         );
 
         logger.info("Building initial routing table");

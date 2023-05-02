@@ -42,6 +42,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Collections;
@@ -81,6 +82,8 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
 
     private ShardsAvailabilityHealthIndicatorService indicatorService;
 
+    private ThreadPool threadPool;
+
     @Setup
     public void setUp() throws Exception {
         final String[] params = indicesShardsReplicasNodes.split("\\|");
@@ -90,7 +93,9 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
         int numReplicas = toInt(params[2]);
         int numNodes = toInt(params[3]);
 
-        AllocationService allocationService = Allocators.createAllocationService(Settings.EMPTY);
+        threadPool = new ThreadPool(Settings.EMPTY);
+
+        AllocationService allocationService = Allocators.createAllocationService(Settings.EMPTY, threadPool);
 
         Metadata.Builder mb = Metadata.builder();
         RoutingTable.Builder rb = RoutingTable.builder();
@@ -176,6 +181,11 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
         );
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
         indicatorService = new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, new SystemIndices(List.of()));
+    }
+
+    @TearDown
+    public void tearDownThreadPool() {
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     private int toInt(String v) {

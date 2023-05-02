@@ -53,7 +53,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("--> building initial routing table");
@@ -170,7 +171,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -262,7 +264,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -316,7 +319,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -385,7 +389,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -445,7 +450,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -563,7 +569,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testFailAllReplicasInitializingOnPrimaryFail() {
-        AllocationService allocation = createAllocationService(Settings.builder().build());
+        AllocationService allocation = createAllocationService(
+            Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -635,7 +642,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testFailAllReplicasInitializingOnPrimaryFailWhileHavingAReplicaToElect() {
-        AllocationService allocation = createAllocationService(Settings.builder().build());
+        AllocationService allocation = createAllocationService(
+            Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -693,7 +701,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testReplicaOnNewestVersionIsPromoted() {
-        AllocationService allocation = createAllocationService(Settings.builder().build());
+        AllocationService allocation = createAllocationService(
+            Settings.builder().build(), testThreadPool);
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))

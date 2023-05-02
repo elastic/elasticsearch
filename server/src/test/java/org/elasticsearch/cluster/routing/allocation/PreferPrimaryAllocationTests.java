@@ -36,7 +36,8 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("create several indices with no replicas, and wait till all are allocated");

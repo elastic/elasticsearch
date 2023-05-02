@@ -186,7 +186,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
      * to `node1` and `node2`.
      */
     private void testClusterFilters(Settings.Builder allocationServiceSettings, DiscoveryNodes.Builder nodes) {
-        final AllocationService strategy = createAllocationService(allocationServiceSettings.build());
+        final AllocationService strategy = createAllocationService(
+            allocationServiceSettings.build(), testThreadPool);
 
         logger.info("Building initial routing table");
 
@@ -298,7 +299,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
      * on updating the index allocation settings the shards should be relocated to nodes `node1` and `node4`.
      */
     private void testIndexFilters(Settings.Builder initialIndexSettings, Settings.Builder updatedIndexSettings, Builder nodesBuilder) {
-        AllocationService strategy = createAllocationService(Settings.builder().build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder().build(), testThreadPool);
 
         logger.info("Building initial routing table");
 
@@ -360,7 +362,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
     }
 
     public void testConcurrentRecoveriesAfterShardsCannotRemainOnNode() {
-        AllocationService strategy = createAllocationService(Settings.builder().build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder().build(), testThreadPool);
 
         logger.info("Building initial routing table");
         Metadata metadata = Metadata.builder()
@@ -397,7 +400,8 @@ public class FilterRoutingTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), "1")
                 .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "tag1", "value1")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("--> move shards from node1 to node2");

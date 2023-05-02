@@ -39,7 +39,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
     public void testInitializingHasExpectedSize() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
         final ClusterInfo clusterInfo = createClusterInfoWith(new ShardId("test", "_na_", 0), byteSize);
-        AllocationService strategy = createAllocationService(Settings.EMPTY, () -> clusterInfo);
+        AllocationService strategy = createAllocationService(Settings.EMPTY, () -> clusterInfo, testThreadPool);
 
         logger.info("Building initial routing table");
         var indexMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build();
@@ -77,7 +77,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
     public void testExpectedSizeOnMove() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
         final ClusterInfo clusterInfo = createClusterInfoWith(new ShardId("test", "_na_", 0), byteSize);
-        final AllocationService allocation = createAllocationService(Settings.EMPTY, () -> clusterInfo);
+        final AllocationService allocation = createAllocationService(Settings.EMPTY, () -> clusterInfo, testThreadPool);
         logger.info("creating an index with 1 shard, no replica");
         var indexMetadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

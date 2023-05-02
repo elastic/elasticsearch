@@ -116,7 +116,8 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             new TestGatewayAllocator(),
             allocator,
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            threadPool
         );
 
         PlainActionFuture.<Void, RuntimeException>get(

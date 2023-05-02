@@ -34,14 +34,17 @@ public class WriteAckDelayTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         settings.put(WriteAckDelay.WRITE_ACK_DELAY_INTERVAL.getKey(), TimeValue.timeValueMillis(50));
         settings.put(WriteAckDelay.WRITE_ACK_DELAY_RANDOMNESS_BOUND.getKey(), TimeValue.timeValueMillis(20));
+
         DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        long baseTimeMillis = taskQueue.getCurrentTimeMillis();
+
         WriteAckDelay writeAckDelay = WriteAckDelay.create(settings.build(), taskQueue.getThreadPool());
 
         assertNotNull(writeAckDelay);
 
         assertTrue(taskQueue.hasDeferredTasks());
         taskQueue.advanceTime();
-        assertThat(taskQueue.getCurrentTimeMillis(), equalTo(50L));
+        assertThat(taskQueue.getCurrentTimeMillis(), equalTo(baseTimeMillis + 50L));
 
         AtomicInteger tasks = new AtomicInteger();
         writeAckDelay.accept(tasks::incrementAndGet);
@@ -53,7 +56,7 @@ public class WriteAckDelayTests extends ESTestCase {
         assertThat(tasks.get(), equalTo(0));
 
         taskQueue.advanceTime();
-        assertThat(taskQueue.getCurrentTimeMillis(), lessThanOrEqualTo(70L));
+        assertThat(taskQueue.getCurrentTimeMillis(), lessThanOrEqualTo(baseTimeMillis + 70L));
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runAllRunnableTasks();
@@ -61,7 +64,7 @@ public class WriteAckDelayTests extends ESTestCase {
         assertThat(tasks.get(), equalTo(1));
 
         taskQueue.advanceTime();
-        assertThat(taskQueue.getCurrentTimeMillis(), equalTo(100L));
+        assertThat(taskQueue.getCurrentTimeMillis(), equalTo(baseTimeMillis + 100L));
 
         writeAckDelay.accept(tasks::incrementAndGet);
         writeAckDelay.accept(tasks::incrementAndGet);
@@ -69,7 +72,7 @@ public class WriteAckDelayTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
 
         taskQueue.advanceTime();
-        assertThat(taskQueue.getCurrentTimeMillis(), lessThanOrEqualTo(120L));
+        assertThat(taskQueue.getCurrentTimeMillis(), lessThanOrEqualTo(baseTimeMillis + 120L));
 
         assertThat(tasks.get(), equalTo(1));
 

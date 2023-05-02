@@ -25,9 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.NodeRoles;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
@@ -54,22 +52,16 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private TestDelayAllocationService delayedAllocationService;
     private MockAllocationService allocationService;
     private ClusterService clusterService;
-    private ThreadPool threadPool;
 
     @Before
     public void createDelayedAllocationService() {
-        threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
-        allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
+        allocationService = createAllocationService(
+            Settings.EMPTY, new DelayedShardsMockGatewayAllocator(), testThreadPool);
         when(clusterService.getSettings()).thenReturn(NodeRoles.masterOnlyNode());
-        delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
+        delayedAllocationService = new TestDelayAllocationService(testThreadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
         verify(clusterService).getSettings();
-    }
-
-    @After
-    public void shutdownThreadPool() {
-        terminate(threadPool);
     }
 
     public void testNoDelayedUnassigned() {

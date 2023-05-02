@@ -59,7 +59,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -127,7 +128,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -189,7 +191,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");
@@ -387,7 +390,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         }
         discoveryNodes.masterNodeId("node-0").localNodeId("node-0");
 
-        final var allocationService = createAllocationService(Settings.EMPTY);
+        final var allocationService = createAllocationService(Settings.EMPTY, testThreadPool);
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
             .metadata(metadata)

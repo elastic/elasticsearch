@@ -59,7 +59,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
                     }
                     return null;
                 }
-            }
+            }, testThreadPool
         );
         logger.info("Building initial routing table");
 

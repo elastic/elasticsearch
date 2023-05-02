@@ -383,7 +383,9 @@ public class FollowersCheckerTests extends ESTestCase {
         final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
         final DiscoveryNode otherNode = TestDiscoveryNode.create("other-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getName()).put(testSettings).build();
+
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        final long baseTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
 
         final MockTransport mockTransport = new MockTransport() {
             @Override
@@ -447,7 +449,7 @@ public class FollowersCheckerTests extends ESTestCase {
             }
             deterministicTaskQueue.runAllRunnableTasks();
         }
-        assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(expectedFailureTime));
+        assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(baseTimeMillis + expectedFailureTime));
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
 
         deterministicTaskQueue.runAllTasks();

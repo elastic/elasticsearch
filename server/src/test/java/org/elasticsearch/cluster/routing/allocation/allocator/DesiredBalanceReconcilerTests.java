@@ -61,6 +61,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Comparator;
@@ -89,6 +92,16 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DesiredBalanceReconcilerTests extends ESTestCase {
+
+    private static ThreadPool testThreadPool;
+    @BeforeClass
+    public static void setupThreadPool() {
+        testThreadPool = new TestThreadPool(getTestClass().getName());
+    }
+    @AfterClass
+    public static void teardownThreadPool() {
+        terminate(testThreadPool);
+    }
 
     public void testNoChangesOnEmptyDesiredBalance() {
         final var clusterState = DesiredBalanceComputerTests.createInitialClusterState(3);
@@ -1089,7 +1102,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("should not be called");
             }
-        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, testThreadPool);
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new NoOpExistingShardsAllocator()));
         return allocationService;
     }

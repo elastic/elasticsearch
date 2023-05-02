@@ -79,7 +79,8 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
             Settings.builder()
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 16)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 16)
-                .build()
+                .build(),
+            testThreadPool
         );
         clusterState = allocationService.reroute(clusterState, "reroute", ActionListener.noop());
 

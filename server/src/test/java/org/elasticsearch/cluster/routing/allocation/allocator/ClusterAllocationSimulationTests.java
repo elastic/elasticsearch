@@ -502,7 +502,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,
-            () -> SnapshotShardSizeInfo.EMPTY
+            () -> SnapshotShardSizeInfo.EMPTY,
+            threadPool
         );
         strategyRef.set(strategy);
         return Map.entry(strategy, desiredBalanceShardsAllocator);

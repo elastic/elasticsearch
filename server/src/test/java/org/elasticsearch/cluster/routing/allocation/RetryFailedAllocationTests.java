@@ -52,7 +52,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        strategy = createAllocationService(Settings.EMPTY);
+        strategy = createAllocationService(Settings.EMPTY, testThreadPool);
     }
 
     private ShardRouting getPrimary() {

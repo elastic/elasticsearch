@@ -62,7 +62,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded1'");
@@ -137,7 +138,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded2'");
@@ -218,7 +220,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.balance.index", 0.0f)
                 .put("cluster.routing.allocation.balance.replica", 1.0f)
                 .put("cluster.routing.allocation.balance.primary", 0.0f)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded3'");
@@ -315,7 +318,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded4'");
@@ -416,7 +420,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded5'");
@@ -506,7 +511,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded6'");
@@ -599,7 +605,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'fullAwareness1'");
@@ -674,7 +681,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.force.rack_id.values", "1,2")
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'fullAwareness2'");
@@ -755,7 +763,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.balance.index", 0.0f)
                 .put("cluster.routing.allocation.balance.replica", 1.0f)
                 .put("cluster.routing.allocation.balance.primary", 0.0f)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'fullAwareness3'");
@@ -845,7 +854,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'testUnbalancedZones'");
@@ -904,7 +914,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'testUnassignedShardsWithUnbalancedZones'");
@@ -986,7 +997,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "rack.values", "c, d")
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table for 'testUnbalancedZones'");
@@ -1033,7 +1045,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .build();
 
-        final AllocationService strategy = createAllocationService(settings);
+        final AllocationService strategy = createAllocationService(settings, testThreadPool);
 
         final Metadata metadata = Metadata.builder()
             .put(
@@ -1069,7 +1081,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
             .build();
 
-        final AllocationService strategy = createAllocationService(settings);
+        final AllocationService strategy = createAllocationService(settings, testThreadPool);
 
         final Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 1, 2)))
@@ -1136,7 +1148,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
     ) {
         final Settings settings = settingsBuilder.build();
 
-        final AllocationService strategy = createAllocationService(settings);
+        final AllocationService strategy = createAllocationService(settings, testThreadPool);
 
         final Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(4))

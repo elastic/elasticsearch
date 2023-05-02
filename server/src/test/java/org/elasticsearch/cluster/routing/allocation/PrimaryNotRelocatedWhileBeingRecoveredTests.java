@@ -36,7 +36,8 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.concurrent_source_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
-                .build()
+                .build(),
+            testThreadPool
         );
 
         logger.info("Building initial routing table");

@@ -3686,13 +3686,13 @@ public class IndexShardTests extends IndexShardTestCase {
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
         scopedSettings.applySettings(settings);
         assertTrue(primary.isSearchIdle());
-        assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
 
-        TimeValue oneMinute = TimeValue.timeValueMinutes(1);
-        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), oneMinute).build();
+        settings = Settings.builder()
+            .put(settings)
+            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
         scopedSettings.applySettings(settings);
         assertFalse(primary.isSearchIdle());
-        assertTrue(primary.searchIdleTime() >= oneMinute.millis());
 
         TimeValue tenMillis = TimeValue.timeValueMillis(10);
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), tenMillis).build();

@@ -13,6 +13,8 @@ Retrieves the current data lifecycle status for one or more data stream backing 
 
 `GET <target>/_lifecycle/explain`
 
+`POST <target>/_lifecycle/explain`
+
 [[dlm-explain-lifecycle-desc]]
 ==== {api-description-title}
 

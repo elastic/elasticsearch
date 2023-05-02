@@ -16,14 +16,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -68,14 +66,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     protected boolean wipeCluster() {
         // we're managing our own indices and the cluster should not be wiped.
         return false;
-    }
-
-    private byte[] read(String resource) throws IOException {
-        return GetProfilingAction.class.getClassLoader().getResourceAsStream(resource).readAllBytes();
-    }
-
-    private void createIndex(String name, String bodyFileName) throws Exception {
-        client().admin().indices().prepareCreate(name).setSource(read(bodyFileName), XContentType.JSON).execute().get();
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {

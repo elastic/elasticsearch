@@ -6,9 +6,8 @@
     "profiling-stackframes"
   ],
   "priority": 100,
-  "version": 1,
   "_meta": {
-    "description": "Index template for profiling-stackframes",
-    "version": 1
-  }
+    "description": "Index template for profiling-stackframes"
+  },
+  "version": ${xpack.profiling.template.version}
 }

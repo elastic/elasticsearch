@@ -71,5 +71,6 @@
         }
       }
     }
-  }
+  },
+  "version": ${xpack.profiling.template.version}
 }

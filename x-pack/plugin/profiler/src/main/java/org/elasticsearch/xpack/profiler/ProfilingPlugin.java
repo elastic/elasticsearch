@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.profiler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -53,10 +54,15 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
     public static final String PROFILING_THREAD_POOL_NAME = "profiling";
-
+    private final Settings settings;
     private final boolean enabled;
 
+    private final SetOnce<ProfilingIndexTemplateRegistry> registry = new SetOnce<>();
+
+    private final SetOnce<ProfilingIndexManager> indexManager = new SetOnce<>();
+
     public ProfilingPlugin(Settings settings) {
+        this.settings = settings;
         this.enabled = PROFILING_ENABLED.get(settings);
     }
 
@@ -77,10 +83,12 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         AllocationService allocationService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
+        registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));
+        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService));
         if (enabled) {
-            ProfilingIndexManager indexManager = new ProfilingIndexManager(client, xContentRegistry, clusterService);
-            indexManager.init();
-            return Collections.singletonList(indexManager);
+            registry.get().initialize();
+            indexManager.get().initialize();
+            return List.of(registry.get(), indexManager.get());
         } else {
             return Collections.emptyList();
         }
@@ -130,5 +138,11 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(new ActionHandler<>(GetProfilingAction.INSTANCE, TransportGetProfilingAction.class));
+    }
+
+    @Override
+    public void close() {
+        registry.get().close();
+        indexManager.get().close();
     }
 }

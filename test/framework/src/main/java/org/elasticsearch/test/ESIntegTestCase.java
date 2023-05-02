@@ -580,7 +580,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterStateCanBeReadByNodeTool();
                     ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
-                    cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                    if (wipeCluster()) {
+                        cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                    }
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
                     }

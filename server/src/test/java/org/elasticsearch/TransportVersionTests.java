@@ -11,9 +11,12 @@ package org.elasticsearch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,31 +59,84 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public static class CorrectFakeVersion {
-        public static final TransportVersion V_0_00_01 = new TransportVersion(199, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3, "3");
-        public static final TransportVersion V_0_000_004 = new TransportVersion(4, "4");
+        public static final TransportVersion V_0_00_01;
+        public static final TransportVersion V_0_000_002;
+        public static final TransportVersion V_0_000_003;
+        public static final TransportVersion V_0_000_004;
+
+        public static final NavigableMap<Integer, TransportVersion> VERSION_IDS;
+
+        static {
+            try {
+                Map<Integer, String> map = new HashMap<>();
+                var transportVersionOf = TransportVersion.factoryHandle(map);
+                V_0_00_01 = (TransportVersion) transportVersionOf.invokeExact(199, "1");
+                V_0_000_002 = (TransportVersion) transportVersionOf.invokeExact(2, "2");
+                V_0_000_003 = (TransportVersion) transportVersionOf.invokeExact(3, "3");
+                V_0_000_004 = (TransportVersion) transportVersionOf.invokeExact(4, "4");
+                VERSION_IDS = TransportVersion.getAllVersionIds(CorrectFakeVersion.class, map);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
     }
 
     public static class IncorrectFormatVersion {
-        public static final TransportVersion V_1 = new TransportVersion(1, "1");
+        public static final TransportVersion V_1;
+
+        static {
+            try {
+                Map<Integer, String> map = new HashMap<>();
+                var transportVersionOf = TransportVersion.factoryHandle(map);
+                V_1 = (TransportVersion) transportVersionOf.invokeExact(199, "1");
+                TransportVersion.getAllVersionIds(IncorrectFormatVersion.class, map);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
     }
 
     public static class DuplicatedIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(2, "3");
+        public static final TransportVersion V_0_000_001;
+        public static final TransportVersion V_0_000_002;
+        public static final TransportVersion V_0_000_003;
+
+        static {
+            try {
+                Map<Integer, String> map = new HashMap<>();
+                var transportVersionOf = TransportVersion.factoryHandle(map);
+                V_0_000_001 = (TransportVersion) transportVersionOf.invokeExact(1, "1");
+                V_0_000_002 = (TransportVersion) transportVersionOf.invokeExact(2, "2");
+                V_0_000_003 = (TransportVersion) transportVersionOf.invokeExact(2, "3");
+                TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class, map);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
     }
 
     public static class DuplicatedStringIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3, "2");
+        public static final TransportVersion V_0_000_001;
+        public static final TransportVersion V_0_000_002;
+        public static final TransportVersion V_0_000_003;
+
+        static {
+            try {
+                Map<Integer, String> map = new HashMap<>();
+                var transportVersionOf = TransportVersion.factoryHandle(map);
+                V_0_000_001 = (TransportVersion) transportVersionOf.invokeExact(1, "1");
+                V_0_000_002 = (TransportVersion) transportVersionOf.invokeExact(2, "2");
+                V_0_000_003 = (TransportVersion) transportVersionOf.invokeExact(3, "2");
+                TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class, map);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
     }
 
-    public void testStaticTransportVersionChecks() {
+    public void testStaticTransportVersionChecks() throws Exception {
         assertThat(
-            TransportVersion.getAllVersionIds(CorrectFakeVersion.class),
+            CorrectFakeVersion.VERSION_IDS,
             equalTo(
                 Map.of(
                     199,
@@ -94,11 +150,11 @@ public class TransportVersionTests extends ESTestCase {
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(IncorrectFormatVersion.class));
+        AssertionError e = expectThrows(AssertionError.class, () -> MethodHandles.lookup().ensureInitialized(IncorrectFormatVersion.class));
         assertThat(e.getMessage(), containsString("does not have the correct name format"));
-        e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        e = expectThrows(AssertionError.class, () -> MethodHandles.lookup().ensureInitialized(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
-        e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class));
+        e = expectThrows(AssertionError.class, () -> MethodHandles.lookup().ensureInitialized(DuplicatedStringIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same unique id"));
     }
 

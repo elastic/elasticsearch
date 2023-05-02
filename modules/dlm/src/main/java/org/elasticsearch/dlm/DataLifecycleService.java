@@ -208,7 +208,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             }
 
             /*
-             * This is the pre-DLM write index. It may or may not be the write index after maybeExecuteRollover has executed, depending
+             * This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed, depending
              * on rollover criteria. We're keeping a reference to it because regardless of whether it's rolled over or not we want to
              * exclude it from force merging later in this DLM run.
              */

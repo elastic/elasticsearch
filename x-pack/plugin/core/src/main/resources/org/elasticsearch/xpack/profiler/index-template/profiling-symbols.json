@@ -1,12 +1,13 @@
 {
   "index_patterns": [
-    "profiling-symbols*"
+    ".profiling-symbols*"
   ],
   "template": {
     "settings": {
       "index": {
         "number_of_shards": "16",
-        "refresh_interval": "10s"
+        "refresh_interval": "10s",
+        "hidden": true
       }
     },
     "mappings": {
@@ -97,7 +98,7 @@
   },
   "priority": 100,
   "_meta": {
-    "description": "Index template for profiling-symbols"
+    "description": "Index template for .profiling-symbols"
   },
   "version": ${xpack.profiling.template.version}
 }

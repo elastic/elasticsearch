@@ -45,13 +45,17 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     private static final Map<String, String> INDICES_AND_ALIASES;
 
     static {
+        String versionSuffix = "-v" + ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
+
         Map<String, String> indicesAndAliases = new HashMap<>();
+        // TODO: Define behavior on upgrade (delete, reindex, ...), to be done after 8.9.0
+        // TODO: This index will be gone with the 8.9 release. Don't bother to implement versioning support.
         indicesAndAliases.put(".profiling-ilm-lock", null);
-        indicesAndAliases.put("profiling-returnpads-private", null);
-        indicesAndAliases.put("profiling-sq-executables", null);
-        indicesAndAliases.put("profiling-sq-leafframes", null);
-        indicesAndAliases.put("profiling-symbols", null);
-        indicesAndAliases.put("profiling-symbols-private", null);
+        indicesAndAliases.put(".profiling-returnpads-private" + versionSuffix, "profiling-returnpads-private");
+        indicesAndAliases.put(".profiling-sq-executables" + versionSuffix, "profiling-sq-executables");
+        indicesAndAliases.put(".profiling-sq-leafframes" + versionSuffix, "profiling-sq-leafframes");
+        indicesAndAliases.put(".profiling-symbols" + versionSuffix, "profiling-symbols");
+        indicesAndAliases.put(".profiling-symbols-private" + versionSuffix, "profiling-symbols-private");
         // TODO: Update these to the new K/V strategy after all readers have been adjusted
         String[] kvIndices = new String[] { "profiling-executables", "profiling-stackframes", "profiling-stacktraces" };
         for (String idx : kvIndices) {

@@ -1,11 +1,12 @@
 {
   "index_patterns": [
-    "profiling-returnpads-private*"
+    ".profiling-returnpads-private*"
   ],
   "template": {
     "settings": {
       "index": {
-        "refresh_interval": "10s"
+        "refresh_interval": "10s",
+        "hidden": true
       }
     },
     "mappings": {
@@ -53,7 +54,7 @@
   },
   "priority": 100,
   "_meta": {
-    "description": "Index template for profiling-returnpads-private"
+    "description": "Index template for .profiling-returnpads-private"
   },
   "version": ${xpack.profiling.template.version}
 }

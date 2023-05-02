@@ -1,11 +1,12 @@
 {
   "index_patterns": [
-    "profiling-sq-leafframes*"
+    ".profiling-sq-leafframes*"
   ],
   "template": {
     "settings": {
       "index": {
-        "refresh_interval": "10s"
+        "refresh_interval": "10s",
+        "hidden": true
       }
     },
     "mappings": {
@@ -38,7 +39,7 @@
   },
   "priority": 100,
   "_meta": {
-    "description": "Index template for profiling-sq-leafframes"
+    "description": "Index template for .profiling-sq-leafframes"
   },
   "version": ${xpack.profiling.template.version}
 }

@@ -122,6 +122,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_7_17_8 = new TransportVersion(7_17_08_99, "82a3e70d-cf0e-4efb-ad16-6077ab9fe19f");
     public static final TransportVersion V_7_17_9 = new TransportVersion(7_17_09_99, "afd50dda-735f-4eae-9309-3218ffec1b2d");
     public static final TransportVersion V_7_17_10 = new TransportVersion(7_17_10_99, "18ae7108-6f7a-4205-adbb-cfcd6aa6ccc6");
+    public static final TransportVersion V_7_17_11 = new TransportVersion(7_17_11_99, "71c96c2a-e90b-4311-a4ac-23c453b075aa");
     public static final TransportVersion V_8_0_0 = new TransportVersion(8_00_00_99, "c7d2372c-9f01-4a79-8b11-227d862dfe4f");
     public static final TransportVersion V_8_0_1 = new TransportVersion(8_00_01_99, "56e044c3-37e5-4f7e-bd38-f493927354ac");
     public static final TransportVersion V_8_1_0 = new TransportVersion(8_01_00_99, "3dc49dce-9cef-492a-ac8d-3cc79f6b4280");
@@ -150,6 +151,7 @@ public class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_6_2 = new TransportVersion(8_06_02_99, "5a82fb68-b265-4a06-97c5-53496f823f51");
     public static final TransportVersion V_8_7_0 = new TransportVersion(8_07_00_99, "f1ee7a85-4fa6-43f5-8679-33e2b750448b");
     public static final TransportVersion V_8_7_1 = new TransportVersion(8_07_01_99, "018de9d8-9e8b-4ac7-8f4b-3a6fbd0487fb");
+    public static final TransportVersion V_8_7_2 = new TransportVersion(8_07_02_99, "bd84976c-fb8a-4a4c-b017-9563f8d888d9");
     public static final TransportVersion V_8_8_0 = new TransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
     public static final TransportVersion V_8_9_0 = new TransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
     /*

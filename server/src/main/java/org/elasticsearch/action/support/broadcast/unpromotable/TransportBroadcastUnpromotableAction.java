@@ -71,6 +71,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                 }
                 request.indexShardRoutingTable.unpromotableShards().forEach(shardRouting -> {
                     final DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+                    final ActionListener<TransportResponse.Empty> acquired = listeners.acquire(ignored -> {});
                     transportService.sendRequest(
                         node,
                         transportUnpromotableAction,
@@ -78,8 +79,8 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
                             request.failShardOnError()
-                                ? listeners.acquire(ignored -> {}).delegateResponse((l, e) -> failShard(shardRouting, clusterState, l, e))
-                                : listeners.acquire(ignored -> {}),
+                                ? acquired.delegateResponse((l, e) -> failShard(shardRouting, clusterState, l, e))
+                                : acquired,
                             (in) -> TransportResponse.Empty.INSTANCE,
                             executor
                         )
@@ -90,7 +91,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         }
     }
 
-    private void failShard(ShardRouting shardRouting, ClusterState clusterState, ActionListener<Object> l, Exception e) {
+    private void failShard(ShardRouting shardRouting, ClusterState clusterState, ActionListener<TransportResponse.Empty> l, Exception e) {
         shardStateAction.remoteShardFailed(
             shardRouting.shardId(),
             shardRouting.allocationId().getId(),
@@ -102,7 +103,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                 @Override
                 public void onResponse(Void unused) {
                     logger.debug("Marked shard {} as failed", shardRouting.shardId());
-                    l.onResponse(null);
+                    l.onResponse(TransportResponse.Empty.INSTANCE);
                 }
 
                 @Override

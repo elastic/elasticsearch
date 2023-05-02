@@ -14,11 +14,11 @@ import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -39,8 +39,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
-
-    private final Client client;
+    private final DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck;
 
     public TransportPutComponentTemplateAction(
         TransportService transportService,
@@ -72,7 +71,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        Client client
+        DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -86,7 +85,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
-        this.client = client;
+        this.dataLifecycleAuthorizationCheck = dataLifecycleAuthorizationCheck;
     }
 
     @Override
@@ -125,19 +124,19 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
                 .stream()
                 .flatMap(it -> it.indexPatterns().stream())
                 .collect(Collectors.toUnmodifiableSet());
-            client.execute(
-                AuthorizeDataLifecycleAction.INSTANCE,
+            dataLifecycleAuthorizationCheck.check(
                 new AuthorizeDataLifecycleAction.Request(indexPatterns.toArray(new String[0])),
-                ActionListener.wrap(acknowledgedResponse -> {
-                    indexTemplateService.putComponentTemplate(
+                ActionListener.wrap(
+                    ignored -> indexTemplateService.putComponentTemplate(
                         request.cause(),
                         request.create(),
                         request.name(),
                         request.masterNodeTimeout(),
                         componentTemplate,
                         listener
-                    );
-                }, listener::onFailure)
+                    ),
+                    listener::onFailure
+                )
             );
         } else {
             indexTemplateService.putComponentTemplate(

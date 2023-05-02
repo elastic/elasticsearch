@@ -14,11 +14,11 @@ import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -40,8 +40,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     PutComposableIndexTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
-
-    private final Client client;
+    private final DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck;
 
     public TransportPutComposableIndexTemplateAction(
         TransportService transportService,
@@ -62,7 +61,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Client client
+        DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -75,7 +74,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             ThreadPool.Names.SAME
         );
         this.indexTemplateService = indexTemplateService;
-        this.client = client;
+        this.dataLifecycleAuthorizationCheck = dataLifecycleAuthorizationCheck;
     }
 
     @Override
@@ -102,11 +101,10 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             });
         boolean needsDlmAuthorizationCheck = indexTemplate.hasDataLifecycle() || hasComponentTemplatesWithDataLifecycles;
         if (needsDlmAuthorizationCheck) {
-            client.execute(
-                AuthorizeDataLifecycleAction.INSTANCE,
+            dataLifecycleAuthorizationCheck.check(
                 new AuthorizeDataLifecycleAction.Request(indexTemplate.indexPatterns().toArray(new String[0])),
                 ActionListener.wrap(
-                    acknowledgedResponse -> indexTemplateService.putIndexTemplateV2(
+                    ignored -> indexTemplateService.putIndexTemplateV2(
                         request.cause(),
                         request.create(),
                         request.name(),

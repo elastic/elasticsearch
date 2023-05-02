@@ -12,10 +12,10 @@ import org.elasticsearch.action.dlm.AuthorizeDataLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,7 +35,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
-    private final Client client;
+    private final DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck;
 
     @Inject
     public TransportDeleteDataLifecycleAction(
@@ -46,7 +46,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         SystemIndices systemIndices,
-        Client client
+        DataLifecycleAuthorizationCheck dataLifecycleAuthorizationCheck
     ) {
         super(
             DeleteDataLifecycleAction.NAME,
@@ -60,7 +60,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
-        this.client = client;
+        this.dataLifecycleAuthorizationCheck = dataLifecycleAuthorizationCheck;
     }
 
     @Override
@@ -70,8 +70,7 @@ public class TransportDeleteDataLifecycleAction extends AcknowledgedTransportMas
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        client.execute(
-            AuthorizeDataLifecycleAction.INSTANCE,
+        dataLifecycleAuthorizationCheck.check(
             new AuthorizeDataLifecycleAction.Request(request.getNames()),
             ActionListener.wrap(acknowledgedResponse -> {
                 List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(

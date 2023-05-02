@@ -79,9 +79,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
-            final ClusterAllocationExplainResponse allocationExplainResponse = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplainResponse allocationExplainResponse = clusterAdmin().prepareAllocationExplain()
                 .setIndex("test")
                 .setShard(0)
                 .setPrimary(true)

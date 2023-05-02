@@ -11,6 +11,7 @@ package org.elasticsearch.plugins.internal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ReloadablePlugin;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -21,7 +22,24 @@ public interface ReloadAwarePlugin {
 
     /**
      * Provide a list of reloadable plugins.
-     * @param reloadablePlugins A list of plugins that this plugin may be able to reload
+     * @param reloadablePlugin A plugin that this plugin may be able to reload
      */
-    void setReloadablePlugins(List<ReloadablePlugin> reloadablePlugins);
+    void setReloadablePlugin(ReloadablePlugin reloadablePlugin);
+
+    /**
+     * Wrap a group of reloadable plugins into a single reloadable plugin interface
+     * @param reloadablePlugins A list of reloadable plugins
+     * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
+     */
+    static ReloadablePlugin wrapPlugins(List<ReloadablePlugin> reloadablePlugins) {
+        return settings -> {
+            for (ReloadablePlugin plugin : reloadablePlugins) {
+                try {
+                    plugin.reload(settings);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+    }
 }

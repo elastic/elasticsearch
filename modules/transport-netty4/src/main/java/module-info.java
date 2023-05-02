@@ -23,5 +23,6 @@ module org.elasticsearch.transport.netty4 {
 
     exports org.elasticsearch.http.netty4;
     exports org.elasticsearch.http.netty4.internal to org.elasticsearch.internal.http.netty4;
+    exports org.elasticsearch.http.netty4.authenticate to org.elasticsearch.security;
     exports org.elasticsearch.transport.netty4;
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.channel.Channel;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -17,10 +16,10 @@ import io.netty.handler.codec.http.HttpRequest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
+import org.elasticsearch.http.netty4.authenticate.HttpAuthenticator;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
@@ -36,16 +35,6 @@ import static org.elasticsearch.http.netty4.Netty4HttpRequest.translateRequestMe
  */
 public final class HttpHeadersAuthenticatorUtils {
 
-    /**
-     * An async HTTP headers authenticating function that receives as arguments part of the incoming HTTP request
-     * (except the body contents, see {@link HttpPreRequest}), as well as the netty channel that the request is
-     * being received over, and must then call the {@code ActionListener#onResponse} method on the listener parameter
-     * in case the validation is to be considered successful, or otherwise call {@code ActionListener#onFailure}
-     * and pass the failure exception.
-     */
-    @FunctionalInterface
-    public interface Authenticator extends TriConsumer<HttpPreRequest, Channel, ActionListener<Void>> {}
-
     // utility class
     private HttpHeadersAuthenticatorUtils() {}
 
@@ -54,11 +43,11 @@ public final class HttpHeadersAuthenticatorUtils {
      * The HTTP headers of the to-be-authenticated {@link HttpRequest} must be wrapped by the special
      * {@link HttpHeadersWithAuthenticationContext}, see {@link #wrapAsMessageWithAuthenticationContext(HttpMessage)}.
      */
-    public static Netty4HttpHeaderValidator getValidatorInboundHandler(Authenticator authenticator, ThreadContext threadContext) {
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(HttpAuthenticator authenticator, ThreadContext threadContext) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             // make sure authentication only runs on properly wrapped "authenticable" headers implementation
             if (httpRequest.headers() instanceof HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext) {
-                authenticator.apply(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(aVoid -> {
+                authenticator.authenticate(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(aVoid -> {
                     httpHeadersWithAuthenticationContext.setAuthenticationContext(threadContext.newStoredContext());
                     // a successful authentication needs to signal to the {@link Netty4HttpHeaderValidator} to resume
                     // forwarding the request beyond the headers part
@@ -74,7 +63,7 @@ public final class HttpHeadersAuthenticatorUtils {
     /**
      * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
      * passed-in one, but the headers of the latter can be authenticated, in the sense that the channel handlers returned by
-     * {@link #getValidatorInboundHandler(Authenticator, ThreadContext)} can use this to convey the authentication result context.
+     * {@link #getValidatorInboundHandler(HttpAuthenticator, ThreadContext)} can use this to convey the authentication result context.
      */
     public static HttpMessage wrapAsMessageWithAuthenticationContext(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;

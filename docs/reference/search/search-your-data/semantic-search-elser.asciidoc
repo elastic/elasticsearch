@@ -6,3 +6,72 @@
 
 :keywords: {ml-init}, {stack}, {nlp}, ELSER
 :description: ELSER is a learned sparse ranking model trained by Elastic.
+
+Elastic Learned Sparse Encoder - or ELSER - is an NLP model trained by Elstic 
+that enables you to perform semantic search by using sparse vector 
+representation. Instead of literal matching on search terms, semantic search 
+retrieves results based on the intent and the contextual meaning of a search 
+query.
+
+
+[discrete]
+[[requirements]]
+=== Requirements
+
+To perform semantic search by using ELSER, you must have the NLP model deployed 
+in your cluster. Refer to the 
+{ml-docs}ml-nlp-elser.asciidoc[ELSER documentation] to learn how to download and 
+deploy the model.
+
+
+[discrete]
+[[elser-mappings]]
+=== Create the index mapping
+
+First, the mapping of the index you use for ELSER must be created.
+
+[source,js]
+----
+PUT test-index
+{
+   "mappings":{
+      "properties":{
+         "ml":{
+            "properties":{
+               "inference":{
+                  "properties":{
+                     "description_expanded":{
+                        "properties":{
+                           "model_id":{
+                              "type":"keyword"
+                           },
+                           "predicted_value":{
+                              "type":"rank_features"
+                           }
+                        }
+                     },
+                     "title_expanded":{
+                        "properties":{
+                           "model_id":{
+                              "type":"keyword"
+                           },
+                           "predicted_value":{
+                              "type":"rank_features"
+                           }
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+----
+
+
+
+[discrete]
+[[text-expansion-query]]
+=== The `text_expansion` query
+

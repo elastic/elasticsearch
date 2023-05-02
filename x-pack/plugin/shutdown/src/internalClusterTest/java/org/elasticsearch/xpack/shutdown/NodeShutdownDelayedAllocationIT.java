@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -39,10 +38,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testShardAllocationIsDelayedForRestartingNode() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -78,10 +75,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testShardAllocationWillProceedAfterTimeout() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -110,10 +105,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     public void testIndexLevelAllocationDelayWillBeUsedIfLongerThanShutdownDelay() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "3h") // Use a long timeout we definitely won't hit
+            // Use a long timeout we definitely won't hit
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "3h")
         ).get();
         ensureGreen("test");
         indexRandomData();
@@ -184,10 +177,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
     private String setupLongTimeoutTestCase() throws Exception {
         internalCluster().startNodes(3);
         prepareCreate("test").setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen("test");
         indexRandomData();

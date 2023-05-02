@@ -118,30 +118,21 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         logger.info("creating index [{}]", indexName);
-        createIndex(
-            indexName,
-            indexSettings != null
-                ? indexSettings
-                : Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build(),
-            """
-                    "properties": {
-                        "field": {
-                            "type": "integer"
-                        },
-                        "text": {
-                            "type": "text",
-                            "fields": {
-                                "raw": {
-                                    "type": "keyword"
-                                }
+        createIndex(indexName, indexSettings != null ? indexSettings : indexSettings(randomIntBetween(1, 5), 0).build(), """
+                "properties": {
+                    "field": {
+                        "type": "integer"
+                    },
+                    "text": {
+                        "type": "text",
+                        "fields": {
+                            "raw": {
+                                "type": "keyword"
                             }
                         }
                     }
-                """
-        );
+                }
+            """);
         ensureGreen(indexName);
 
         logger.info("indexing [{}] documents", numDocs);
@@ -476,12 +467,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         },
             false,
             10_000,
-            Settings.builder()
-                .put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
+            indexSettings(1, 0).put(SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), true)
                 .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .build()
         );
     }

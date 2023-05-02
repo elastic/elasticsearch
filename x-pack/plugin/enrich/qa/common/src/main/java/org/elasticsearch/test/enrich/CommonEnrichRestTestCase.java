@@ -318,7 +318,12 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     private static void verifyEnrichMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
         request.setJsonEntity("""
-            {"query": {"term": {"type": "enrich_coordinator_stats"}}}""");
+            {
+              "query": {"term": {"type": "enrich_coordinator_stats"}},
+              "sort": [{"timestamp": "desc"}],
+              "size": 5
+            }
+            """);
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));

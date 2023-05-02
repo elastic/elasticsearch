@@ -395,17 +395,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getCoordinatingOnlyNodes()
-            .values()
-            .iterator()
-            .next()
-            .getName();
+        return clusterAdmin().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().values().iterator().next().getName();
     }
 
     private Tuple<String, String> getPrimaryReplicaNodeNames() {
@@ -422,7 +412,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
             .findAny()
             .get()
             .currentNodeId();
-        DiscoveryNodes nodes = client().admin().cluster().prepareState().get().getState().nodes();
+        DiscoveryNodes nodes = clusterAdmin().prepareState().get().getState().nodes();
         String primaryName = nodes.get(primaryId).getName();
         String replicaName = nodes.get(replicaId).getName();
         return new Tuple<>(primaryName, replicaName);

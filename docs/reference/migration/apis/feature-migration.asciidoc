@@ -115,6 +115,12 @@ Example response:
       "indices" : [ ]
     },
     {
+      "feature_name" : "synonyms",
+      "minimum_index_version" : "8.9.0",
+      "migration_status" : "NO_MIGRATION_NEEDED",
+      "indices" : [ ]
+    },
+    {
       "feature_name" : "tasks",
       "minimum_index_version" : "8.0.0",
       "migration_status" : "NO_MIGRATION_NEEDED",

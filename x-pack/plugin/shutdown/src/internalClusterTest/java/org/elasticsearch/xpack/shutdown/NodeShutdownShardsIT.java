@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -120,10 +119,8 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
         final String indexName = "test";
         prepareCreate(indexName).setSettings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1) // <- Ensure we have a copy of the shard on both nodes
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0) // Disable "normal" delayed allocation
+            // Ensure we have a copy of the shard on both nodes and disable "normal" delayed allocation
+            indexSettings(1, 1).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
         ).get();
         ensureGreen(indexName);
         indexRandomData(indexName);
@@ -400,14 +397,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         final String nodeA = internalCluster().startNode();
         final String nodeAId = getNodeId(nodeA);
 
-        createIndex(
-            "index",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", nodeA)
-                .build()
-        );
+        createIndex("index", indexSettings(1, 0).put("index.routing.allocation.include._name", nodeA).build());
 
         ensureYellow("index");
 

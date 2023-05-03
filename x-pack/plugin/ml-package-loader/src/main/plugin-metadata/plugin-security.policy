@@ -8,6 +8,4 @@
 
 grant {
   permission java.net.SocketPermission "*", "connect";
-
-  permission java.io.FilePermission "<<ALL FILES>>", "read";
 };

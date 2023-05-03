@@ -72,12 +72,13 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         String repository = MachineLearningPackageLoader.MODEL_REPOSITORY.get(settings);
+
         String packagedModelId = request.getPackagedModelId();
-        logger.trace(() -> format("Fetch package manifest for [%s] from [%s]", packagedModelId, repository));
+        logger.debug(() -> format("Fetch package manifest for [%s] from [%s]", packagedModelId, repository));
 
         threadPool.executor(MachineLearningPackageLoader.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                URI uri = new URI(repository).resolve(packagedModelId + ModelLoaderUtils.METADATA_FILE_EXTENSION);
+                URI uri = ModelLoaderUtils.resolvePackageLocation(repository, packagedModelId + ModelLoaderUtils.METADATA_FILE_EXTENSION);
                 InputStream inputStream = ModelLoaderUtils.getInputStreamFromModelRepository(uri);
 
                 try (
@@ -97,7 +98,7 @@ public class TransportGetTrainedModelPackageConfigAction extends TransportMaster
                         return;
                     }
 
-                    if (Strings.isNullOrEmpty(packageConfig.getSha256())) {
+                    if (Strings.isNullOrEmpty(packageConfig.getSha256()) || packageConfig.getSha256().length() != 64) {
                         listener.onFailure(new ElasticsearchStatusException("Invalid package sha", RestStatus.INTERNAL_SERVER_ERROR));
                         return;
                     }

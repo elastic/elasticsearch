@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +90,7 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNoMatchingPatternInDictionary() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(Collections.emptyMap(), "%{NOTFOUND}", logger::warn));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(PatternBank.EMPTY, "%{NOTFOUND}", logger::warn));
         assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary"));
     }
 
@@ -409,18 +408,14 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNoNamedCaptures() {
-        Map<String, String> bank = new HashMap<>();
-
-        bank.put("NAME", "Tal");
-        bank.put("EXCITED_NAME", "!!!%{NAME:name}!!!");
-        bank.put("TEST", "hello world");
+        var bank = new PatternBank(Map.of("NAME", "Tal", "EXCITED_NAME", "!!!%{NAME:name}!!!", "TEST", "hello world"));
 
         String text = "wowza !!!Tal!!! - Tal";
         String pattern = "%{EXCITED_NAME} - %{NAME}";
         Grok g = new Grok(bank, pattern, false, logger::warn);
         assertCaptureConfig(g, Map.of("EXCITED_NAME_0", STRING, "NAME_21", STRING, "NAME_22", STRING));
 
-        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(pattern));
+        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(bank, pattern));
         assertEquals(true, g.match(text));
 
         Object actual = g.captures(text);
@@ -429,77 +424,6 @@ public class GrokTests extends ESTestCase {
         expected.put("NAME_21", "Tal");
         expected.put("NAME_22", "Tal");
         assertEquals(expected, actual);
-    }
-
-    public void testCircularReference() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("NAME", "!!!%{NAME}!!!");
-            String pattern = "%{NAME}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("NAME", "!!!%{NAME:name}!!!");
-            String pattern = "%{NAME}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("NAME", "!!!%{NAME:name:int}!!!");
-            String pattern = "%{NAME}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
-            bank.put("NAME1", "!!!%{NAME2}!!!");
-            bank.put("NAME2", "!!!%{NAME1}!!!");
-            String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME2][!!!%{NAME1}!!!] back to pattern [NAME1]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
-            bank.put("NAME1", "!!!%{NAME2}!!!");
-            bank.put("NAME2", "!!!%{NAME3}!!!");
-            bank.put("NAME3", "!!!%{NAME1}!!!");
-            String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
-            bank.put("NAME1", "!!!%{NAME2}!!!");
-            bank.put("NAME2", "!!!%{NAME3}!!!");
-            bank.put("NAME3", "!!!%{NAME4}!!!");
-            bank.put("NAME4", "!!!%{NAME5}!!!");
-            bank.put("NAME5", "!!!%{NAME1}!!!");
-            String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals(
-            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2=>NAME3=>NAME4]",
-            e.getMessage()
-        );
-    }
-
-    public void testCircularSelfReference() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("ANOTHER", "%{INT}");
-            bank.put("INT", "%{INT}");
-            String pattern = "does_not_matter";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
     }
 
     public void testBooleanCaptures() {
@@ -537,7 +461,7 @@ public class GrokTests extends ESTestCase {
         bank.put("NUMBER", "(?:%{BASE10NUM})");
 
         String pattern = "%{NUMBER:bytes:float} %{NUMBER:id:long} %{NUMBER:rating:double}";
-        Grok g = new Grok(bank, pattern, logger::warn);
+        Grok g = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("bytes", FLOAT, "id", LONG, "rating", DOUBLE));
 
         String text = "12009.34 20000000000 4820.092";
@@ -585,7 +509,7 @@ public class GrokTests extends ESTestCase {
         bank.put("NUMBER", "(?:%{BASE10NUM})");
 
         String pattern = "%{NUMBER:bytes:float} %{NUMBER:status} %{NUMBER}";
-        Grok g = new Grok(bank, pattern, logger::warn);
+        Grok g = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("bytes", FLOAT, "status", STRING));
 
         String text = "12009.34 200 9032";
@@ -603,7 +527,7 @@ public class GrokTests extends ESTestCase {
         bank.put("NUMBER", "(?:%{BASE10NUM})");
 
         String pattern = "%{NUMBER:f:not_a_valid_type}";
-        Grok g = new Grok(bank, pattern, logger::warn);
+        Grok g = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("f", STRING));
         assertThat(g.captures("12009.34"), equalTo(Map.of("f", "12009.34")));
     }
@@ -759,7 +683,7 @@ public class GrokTests extends ESTestCase {
             %{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] "%{WORD:verb} %{DATA:request} \
             HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}""";
 
-        Grok grok = new Grok(bank, pattern, logger::warn);
+        Grok grok = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(
             grok,
             Map.ofEntries(
@@ -802,19 +726,19 @@ public class GrokTests extends ESTestCase {
     public void testNoMatch() {
         Map<String, String> bank = new HashMap<>();
         bank.put("MONTHDAY", "(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01])|[1-9])");
-        Grok grok = new Grok(bank, "%{MONTHDAY:greatday}", logger::warn);
+        Grok grok = new Grok(new PatternBank(bank), "%{MONTHDAY:greatday}", logger::warn);
         assertThat(grok.captures("nomatch"), nullValue());
     }
 
     public void testMultipleNamedCapturesWithSameName() {
         Map<String, String> bank = new HashMap<>();
         bank.put("SINGLEDIGIT", "[0-9]");
-        Grok grok = new Grok(bank, "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}", logger::warn);
+        Grok grok = new Grok(new PatternBank(bank), "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}", logger::warn);
         assertCaptureConfig(grok, Map.of("num", STRING));
 
         assertThat(grok.captures("12"), equalTo(Map.of("num", List.of("1", "2"))));
 
-        grok = new Grok(bank, "%{SINGLEDIGIT:num:int}(%{SINGLEDIGIT:num:int})?", logger::warn);
+        grok = new Grok(new PatternBank(bank), "%{SINGLEDIGIT:num:int}(%{SINGLEDIGIT:num:int})?", logger::warn);
         assertCaptureConfig(grok, Map.of("num", INTEGER));
         assertEquals(grok.captures("1"), Map.of("num", 1));
         assertEquals(grok.captures("1a"), Map.of("num", 1));

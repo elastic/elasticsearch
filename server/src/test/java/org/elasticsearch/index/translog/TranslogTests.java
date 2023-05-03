@@ -1586,6 +1586,40 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testTranslogWriterLastModifiedTime() throws IOException {
+        Path tempDir = createTempDir();
+        try (Translog translog = create(tempDir)) {
+            long mtime = translog.getCurrent().getLastModifiedTime();
+            TranslogWriter.LastModifiedTimeCache mtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            // no ops
+            long lastMtime = translog.getCurrent().getLastModifiedTime();
+            TranslogWriter.LastModifiedTimeCache lastMtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            assertThat(lastMtime, equalTo(mtime));
+            assertEquals(lastMtimeCache, mtimeCache);
+
+            mtime = lastMtime;
+            mtimeCache = lastMtimeCache;
+            // add ops
+            int count = randomIntBetween(1, 100);
+            for (int i = 0; i < count; i++) {
+                translog.add(indexOp(randomAlphaOfLength(128), i, primaryTerm.get()));
+            }
+            lastMtime = translog.getCurrent().getLastModifiedTime();
+            lastMtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            assertThat(lastMtime, greaterThanOrEqualTo(mtime));
+            assertThat(lastMtimeCache.totalOffset(), greaterThan(mtimeCache.totalOffset()));
+
+            mtime = lastMtime;
+            mtimeCache = lastMtimeCache;
+            // sync ops
+            translog.sync();
+            lastMtime = translog.getCurrent().getLastModifiedTime();
+            lastMtimeCache = translog.getCurrent().lastModifiedTimeCache;
+            assertThat(lastMtime, greaterThanOrEqualTo(mtime));
+            assertThat(lastMtimeCache.syncedOffset(), greaterThan(mtimeCache.syncedOffset()));
+        }
+    }
+
     public void testTranslogOperationListener() throws IOException {
         Path tempDir = createTempDir();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build();

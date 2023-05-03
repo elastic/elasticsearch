@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.analytics.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.index.IndexRequest;
@@ -18,21 +19,24 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionResolver;
 import org.elasticsearch.xpack.application.analytics.action.PostAnalyticsEventAction;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEventFactory;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
-    private static final Logger logger = LogManager.getLogger(AnalyticsEvent.class);
+    private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitter.class);
 
     private final Client client;
 
@@ -40,15 +44,25 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
     private final AnalyticsEventFactory eventFactory;
 
+    private final AnalyticsCollectionResolver collectionResolver;
+
+    private final AtomicBoolean dropEvent = new AtomicBoolean(false);
+
     @Inject
-    public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory) {
-        this(client, bulkProcessorFactory, AnalyticsEventFactory.INSTANCE);
+    public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsCollectionResolver collectionResolver) {
+        this(client, bulkProcessorFactory.create(), collectionResolver, AnalyticsEventFactory.INSTANCE);
     }
 
-    AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsEventFactory eventFactory) {
+    AnalyticsEventEmitter(
+        Client client,
+        BulkProcessor2 bulkProcessor,
+        AnalyticsCollectionResolver collectionResolver,
+        AnalyticsEventFactory eventFactory
+    ) {
         this.client = new OriginSettingClient(client, ENT_SEARCH_ORIGIN);
-        this.bulkProcessor = bulkProcessorFactory.create(client);
+        this.bulkProcessor = bulkProcessor;
         this.eventFactory = eventFactory;
+        this.collectionResolver = collectionResolver;
     }
 
     /**
@@ -67,6 +81,10 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
             bulkProcessor.add(eventIndexRequest);
 
+            if (dropEvent.compareAndSet(true, false)) {
+                logger.warn("Bulk processor has been flushed. Accepting new events again.");
+            }
+
             if (request.isDebug()) {
                 listener.onResponse(new PostAnalyticsEventAction.DebugResponse(true, event));
             } else {
@@ -75,13 +93,19 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchException("Unable to parse the event.", e));
         } catch (EsRejectedExecutionException e) {
-            listener.onFailure(new ElasticsearchException("Unable to add the event to the bulk."));
-            logger.error("Unable to add the event to the bulk.", e);
+            listener.onFailure(
+                new ElasticsearchStatusException("Unable to add the event: too many requests.", RestStatus.TOO_MANY_REQUESTS)
+            );
+
+            if (dropEvent.compareAndSet(false, true)) {
+                logger.warn("Bulk processor is full. Start dropping events.");
+            }
         }
     }
 
     private IndexRequest createIndexRequest(AnalyticsEvent event) throws IOException {
-        AnalyticsCollection collection = event.context().analyticsCollection();
+        AnalyticsCollection collection = this.collectionResolver.collection(event.eventCollectionName());
+
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             return client.prepareIndex(collection.getEventDataStream())
                 .setCreate(true)

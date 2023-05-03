@@ -9,13 +9,14 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.SingleThreadCollectorManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,8 +27,7 @@ import java.util.List;
  */
 public class AggregationPhase {
 
-    @Inject
-    public AggregationPhase() {}
+    private AggregationPhase() {}
 
     public static void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
@@ -41,6 +41,7 @@ public class AggregationPhase {
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
+        final Collector collector;
         if (context.aggregations().factories().context() != null
             && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
@@ -50,15 +51,15 @@ public class AggregationPhase {
             } catch (IOException e) {
                 throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
-            Collector collector = context.getProfilers() == null
-                ? BucketCollector.NO_OP_COLLECTOR
-                : new InternalProfileCollector(BucketCollector.NO_OP_COLLECTOR, CollectorResult.REASON_AGGREGATION, List.of());
-            context.registerAggsCollector(collector);
+            collector = BucketCollector.NO_OP_COLLECTOR;
         } else {
-            Collector collector = context.getProfilers() == null
-                ? bucketCollector.asCollector()
-                : new InternalProfileCollector(bucketCollector.asCollector(), CollectorResult.REASON_AGGREGATION, List.of());
-            context.registerAggsCollector(collector);
+            collector = bucketCollector.asCollector();
+        }
+        if (context.getProfilers() != null) {
+            InternalProfileCollector profileCollector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION);
+            context.registerAggsCollectorManager(new InternalProfileCollectorManager(profileCollector));
+        } else {
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
         }
     }
 
@@ -106,10 +107,6 @@ public class AggregationPhase {
         Aggregator[] aggregators = context.aggregations().aggregators();
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        if (context.aggregations().factories().context() != null) {
-            // Rollup can end up here with a null context but not null factories.....
-            context.aggregations().factories().context().multiBucketConsumer().reset();
-        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();
@@ -122,6 +119,6 @@ public class AggregationPhase {
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);
-        context.registerAggsCollector(null);
+        context.registerAggsCollectorManager(null);
     }
 }

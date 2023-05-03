@@ -74,4 +74,25 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
     }
 
+    public void testDescription() {
+        final var node = new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        assertEquals(
+            "recovery of [index][0] to "
+                + node.descriptionWithoutAttributes()
+                + " [recoveryId=1, targetAllocationId=allocationId, startingSeqNo=-2, "
+                + "primaryRelocation=false, canDownloadSnapshotFiles=true]",
+            new StartRecoveryRequest(
+                new ShardId("index", "uuid", 0),
+                "allocationId",
+                null,
+                node,
+                Store.MetadataSnapshot.EMPTY,
+                false,
+                1,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                true
+            ).getDescription()
+        );
+    }
+
 }

@@ -75,11 +75,9 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
         // Verify that we can still move shards around even while blocked
         final String newDataNodeName = internalCluster().startDataOnlyNode();
-        final String newDataNodeId = client().admin().cluster().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
+        final String newDataNodeId = clusterAdmin().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
         assertBusy(() -> {
-            final ShardRouting primaryShard = client().admin()
-                .cluster()
-                .prepareState()
+            final ShardRouting primaryShard = clusterAdmin().prepareState()
                 .clear()
                 .setRoutingTable(true)
                 .setNodes(true)
@@ -96,7 +94,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
         // Verify that the block is removed once the shard migration is complete
         refreshClusterInfo();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
         assertNull(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
     }
 
@@ -131,7 +129,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
         // Verify that the block is removed
         refreshClusterInfo();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
         assertNull(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
 
         // Re-enable and the blocks should be back!
@@ -139,7 +137,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
             Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
         );
         refreshClusterInfo();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
         assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
     }
 

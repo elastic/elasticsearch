@@ -54,9 +54,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1649,15 +1649,16 @@ public class Security extends Plugin
             final ThreadContext threadContext = this.threadContext.get();
             final Supplier<Netty4HttpHeaderValidator> authenticateHttpRequest = () -> HttpHeadersAuthenticatorUtils
                 .getValidatorInboundHandler((httpRequest, channel, listener) -> {
+                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
                     // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
                     // authentication process looks for while doing its duty.
-                    perRequestThreadContext.accept(httpRequest, threadContext);
+                    perRequestThreadContext.accept(httpPreRequest, threadContext);
                     populateClientCertificate.accept(channel, threadContext);
                     RemoteHostHeader.process(channel, threadContext);
                     // step 2: Run authentication on the now properly prepared thread-context.
                     // This inspects and modifies the thread context.
                     authenticationService.authenticate(
-                        httpRequest,
+                        httpPreRequest,
                         ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
                     );
                 }, threadContext);

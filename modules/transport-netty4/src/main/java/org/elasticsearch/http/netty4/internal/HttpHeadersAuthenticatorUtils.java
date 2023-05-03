@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.http.netty4;
+package org.elasticsearch.http.netty4.internal;
 
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.HttpMessage;
@@ -16,8 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.http.netty4.authenticate.HttpAuthenticator;
-import org.elasticsearch.http.netty4.authenticate.HttpHeadersWithAuthenticationContext;
+import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
+import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
@@ -40,11 +40,11 @@ public final class HttpHeadersAuthenticatorUtils {
      * The HTTP headers of the to-be-authenticated {@link HttpRequest} must be wrapped by the special
      * {@link HttpHeadersWithAuthenticationContext}, see {@link #wrapAsMessageWithAuthenticationContext(HttpMessage)}.
      */
-    public static Netty4HttpHeaderValidator getValidatorInboundHandler(HttpAuthenticator authenticator, ThreadContext threadContext) {
+    public static Netty4HttpHeaderValidator getValidatorInboundHandler(HttpValidator validator, ThreadContext threadContext) {
         return new Netty4HttpHeaderValidator((httpRequest, channel, listener) -> {
             // make sure authentication only runs on properly wrapped "authenticable" headers implementation
             if (httpRequest.headers() instanceof HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext) {
-                authenticator.authenticate(asHttpPreRequest(httpRequest), channel, ActionListener.wrap(aVoid -> {
+                validator.validate(httpRequest, channel, ActionListener.wrap(aVoid -> {
                     httpHeadersWithAuthenticationContext.setAuthenticationContext(threadContext.newStoredContext());
                     // a successful authentication needs to signal to the {@link Netty4HttpHeaderValidator} to resume
                     // forwarding the request beyond the headers part
@@ -60,7 +60,7 @@ public final class HttpHeadersAuthenticatorUtils {
     /**
      * Given a {@link DefaultHttpRequest} argument, this returns a new {@link DefaultHttpRequest} instance that's identical to the
      * passed-in one, but the headers of the latter can be authenticated, in the sense that the channel handlers returned by
-     * {@link #getValidatorInboundHandler(HttpAuthenticator, ThreadContext)} can use this to convey the authentication result context.
+     * {@link #getValidatorInboundHandler(HttpValidator, ThreadContext)} can use this to convey the authentication result context.
      */
     public static HttpMessage wrapAsMessageWithAuthenticationContext(HttpMessage newlyDecodedMessage) {
         assert newlyDecodedMessage instanceof HttpRequest;
@@ -84,20 +84,10 @@ public final class HttpHeadersAuthenticatorUtils {
         return authenticatedHeaders != null ? authenticatedHeaders.authenticationContextSetOnce.get() : null;
     }
 
-    private static HttpHeadersWithAuthenticationContext unwrapAuthenticatedHeaders(org.elasticsearch.http.HttpRequest request) {
-        if (request instanceof Netty4HttpRequest == false) {
-            return null;
-        }
-        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
-            return null;
-        }
-        return (HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).getNettyRequest().headers());
-    }
-
     /**
      * Translates the netty request internal type to a {@link HttpPreRequest} instance that code outside the network plugin has access to.
      */
-    private static HttpPreRequest asHttpPreRequest(HttpRequest request) {
+    public static HttpPreRequest asHttpPreRequest(HttpRequest request) {
         return new HttpPreRequest() {
 
             @Override
@@ -115,5 +105,15 @@ public final class HttpHeadersAuthenticatorUtils {
                 return getHttpHeadersAsMap(request.headers());
             }
         };
+    }
+
+    private static HttpHeadersWithAuthenticationContext unwrapAuthenticatedHeaders(org.elasticsearch.http.HttpRequest request) {
+        if (request instanceof Netty4HttpRequest == false) {
+            return null;
+        }
+        if (((Netty4HttpRequest) request).getNettyRequest().headers() instanceof HttpHeadersWithAuthenticationContext == false) {
+            return null;
+        }
+        return (HttpHeadersWithAuthenticationContext) (((Netty4HttpRequest) request).getNettyRequest().headers());
     }
 }

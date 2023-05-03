@@ -60,6 +60,7 @@ import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -683,11 +684,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
-            (httpPreRequest, channel, validationListener) -> {
+            (httpRequest, channel, validationListener) -> {
                 // assert that the validator sees the request unaltered
-                assertThat(httpPreRequest.uri(), is(urlReference.get()));
-                assertThat(httpPreRequest.header(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
-                assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                assertThat(httpRequest.uri(), is(urlReference.get()));
+                assertThat(httpRequest.headers().get(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
+                assertThat(httpRequest.method(), is(httpMethodReference.get()));
                 // make validation alter the thread context
                 contextHeaderReference.set(randomAlphaOfLengthBetween(4, 8));
                 contextHeaderValueReference.set(randomAlphaOfLengthBetween(4, 8));
@@ -779,11 +780,11 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
-            (httpPreRequest, channel, validationResultListener) -> {
+            (httpRequest, channel, validationResultListener) -> {
                 // assert that the validator sees the request unaltered
-                assertThat(httpPreRequest.uri(), is(urlReference.get()));
-                assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
-                assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                assertThat(httpRequest.uri(), is(urlReference.get()));
+                assertThat(httpRequest.headers().get(headerReference.get()), is(headerValueReference.get()));
+                assertThat(httpRequest.method(), is(httpMethodReference.get()));
                 // failed validation
                 validationResultListener.onFailure(validationResultExceptionReference.get());
             },

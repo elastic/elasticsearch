@@ -185,11 +185,11 @@ public class Netty4HttpRequest implements HttpRequest {
         return inboundException;
     }
 
-    protected io.netty.handler.codec.http.HttpRequest getNettyRequest() {
+    public io.netty.handler.codec.http.HttpRequest getNettyRequest() {
         return request;
     }
 
-    protected static RestRequest.Method translateRequestMethod(HttpMethod httpMethod) {
+    public static RestRequest.Method translateRequestMethod(HttpMethod httpMethod) {
         if (httpMethod == HttpMethod.GET) return RestRequest.Method.GET;
 
         if (httpMethod == HttpMethod.POST) return RestRequest.Method.POST;
@@ -221,7 +221,7 @@ public class Netty4HttpRequest implements HttpRequest {
         throw new IllegalArgumentException("Unexpected http method: " + httpMethod);
     }
 
-    protected static Map<String, List<String>> getHttpHeadersAsMap(HttpHeaders httpHeaders) {
+    public static Map<String, List<String>> getHttpHeadersAsMap(HttpHeaders httpHeaders) {
         return new HttpHeadersMap(httpHeaders);
     }
 

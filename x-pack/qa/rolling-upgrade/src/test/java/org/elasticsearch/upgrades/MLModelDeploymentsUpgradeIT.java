@@ -97,7 +97,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(request);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95360")
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -113,10 +112,21 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-                waitForDeploymentStarted(modelId);
-                // attempt inference on new and old nodes multiple times
-                for (int i = 0; i < 10; i++) {
-                    assertInfer(modelId);
+
+                // Workaround for an upgrade test failure where an ingest
+                // pipeline config cannot be parsed by older nodes:
+                // https://github.com/elastic/elasticsearch/issues/95766
+                //
+                // In version 8.3.1 ml stopped parsing the full ingest
+                // pipeline configuration so will avoid this problem.
+                // TODO remove this check once https://github.com/elastic/elasticsearch/issues/95766
+                // is resolved
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_1)) {
+                    waitForDeploymentStarted(modelId);
+                    // attempt inference on new and old nodes multiple times
+                    for (int i = 0; i < 10; i++) {
+                        assertInfer(modelId);
+                    }
                 }
             }
             case UPGRADED -> {

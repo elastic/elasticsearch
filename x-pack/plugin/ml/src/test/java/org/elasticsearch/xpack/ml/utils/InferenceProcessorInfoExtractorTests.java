@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
@@ -107,9 +106,9 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
+                    .add(TestDiscoveryNode.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
+                    .add(TestDiscoveryNode.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(TestDiscoveryNode.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )
@@ -157,9 +156,9 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(new DiscoveryNode("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
-                    .add(new DiscoveryNode("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302), Version.CURRENT))
-                    .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304), Version.CURRENT))
+                    .add(TestDiscoveryNode.create("min_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9300)))
+                    .add(TestDiscoveryNode.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
+                    .add(TestDiscoveryNode.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

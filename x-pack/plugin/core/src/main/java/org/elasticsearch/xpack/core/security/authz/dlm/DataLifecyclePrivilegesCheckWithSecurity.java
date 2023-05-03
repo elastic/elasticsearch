@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.action.dlm;
+package org.elasticsearch.xpack.core.security.authz.dlm;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;

@@ -30,19 +30,21 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     protected abstract Matcher<Object> resultMatcherForInput(List<?> input);
 
+    protected abstract DataType[] supportedTypes();
+
     @Override
     protected final List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(representable()));
+        return List.of(required(supportedTypes()));
     }
 
     @Override
     protected final List<Object> simpleData() {
-        return dataForPosition(representable()[0]);
+        return dataForPosition(supportedTypes()[0]);
     }
 
     @Override
     protected final Expression expressionForSimpleData() {
-        return build(Source.EMPTY, field("f", representable()[0]));
+        return build(Source.EMPTY, field("f", supportedTypes()[0]));
     }
 
     @Override
@@ -68,7 +70,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     public final void testVector() {
-        for (DataType type : representable()) {
+        for (DataType type : supportedTypes()) {
             List<List<Object>> data = randomList(1, 200, () -> singletonList(randomLiteral(type).value()));
             Expression expression = build(Source.EMPTY, field("f", type));
             Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
@@ -81,7 +83,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     public final void testBlock() {
         for (boolean insertNulls : new boolean[] { false, true }) {
-            for (DataType type : representable()) {
+            for (DataType type : supportedTypes()) {
                 List<List<Object>> data = randomList(
                     1,
                     200,
@@ -102,7 +104,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     public final void testFoldSingleValue() {
-        for (DataType type : representable()) {
+        for (DataType type : supportedTypes()) {
             Literal lit = randomLiteral(type);
             Expression expression = build(Source.EMPTY, lit);
             assertTrue(expression.foldable());
@@ -111,7 +113,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     public final void testFoldManyValues() {
-        for (DataType type : representable()) {
+        for (DataType type : supportedTypes()) {
             List<Object> data = randomList(1, 100, () -> randomLiteral(type).value());
             Expression expression = build(Source.EMPTY, new Literal(Source.EMPTY, data, type));
             assertTrue(expression.foldable());

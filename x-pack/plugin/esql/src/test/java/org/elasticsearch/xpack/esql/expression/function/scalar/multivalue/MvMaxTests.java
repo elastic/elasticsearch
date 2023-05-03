@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.hamcrest.Matcher;
 
 import java.util.Comparator;
@@ -24,6 +25,11 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvMax(source, field);
+    }
+
+    @Override
+    protected DataType[] supportedTypes() {
+        return representable();
     }
 
     @Override

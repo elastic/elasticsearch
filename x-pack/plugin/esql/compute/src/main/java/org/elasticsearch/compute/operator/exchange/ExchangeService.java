@@ -7,11 +7,21 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,9 +30,11 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
@@ -31,21 +43,37 @@ import java.util.concurrent.Executor;
  * TODO:
  * - Add a reaper that removes/closes inactive sinks (i.e., no sink, source for more than 30 seconds)
  */
-public final class ExchangeService {
+public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
     // are accessed only by the user initialized the session.
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
-    private final TransportService transportService;
+
+    private static final Logger LOGGER = LogManager.getLogger(ExchangeService.class);
+    /**
+     * An interval for an exchange request to wait before timing out when the corresponding sink handler doesn't exist.
+     * This timeout provides an extra safeguard to ensure the pending requests will always be completed and clean up if
+     * data-node requests don't arrive or fail or the corresponding sink handlers are already completed and removed.
+     */
+    public static final Setting<TimeValue> INACTIVE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "esql.exchange.inactive_timeout",
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.NodeScope
+    );
+
+    private final ThreadPool threadPool;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
-    private final Map<String, PendingListener> pendingListeners = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, PendingGroup> pendingGroups = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> sources = ConcurrentCollections.newConcurrentMap();
 
-    private final Executor fetchExecutor;
+    private final PendingRequestNotifier pendingRequestNotifier;
 
-    public ExchangeService(TransportService transportService, ThreadPool threadPool) {
-        this.transportService = transportService;
-        this.fetchExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
+    public ExchangeService(Settings settings, ThreadPool threadPool) {
+        this.threadPool = threadPool;
+        this.pendingRequestNotifier = new PendingRequestNotifier(LOGGER, threadPool, INACTIVE_TIMEOUT_SETTING.get(settings));
+    }
+
+    public void registerTransportHandler(TransportService transportService) {
         transportService.registerRequestHandler(
             EXCHANGE_ACTION_NAME,
             ThreadPool.Names.SAME,
@@ -64,9 +92,9 @@ public final class ExchangeService {
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
-        final PendingListener pendingListener = pendingListeners.remove(exchangeId);
-        if (pendingListener != null) {
-            pendingListener.onReady(sinkHandler);
+        final PendingGroup pendingGroup = pendingGroups.get(exchangeId);
+        if (pendingGroup != null) {
+            pendingGroup.onReady(sinkHandler);
         }
         return sinkHandler;
     }
@@ -88,6 +116,7 @@ public final class ExchangeService {
      * @throws IllegalStateException if a source handler for the given id already exists
      */
     public ExchangeSourceHandler createSourceHandler(String exchangeId, int maxBufferSize) {
+        Executor fetchExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(maxBufferSize, fetchExecutor);
         if (sources.putIfAbsent(exchangeId, sourceHandler) != null) {
             throw new IllegalStateException("source exchanger for id [" + exchangeId + "] already exists");
@@ -139,36 +168,118 @@ public final class ExchangeService {
                 // If a data-node request arrives after an exchange request, we add the listener to the pending list. This allows the
                 // data-node request to link the pending listeners with its exchange sink handler when it arrives. We also register the
                 // listener to the task cancellation in case the data-node request never arrives due to a network issue or rejection.
-                ActionListener<ExchangeResponse> wrappedListener = ActionListener.notifyOnce(listener);
+                PendingGroup pendingGroup = pendingGroups.compute(exchangeId, (k, group) -> {
+                    if (group != null && group.tryIncRef()) {
+                        return group;
+                    } else {
+                        return new PendingGroup(exchangeId);
+                    }
+                });
+                var pendingRequest = new PendingRequest(threadPool.relativeTimeInMillis(), request, pendingGroup::decRef, listener);
+                pendingGroup.addRequest(pendingRequest);
                 CancellableTask cancellableTask = (CancellableTask) task;
-                cancellableTask.addListener(() -> cancellableTask.notifyIfCancelled(wrappedListener));
-                PendingListener pendingListener = pendingListeners.computeIfAbsent(exchangeId, k -> new PendingListener());
-                pendingListener.addListener(new ExchangeListener(request.sourcesFinished(), wrappedListener));
-                // If the data-node request arrived while we were adding the listener to the pending list, we must complete the pending
-                // listeners with the newly created sink handler.
+                cancellableTask.addListener(() -> {
+                    assert cancellableTask.isCancelled();
+                    if (pendingRequest.tryAcquire()) {
+                        cancellableTask.notifyIfCancelled(listener);
+                    }
+                });
+                // If the data-node request arrived while we were adding the request to the pending group,
+                // we must complete the pending group with the newly created sink handler.
                 sinkHandler = sinks.get(exchangeId);
                 if (sinkHandler != null) {
-                    pendingListener.onReady(sinkHandler);
+                    pendingGroup.onReady(sinkHandler);
                 }
             }
         }
     }
 
-    private record ExchangeListener(boolean sourcesFinished, ActionListener<ExchangeResponse> listener) {
+    private static class PendingRequest {
+        final long addedInMillis;
+        final ExchangeRequest request;
+        final Releasable onAcquired;
+        final ActionListener<ExchangeResponse> listener;
+        final AtomicBoolean acquired = new AtomicBoolean();
 
+        PendingRequest(long addedInMillis, ExchangeRequest request, Releasable onAcquired, ActionListener<ExchangeResponse> listener) {
+            this.addedInMillis = addedInMillis;
+            this.request = request;
+            this.onAcquired = onAcquired;
+            this.listener = listener;
+        }
+
+        boolean tryAcquire() {
+            if (acquired.compareAndSet(false, true)) {
+                onAcquired.close();
+                return true;
+            } else {
+                return false;
+            }
+        }
     }
 
-    static final class PendingListener {
-        private final Queue<ExchangeListener> listeners = ConcurrentCollections.newQueue();
+    final class PendingGroup extends AbstractRefCounted {
+        private final Queue<PendingRequest> requests = ConcurrentCollections.newQueue();
+        private final String exchangeId;
 
-        void addListener(ExchangeListener listener) {
-            listeners.add(listener);
+        PendingGroup(String exchangeId) {
+            this.exchangeId = exchangeId;
+        }
+
+        @Override
+        protected void closeInternal() {
+            pendingGroups.computeIfPresent(exchangeId, (k, group) -> {
+                if (group == PendingGroup.this) {
+                    return null;
+                } else {
+                    return group;
+                }
+            });
+        }
+
+        void addRequest(PendingRequest request) {
+            requests.add(request);
         }
 
         void onReady(ExchangeSinkHandler handler) {
-            ExchangeListener e;
-            while ((e = listeners.poll()) != null) {
-                handler.fetchPageAsync(e.sourcesFinished, e.listener);
+            PendingRequest r;
+            while ((r = requests.poll()) != null) {
+                if (r.tryAcquire()) {
+                    handler.fetchPageAsync(r.request.sourcesFinished(), r.listener);
+                }
+            }
+        }
+
+        void onTimeout(long nowInMillis, TimeValue keepAlive) {
+            Iterator<PendingRequest> it = requests.iterator();
+            while (it.hasNext()) {
+                PendingRequest r = it.next();
+                if (r.addedInMillis + keepAlive.millis() < nowInMillis && r.tryAcquire()) {
+                    r.listener.onResponse(new ExchangeResponse(null, false));
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    final class PendingRequestNotifier extends AbstractAsyncTask {
+        PendingRequestNotifier(Logger logger, ThreadPool threadPool, TimeValue interval) {
+            super(logger, threadPool, interval, true);
+            rescheduleIfNecessary();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            Lifecycle.State state = lifecycleState();
+            return state != Lifecycle.State.STOPPED && state != Lifecycle.State.CLOSED;
+        }
+
+        @Override
+        protected void runInternal() {
+            TimeValue keepAlive = getInterval();
+            long nowInMillis = threadPool.relativeTimeInMillis();
+            for (PendingGroup group : pendingGroups.values()) {
+                group.onTimeout(nowInMillis, keepAlive);
             }
         }
     }
@@ -176,11 +287,12 @@ public final class ExchangeService {
     /**
      * Creates a new {@link RemoteSink} that fetches pages from an exchange sink located on the remote node.
      *
-     * @param remoteNode the node where the remote exchange sink is located
-     * @param parentTask the parent task that initialized the ESQL request
-     * @param exchangeId the exchange ID
+     * @param parentTask       the parent task that initialized the ESQL request
+     * @param exchangeId       the exchange ID
+     * @param transportService the transport service
+     * @param remoteNode       the node where the remote exchange sink is located
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, DiscoveryNode remoteNode) {
+    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, DiscoveryNode remoteNode) {
         return new TransportRemoteSink(transportService, remoteNode, parentTask, exchangeId);
     }
 
@@ -199,5 +311,38 @@ public final class ExchangeService {
                 new ActionListenerResponseHandler<>(listener, ExchangeResponse::new)
             );
         }
+    }
+
+    // For testing
+    public boolean isEmpty() {
+        // TODO: assert sinks are removed when adding the reaper
+        return sources.isEmpty() && pendingGroups.isEmpty();
+    }
+
+    @Override
+    protected void doStart() {
+
+    }
+
+    @Override
+    protected void doStop() {
+        pendingRequestNotifier.close();
+    }
+
+    @Override
+    protected void doClose() {
+        doStop();
+    }
+
+    @Override
+    public String toString() {
+        return "ExchangeService{"
+            + "pending="
+            + pendingGroups.keySet()
+            + ", sinks="
+            + sinks.keySet()
+            + ", sources="
+            + sources.keySet()
+            + '}';
     }
 }

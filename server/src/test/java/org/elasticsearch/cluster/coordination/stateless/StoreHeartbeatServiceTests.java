@@ -8,12 +8,13 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -62,7 +63,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
-        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var currentLeader = TestDiscoveryNode.create("master");
         heartbeatService.start(currentLeader, currentTermProvider.get(), completionListener);
 
         Heartbeat firstHeartbeat = PlainActionFuture.get(heartbeatStore::readLatestHeartbeat);
@@ -125,7 +126,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
-        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var currentLeader = TestDiscoveryNode.create("master");
 
         final boolean failFirstHeartBeat = randomBoolean();
         injectWriteHeartBeatFailure.set(failFirstHeartBeat);
@@ -167,7 +168,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         );
 
         PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
-        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var currentLeader = TestDiscoveryNode.create("master");
 
         final long currentTerm = currentTermProvider.get();
         boolean termBumpBeforeStart = randomBoolean();
@@ -262,16 +263,26 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
 
             failReadingHeartbeat.set(true);
 
-            AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
-            assertThat(noRecentLeaderFound.get(), is(false));
+            final var mockAppender = new MockLogAppender();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "warning log",
+                    StoreHeartbeatService.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to read heartbeat from store"
+                )
+            );
+            try (var ignored = mockAppender.capturing(StoreHeartbeatService.class)) {
+                heartbeatService.runIfNoRecentLeader(() -> fail("should not be called"));
+                mockAppender.assertAllExpectationsMatched();
+            }
         }
     }
 
     public void testRetriesEarlyAfterGettingAnEmptyTerm() {
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
-        final var currentLeader = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var currentLeader = TestDiscoveryNode.create("master");
 
         final var currentTermSupplier = new AtomicReference<>(OptionalLong.empty());
         final var fakeClock = new AtomicLong();

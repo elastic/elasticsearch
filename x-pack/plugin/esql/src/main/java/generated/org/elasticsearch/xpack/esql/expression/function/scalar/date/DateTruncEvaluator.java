@@ -46,12 +46,12 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
     LongBlock fieldValBlock = (LongBlock) fieldValUncastBlock;
     LongVector fieldValVector = fieldValBlock.asVector();
     if (fieldValVector == null) {
-      return eval(page.getPositionCount(), fieldValBlock, rounding);
+      return eval(page.getPositionCount(), fieldValBlock);
     }
-    return eval(page.getPositionCount(), fieldValVector, rounding).asBlock();
+    return eval(page.getPositionCount(), fieldValVector).asBlock();
   }
 
-  public LongBlock eval(int positionCount, LongBlock fieldValBlock, Rounding.Prepared rounding) {
+  public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
       if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
@@ -63,7 +63,7 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
     return result.build();
   }
 
-  public LongVector eval(int positionCount, LongVector fieldValVector, Rounding.Prepared rounding) {
+  public LongVector eval(int positionCount, LongVector fieldValVector) {
     LongVector.Builder result = LongVector.newVectorBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
       result.appendLong(DateTrunc.process(fieldValVector.getLong(p), rounding));

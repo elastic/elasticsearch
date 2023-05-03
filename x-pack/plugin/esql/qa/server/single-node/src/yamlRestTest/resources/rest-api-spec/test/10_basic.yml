@@ -297,9 +297,13 @@ setup:
         - median
         - median_absolute_deviation
         - min
+        - mv_avg
         - mv_max
         - mv_min
+        - mv_sum
+        - pow
         - round
+        - split
         - starts_with
         - substring
         - sum
@@ -323,9 +327,13 @@ setup:
         - median(arg1)
         - median_absolute_deviation(arg1)
         - min(arg1)
+        - mv_avg(arg1)
         - mv_max(arg1)
         - mv_min(arg1)
+        - mv_sum(arg1)
+        - pow(arg1, arg2)
         - round(arg1, arg2)
+        - split(arg1, arg2)
         - starts_with(arg1, arg2)
         - substring(arg1, arg2, arg3)
         - sum(arg1)

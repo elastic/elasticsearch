@@ -24,11 +24,15 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsFinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsInfinite;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.IsNaN;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -64,7 +68,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(IsFinite.class, IsFinite::new, "is_finite"),
                 def(IsInfinite.class, IsInfinite::new, "is_infinite"),
                 def(IsNaN.class, IsNaN::new, "is_nan"),
-                def(Round.class, Round::new, "round") },
+                def(Round.class, Round::new, "round"),
+                def(Pow.class, Pow::new, "pow") },
             // string
             new FunctionDefinition[] {
                 def(Length.class, Length::new, "length"),
@@ -81,7 +86,12 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
             // IP
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // multivalue functions
-            new FunctionDefinition[] { def(MvMax.class, MvMax::new, "mv_max"), def(MvMin.class, MvMin::new, "mv_min") } };
+            new FunctionDefinition[] {
+                def(MvAvg.class, MvAvg::new, "mv_avg"),
+                def(MvMax.class, MvMax::new, "mv_max"),
+                def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvSum.class, MvSum::new, "mv_sum"),
+                def(Split.class, Split::new, "split") } };
     }
 
     @Override

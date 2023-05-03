@@ -17,7 +17,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -25,22 +24,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,9 +59,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@Experimental
-@TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
-public class EsqlActionIT extends ESIntegTestCase {
+public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     long epoch = System.currentTimeMillis();
 
@@ -1078,19 +1068,6 @@ public class EsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    static EsqlQueryResponse run(String esqlCommands) {
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(randomPragmas()).get();
-    }
-
-    static EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
-        return new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(esqlCommands).pragmas(pragmas).get();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(EsqlPlugin.class);
-    }
-
     private void createAndPopulateIndex(String indexName) {
         createAndPopulateIndex(indexName, Settings.EMPTY);
     }
@@ -1140,31 +1117,5 @@ public class EsqlActionIT extends ESIntegTestCase {
                 .get();
         }
         ensureYellow(indexName);
-    }
-
-    private static QueryPragmas randomPragmas() {
-        Settings.Builder settings = Settings.builder();
-        // pragmas are only enabled on snapshot builds
-        if (Build.CURRENT.isSnapshot()) {
-            if (randomBoolean()) {
-                settings.put("task_concurrency", randomLongBetween(1, 10));
-            }
-            if (randomBoolean()) {
-                final int exchangeBufferSize;
-                if (frequently()) {
-                    exchangeBufferSize = randomIntBetween(1, 10);
-                } else {
-                    exchangeBufferSize = randomIntBetween(5, 5000);
-                }
-                settings.put("exchange_buffer_size", exchangeBufferSize);
-            }
-            if (randomBoolean()) {
-                settings.put("exchange_concurrent_clients", randomIntBetween(1, 10));
-            }
-            if (randomBoolean()) {
-                settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
-            }
-        }
-        return new QueryPragmas(settings.build());
     }
 }

@@ -44,7 +44,8 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
         long next = v.getLong(i);
         value = MvMin.process(value, next);
       }
-      builder.appendLong(value);
+      long result = value;
+      builder.appendLong(result);
     }
     return builder.build();
   }
@@ -63,7 +64,8 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
         long next = v.getLong(i);
         value = MvMin.process(value, next);
       }
-      values[p] = value;
+      long result = value;
+      values[p] = result;
     }
     return new LongArrayVector(values, positionCount);
   }

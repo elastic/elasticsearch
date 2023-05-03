@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -31,10 +32,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -61,7 +60,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that we expose a reasonable task status.
  */
-public class EsqlActionTaskIT extends ESIntegTestCase {
+public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
     private static final int COUNT = LuceneSourceOperator.PAGE_SIZE * 5;
 
     private static final String READ_DESCRIPTION = """
@@ -77,7 +76,7 @@ public class EsqlActionTaskIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPlugin.class, PausableFieldPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), PausableFieldPlugin.class);
     }
 
     @Before

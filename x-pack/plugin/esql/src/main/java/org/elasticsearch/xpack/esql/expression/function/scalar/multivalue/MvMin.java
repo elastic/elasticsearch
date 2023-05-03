@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,12 +20,19 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvMin extends AbstractMultivalueFunction {
     public MvMin(Source source, Expression field) {
         super(source, field);
+    }
+
+    @Override
+    protected TypeResolution resolveFieldType() {
+        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
     }
 
     @Override

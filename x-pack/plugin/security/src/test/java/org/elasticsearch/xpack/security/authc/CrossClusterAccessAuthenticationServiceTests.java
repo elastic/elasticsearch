@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -31,7 +32,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService.VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -95,7 +95,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             actual.getCause().getCause().getMessage(),
             equalTo(
                 "all nodes must have version ["
-                    + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
+                    + RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );

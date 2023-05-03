@@ -38,18 +38,17 @@ import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
-import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
     private final TypeElement declarationType;
-    private final ExecutableElement processFunction;
+    private final ProcessFunction processFunction;
     private final ClassName implementation;
 
     public EvaluatorImplementer(Elements elements, ExecutableElement processFunction, String extraName) {
         this.declarationType = (TypeElement) processFunction.getEnclosingElement();
-        this.processFunction = processFunction;
+        this.processFunction = new ProcessFunction(processFunction);
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -74,35 +73,31 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
 
-        for (VariableElement v : processFunction.getParameters()) {
-            builder.addField(typeForParameter(v, EXPRESSION_EVALUATOR), v.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
-        }
+        processFunction.args.stream().forEach(a -> a.declareField(builder));
 
         builder.addMethod(ctor());
-        builder.addMethod(fold());
+        if (processFunction.builderArg == null) {
+            builder.addMethod(fold());
+        }
         builder.addMethod(eval());
-        builder.addMethod(realEval(BLOCK, "Block", blockType(TypeName.get(processFunction.getReturnType())), true, "newBlockBuilder"));
-        builder.addMethod(realEval(VECTOR, "Vector", vectorType(TypeName.get(processFunction.getReturnType())), false, "newVectorBuilder"));
+        builder.addMethod(realEval(true));
+        builder.addMethod(realEval(false));
         builder.addMethod(toStringMethod());
         return builder.build();
     }
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        for (VariableElement v : processFunction.getParameters()) {
-            String name = v.getSimpleName().toString();
-            builder.addParameter(typeForParameter(v, EXPRESSION_EVALUATOR), name);
-            builder.addStatement("this.$L = $L", name, name);
-        }
+        processFunction.args.stream().forEach(a -> a.implementCtor(builder));
         return builder.build();
     }
 
     private MethodSpec fold() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("fold")
             .addModifiers(Modifier.STATIC)
-            .returns(TypeName.get(processFunction.getReturnType()).box());
+            .returns(TypeName.get(processFunction.function.getReturnType()).box());
 
-        for (VariableElement v : processFunction.getParameters()) {
+        for (VariableElement v : processFunction.function.getParameters()) {
             String name = v.getSimpleName().toString();
             if (v.getAnnotation(Fixed.class) != null) {
                 builder.addParameter(TypeName.get(v.asType()), name);
@@ -133,8 +128,8 @@ public class EvaluatorImplementer {
         List<Object> args = new ArrayList<>();
         pattern.append("return $T.$N(");
         args.add(declarationType);
-        args.add(processFunction.getSimpleName());
-        for (VariableElement v : processFunction.getParameters()) {
+        args.add(processFunction.function.getSimpleName());
+        for (VariableElement v : processFunction.function.getParameters()) {
             if (args.size() > 2) {
                 pattern.append(", ");
             }
@@ -175,234 +170,75 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval").addAnnotation(Override.class);
         builder.addModifiers(Modifier.PUBLIC).returns(BLOCK).addParameter(PAGE, "page");
 
-        for (VariableElement v : processFunction.getParameters()) {
-            if (v.getAnnotation(Fixed.class) != null) {
-                continue;
-            }
-            String name = v.getSimpleName().toString();
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-                TypeName blockType = blockType(TypeName.get(componentType));
-                builder.addStatement("$T[] $LBlocks = new $T[$L.length]", blockType, name, blockType, name);
-                builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
-                {
-                    builder.addStatement("Block block = $L[i].eval(page)", name);
-                    builder.beginControlFlow("if (block.areAllValuesNull())");
-                    builder.addStatement("return Block.constantNullBlock(page.getPositionCount())");
-                    builder.endControlFlow();
-                    builder.addStatement("$LBlocks[i] = ($T) block", name, blockType);
-                }
-                builder.endControlFlow();
-            } else {
-                TypeName blockType = blockType(TypeName.get(v.asType()));
-                builder.addStatement("Block $LUncastBlock = $L.eval(page)", name, name);
-                builder.beginControlFlow("if ($LUncastBlock.areAllValuesNull())", name);
-                builder.addStatement("return Block.constantNullBlock(page.getPositionCount())");
-                builder.endControlFlow();
-                builder.addStatement("$T $LBlock = ($T) $LUncastBlock", blockType, name, blockType, name);
-            }
-        }
-        for (VariableElement v : processFunction.getParameters()) {
-            String name = v.getSimpleName().toString();
-            if (v.getAnnotation(Fixed.class) != null) {
-                continue;
-            }
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-                TypeName vectorType = vectorType(TypeName.get(componentType));
-                builder.addStatement("$T[] $LVectors = new $T[$L.length]", vectorType, name, vectorType, name);
-                builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
-                builder.addStatement("$LVectors[i] = $LBlocks[i].asVector()", name, name);
-                builder.beginControlFlow("if ($LVectors[i] == null)", name).addStatement(invokeNextEval("Block")).endControlFlow();
-                builder.endControlFlow();
-            } else {
-                builder.addStatement("$T $LVector = $LBlock.asVector()", typeForParameter(v, VECTOR), name, name);
-                builder.beginControlFlow("if ($LVector == null)", name).addStatement(invokeNextEval("Block")).endControlFlow();
-            }
-        }
-        builder.addStatement(invokeNextEval("Vector") + ".asBlock()");
+        processFunction.args.stream().forEach(a -> a.evalToBlock(builder));
+        String invokeBlockEval = invokeRealEval(true);
+        processFunction.args.stream().forEach(a -> a.resolveVectors(builder, invokeBlockEval));
+        builder.addStatement(invokeRealEval(false));
         return builder.build();
     }
 
-    private String invokeNextEval(String flavor) {
-        return "return eval(page.getPositionCount(), " + processFunction.getParameters().stream().map(v -> {
-            String name = v.getSimpleName().toString();
-            if (v.getAnnotation(Fixed.class) != null) {
-                return name;
-            }
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                return name + flavor + "s";
-            }
-            return name + flavor;
-        }).collect(Collectors.joining(", ")) + ")";
+    private String invokeRealEval(boolean blockStyle) {
+        return "return eval(page.getPositionCount(), "
+            + processFunction.args.stream().map(a -> a.paramName(blockStyle)).filter(a -> a != null).collect(Collectors.joining(", "))
+            + ")"
+            + (processFunction.resultDataType(blockStyle).simpleName().endsWith("Vector") ? ".asBlock()" : "");
     }
 
-    private String nameForParameter(VariableElement v, String flavor) {
-        if (v.getAnnotation(Fixed.class) != null) {
-            return v.getSimpleName().toString();
-        }
-        return v.getSimpleName() + flavor + (v.asType().getKind() == TypeKind.ARRAY ? "s" : "");
-    }
-
-    private TypeName typeForParameter(VariableElement v, TypeName flavor) {
-        if (v.getAnnotation(Fixed.class) != null) {
-            return TypeName.get(v.asType());
-        }
-        if (v.asType().getKind() == TypeKind.ARRAY) {
-            TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-            return ArrayTypeName.of(typeParameterForMirror(componentType, flavor));
-        }
-        return typeParameterForMirror(v.asType(), flavor);
-    }
-
-    private TypeName typeParameterForMirror(TypeMirror mirror, TypeName flavor) {
-        if (flavor.equals(BLOCK)) {
-            return blockType(TypeName.get(mirror));
-        }
-        if (flavor.equals(VECTOR)) {
-            return vectorType(TypeName.get(mirror));
-        }
-        return flavor;
-    }
-
-    private MethodSpec realEval(
-        TypeName typeFlavor,
-        String nameFlavor,
-        TypeName resultType,
-        boolean blockStyle,
-        String resultBuilderMethod
-    ) {
+    private MethodSpec realEval(boolean blockStyle) {
+        ClassName resultDataType = processFunction.resultDataType(blockStyle);
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval");
-        builder.addModifiers(Modifier.PUBLIC).returns(resultType);
+        builder.addModifiers(Modifier.PUBLIC).returns(resultDataType);
         builder.addParameter(TypeName.INT, "positionCount");
 
-        for (VariableElement v : processFunction.getParameters()) {
-            builder.addParameter(typeForParameter(v, typeFlavor), nameForParameter(v, nameFlavor));
-        }
-
-        builder.addStatement("$T.Builder result = $T.$L(positionCount)", resultType, resultType, resultBuilderMethod);
-
-        // Create any scratch variables we need
-        for (VariableElement v : processFunction.getParameters()) {
-            if (TypeName.get(v.asType()).equals(BYTES_REF)) {
-                builder.addStatement("BytesRef $LScratch = new BytesRef()", v.getSimpleName().toString());
+        processFunction.args.stream().forEach(a -> {
+            if (a.paramName(blockStyle) != null) {
+                builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
             }
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-                String name = v.getSimpleName().toString();
-                builder.addStatement("$T[] $LValues = new $T[$L.length]", componentType, name, componentType, name);
-                if (TypeName.get(componentType).equals(BYTES_REF)) {
-                    builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
-                    builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", v.getSimpleName());
-                    builder.addStatement("$LScratch[i] = new BytesRef()", v.getSimpleName());
-                    builder.endControlFlow();
-                }
-            }
-        }
+        });
+        builder.addStatement(
+            "$T.Builder result = $T.$L(positionCount)",
+            resultDataType,
+            resultDataType,
+            resultDataType.simpleName().endsWith("Vector") ? "newVectorBuilder" : "newBlockBuilder"
+        );
+        processFunction.args.stream().forEach(a -> a.createScratch(builder));
 
         builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
         {
             if (blockStyle) {
-                for (VariableElement v : processFunction.getParameters()) {
-                    if (v.getAnnotation(Fixed.class) != null) {
-                        continue;
-                    }
-                    String name = nameForParameter(v, nameFlavor);
-                    if (v.asType().getKind() != TypeKind.ARRAY) {
-                        skipNull(builder, name);
-                        continue;
-                    }
-                    builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", v.getSimpleName());
-                    skipNull(builder, name + "[i]");
-                    builder.endControlFlow();
-                }
+                processFunction.args.stream().forEach(a -> a.skipNull(builder));
             }
+            processFunction.args.stream().forEach(a -> a.unpackValues(builder, blockStyle));
 
-            for (VariableElement v : processFunction.getParameters()) {
-                if (v.getAnnotation(Fixed.class) != null || v.asType().getKind() != TypeKind.ARRAY) {
-                    continue;
+            StringBuilder pattern = new StringBuilder();
+            List<Object> args = new ArrayList<>();
+            pattern.append("$T.$N(");
+            args.add(declarationType);
+            args.add(processFunction.function.getSimpleName());
+            processFunction.args.stream().forEach(a -> {
+                if (args.size() > 2) {
+                    pattern.append(", ");
                 }
-                String name = nameForParameter(v, nameFlavor);
-                builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", v.getSimpleName());
-                TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-                String lookupVar;
-                if (blockStyle) {
-                    lookupVar = "o";
-                    builder.addStatement("int o = $LBlocks[i].getFirstValueIndex(p)", v.getSimpleName());
-                } else {
-                    lookupVar = "p";
-                }
-                if (TypeName.get(componentType).equals(BYTES_REF)) {
-                    builder.addStatement(
-                        "$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])",
-                        v.getSimpleName(),
-                        name,
-                        lookupVar,
-                        v.getSimpleName()
-                    );
-                } else {
-                    builder.addStatement(
-                        "$LValues[i] = $L[i].$L($L)",
-                        v.getSimpleName(),
-                        name,
-                        getMethod(TypeName.get(v.asType())),
-                        lookupVar
-                    );
-                }
-                builder.endControlFlow();
-            }
-        }
+                a.buildInvocation(pattern, args, blockStyle);
+            });
+            pattern.append(")");
 
-        StringBuilder pattern = new StringBuilder();
-        List<Object> args = new ArrayList<>();
-        pattern.append("result.$L($T.$N(");
-        args.add(appendMethod(TypeName.get(processFunction.getReturnType())));
-        args.add(declarationType);
-        args.add(processFunction.getSimpleName());
-        for (VariableElement v : processFunction.getParameters()) {
-            if (args.size() > 3) {
-                pattern.append(", ");
-            }
-            if (v.getAnnotation(Fixed.class) != null) {
-                pattern.append("$L");
-                args.add(v.getSimpleName().toString());
-                continue;
-            }
-            String name = nameForParameter(v, nameFlavor);
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                pattern.append("$LValues");
-                args.add(v.getSimpleName());
-                continue;
-            }
-            if (TypeName.get(v.asType()).equals(BYTES_REF)) {
-                if (blockStyle) {
-                    pattern.append("$L.getBytesRef($L.getFirstValueIndex(p), $LScratch)");
-                    args.add(name);
-                } else {
-                    pattern.append("$L.getBytesRef(p, $LScratch)");
-                }
-                args.add(name);
-                args.add(v.getSimpleName().toString());
-                continue;
-            }
-            if (blockStyle) {
-                pattern.append("$L.$L($L.getFirstValueIndex(p))");
+            String builtPattern;
+            if (processFunction.builderArg == null) {
+                builtPattern = "result.$L(" + pattern + ")";
+                args.add(0, appendMethod(resultDataType));
             } else {
-                pattern.append("$L.$L(p)");
+                builtPattern = pattern.toString();
             }
-            args.add(name);
-            args.add(getMethod(TypeName.get(v.asType())));
-            if (blockStyle) {
-                args.add(name);
-            }
+
+            builder.addStatement(builtPattern, args.toArray());
         }
-        builder.addStatement(pattern.append("))").toString(), args.toArray());
         builder.endControlFlow();
         builder.addStatement("return result.build()");
         return builder.build();
     }
 
-    private void skipNull(MethodSpec.Builder builder, String value) {
+    private static void skipNull(MethodSpec.Builder builder, String value) {
         builder.beginControlFlow("if ($N.isNull(p) || $N.getValueCount(p) != 1)", value, value);
         {
             builder.addStatement("result.appendNull()");
@@ -416,26 +252,435 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC).returns(String.class);
 
         StringBuilder pattern = new StringBuilder();
-        pattern.append("return $S");
         List<Object> args = new ArrayList<>();
+        pattern.append("return $S");
         args.add(implementation.simpleName() + "[");
-        for (VariableElement v : processFunction.getParameters()) {
-            Fixed fixed = v.getAnnotation(Fixed.class);
-            if (fixed != null && false == fixed.includeInToString()) {
-                continue;
-            }
-            args.add((args.size() > 2 ? ", " : "") + v.getSimpleName() + "=");
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                pattern.append(" + $S + $T.toString($L)");
-                args.add(Arrays.class);
-            } else {
-                pattern.append(" + $S + $L");
-            }
-            args.add(v.getSimpleName());
-        }
+        processFunction.args.stream().forEach(a -> a.buildToStringInvocation(pattern, args, args.size() > 2 ? ", " : ""));
         pattern.append(" + $S");
         args.add("]");
         builder.addStatement(pattern.toString(), args.toArray());
         return builder.build();
+    }
+
+    private interface ProcessFunctionArg {
+        /**
+         * Type containing the actual data for a page of values for this field. Usually a
+         * Block or Vector, but for fixed fields will be the original fixed type.
+         */
+        TypeName dataType(boolean blockStyle);
+
+        /**
+         * The parameter passed to the real evaluation function
+         */
+        String paramName(boolean blockStyle);
+
+        /**
+         * Declare any required fields on the type for this parameter.
+         */
+        void declareField(TypeSpec.Builder builder);
+
+        /**
+         * Implement the ctor for this parameter. Will declare parameters
+         * and assign values to declared fields.
+         */
+        void implementCtor(MethodSpec.Builder builder);
+
+        /**
+         * Emits code to evaluate this parameter to a Block or array of Blocks.
+         * Noop if the parameter is {@link Fixed}.
+         */
+        void evalToBlock(MethodSpec.Builder builder);
+
+        /**
+         * Emits code to check if this parameter is a vector or a block, and to
+         * call the block flavored evaluator if this is a block. Noop if the
+         * parameter is {@link Fixed}.
+         */
+        void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval);
+
+        /**
+         * Create any scratch structures needed by {@link EvaluatorImplementer#realEval}.
+         */
+        void createScratch(MethodSpec.Builder builder);
+
+        /**
+         * Skip any null values in blocks containing this field.
+         */
+        void skipNull(MethodSpec.Builder builder);
+
+        /**
+         * Unpacks values from blocks and repacks them into an appropriate local. Noop
+         * except for arrays.
+         */
+        void unpackValues(MethodSpec.Builder builder, boolean blockStyle);
+
+        /**
+         * Build the invocation of the process method for this parameter.
+         */
+        void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle);
+
+        void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix);
+    }
+
+    private record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
+        @Override
+        public TypeName dataType(boolean blockStyle) {
+            if (blockStyle) {
+                return blockType(type);
+            }
+            return vectorType(type);
+        }
+
+        @Override
+        public String paramName(boolean blockStyle) {
+            return name + (blockStyle ? "Block" : "Vector");
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(EXPRESSION_EVALUATOR, name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(EXPRESSION_EVALUATOR, name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void evalToBlock(MethodSpec.Builder builder) {
+            TypeName blockType = blockType(type);
+            builder.addStatement("Block $LUncastBlock = $L.eval(page)", name, name);
+            builder.beginControlFlow("if ($LUncastBlock.areAllValuesNull())", name);
+            builder.addStatement("return Block.constantNullBlock(page.getPositionCount())");
+            builder.endControlFlow();
+            builder.addStatement("$T $LBlock = ($T) $LUncastBlock", blockType, name, blockType, name);
+        }
+
+        @Override
+        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+            builder.addStatement("$T $LVector = $LBlock.asVector()", vectorType(type), name, name);
+            builder.beginControlFlow("if ($LVector == null)", name).addStatement(invokeBlockEval).endControlFlow();
+        }
+
+        @Override
+        public void createScratch(MethodSpec.Builder builder) {
+            if (type.equals(BYTES_REF)) {
+                builder.addStatement("BytesRef $LScratch = new BytesRef()", name);
+            }
+        }
+
+        @Override
+        public void skipNull(MethodSpec.Builder builder) {
+            EvaluatorImplementer.skipNull(builder, paramName(true));
+        }
+
+        @Override
+        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
+            // nothing to do
+        }
+
+        @Override
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
+            if (type.equals(BYTES_REF)) {
+                if (blockStyle) {
+                    pattern.append("$L.getBytesRef($L.getFirstValueIndex(p), $LScratch)");
+                    args.add(paramName(true));
+                } else {
+                    pattern.append("$L.getBytesRef(p, $LScratch)");
+                }
+                args.add(paramName(blockStyle));
+                args.add(name);
+                return;
+            }
+            if (blockStyle) {
+                pattern.append("$L.$L($L.getFirstValueIndex(p))");
+            } else {
+                pattern.append("$L.$L(p)");
+            }
+            args.add(paramName(blockStyle));
+            args.add(getMethod(type));
+            if (blockStyle) {
+                args.add(paramName(true));
+            }
+        }
+
+        @Override
+        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
+            pattern.append(" + $S + $L");
+            args.add(prefix + name + "=");
+            args.add(name);
+        }
+    }
+
+    private record ArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
+        @Override
+        public TypeName dataType(boolean blockStyle) {
+            if (blockStyle) {
+                return ArrayTypeName.of(blockType(componentType));
+            }
+            return ArrayTypeName.of(vectorType(componentType));
+        }
+
+        @Override
+        public String paramName(boolean blockStyle) {
+            return name + (blockStyle ? "Block" : "Vector") + "s";
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(ArrayTypeName.of(EXPRESSION_EVALUATOR), name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(ArrayTypeName.of(EXPRESSION_EVALUATOR), name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void evalToBlock(MethodSpec.Builder builder) {
+            TypeName blockType = blockType(componentType);
+            builder.addStatement("$T[] $LBlocks = new $T[$L.length]", blockType, name, blockType, name);
+            builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
+            {
+                builder.addStatement("Block block = $L[i].eval(page)", name);
+                builder.beginControlFlow("if (block.areAllValuesNull())");
+                builder.addStatement("return Block.constantNullBlock(page.getPositionCount())");
+                builder.endControlFlow();
+                builder.addStatement("$LBlocks[i] = ($T) block", name, blockType);
+            }
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+            TypeName vectorType = vectorType(componentType);
+            builder.addStatement("$T[] $LVectors = new $T[$L.length]", vectorType, name, vectorType, name);
+            builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
+            builder.addStatement("$LVectors[i] = $LBlocks[i].asVector()", name, name);
+            builder.beginControlFlow("if ($LVectors[i] == null)", name).addStatement(invokeBlockEval).endControlFlow();
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void createScratch(MethodSpec.Builder builder) {
+            builder.addStatement("$T[] $LValues = new $T[$L.length]", componentType, name, componentType, name);
+            if (componentType.equals(BYTES_REF)) {
+                builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
+                builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
+                builder.addStatement("$LScratch[i] = new BytesRef()", name);
+                builder.endControlFlow();
+            }
+        }
+
+        @Override
+        public void skipNull(MethodSpec.Builder builder) {
+            builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(true));
+            EvaluatorImplementer.skipNull(builder, paramName(true) + "[i]");
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
+            builder.addComment("unpack $L into $LValues", paramName(blockStyle), name);
+            builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", paramName(blockStyle));
+            String lookupVar;
+            if (blockStyle) {
+                lookupVar = "o";
+                builder.addStatement("int o = $LBlocks[i].getFirstValueIndex(p)", name);
+            } else {
+                lookupVar = "p";
+            }
+            if (componentType.equals(BYTES_REF)) {
+                builder.addStatement("$LValues[i] = $L[i].getBytesRef($L, $LScratch[i])", name, paramName(blockStyle), lookupVar, name);
+            } else {
+                builder.addStatement("$LValues[i] = $L[i].$L($L)", name, paramName(blockStyle), getMethod(componentType), lookupVar);
+            }
+            builder.endControlFlow();
+        }
+
+        @Override
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
+            pattern.append("$LValues");
+            args.add(name);
+        }
+
+        @Override
+        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
+            pattern.append(" + $S + $T.toString($L)");
+            args.add(prefix + name + "=");
+            args.add(Arrays.class);
+            args.add(name);
+        }
+    }
+
+    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString) implements ProcessFunctionArg {
+        @Override
+        public TypeName dataType(boolean blockStyle) {
+            return type;
+        }
+
+        @Override
+        public String paramName(boolean blockStyle) {
+            // No need to pass it
+            return null;
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(type, name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(type, name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void evalToBlock(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+            // nothing to do
+        }
+
+        @Override
+        public void createScratch(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void skipNull(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
+            // nothing to do
+        }
+
+        @Override
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
+            pattern.append("$L");
+            args.add(name);
+        }
+
+        @Override
+        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
+            if (includeInToString) {
+                pattern.append(" + $S + $L");
+                args.add(prefix + name + "=");
+                args.add(name);
+            }
+        }
+    }
+
+    private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
+        @Override
+        public TypeName dataType(boolean blockStyle) {
+            return type;
+        }
+
+        @Override
+        public String paramName(boolean blockStyle) {
+            // never passed as a parameter
+            return null;
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            // Nothing to declare
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            // Nothing to do
+        }
+
+        @Override
+        public void evalToBlock(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+            // nothing to do
+        }
+
+        @Override
+        public void createScratch(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void skipNull(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
+            // nothing to do
+        }
+
+        @Override
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
+            pattern.append("$L");
+            args.add("result");
+        }
+
+        @Override
+        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
+            // Don't want to include
+        }
+    }
+
+    private static class ProcessFunction {
+        private final ExecutableElement function;
+        private final List<ProcessFunctionArg> args;
+        private final BuilderProcessFunctionArg builderArg;
+
+        private ProcessFunction(ExecutableElement function) {
+            this.function = function;
+            args = new ArrayList<>();
+            BuilderProcessFunctionArg builderArg = null;
+            for (VariableElement v : function.getParameters()) {
+                TypeName type = TypeName.get(v.asType());
+                String name = v.getSimpleName().toString();
+                Fixed fixed = v.getAnnotation(Fixed.class);
+                if (fixed != null) {
+                    args.add(new FixedProcessFunctionArg(type, name, fixed.includeInToString()));
+                    continue;
+                }
+                if (type instanceof ClassName c
+                    && c.simpleName().equals("Builder")
+                    && c.enclosingClassName() != null
+                    && c.enclosingClassName().simpleName().endsWith("Block")) {
+                    if (builderArg != null) {
+                        throw new IllegalArgumentException("only one builder allowed");
+                    }
+                    builderArg = new BuilderProcessFunctionArg(c, name);
+                    args.add(builderArg);
+                    continue;
+                }
+                if (v.asType().getKind() == TypeKind.ARRAY) {
+                    TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
+                    args.add(new ArrayProcessFunctionArg(TypeName.get(componentType), name));
+                    continue;
+                }
+                args.add(new StandardProcessFunctionArg(type, name));
+            }
+            this.builderArg = builderArg;
+        }
+
+        private ClassName resultDataType(boolean blockStyle) {
+            if (builderArg != null) {
+                return builderArg.type.enclosingClassName();
+            }
+            return blockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
+        }
     }
 }

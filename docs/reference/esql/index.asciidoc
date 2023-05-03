@@ -106,13 +106,16 @@ with the time filter.
 [[esql-limitations]]
 === Limitations
 
-ESQL currently supports only the following field types:
+ESQL currently supports the following <<mapping-types,field types>>:
 
+- alias
 - boolean
 - dates
+- ip
 - keyword family (strings)
 - double/float/half_float
 - long/int/short/byte
+- version
 
 --
 

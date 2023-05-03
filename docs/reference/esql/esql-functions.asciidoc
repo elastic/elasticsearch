@@ -5,11 +5,17 @@
 these functions:
 
 * <<esql-abs>>
+* <<esql-case>>
+* <<esql-cidr_match>>
 * <<esql-concat>>
 * <<esql-date_format>>
 * <<esql-date_trunc>>
+* <<esql-is_finite>>
+* <<esql-is_infinite>>
+* <<esql-is_nan>>
 * <<esql-is_null>>
 * <<esql-length>>
+* <<esql-pow>>
 * <<esql-round>>
 * <<esql-starts_with>>
 * <<esql-substring>>
@@ -23,6 +29,40 @@ Returns the absolute value.
 FROM employees
 | PROJECT first_name, last_name, height
 | EVAL abs_height = ABS(0.0 - height)
+----
+
+[[esql-case]]
+=== `CASE`
+
+Accepts pairs of conditions and values. The function returns the value that
+belongs to the first condition that evaluates to `true`. If the number of
+arguments is odd, the last argument is the default value which is returned when
+no condition matches.
+
+[source,esql]
+----
+FROM employees
+| EVAL type = CASE(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| PROJECT first_name, last_name, type
+----
+
+[[esql-cidr_match]]
+=== `CIDR_MATCH`
+
+Returns `true` if the provided IP is contained in one of the provided CIDR
+blocks. 
+
+`CIDR_MATCH` accepts two or more arguments. The first argument is the IP
+address of type `ip` (both IPv4 and IPv6 are supported). Subsequent arguments
+are the CIDR blocks to test the IP against.
+
+[source,esql]
+----
+FROM hosts
+| WHERE CIDR_MATCH(ip, "127.0.0.2/32", "127.0.0.3/32")
 ----
 
 [[esql-concat]]
@@ -61,14 +101,44 @@ FROM employees
 | SORT year_hired
 ----
 
+[[esql-is_finite]]
+=== `IS_FINITE`
+Returns a boolean that indicates whether its input is a finite number.
+
+[source,esql]
+----
+ROW d = 1.0 
+| EVAL s = IS_FINITE(d/0)
+----
+
+[[esql-is_infinite]]
+=== `IS_INFINITE`
+Returns a boolean that indicates whether its input is infinite.
+
+[source,esql]
+----
+ROW d = 1.0 
+| EVAL s = IS_INFINITE(d/0)
+----
+
+[[esql-is_nan]]
+=== `IS_NAN`
+Returns a boolean that indicates whether its input is not a number.
+
+[source,esql]
+----
+ROW d = 1.0 
+| EVAL s = IS_NAN(d)
+----
+
 [[esql-is_null]]
 === `IS_NULL`
-Returns a boolean than indicates whether its input is `null`.  
+Returns a boolean than indicates whether its input is `null`.
 
 [source,esql]
 ----
 FROM employees
-| WHERE is_null(first_name)
+| WHERE IS_NULL(first_name)
 ----
 
 Combine this function with `NOT` to filter out any `null` data:
@@ -76,7 +146,7 @@ Combine this function with `NOT` to filter out any `null` data:
 [source,esql]
 ----
 FROM employees
-| WHERE NOT is_null(first_name)
+| WHERE NOT IS_NULL(first_name)
 ----
 
 [[esql-length]]
@@ -88,6 +158,17 @@ Returns the character length of a string.
 FROM employees
 | PROJECT first_name, last_name, height
 | EVAL fn_length = LENGTH(first_name)
+----
+
+[[esql-pow]]
+=== `POW`
+Returns the the value of a base (first argument) raised to a power (second 
+argument).
+
+[source,esql]
+----
+ROW base = 2.0, exponent = 2.0 
+| EVAL s = POW(base, exponent)
 ----
 
 [[esql-round]]

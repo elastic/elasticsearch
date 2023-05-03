@@ -44,7 +44,8 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
         int next = v.getInt(i);
         value = MvMin.process(value, next);
       }
-      builder.appendInt(value);
+      int result = value;
+      builder.appendInt(result);
     }
     return builder.build();
   }
@@ -63,7 +64,8 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
         int next = v.getInt(i);
         value = MvMin.process(value, next);
       }
-      values[p] = value;
+      int result = value;
+      values[p] = result;
     }
     return new IntArrayVector(values, positionCount);
   }

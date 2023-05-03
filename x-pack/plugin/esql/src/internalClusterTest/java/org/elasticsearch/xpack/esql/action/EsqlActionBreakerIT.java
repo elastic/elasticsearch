@@ -13,13 +13,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.containsString;
@@ -29,8 +24,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * Makes sure that the circuit breaker is "plugged in" to ESQL by configuring an
  * unreasonably small breaker and tripping it.
  */
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false) // ESQL is single node
-public class EsqlActionBreakerIT extends ESIntegTestCase {
+@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+public class EsqlActionBreakerIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
@@ -50,11 +45,6 @@ public class EsqlActionBreakerIT extends ESIntegTestCase {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
             .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(EsqlPlugin.class);
     }
 
     public void testBreaker() {

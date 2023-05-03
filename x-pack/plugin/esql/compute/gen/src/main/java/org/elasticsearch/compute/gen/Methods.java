@@ -17,6 +17,16 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.ElementFilter;
 
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
+import static org.elasticsearch.compute.gen.Types.BOOLEAN_VECTOR;
+import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.DOUBLE_VECTOR;
+import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
+import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
+import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
+import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
+
 /**
  * Finds declared methods for the code generator.
  */
@@ -25,9 +35,9 @@ public class Methods {
         ExecutableElement result = findMethod(declarationType, names, filter);
         if (result == null) {
             if (names.length == 1) {
-                throw new IllegalArgumentException(names[0] + " is required");
+                throw new IllegalArgumentException(declarationType + "#" + names[0] + " is required");
             }
-            throw new IllegalArgumentException("one of " + Arrays.toString(names) + " is required");
+            throw new IllegalArgumentException("one of " + declarationType + "#" + Arrays.toString(names) + " is required");
         }
         return result;
     }
@@ -55,23 +65,23 @@ public class Methods {
      * Returns the name of the method used to add {@code valueType} instances
      * to vector or block builders.
      */
-    static String appendMethod(TypeName elementType) {
-        if (elementType.equals(TypeName.BOOLEAN)) {
+    static String appendMethod(TypeName t) {
+        if (t.equals(TypeName.BOOLEAN) || t.equals(BOOLEAN_BLOCK) || t.equals(BOOLEAN_VECTOR)) {
             return "appendBoolean";
         }
-        if (elementType.equals(Types.BYTES_REF)) {
+        if (t.equals(Types.BYTES_REF) || t.equals(BYTES_REF_BLOCK) || t.equals(Types.BYTES_REF_VECTOR)) {
             return "appendBytesRef";
         }
-        if (elementType.equals(TypeName.INT)) {
+        if (t.equals(TypeName.INT) || t.equals(INT_BLOCK) || t.equals(INT_VECTOR)) {
             return "appendInt";
         }
-        if (elementType.equals(TypeName.LONG)) {
+        if (t.equals(TypeName.LONG) || t.equals(LONG_BLOCK) || t.equals(LONG_VECTOR)) {
             return "appendLong";
         }
-        if (elementType.equals(TypeName.DOUBLE)) {
+        if (t.equals(TypeName.DOUBLE) || t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR)) {
             return "appendDouble";
         }
-        throw new IllegalArgumentException("unknown append method for [" + elementType + "]");
+        throw new IllegalArgumentException("unknown append method for [" + t + "]");
     }
 
     /**

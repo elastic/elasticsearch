@@ -46,7 +46,7 @@ final class HllStates {
 
     /**
      * Copies the content of the BytesReference to an array of bytes. The byte[] must
-     * have have enough space to fit the bytesReference object, othewise an
+     * have enough space to fit the bytesReference object, otherwise an
      * {@link ArrayIndexOutOfBoundsException} will be thrown.
      *
      * @return number of bytes copied
@@ -95,7 +95,7 @@ final class HllStates {
         }
 
         void collect(BytesRef bytes) {
-            MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, SINGLE_BUCKET_ORD, hash);
+            MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, hash);
             collect(hash.h1);
         }
 
@@ -164,15 +164,11 @@ final class HllStates {
 
         private final GroupingStateSerializer serializer;
         private final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-        private final BigArrays bigArrays;
-
-        private int largestGroupId = -1;
 
         final HyperLogLogPlusPlus hll;
 
         GroupingState(BigArrays bigArrays) {
             this.serializer = new GroupingStateSerializer();
-            this.bigArrays = bigArrays;
             this.hll = new HyperLogLogPlusPlus(PRECISION, bigArrays, 1);
         }
 
@@ -194,9 +190,6 @@ final class HllStates {
         }
 
         private void doCollect(int groupId, long hash) {
-            if (groupId > largestGroupId) {
-                largestGroupId = groupId;
-            }
             hll.collect(groupId, hash);
         }
 
@@ -210,15 +203,12 @@ final class HllStates {
 
         void merge(int groupId, AbstractHyperLogLogPlusPlus other, int otherGroup) {
             hll.merge(groupId, other, otherGroup);
-            if (groupId > largestGroupId) {
-                largestGroupId = groupId;
-            }
         }
 
         @Override
         public long getEstimatedSize() {
             int len = Integer.BYTES; // Serialize number of groups
-            for (int groupId = 0; groupId <= largestGroupId; groupId++) {
+            for (int groupId = 0; groupId < hll.maxOrd(); groupId++) {
                 len += Integer.BYTES; // Serialize length of hll byte array
                 // Serialize hll byte array. Unfortunately, the hll data structure
                 // is not fixed length, so we must serialize it and then get its length
@@ -250,7 +240,7 @@ final class HllStates {
         @Override
         public int serialize(GroupingState state, byte[] ba, int offset, IntVector selected) {
             final int origOffset = offset;
-            intHandle.set(ba, offset, selected.getPositionCount() - 1);
+            intHandle.set(ba, offset, selected.getPositionCount());
             offset += Integer.BYTES;
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int groupId = selected.getInt(i);
@@ -269,11 +259,11 @@ final class HllStates {
         @Override
         public void deserialize(GroupingState state, byte[] ba, int offset) {
             Objects.requireNonNull(state);
-            state.largestGroupId = (int) intHandle.get(ba, offset);
+            int positionCount = (int) intHandle.get(ba, offset);
             offset += Integer.BYTES;
             ByteArrayStreamInput in = new ByteArrayStreamInput();
             try {
-                for (int i = 0; i <= state.largestGroupId; i++) {
+                for (int i = 0; i < positionCount; i++) {
                     int len = (int) intHandle.get(ba, offset);
                     offset += Integer.BYTES;
                     in.reset(ba, offset, len);

@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.plugins.Plugin;
@@ -26,7 +27,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -41,13 +41,13 @@ import static org.hamcrest.Matchers.equalTo;
  * Makes sure that the circuit breaker is "plugged in" to ESQL by configuring an
  * unreasonably small breaker and tripping it.
  */
-@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false) // ESQL is single node
-public class EsqlActionRuntimeFieldIT extends ESIntegTestCase {
+@ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+public class EsqlActionRuntimeFieldIT extends AbstractEsqlIntegTestCase {
     private static final int SIZE = LuceneSourceOperator.PAGE_SIZE * 10;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPlugin.class, TestRuntimeFieldPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestRuntimeFieldPlugin.class);
     }
 
     public void testLong() throws InterruptedException, IOException {

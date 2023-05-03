@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -37,6 +38,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private final PlanExecutor planExecutor;
     private final ComputeService computeService;
+    private final ExchangeService exchangeService;
     private final ClusterService clusterService;
     private final Settings settings;
 
@@ -47,6 +49,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionFilters actionFilters,
         PlanExecutor planExecutor,
         SearchService searchService,
+        ExchangeService exchangeService,
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays
@@ -54,7 +57,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.computeService = new ComputeService(searchService, clusterService, transportService, threadPool, bigArrays);
+        exchangeService.registerTransportHandler(transportService);
+        this.exchangeService = exchangeService;
+        this.computeService = new ComputeService(searchService, clusterService, transportService, exchangeService, threadPool, bigArrays);
         this.settings = settings;
     }
 
@@ -87,5 +92,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
      */
     final String sessionID(Task task) {
         return new TaskId(clusterService.localNode().getId(), task.getId()).toString();
+    }
+
+    public ExchangeService exchangeService() {
+        return exchangeService;
     }
 }

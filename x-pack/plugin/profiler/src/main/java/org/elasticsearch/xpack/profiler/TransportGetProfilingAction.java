@@ -129,6 +129,29 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             }));
     }
 
+    private Index[] resolve(GetProfilingResponseBuilder responseBuilder, ClusterState clusterState, String index) {
+        Index[] indices;
+        String pattern;
+        long start = System.nanoTime();
+        if (responseBuilder.isResolveAliases()) {
+            pattern = index + "-query";
+            indices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, pattern);
+        } else {
+            pattern = index;
+            indices = new Index[] { new Index(index, "<empty>") };
+        }
+        log.info(
+            "resolving aliases of ["
+                + pattern
+                + "] took ["
+                + (System.nanoTime() - start) / 1_000_000.0d
+                + "] ms - ["
+                + indices.length
+                + "] indices."
+        );
+        return indices;
+    }
+
     private void searchEventGroupByStackTrace(
         Client client,
         GetProfilingRequest request,
@@ -137,6 +160,7 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     ) {
         long start = System.nanoTime();
         GetProfilingResponseBuilder responseBuilder = new GetProfilingResponseBuilder();
+        responseBuilder.setResolveAliases(request.isResolveAliases());
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setQuery(request.getQuery())
@@ -184,9 +208,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     ) {
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
         List<List<String>> slicedEventIds = sliced(eventIds, desiredSlices);
-        ClusterState clusterState = clusterService.state();
         // TODO: Retrieve index metadata later so we can retrieve data tier-aware
-        Index[] indices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, "profiling-stacktraces");
+        ClusterState clusterState = clusterService.state();
+        Index[] indices = resolve(responseBuilder, clusterState, "profiling-stacktraces");
         StackTraceHandler handler = new StackTraceHandler(
             clusterState,
             client,
@@ -297,8 +321,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         List<List<String>> slicedStackFrameIds = sliced(stackFrameIds, desiredDetailSlices);
         List<List<String>> slicedExecutableIds = sliced(executableIds, desiredDetailSlices);
         // TODO: Retrieve index metadata later so we can retrieve data tier-aware
-        Index[] stackFrameIndices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, "profiling-stackframes");
-        Index[] executableIndices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, "profiling-executables");
+        Index[] stackFrameIndices = resolve(responseBuilder, clusterState, "profiling-stackframes");
+        Index[] executableIndices = resolve(responseBuilder, clusterState, "profiling-executables");
 
         DetailsHandler handler = new DetailsHandler(
             responseBuilder,
@@ -457,12 +481,21 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
     }
 
     private static class GetProfilingResponseBuilder {
+        private boolean resolveAliases;
         private Map<String, StackTrace> stackTraces;
         private int totalFrames;
         private Map<String, StackFrame> stackFrames;
         private Map<String, String> executables;
         private Map<String, Integer> stackTraceEvents;
         private Exception error;
+
+        public void setResolveAliases(boolean resolveAliases) {
+            this.resolveAliases = resolveAliases;
+        }
+
+        public boolean isResolveAliases() {
+            return resolveAliases;
+        }
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;

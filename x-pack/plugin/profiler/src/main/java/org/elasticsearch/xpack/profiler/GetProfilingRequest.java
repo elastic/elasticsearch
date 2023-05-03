@@ -36,29 +36,35 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 public class GetProfilingRequest extends ActionRequest implements IndicesRequest {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
+    public static final ParseField RESOLVE_ALIASES_FIELD = new ParseField("resolve_aliases");
 
     private QueryBuilder query;
 
     private Integer sampleSize;
 
+    private Boolean resolveAliases;
+
     public GetProfilingRequest() {
-        this(null, null);
+        this(null, null, null);
     }
 
-    public GetProfilingRequest(Integer sampleSize, QueryBuilder query) {
+    public GetProfilingRequest(Integer sampleSize, Boolean resolveAliases, QueryBuilder query) {
         this.sampleSize = sampleSize;
         this.query = query;
+        this.resolveAliases = resolveAliases;
     }
 
     public GetProfilingRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.resolveAliases = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalBoolean(resolveAliases);
     }
 
     public Integer getSampleSize() {
@@ -67,6 +73,10 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
 
     public QueryBuilder getQuery() {
         return query;
+    }
+
+    public boolean isResolveAliases() {
+        return resolveAliases != null && resolveAliases.booleanValue();
     }
 
     public void parseXContent(XContentParser parser) throws IOException {
@@ -86,6 +96,8 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
             } else if (token.isValue()) {
                 if (SAMPLE_SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.sampleSize = parser.intValue();
+                } else if (RESOLVE_ALIASES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.resolveAliases = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -167,6 +179,9 @@ public class GetProfilingRequest extends ActionRequest implements IndicesRequest
         indices.add("profiling-stacktraces");
         indices.add("profiling-stackframes");
         indices.add("profiling-executables");
+        indices.add("profiling-stacktraces-query");
+        indices.add("profiling-stackframes-query");
+        indices.add("profiling-executables-query");
         indices.addAll(EventsIndex.indexNames());
         return indices.toArray(new String[0]);
     }

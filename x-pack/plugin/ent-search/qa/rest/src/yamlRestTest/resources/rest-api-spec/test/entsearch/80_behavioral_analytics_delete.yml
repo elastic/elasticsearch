@@ -1,5 +1,10 @@
 setup:
   - do:
+      # Ensure the collection does not exist already before the tests.
+      search_application.delete_behavioral_analytics:
+        name: my-test-analytics-collection
+        ignore: 404
+  - do:
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
 

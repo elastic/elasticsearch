@@ -1,12 +1,12 @@
 setup:
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/95686"
-
+  - do:
+      # Ensure the collection does not exist already before the tests.
+      search_application.delete_behavioral_analytics:
+        name: my-test-analytics-collection
+        ignore: 404
   - do:
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
-        ignore: 400 # Sometimes teardown does not delete the collection and tests get flaky - this fixes it
 
 ---
 teardown:
@@ -96,7 +96,6 @@ teardown:
 "Post page_view analytics event - debug and session information":
   - skip:
       features: headers
-
   - do:
       headers:
         X-Forwarded-For: 192.23.12.12
@@ -279,7 +278,6 @@ teardown:
 "Post search analytics event - debug and session information":
   - skip:
       features: headers
-
   - do:
       headers:
         X-Forwarded-For: 192.23.12.12
@@ -365,7 +363,6 @@ teardown:
 "Post search_click analytics event - debug and session information":
   - skip:
       features: headers
-
   - do:
       headers:
         X-Forwarded-For: 192.23.12.12

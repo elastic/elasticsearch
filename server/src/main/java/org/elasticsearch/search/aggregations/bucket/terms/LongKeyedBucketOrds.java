@@ -118,6 +118,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             long filterOrd = owningBucketOrd;
             long next;
             boolean hasNext = true;
+
             @Override
             public boolean hasNext() {
                 return hasNext;
@@ -130,7 +131,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
                 }
                 long toReturn = next;
                 hasNext = false;
-                while (wrapped.hasNext()){
+                while (wrapped.hasNext()) {
                     long candidate = wrapped.next();
                     if (find(filterOrd, candidate) != -1) {
                         next = candidate;

@@ -113,7 +113,6 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         }
     }
 
-
     private void assertCollectsFromManyBuckets(LongKeyedBucketOrds ords, int maxAllowedOwningBucketOrd, long minValue, long maxValue) {
         // Test a few explicit values
         assertThat(ords.add(0, 0), equalTo(0L));
@@ -183,7 +182,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
     }
 
     public void testKeyIteratorSingleValue() {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)){
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)) {
             // Test a few explicit values
             assertThat(ords.add(0, 0), equalTo(0L));
             assertThat(ords.add(0, 1000), equalTo(1L));
@@ -253,10 +252,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             for (int i = 0; i < values.length; i++) {
                 long owningBucketOrd = randomLongBetween(0, maxAllowedOwningBucketOrd);
                 long value = randomLongBetween(minValue, maxValue);
-                values[i] = randomValueOtherThanMany(
-                    seen::contains,
-                    () -> new OwningBucketOrdAndValue(owningBucketOrd, value)
-                );
+                values[i] = randomValueOtherThanMany(seen::contains, () -> new OwningBucketOrdAndValue(owningBucketOrd, value));
                 seen.add(values[i]);
                 if (expected.containsKey(owningBucketOrd) == false) {
                     expected.put(owningBucketOrd, new TreeSet<>());

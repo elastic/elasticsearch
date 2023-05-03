@@ -697,7 +697,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
                 successHeadersValidator,
-                ((restRequest, threadContext) -> {
+                (restRequest, threadContext) -> {
                     // assert the thread context does not yet contain anything that validation set in
                     assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), nullValue());
                     assertThat(threadPool.getThreadContext().getTransient(contextHeaderReference.get()), nullValue());
@@ -716,7 +716,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         threadPool.getThreadContext().getTransient(contextHeaderReference.get()),
                         is(contextHeaderValueReference.get())
                     );
-                })
+                }
             )
         ) {
             transport.start();
@@ -788,9 +788,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
                 failureHeadersValidator,
-                ((restRequest, threadContext) -> {
+                (restRequest, threadContext) -> {
                     throw new AssertionError("Request that failed validation should not be dispatched");
-                })
+                }
             )
         ) {
             transport.start();

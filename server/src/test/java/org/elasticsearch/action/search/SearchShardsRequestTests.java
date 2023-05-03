@@ -39,35 +39,43 @@ public class SearchShardsRequestTests extends AbstractWireSerializingTestCase<Se
         QueryBuilder query = QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20));
         String routing = randomBoolean() ? null : randomAlphaOfLength(10);
         String preference = randomBoolean() ? null : randomAlphaOfLength(10);
-        return new SearchShardsRequest(indices, indicesOptions, query, routing, preference);
+        return new SearchShardsRequest(indices, indicesOptions, query, routing, preference, randomBoolean());
     }
 
     @Override
     protected SearchShardsRequest mutateInstance(SearchShardsRequest r) throws IOException {
-        return switch (between(0, 4)) {
+        return switch (between(0, 5)) {
             case 0 -> {
                 String[] indices = ArrayUtils.concat(r.indices(), generateRandomStringArray(10, 10, false));
-                yield new SearchShardsRequest(indices, r.indicesOptions(), r.query(), r.routing(), r.preference());
+                yield new SearchShardsRequest(indices, r.indicesOptions(), r.query(), r.routing(), r.preference(), randomBoolean());
             }
             case 1 -> {
                 IndicesOptions indicesOptions = randomValueOtherThan(
                     r.indicesOptions(),
                     () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
                 );
-                yield new SearchShardsRequest(r.indices(), indicesOptions, r.query(), r.routing(), r.preference());
+                yield new SearchShardsRequest(r.indices(), indicesOptions, r.query(), r.routing(), r.preference(), randomBoolean());
             }
             case 2 -> {
                 QueryBuilder query = QueryBuilders.rangeQuery(randomAlphaOfLengthBetween(5, 20)).from(randomNonNegativeLong());
-                yield new SearchShardsRequest(r.indices(), r.indicesOptions(), query, r.routing(), r.preference());
+                yield new SearchShardsRequest(r.indices(), r.indicesOptions(), query, r.routing(), r.preference(), randomBoolean());
             }
             case 3 -> {
                 String routing = randomValueOtherThan(r.routing(), () -> randomBoolean() ? null : randomAlphaOfLength(10));
-                yield new SearchShardsRequest(r.indices(), r.indicesOptions(), r.query(), routing, r.preference());
+                yield new SearchShardsRequest(r.indices(), r.indicesOptions(), r.query(), routing, r.preference(), randomBoolean());
             }
             case 4 -> {
                 String preference = randomValueOtherThan(r.preference(), () -> randomBoolean() ? null : randomAlphaOfLength(10));
-                yield new SearchShardsRequest(r.indices(), r.indicesOptions(), r.query(), r.routing(), preference);
+                yield new SearchShardsRequest(r.indices(), r.indicesOptions(), r.query(), r.routing(), preference, randomBoolean());
             }
+            case 5 -> new SearchShardsRequest(
+                r.indices(),
+                r.indicesOptions(),
+                r.query(),
+                r.routing(),
+                r.preference(),
+                r.allowPartialSearchResults() == false
+            );
             default -> throw new AssertionError("unexpected value");
         };
     }

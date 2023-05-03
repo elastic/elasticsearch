@@ -68,7 +68,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         final long relativeStartNanos = System.nanoTime();
         SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
             .routing(searchShardsRequest.routing())
-            .preference(searchShardsRequest.preference());
+            .preference(searchShardsRequest.preference())
+            .allowPartialSearchResults(searchShardsRequest.allowPartialSearchResults());
         if (searchShardsRequest.query() != null) {
             original.source(new SearchSourceBuilder().query(searchShardsRequest.query()));
         }
@@ -82,10 +83,6 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             original,
             searchService.getRewriteContext(timeProvider::absoluteStartMillis),
             ActionListener.wrap(searchRequest -> {
-                // No user preference defined in search request - apply cluster service default
-                if (searchRequest.allowPartialSearchResults() == null) {
-                    searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
-                }
                 Map<String, OriginalIndices> groupedIndices = remoteClusterService.groupIndices(
                     searchRequest.indicesOptions(),
                     searchRequest.indices()

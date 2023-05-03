@@ -51,7 +51,8 @@ public class SearchShardsIT extends ESIntegTestCase {
                 SearchRequest.DEFAULT_INDICES_OPTIONS,
                 rangeQuery,
                 null,
-                null
+                null,
+                randomBoolean()
             );
             var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
@@ -72,7 +73,14 @@ public class SearchShardsIT extends ESIntegTestCase {
         // Match all
         {
             MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
-            var request = new SearchShardsRequest(new String[] { "index-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS, matchAll, null, null);
+            var request = new SearchShardsRequest(
+                new String[] { "index-*" },
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                matchAll,
+                null,
+                null,
+                randomBoolean()
+            );
             SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
@@ -111,7 +119,8 @@ public class SearchShardsIT extends ESIntegTestCase {
                 SearchRequest.DEFAULT_INDICES_OPTIONS,
                 rangeQuery,
                 null,
-                preference
+                preference,
+                randomBoolean()
             );
             var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
 

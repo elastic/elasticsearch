@@ -39,12 +39,22 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
     @Nullable
     private final String preference;
 
-    public SearchShardsRequest(String[] indices, IndicesOptions indicesOptions, QueryBuilder query, String routing, String preference) {
+    private final boolean allowPartialSearchResults;
+
+    public SearchShardsRequest(
+        String[] indices,
+        IndicesOptions indicesOptions,
+        QueryBuilder query,
+        String routing,
+        String preference,
+        boolean allowPartialSearchResults
+    ) {
         this.indices = indices;
         this.indicesOptions = indicesOptions;
         this.query = query;
         this.routing = routing;
         this.preference = preference;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     public SearchShardsRequest(StreamInput in) throws IOException {
@@ -54,6 +64,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
+        this.allowPartialSearchResults = in.readBoolean();
     }
 
     @Override
@@ -64,6 +75,7 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
+        out.writeBoolean(allowPartialSearchResults);
     }
 
     @Override
@@ -104,6 +116,10 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
         return preference;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
     private String description() {
         return "indices="
             + Arrays.toString(indices)
@@ -133,12 +149,13 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
             && Objects.equals(indicesOptions, request.indicesOptions)
             && Objects.equals(query, request.query)
             && Objects.equals(routing, request.routing)
-            && Objects.equals(preference, request.preference);
+            && Objects.equals(preference, request.preference)
+            && allowPartialSearchResults == request.allowPartialSearchResults;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, query, routing, preference);
+        int result = Objects.hash(indicesOptions, query, routing, preference, allowPartialSearchResults);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

@@ -42,10 +42,13 @@ appear before it in the chain.
 
 Additional settings are:
 
+* `updateable` (defaults to `false`). If `true` allows
+<<indices-reload-analyzers,reloading>> search analyzers to pick up
+changes to synonym files. Only to be used for search analyzers.
 * `expand` (defaults to `true`).
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
- 
+
 
 [source,console]
 --------------------------------------------------

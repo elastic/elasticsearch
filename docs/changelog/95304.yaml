@@ -1,6 +1,0 @@
-pr: 95304
-summary: Change rest status for `TooManyBucketsException`
-area: Aggregations
-type: bug
-issues:
- - 37957

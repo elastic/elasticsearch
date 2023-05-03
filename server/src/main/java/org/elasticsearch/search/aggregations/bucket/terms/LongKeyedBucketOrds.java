@@ -14,7 +14,10 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
+import java.util.Iterator;
 import java.util.Locale;
+import java.util.NoSuchElementException;
+import java.util.TreeSet;
 
 /**
  * Maps owning bucket ordinals and long bucket keys to bucket ordinals.
@@ -48,6 +51,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             return new FromMany(bigArrays);
         });
     }
+
+    private TreeSet<Long> keySet = null;
 
     private LongKeyedBucketOrds() {}
 
@@ -100,6 +105,45 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      * {@link BucketOrdsEnum#next()} to move it to the first value.
      */
     public abstract BucketOrdsEnum ordsEnum(long owningBucketOrd);
+
+    public Iterator<Long> keyOrderedIterator(long owningBucketOrd) {
+        if (keySet == null) {
+            keySet = new TreeSet<>();
+            for (long ord = 0; ord < size(); ord++) {
+                keySet.add(this.get(ord));
+            }
+        }
+        Iterator<Long> toReturn = new Iterator<>() {
+            Iterator<Long> wrapped = keySet.iterator();
+            long filterOrd = owningBucketOrd;
+            long next;
+            boolean hasNext = true;
+            @Override
+            public boolean hasNext() {
+                return hasNext;
+            }
+
+            @Override
+            public Long next() {
+                if (hasNext == false) {
+                    throw new NoSuchElementException();
+                }
+                long toReturn = next;
+                hasNext = false;
+                while (wrapped.hasNext()){
+                    long candidate = wrapped.next();
+                    if (find(filterOrd, candidate) != -1) {
+                        next = candidate;
+                        hasNext = true;
+                        break;
+                    }
+                }
+                return toReturn;
+            }
+        };
+        toReturn.next(); // Prime the first actual value
+        return toReturn;
+    }
 
     /**
      * An iterator for buckets inside a particular {@code owningBucketOrd}.

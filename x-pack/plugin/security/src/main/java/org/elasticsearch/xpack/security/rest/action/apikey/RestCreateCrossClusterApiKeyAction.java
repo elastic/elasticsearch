@@ -33,6 +33,25 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHandler {
 
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
+        "cross_cluster_api_key_request_payload",
+        false,
+        (args, v) -> new Payload(
+            (String) args[0],
+            (CrossClusterApiKeyRoleDescriptorBuilder) args[1],
+            TimeValue.parseTimeValue((String) args[2], null, "expiration"),
+            (Map<String, Object>) args[3]
+        )
+    );
+
+    static {
+        PARSER.declareString(constructorArg(), new ParseField("name"));
+        PARSER.declareObject(constructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+    }
+
     /**
      * @param settings the node's settings
      * @param licenseState the license state that will be used to determine if
@@ -79,24 +98,5 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             createApiKeyRequest.setRoleDescriptors(List.of(roleDescriptorBuilder.build()));
             return createApiKeyRequest;
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
-        "cross_cluster_api_key_request_payload",
-        false,
-        (args, v) -> new Payload(
-            (String) args[0],
-            (CrossClusterApiKeyRoleDescriptorBuilder) args[1],
-            TimeValue.parseTimeValue((String) args[2], null, "expiration"),
-            (Map<String, Object>) args[3]
-        )
-    );
-
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareObject(constructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 }

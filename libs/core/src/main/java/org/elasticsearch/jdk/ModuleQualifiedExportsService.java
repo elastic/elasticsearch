@@ -32,15 +32,19 @@ import java.util.stream.Stream;
  */
 public abstract class ModuleQualifiedExportsService {
 
-    protected final Module selfModule = getClass().getModule();
-
+    protected final Module module;
     private final Map<String, List<String>> qualifiedExports;
     private final Map<String, List<String>> qualifiedOpens;
     private final Set<String> targets;
 
     protected ModuleQualifiedExportsService() {
-        this.qualifiedExports = invert(selfModule.getDescriptor().exports(), Exports::isQualified, Exports::source, Exports::targets);
-        this.qualifiedOpens = invert(selfModule.getDescriptor().opens(), Opens::isQualified, Opens::source, Opens::targets);
+        this(null);
+    }
+
+    protected ModuleQualifiedExportsService(Module module) {
+        this.module = module == null ? getClass().getModule() : module;
+        this.qualifiedExports = invert(this.module.getDescriptor().exports(), Exports::isQualified, Exports::source, Exports::targets);
+        this.qualifiedOpens = invert(this.module.getDescriptor().opens(), Opens::isQualified, Opens::source, Opens::targets);
         this.targets = Stream.concat(qualifiedExports.keySet().stream(), qualifiedOpens.keySet().stream())
             .collect(Collectors.toUnmodifiableSet());
     }
@@ -62,6 +66,7 @@ public abstract class ModuleQualifiedExportsService {
                 targetsToSources.computeIfAbsent(target, k -> new ArrayList<>()).add(source);
             }
         }
+        targetsToSources.replaceAll((k, v) -> List.copyOf(v));
         return Map.copyOf(targetsToSources);
     }
 
@@ -80,7 +85,7 @@ public abstract class ModuleQualifiedExportsService {
         String targetName = target.getName();
         if (targets.contains(targetName) == false) {
             throw new IllegalArgumentException(
-                "Module " + selfModule.getName() + " does not contain qualified exports or opens for module " + targetName
+                "Module " + module.getName() + " does not contain qualified exports or opens for module " + targetName
             );
         }
         List<String> exports = qualifiedExports.getOrDefault(targetName, List.of());
@@ -96,7 +101,7 @@ public abstract class ModuleQualifiedExportsService {
     /**
      * Add a qualified export. This should always be implemented as follows:
      * <code>
-     *     selfModule.addExports(pkg, target);
+     *     module.addExports(pkg, target);
      * </code>
      */
     protected abstract void addExports(String pkg, Module target);
@@ -104,7 +109,7 @@ public abstract class ModuleQualifiedExportsService {
     /**
      * Add a qualified open. This should always be implemented as follows:
      * <code>
-     *     selfModule.addOpens(pkg, target);
+     *     module.addOpens(pkg, target);
      * </code>
      */
     protected abstract void addOpens(String pkg, Module target);

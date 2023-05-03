@@ -304,29 +304,21 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // When using the MockScriptPlugin we can map Stored scripts to inline scripts:
         // the id of the stored script is used in test method while the source of the stored script
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
-        assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("initScript_stored").setContent(new BytesArray(Strings.format("""
-                {"script": {"lang": "%s", "source": "vars.multiplier = 3"} }
-                """, MockScriptPlugin.NAME)), XContentType.JSON)
-        );
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("initScript_stored").setContent(new BytesArray(Strings.format("""
+            {"script": {"lang": "%s", "source": "vars.multiplier = 3"} }
+            """, MockScriptPlugin.NAME)), XContentType.JSON));
 
-        assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("mapScript_stored").setContent(new BytesArray(Strings.format("""
-                {"script": {"lang": "%s", "source": "state.list.add(vars.multiplier)"} }
-                """, MockScriptPlugin.NAME)), XContentType.JSON)
-        );
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("mapScript_stored").setContent(new BytesArray(Strings.format("""
+            {"script": {"lang": "%s", "source": "state.list.add(vars.multiplier)"} }
+            """, MockScriptPlugin.NAME)), XContentType.JSON));
 
-        assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("combineScript_stored").setContent(new BytesArray(Strings.format("""
-                {"script": {"lang": "%s", "source": "sum state values as a new aggregation"} }
-                """, MockScriptPlugin.NAME)), XContentType.JSON)
-        );
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("combineScript_stored").setContent(new BytesArray(Strings.format("""
+            {"script": {"lang": "%s", "source": "sum state values as a new aggregation"} }
+            """, MockScriptPlugin.NAME)), XContentType.JSON));
 
-        assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("reduceScript_stored").setContent(new BytesArray(Strings.format("""
-                {"script": {"lang": "%s", "source": "sum all states (lists) values as a new aggregation"} }
-                """, MockScriptPlugin.NAME)), XContentType.JSON)
-        );
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("reduceScript_stored").setContent(new BytesArray(Strings.format("""
+            {"script": {"lang": "%s", "source": "sum all states (lists) values as a new aggregation"} }
+            """, MockScriptPlugin.NAME)), XContentType.JSON));
 
         indexRandom(true, builders);
         ensureSearchable();

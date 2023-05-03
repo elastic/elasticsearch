@@ -28,6 +28,7 @@ public class InternalUsers {
         defineUser(SecurityProfileUser.INSTANCE);
         defineUser(AsyncSearchUser.INSTANCE);
         defineUser(CrossClusterAccessUser.INSTANCE);
+        defineUser(StorageInternalUser.INSTANCE);
     }
 
     private static void defineUser(InternalUser user) {

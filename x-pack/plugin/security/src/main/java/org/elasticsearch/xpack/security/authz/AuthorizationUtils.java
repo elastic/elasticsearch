@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.StorageInternalUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -121,11 +122,13 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-            case POST_WRITE_REFRESH_ORIGIN:
                 securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
                 break;
             case SECURITY_PROFILE_ORIGIN:
                 securityContext.executeAsInternalUser(SecurityProfileUser.INSTANCE, version, consumer);
+                break;
+            case POST_WRITE_REFRESH_ORIGIN:
+                securityContext.executeAsInternalUser(StorageInternalUser.INSTANCE, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:

@@ -2409,7 +2409,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         List<String> expectedWarnings = new ArrayList<>();
         for (MatchPattern c : candidates) {
-            assertThat(matchType.isValidPattern(c.pattern, "my-template"), is(c.isValid));
+            // should never throw an exception and will record a header warning for invalid ones
+            matchType.validate(c.pattern, "my-template");
 
             if (c.isValid == false) {
                 expectedWarnings.add(
@@ -2455,8 +2456,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         for (String pattern : candidates) {
             // should not throw an Exception
-            assertTrue("pattern: " + pattern, matchType.isValidPattern(pattern, "my-template"));
+            matchType.validate(pattern, "my-template");
         }
+
+        // should set no header warnings
+        assertWarnings();
     }
 
     public void testIsValidPatternForRegexMatchType() {
@@ -2494,12 +2498,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         for (MatchPattern c : candidates) {
             if (c.isValid) {
                 // should not throw an Exception
-                assertTrue("pattern: " + c.pattern, matchType.isValidPattern(c.pattern, "my-template"));
+                matchType.validate(c.pattern, "my-template");
             } else {
                 Exception e = expectThrows(
                     MapperParsingException.class,
                     "pattern tested: " + c.pattern,
-                    () -> matchType.isValidPattern(c.pattern, "my-template")
+                    () -> matchType.validate(c.pattern, "my-template")
                 );
             }
         }

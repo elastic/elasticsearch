@@ -30,6 +30,63 @@ setup:
           url_length: 20
 
   - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              pagerank:
+                type: rank_feature
+                null_value: 15
+              pagerank_negative:
+                type: rank_feature
+                null_value: 15
+                positive_score_impact: false
+              url_length:
+                type: rank_feature
+              url_length_negative:
+                type: rank_feature
+                positive_score_impact: false
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          pagerank: 10
+          pagerank_negative: 10
+          url_length: 50
+          url_length_negative: 50
+
+  - do:
+      index:
+        index: test1
+        id: "2"
+        body:
+          pagerank: 35
+          pagerank_negative: 35
+          url_length: 20
+          url_length_negative: 20
+
+  - do:
+      index:
+        index: test1
+        id: "3"
+        body:
+          pagerank: null
+          pagerank_negative: null
+          url_length: null
+          url_length_negative: null
+
+  - do:
+      index:
+        index: test1
+        id: "4"
+        body: {}
+
+  - do:
       indices.refresh: {}
 
 ---
@@ -198,3 +255,108 @@ setup:
 
   - match:
       hits.hits.1._id: "1"
+
+---
+"Non positive null_vallue":
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              pagerank:
+                type: rank_feature
+                null_vallue: -3
+              url_length:
+                type: rank_feature
+                positive_score_impact: false
+
+---
+"Search rank_feature with no null_value and negative impact":
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            rank_feature:
+              field: url_length_negative
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "1"
+
+---
+"Search rank_feature with no null_value and possitive impact":
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            rank_feature:
+              field: url_length
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "1"
+
+  - match:
+      hits.hits.1._id: "2"
+
+---
+"Search rank_feature with null_value and possitive impact":
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            rank_feature:
+              field: pagerank
+
+  - match:
+      hits.total.value: 3
+
+  - match:
+      hits.hits.0._id: "2"
+
+  - match:
+      hits.hits.1._id: "3"
+
+  - match:
+      hits.hits.2._id: "1"
+
+---
+"Search rank_feature with null_value and negative impact":
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            rank_feature:
+              field: pagerank_negative
+
+  - match:
+      hits.total.value: 3
+
+  - match:
+      hits.hits.0._id: "1"
+
+  - match:
+      hits.hits.1._id: "3"
+
+  - match:
+      hits.hits.2._id: "2"

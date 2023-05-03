@@ -416,9 +416,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testCreateCrossClusterApiKey() throws IOException {
-        final String name = randomAlphaOfLengthBetween(3, 8);
         final RoleDescriptor roleDescriptor = new RoleDescriptor(
-            name,
+            "cross_cluster",
             new String[] { "cross_cluster_access" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -427,7 +426,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                     .build() },
             null
         );
-        final var createApiKeyRequest = new CreateApiKeyRequest(name, List.of(roleDescriptor), null);
+        final var createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), List.of(roleDescriptor), null);
         createApiKeyRequest.setType(ApiKey.Type.CROSS_CLUSTER);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
@@ -443,11 +442,11 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> roleDescriptors = (Map<String, Object>) document.get("role_descriptors");
-        assertThat(roleDescriptors.keySet(), contains(name));
+        assertThat(roleDescriptors.keySet(), contains("cross_cluster"));
         @SuppressWarnings("unchecked")
         final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parse(
-            name,
-            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get(name), XContentType.JSON),
+            "cross_cluster",
+            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
             false,
             XContentType.JSON
         );

@@ -19,9 +19,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.mockito.ArgumentCaptor;
 
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -53,5 +58,24 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
 
         final CreateApiKeyRequest createApiKeyRequest = requestCaptor.getValue();
         assertThat(createApiKeyRequest.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(createApiKeyRequest.getName(), equalTo("my-key"));
+        assertThat(
+            createApiKeyRequest.getRoleDescriptors(),
+            equalTo(
+                List.of(
+                    new RoleDescriptor(
+                        "cross_cluster",
+                        new String[] { "cross_cluster_access" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("logs")
+                                .privileges("read", "read_cross_cluster", "view_index_metadata")
+                                .build() },
+                        null
+                    )
+                )
+            )
+        );
+        assertThat(createApiKeyRequest.getMetadata(), nullValue());
     }
 }

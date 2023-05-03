@@ -731,10 +731,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             fetchResponse.evaluate("api_keys.0.role_descriptors"),
             equalTo(
                 Map.of(
-                    "my-key",
+                    "cross_cluster",
                     XContentTestUtils.convertToMap(
                         new RoleDescriptor(
-                            "my-key",
+                            "cross_cluster",
                             new String[] { "cross_cluster_access", "cluster:monitor/state" },
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()

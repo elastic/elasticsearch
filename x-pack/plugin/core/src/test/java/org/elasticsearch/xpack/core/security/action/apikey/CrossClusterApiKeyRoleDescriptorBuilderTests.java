@@ -35,12 +35,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
               ]
             }""");
 
-        final String name = randomAlphaOfLengthBetween(3, 8);
-        final RoleDescriptor roleDescriptor = access.build(name);
+        final RoleDescriptor roleDescriptor = access.build();
 
         assertRoleDescriptor(
             roleDescriptor,
-            name,
             new String[] { "cross_cluster_access" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -60,12 +58,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
               ]
             }""");
 
-        final String name = randomAlphaOfLengthBetween(3, 8);
-        final RoleDescriptor roleDescriptor = access.build(name);
+        final RoleDescriptor roleDescriptor = access.build();
 
         assertRoleDescriptor(
             roleDescriptor,
-            name,
             new String[] { "cross_cluster_access", "cluster:monitor/state" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -104,12 +100,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
               ]
             }""");
 
-        final String name = randomAlphaOfLengthBetween(3, 8);
-        final RoleDescriptor roleDescriptor = access.build(name);
+        final RoleDescriptor roleDescriptor = access.build();
 
         assertRoleDescriptor(
             roleDescriptor,
-            name,
             new String[] { "cross_cluster_access", "cluster:monitor/state" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -159,10 +153,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
         final CrossClusterApiKeyRoleDescriptorBuilder access1 = parseForAccess(
             randomFrom("{}", "{\"search\":[]}", "{\"replication\":[]}", "{\"search\":[],\"replication\":[]}")
         );
-        final IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> access1.build(randomAlphaOfLengthBetween(3, 8))
-        );
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, access1::build);
         assertThat(e1.getMessage(), containsString("must specify non-empty access for either [search] or [replication]"));
 
         final XContentParseException e2 = expectThrows(
@@ -174,11 +165,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
     private static void assertRoleDescriptor(
         RoleDescriptor roleDescriptor,
-        String name,
         String[] clusterPrivileges,
         RoleDescriptor.IndicesPrivileges[] indicesPrivileges
     ) {
-        assertThat(roleDescriptor.getName().equals(name), is(true));
+        assertThat(roleDescriptor.getName().equals("cross_cluster"), is(true));
         assertThat(roleDescriptor.getClusterPrivileges(), arrayContainingInAnyOrder(clusterPrivileges));
         assertThat(roleDescriptor.getIndicesPrivileges(), equalTo(indicesPrivileges));
         CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);

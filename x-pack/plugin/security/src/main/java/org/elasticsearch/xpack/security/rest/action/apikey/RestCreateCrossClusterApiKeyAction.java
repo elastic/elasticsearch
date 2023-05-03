@@ -76,7 +76,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             createApiKeyRequest.setName(name);
             createApiKeyRequest.setExpiration(expiration);
             createApiKeyRequest.setMetadata(metadata);
-            createApiKeyRequest.setRoleDescriptors(List.of(roleDescriptorBuilder.build(name)));
+            createApiKeyRequest.setRoleDescriptors(List.of(roleDescriptorBuilder.build()));
             return createApiKeyRequest;
         }
     }

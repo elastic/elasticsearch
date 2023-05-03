@@ -29,17 +29,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         "read",
         "indices:internal/admin/ccr/restore/*",
         "internal:transport/proxy/indices:internal/admin/ccr/restore/*" };
-
-    private final List<RoleDescriptor.IndicesPrivileges> search;
-    private final List<RoleDescriptor.IndicesPrivileges> replication;
-
-    private CrossClusterApiKeyRoleDescriptorBuilder(
-        List<RoleDescriptor.IndicesPrivileges> search,
-        List<RoleDescriptor.IndicesPrivileges> replication
-    ) {
-        this.search = search == null ? List.of() : search;
-        this.replication = replication == null ? List.of() : replication;
-    }
+    private static final String ROLE_DESCRIPTOR_NAME = "cross_cluster";
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CrossClusterApiKeyRoleDescriptorBuilder, Void> PARSER = new ConstructingObjectParser<>(
@@ -54,17 +44,28 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
     static {
         PARSER.declareObjectArray(
             optionalConstructorArg(),
-            (p, c) -> RoleDescriptor.parseIndexWithPrivileges("cross_cluster", CCS_INDICES_PRIVILEGE_NAMES, p),
+            (p, c) -> RoleDescriptor.parseIndexWithPrivileges(ROLE_DESCRIPTOR_NAME, CCS_INDICES_PRIVILEGE_NAMES, p),
             new ParseField("search")
         );
         PARSER.declareObjectArray(
             optionalConstructorArg(),
-            (p, c) -> RoleDescriptor.parseIndexWithPrivileges("cross_cluster", CCR_INDICES_PRIVILEGE_NAMES, p),
+            (p, c) -> RoleDescriptor.parseIndexWithPrivileges(ROLE_DESCRIPTOR_NAME, CCR_INDICES_PRIVILEGE_NAMES, p),
             new ParseField("replication")
         );
     }
 
-    public RoleDescriptor build(String name) {
+    private final List<RoleDescriptor.IndicesPrivileges> search;
+    private final List<RoleDescriptor.IndicesPrivileges> replication;
+
+    private CrossClusterApiKeyRoleDescriptorBuilder(
+        List<RoleDescriptor.IndicesPrivileges> search,
+        List<RoleDescriptor.IndicesPrivileges> replication
+    ) {
+        this.search = search == null ? List.of() : search;
+        this.replication = replication == null ? List.of() : replication;
+    }
+
+    public RoleDescriptor build() {
         final String[] clusterPrivileges;
         if (search.isEmpty() && replication.isEmpty()) {
             throw new IllegalArgumentException("must specify non-empty access for either [search] or [replication]");
@@ -81,7 +82,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         }
 
         return new RoleDescriptor(
-            name,
+            ROLE_DESCRIPTOR_NAME,
             clusterPrivileges,
             CollectionUtils.concatLists(search, replication).toArray(RoleDescriptor.IndicesPrivileges[]::new),
             null
@@ -89,6 +90,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
     }
 
     static void validate(RoleDescriptor roleDescriptor) {
+        if (false == ROLE_DESCRIPTOR_NAME.equals(roleDescriptor.getName())) {
+            throw new IllegalArgumentException("invalid role descriptor name [" + roleDescriptor.getName() + "]");
+        }
         if (roleDescriptor.hasApplicationPrivileges()) {
             throw new IllegalArgumentException("application privilege must be empty");
         }

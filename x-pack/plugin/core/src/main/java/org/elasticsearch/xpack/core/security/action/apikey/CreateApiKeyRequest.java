@@ -156,9 +156,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         if (Assertions.ENABLED && type == ApiKey.Type.CROSS_CLUSTER) {
             assert roleDescriptors.size() == 1;
-            final RoleDescriptor roleDescriptor = roleDescriptors.iterator().next();
-            assert roleDescriptor.getName().equals(name);
-            CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);
+            CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptors.iterator().next());
         }
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(name)) {

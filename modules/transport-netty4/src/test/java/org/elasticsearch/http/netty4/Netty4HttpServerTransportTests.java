@@ -83,6 +83,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -652,7 +653,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     public void testHttpHeadersSuccessfulValidation() throws InterruptedException {
-        final Settings settings = createSettings();
         final AtomicReference<HttpMethod> httpMethodReference = new AtomicReference<>();
         final AtomicReference<String> urlReference = new AtomicReference<>();
         final AtomicReference<String> requestHeaderReference = new AtomicReference<>();
@@ -668,44 +668,37 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 // validation context is restored
                 assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), is(contextHeaderValueReference.get()));
                 assertThat(threadPool.getThreadContext().getTransient(contextHeaderReference.get()), is(contextHeaderValueReference.get()));
+                // return some response
                 channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                throw new AssertionError();
+                throw new AssertionError("A validated request should not dispatch as bad");
             }
         };
         final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
             (httpPreRequest, channel, validationListener) -> {
+                // assert that the validator sees the request unaltered
                 assertThat(httpPreRequest.uri(), is(urlReference.get()));
                 assertThat(httpPreRequest.header(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
                 assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                // make validation alter the thread context
                 contextHeaderReference.set(randomAlphaOfLengthBetween(4, 8));
                 contextHeaderValueReference.set(randomAlphaOfLengthBetween(4, 8));
-                // Validation alters thread context!!!!
                 threadPool.getThreadContext().putHeader(contextHeaderReference.get(), contextHeaderValueReference.get());
                 threadPool.getThreadContext().putTransient(contextHeaderReference.get(), contextHeaderValueReference.get());
+                // validate successfully
                 validationListener.onResponse(null);
             },
             threadPool.getThreadContext()
         );
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-                settings,
-                networkService,
-                threadPool,
-                xContentRegistry(),
+            Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
-                clusterSettings,
-                new SharedGroupFactory(settings),
-                Tracer.NOOP,
-                TLSConfig.noTLS(),
-                null,
-                successHeadersValidator
-            ) {
-                @Override
-                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                successHeadersValidator,
+                ((restRequest, threadContext) -> {
+                    // assert the thread context does not yet contain anything that validation set in
                     assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), nullValue());
                     assertThat(threadPool.getThreadContext().getTransient(contextHeaderReference.get()), nullValue());
                     ThreadContext.StoredContext storedAuthenticatedContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(
@@ -714,6 +707,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     assertThat(storedAuthenticatedContext, notNullValue());
                     // restore validation context
                     storedAuthenticatedContext.restore();
+                    // assert that now, after restoring the validation context, it does contain what validation put in
                     assertThat(
                         threadPool.getThreadContext().getHeader(contextHeaderReference.get()),
                         is(contextHeaderValueReference.get())
@@ -722,8 +716,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         threadPool.getThreadContext().getTransient(contextHeaderReference.get()),
                         is(contextHeaderValueReference.get())
                     );
-                }
-            }
+                })
+            )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -754,7 +748,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
     }
 
     public void testHttpHeadersFailedValidation() throws InterruptedException {
-        final Settings settings = createSettings();
         final AtomicReference<HttpMethod> httpMethodReference = new AtomicReference<>();
         final AtomicReference<String> urlReference = new AtomicReference<>();
         final AtomicReference<String> headerReference = new AtomicReference<>();
@@ -763,7 +756,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                throw new AssertionError();
+                throw new AssertionError("Request that failed validation should not be dispatched");
             }
 
             @Override
@@ -782,32 +775,23 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         };
         final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
             (httpPreRequest, channel, validationResultListener) -> {
+                // assert that the validator sees the request unaltered
                 assertThat(httpPreRequest.uri(), is(urlReference.get()));
                 assertThat(httpPreRequest.header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(httpPreRequest.method(), is(translateRequestMethod(httpMethodReference.get())));
+                // failed validation
                 validationResultListener.onFailure(validationResultExceptionReference.get());
             },
             threadPool.getThreadContext()
         );
         try (
-            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
-                settings,
-                networkService,
-                threadPool,
-                xContentRegistry(),
+            Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
-                clusterSettings,
-                new SharedGroupFactory(settings),
-                Tracer.NOOP,
-                TLSConfig.noTLS(),
-                null,
-                failureHeadersValidator
-            ) {
-                @Override
-                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    throw new AssertionError();
-                }
-            }
+                failureHeadersValidator,
+                ((restRequest, threadContext) -> {
+                    throw new AssertionError("Request that failed validation should not be dispatched");
+                })
+            )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -821,8 +805,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         + "="
                         + randomAlphaOfLengthBetween(4, 8)
                 );
-                headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
-                headerValueReference.set(randomAlphaOfLengthBetween(4, 8));
                 validationResultExceptionReference.set(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
                 try (Netty4HttpClient client = new Netty4HttpClient()) {
                     FullHttpRequest request = new DefaultFullHttpRequest(
@@ -830,12 +812,41 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         httpMethodReference.get(),
                         urlReference.get()
                     );
+                    // submit the request with some header custom header
+                    headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));
+                    headerValueReference.set(randomAlphaOfLengthBetween(4, 8));
                     request.headers().set(headerReference.get(), headerValueReference.get());
                     FullHttpResponse response = client.send(remoteAddress.address(), request);
                     assertThat(response.status(), is(HttpResponseStatus.UNAUTHORIZED));
                 }
             }
         }
+    }
+
+    private Netty4HttpServerTransport getTestNetty4HttpServerTransport(
+        HttpServerTransport.Dispatcher dispatcher,
+        Supplier<Netty4HttpHeaderValidator> validatorSupplier,
+        BiConsumer<RestRequest, ThreadContext> populatePerRequestContext
+    ) {
+        final Settings settings = createSettings();
+        return new Netty4HttpServerTransport(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry(),
+            dispatcher,
+            clusterSettings,
+            new SharedGroupFactory(settings),
+            Tracer.NOOP,
+            TLSConfig.noTLS(),
+            null,
+            validatorSupplier
+        ) {
+            @Override
+            protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                populatePerRequestContext.accept(restRequest, threadContext);
+            }
+        };
     }
 
     private Settings createSettings() {

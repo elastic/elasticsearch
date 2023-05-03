@@ -22,15 +22,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
-import org.hamcrest.Matchers;
 
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class StorageInternalUserTests extends ESTestCase {
@@ -43,9 +44,10 @@ public class StorageInternalUserTests extends ESTestCase {
             TestRestrictedIndices.RESTRICTED_INDICES
         );
 
-        assertThat(role.cluster().privileges(), Matchers.hasSize(0));
+        assertThat(role.cluster().privileges(), hasSize(0));
         assertThat(role.runAs(), is(RunAsPermission.NONE));
         assertThat(role.application(), is(ApplicationPermission.NONE));
+        assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
 
         final List<String> sampleAllowedActions = List.of(RefreshAction.NAME, TransportUnpromotableShardRefreshAction.NAME);
         checkIndexAccess(role, randomFrom(sampleAllowedActions), randomAlphaOfLengthBetween(4, 8), true);

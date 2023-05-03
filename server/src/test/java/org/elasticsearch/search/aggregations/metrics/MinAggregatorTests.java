@@ -376,7 +376,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             ) {
 
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
                 Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                 assertEquals(2.0, min.value(), 0);
@@ -407,7 +407,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             ) {
 
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
                 Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                 assertEquals(-19.0, min.value(), 0);
@@ -596,7 +596,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(aggregationBuilder, context);
@@ -623,7 +623,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
                     createAggregator(nonDeterministicAggregationBuilder, context);

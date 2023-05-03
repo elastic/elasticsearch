@@ -54,8 +54,6 @@ public class BertJapaneseTokenizerTests extends ESTestCase {
         ) {
 
             String msg = "日本語で、ElasticsearchのBertJapaneseTokenizerを使うテスト。";
-            // List<TokenizationResult.Tokens> tokens = tokenizer.tokenize(msg, Tokenization.Truncate.NONE, 1, 0);
-            // System.out.println(List.of(tokens));
             TokenizationResult.Tokens tokenization = tokenizer.tokenize(msg, Tokenization.Truncate.NONE, -1, 0).get(0);
 
             assertThat(
@@ -97,7 +95,7 @@ public class BertJapaneseTokenizerTests extends ESTestCase {
                 false,
                 BertTokenizer.UNKNOWN_TOKEN
             );
-            assertThat(analyzer, instanceOf(WordPieceAnalyzer.class));
+            assertThat(analyzer, instanceOf(JapaneseWordPieceAnalyzer.class));
             Tokenizer preTokenizer = analyzer.createTokenizer();
             assertThat(preTokenizer, instanceOf(JapaneseTokenizer.class));
         }

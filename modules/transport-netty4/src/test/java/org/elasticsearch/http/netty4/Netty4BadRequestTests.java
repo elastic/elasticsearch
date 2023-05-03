@@ -37,7 +37,6 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.http.AbstractHttpServerTransportTestCase.VALIDATE_EVERYTHING_VALIDATOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -89,7 +88,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             httpServerTransport.start();

@@ -54,9 +54,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1647,21 +1647,20 @@ public class Security extends Plugin
             }
             final AuthenticationService authenticationService = this.authcService.get();
             final ThreadContext threadContext = this.threadContext.get();
-            final Supplier<Netty4HttpHeaderValidator> authenticateHttpRequest = () -> HttpHeadersAuthenticatorUtils
-                .getValidatorInboundHandler((httpRequest, channel, listener) -> {
-                    HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
-                    // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
-                    // authentication process looks for while doing its duty.
-                    perRequestThreadContext.accept(httpPreRequest, threadContext);
-                    populateClientCertificate.accept(channel, threadContext);
-                    RemoteHostHeader.process(channel, threadContext);
-                    // step 2: Run authentication on the now properly prepared thread-context.
-                    // This inspects and modifies the thread context.
-                    authenticationService.authenticate(
-                        httpPreRequest,
-                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                    );
-                }, threadContext);
+            final HttpValidator httpValidator = (httpRequest, channel, listener) -> {
+                HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                // authentication process looks for while doing its duty.
+                perRequestThreadContext.accept(httpPreRequest, threadContext);
+                populateClientCertificate.accept(channel, threadContext);
+                RemoteHostHeader.process(channel, threadContext);
+                // step 2: Run authentication on the now properly prepared thread-context.
+                // This inspects and modifies the thread context.
+                authenticationService.authenticate(
+                    httpPreRequest,
+                    ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                );
+            };
             return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
@@ -1673,7 +1672,7 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                authenticateHttpRequest
+                httpValidator
             );
         });
         return httpTransports;
@@ -1691,7 +1690,7 @@ public class Security extends Plugin
         Tracer tracer,
         TLSConfig tlsConfig,
         @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
-        Supplier<Netty4HttpHeaderValidator> headerValidatorSupplier
+        HttpValidator httpValidator
     ) {
         return new Netty4HttpServerTransport(
             settings,
@@ -1704,7 +1703,7 @@ public class Security extends Plugin
             tracer,
             tlsConfig,
             acceptPredicate,
-            Objects.requireNonNull(headerValidatorSupplier)
+            Objects.requireNonNull(httpValidator)
         ) {
             @Override
             protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {

@@ -61,6 +61,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -89,7 +90,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -193,7 +193,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             transport.start();
@@ -245,7 +245,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             transport.start();
@@ -266,7 +266,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     Tracer.NOOP,
                     TLSConfig.noTLS(),
                     null,
-                    randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                    randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -321,7 +321,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             transport.start();
@@ -392,7 +392,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             ) {
                 @Override
                 public ChannelHandler configureServerChannelHandler() {
@@ -401,7 +401,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
@@ -498,7 +498,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             transport.start();
@@ -571,7 +571,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             transport.start();
@@ -637,7 +637,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             transport.start();
@@ -683,26 +683,23 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 throw new AssertionError("A validated request should not dispatch as bad");
             }
         };
-        final Supplier<Netty4HttpHeaderValidator> successHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
-            (httpRequest, channel, validationListener) -> {
-                // assert that the validator sees the request unaltered
-                assertThat(httpRequest.uri(), is(urlReference.get()));
-                assertThat(httpRequest.headers().get(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
-                assertThat(httpRequest.method(), is(httpMethodReference.get()));
-                // make validation alter the thread context
-                contextHeaderReference.set(randomAlphaOfLengthBetween(4, 8));
-                contextHeaderValueReference.set(randomAlphaOfLengthBetween(4, 8));
-                threadPool.getThreadContext().putHeader(contextHeaderReference.get(), contextHeaderValueReference.get());
-                threadPool.getThreadContext().putTransient(contextHeaderReference.get(), contextHeaderValueReference.get());
-                // validate successfully
-                validationListener.onResponse(null);
-            },
-            threadPool.getThreadContext()
-        );
+        final HttpValidator httpValidator = (httpRequest, channel, validationListener) -> {
+            // assert that the validator sees the request unaltered
+            assertThat(httpRequest.uri(), is(urlReference.get()));
+            assertThat(httpRequest.headers().get(requestHeaderReference.get()), is(requestHeaderValueReference.get()));
+            assertThat(httpRequest.method(), is(httpMethodReference.get()));
+            // make validation alter the thread context
+            contextHeaderReference.set(randomAlphaOfLengthBetween(4, 8));
+            contextHeaderValueReference.set(randomAlphaOfLengthBetween(4, 8));
+            threadPool.getThreadContext().putHeader(contextHeaderReference.get(), contextHeaderValueReference.get());
+            threadPool.getThreadContext().putTransient(contextHeaderReference.get(), contextHeaderValueReference.get());
+            // validate successfully
+            validationListener.onResponse(null);
+        };
         try (
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
-                successHeadersValidator,
+                httpValidator,
                 (restRequest, threadContext) -> {
                     // assert the thread context does not yet contain anything that validation set in
                     assertThat(threadPool.getThreadContext().getHeader(contextHeaderReference.get()), nullValue());
@@ -779,17 +776,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 }
             }
         };
-        final Supplier<Netty4HttpHeaderValidator> failureHeadersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
-            (httpRequest, channel, validationResultListener) -> {
-                // assert that the validator sees the request unaltered
-                assertThat(httpRequest.uri(), is(urlReference.get()));
-                assertThat(httpRequest.headers().get(headerReference.get()), is(headerValueReference.get()));
-                assertThat(httpRequest.method(), is(httpMethodReference.get()));
-                // failed validation
-                validationResultListener.onFailure(validationResultExceptionReference.get());
-            },
-            threadPool.getThreadContext()
-        );
+        final HttpValidator failureHeadersValidator = (httpRequest, channel, validationResultListener) -> {
+            // assert that the validator sees the request unaltered
+            assertThat(httpRequest.uri(), is(urlReference.get()));
+            assertThat(httpRequest.headers().get(headerReference.get()), is(headerValueReference.get()));
+            assertThat(httpRequest.method(), is(httpMethodReference.get()));
+            // failed validation
+            validationResultListener.onFailure(validationResultExceptionReference.get());
+        };
         try (
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 dispatcher,
@@ -856,22 +850,19 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 }
             }
         };
-        final Supplier<Netty4HttpHeaderValidator> headersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
-            (httpPreRequest, channel, validationListener) -> {
-                // assert all validations run on the same channel
-                channelSetOnce.trySet(channel);
-                assertThat(channelSetOnce.get(), is(channel));
-                // some requests are validated while others are not
-                if (httpPreRequest.uri().contains("X-Auth=OK")) {
-                    validationListener.onResponse(null);
-                } else if (httpPreRequest.uri().contains("X-Auth=NOK")) {
-                    validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
-                } else {
-                    throw new AssertionError("Unrecognized URI");
-                }
-            },
-            threadPool.getThreadContext()
-        );
+        final HttpValidator headersValidator = (httpPreRequest, channel, validationListener) -> {
+            // assert all validations run on the same channel
+            channelSetOnce.trySet(channel);
+            assertThat(channelSetOnce.get(), is(channel));
+            // some requests are validated while others are not
+            if (httpPreRequest.uri().contains("X-Auth=OK")) {
+                validationListener.onResponse(null);
+            } else if (httpPreRequest.uri().contains("X-Auth=NOK")) {
+                validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
+            } else {
+                throw new AssertionError("Unrecognized URI");
+            }
+        };
         try (
             Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
                 settings,
@@ -909,16 +900,16 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     private Netty4HttpServerTransport getTestNetty4HttpServerTransport(
         HttpServerTransport.Dispatcher dispatcher,
-        Supplier<Netty4HttpHeaderValidator> validatorSupplier,
+        HttpValidator httpValidator,
         BiConsumer<RestRequest, ThreadContext> populatePerRequestContext
     ) {
-        return getTestNetty4HttpServerTransport(createSettings(), dispatcher, validatorSupplier, populatePerRequestContext);
+        return getTestNetty4HttpServerTransport(createSettings(), dispatcher, httpValidator, populatePerRequestContext);
     }
 
     private Netty4HttpServerTransport getTestNetty4HttpServerTransport(
         Settings settings,
         HttpServerTransport.Dispatcher dispatcher,
-        Supplier<Netty4HttpHeaderValidator> validatorSupplier,
+        HttpValidator httpValidator,
         BiConsumer<RestRequest, ThreadContext> populatePerRequestContext
     ) {
         return new Netty4HttpServerTransport(
@@ -932,7 +923,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Tracer.NOOP,
             TLSConfig.noTLS(),
             null,
-            validatorSupplier
+            httpValidator
         ) {
             @Override
             protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {

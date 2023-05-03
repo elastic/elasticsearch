@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.http.AbstractHttpServerTransportTestCase.VALIDATE_EVERYTHING_VALIDATOR;
 import static org.hamcrest.Matchers.contains;
 
 /**
@@ -109,7 +108,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             );
         }
 

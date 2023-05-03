@@ -96,7 +96,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -123,7 +123,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -150,7 +150,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -177,7 +177,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -199,7 +199,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -222,7 +222,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
@@ -254,7 +254,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             Tracer.NOOP,
             new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
             null,
-            randomFrom(VALIDATE_EVERYTHING_VALIDATOR, null)
+            randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
         assertNotNull(transport.configureServerChannelHandler());
     }
@@ -274,7 +274,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                VALIDATE_EVERYTHING_VALIDATOR
+                (httpPreRequest, channel, listener) -> listener.onResponse(null)
             )
         ) {
             final ChannelHandler handler = transport.configureServerChannelHandler();

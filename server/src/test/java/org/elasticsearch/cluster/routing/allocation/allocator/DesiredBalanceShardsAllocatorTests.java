@@ -241,6 +241,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
                 }
             },
+            new DesiredBalanceReconciler(),
             reconcileAction
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -342,6 +343,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
                 }
             },
+            new DesiredBalanceReconciler(),
             reconcileAction
         );
 
@@ -432,6 +434,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
+            new DesiredBalanceReconciler(),
             (reconcilerClusterState, routingAllocationAction) -> reconcilerClusterState
         );
 

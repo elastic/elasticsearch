@@ -1056,7 +1056,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
-        new DesiredBalanceReconciler(desiredBalance, routingAllocation, new NodeAllocationOrdering()).run();
+        new DesiredBalanceReconciler().reconcile(desiredBalance, routingAllocation);
     }
 
     private static AllocationService createTestAllocationService(

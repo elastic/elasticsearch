@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceInput;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -113,7 +114,15 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
                 return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
             }
         };
-        var allocator = new DesiredBalanceShardsAllocator(delegate, threadPool, clusterService, computer, (state, action) -> state);
+        var reconciler = new DesiredBalanceReconciler();
+        var allocator = new DesiredBalanceShardsAllocator(
+            delegate,
+            threadPool,
+            clusterService,
+            computer,
+            reconciler,
+            (state, action) -> state
+        );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
             new TestGatewayAllocator(),

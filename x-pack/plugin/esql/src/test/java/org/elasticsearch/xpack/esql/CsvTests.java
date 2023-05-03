@@ -22,7 +22,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -74,7 +73,6 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
-import static org.mockito.Mockito.mock;
 
 /**
  * CSV-based unit testing.
@@ -228,7 +226,7 @@ public class CsvTests extends ESTestCase {
         var parsed = parser.createStatement(testCase.query);
         var testDataset = testsDataset(parsed);
 
-        ExchangeService exchangeService = new ExchangeService(mock(TransportService.class), threadPool);
+        ExchangeService exchangeService = new ExchangeService(Settings.EMPTY, threadPool);
         String sessionId = "csv-test";
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             sessionId,

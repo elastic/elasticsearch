@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.env.Environment;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -76,12 +76,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Tracer tracer,
         AllocationService allocationService
     ) {
-        return createComponents(client, clusterService);
-    }
-
-    private Collection<Object> createComponents(Client client, ClusterService clusterService) {
-        return Arrays.asList(
-            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of))
+        return List.of(
+            new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
+            new ExchangeService(clusterService.getSettings(), threadPool)
         );
     }
 
@@ -92,7 +89,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE, ExchangeService.INACTIVE_TIMEOUT_SETTING);
     }
 
     @Override

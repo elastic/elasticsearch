@@ -46,6 +46,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -123,99 +125,140 @@ public class ExchangeServiceTests extends ESTestCase {
         ESTestCase.terminate(threadPool);
     }
 
+    /**
+     * Generates sequence numbers up to the {@code maxInputSeqNo} (exclusive)
+     */
+    static class SeqNoGenerator implements SourceOperator.SourceOperatorFactory {
+        final AtomicInteger nextSeqNo = new AtomicInteger(-1);
+        final int maxInputSeqNo;
+
+        SeqNoGenerator(int maxInputSeqNo) {
+            this.maxInputSeqNo = maxInputSeqNo;
+        }
+
+        @Override
+        public String describe() {
+            return "SeqNoGenerator(maxInputSeqNo=" + maxInputSeqNo + ")";
+        }
+
+        @Override
+        public SourceOperator get() {
+            return new SourceOperator() {
+                @Override
+                public void finish() {
+
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return nextSeqNo.get() >= maxInputSeqNo;
+                }
+
+                @Override
+                public Page getOutput() {
+                    if (randomInt(100) < 5) {
+                        return null;
+                    }
+                    int size = randomIntBetween(1, 10);
+                    IntBlock.Builder builder = IntBlock.newBlockBuilder(size);
+                    for (int i = 0; i < size; i++) {
+                        int seqNo = nextSeqNo.incrementAndGet();
+                        if (seqNo < maxInputSeqNo) {
+                            builder.appendInt(seqNo);
+                        }
+                    }
+                    return new Page(builder.build());
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+        }
+    }
+
+    /**
+     * Collects the received sequence numbers that are less than {@code maxOutputSeqNo}.
+     */
+    static final class SeqNoCollector implements SinkOperator.SinkOperatorFactory {
+        final long maxOutputSeqNo;
+        final Set<Integer> receivedSeqNos = ConcurrentCollections.newConcurrentSet();
+
+        SeqNoCollector(long maxOutputSeqNo) {
+            this.maxOutputSeqNo = maxOutputSeqNo;
+        }
+
+        @Override
+        public String describe() {
+            return "SeqNoCollector(maxOutputSeqNo=" + maxOutputSeqNo + ")";
+        }
+
+        @Override
+        public SinkOperator get() {
+            return new SinkOperator() {
+                private boolean finished = false;
+
+                @Override
+                public boolean needsInput() {
+                    return isFinished() == false;
+                }
+
+                @Override
+                public void addInput(Page page) {
+                    assertFalse("already finished", finished);
+                    IntBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        int v = block.getInt(i);
+                        if (v < maxOutputSeqNo) {
+                            assertTrue(receivedSeqNos.add(v));
+                            // Early termination
+                            if (receivedSeqNos.size() >= maxOutputSeqNo && randomBoolean()) {
+                                finished = true;
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void finish() {
+                    finished = true;
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return finished;
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+        }
+    }
+
     void runConcurrentTest(
         int maxInputSeqNo,
         int maxOutputSeqNo,
         Supplier<ExchangeSource> exchangeSource,
         Supplier<ExchangeSink> exchangeSink
     ) {
-        final AtomicInteger nextSeqNo = new AtomicInteger(-1);
-        class SeqNoGenerator extends SourceOperator {
-            @Override
-            public void finish() {
-
-            }
-
-            @Override
-            public boolean isFinished() {
-                return nextSeqNo.get() >= maxInputSeqNo;
-            }
-
-            @Override
-            public Page getOutput() {
-                if (randomInt(100) < 5) {
-                    return null;
-                }
-                int size = randomIntBetween(1, 10);
-                IntBlock.Builder builder = IntBlock.newBlockBuilder(size);
-                for (int i = 0; i < size; i++) {
-                    int seqNo = nextSeqNo.incrementAndGet();
-                    if (seqNo < maxInputSeqNo) {
-                        builder.appendInt(seqNo);
-                    }
-                }
-                return new Page(builder.build());
-            }
-
-            @Override
-            public void close() {
-
-            }
-        }
-
-        final Set<Integer> receivedSeqNos = ConcurrentCollections.newConcurrentSet();
-        class SeqNoCollector extends SinkOperator {
-            private boolean finished = false;
-
-            @Override
-            public boolean needsInput() {
-                return isFinished() == false;
-            }
-
-            @Override
-            public void addInput(Page page) {
-                assertFalse("already finished", finished);
-                IntBlock block = page.getBlock(0);
-                for (int i = 0; i < block.getPositionCount(); i++) {
-                    int v = block.getInt(i);
-                    if (v < maxOutputSeqNo) {
-                        assertTrue(receivedSeqNos.add(v));
-                        // Early termination
-                        if (receivedSeqNos.size() >= maxOutputSeqNo) {
-                            finished = true;
-                        }
-                    }
-                }
-            }
-
-            @Override
-            public void finish() {
-                finished = true;
-            }
-
-            @Override
-            public boolean isFinished() {
-                return finished;
-            }
-
-            @Override
-            public void close() {
-
-            }
-        }
+        final SeqNoCollector seqNoCollector = new SeqNoCollector(maxOutputSeqNo);
+        final SeqNoGenerator seqNoGenerator = new SeqNoGenerator(maxInputSeqNo);
         int numSinks = randomIntBetween(1, 8);
         int numSources = randomIntBetween(1, 8);
         List<Driver> drivers = new ArrayList<>(numSinks + numSources);
         for (int i = 0; i < numSinks; i++) {
             String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get());
-            Driver d = new Driver("test-session:1", () -> description, new SeqNoGenerator(), List.of(), sinkOperator, () -> {});
+            Driver d = new Driver("test-session:1", () -> description, seqNoGenerator.get(), List.of(), sinkOperator, () -> {});
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
             String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
-            Driver d = new Driver("test-session:2", () -> description, sourceOperator, List.of(), new SeqNoCollector(), () -> {});
+            Driver d = new Driver("test-session:2", () -> description, sourceOperator, List.of(), seqNoCollector.get(), () -> {});
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -227,8 +270,8 @@ public class ExchangeServiceTests extends ESTestCase {
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
         var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
-        assertThat(receivedSeqNos, hasSize(expectedSeqNos.size()));
-        assertThat(receivedSeqNos, equalTo(expectedSeqNos));
+        assertThat(seqNoCollector.receivedSeqNos, hasSize(expectedSeqNos.size()));
+        assertThat(seqNoCollector.receivedSeqNos, equalTo(expectedSeqNos));
     }
 
     public void testConcurrentWithHandlers() {
@@ -270,9 +313,11 @@ public class ExchangeServiceTests extends ESTestCase {
 
     public void testConcurrentWithTransportActions() throws Exception {
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(node0, threadPool);
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool);
+        exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(node1, threadPool);
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool);
+        exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
 
         try {
@@ -280,7 +325,7 @@ public class ExchangeServiceTests extends ESTestCase {
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
             ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomExchangeBuffer());
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
-            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node1.getLocalNode()), randomIntBetween(1, 5));
+            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
             final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink);
@@ -290,10 +335,13 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testFailToRespondPage() throws Exception {
+        Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(node0, threadPool);
+        ExchangeService exchange0 = new ExchangeService(settings, threadPool);
+        exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(node1, threadPool);
+        ExchangeService exchange1 = new ExchangeService(settings, threadPool);
+        exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);
         final int disconnectOnSeqNo = randomIntBetween(100, 500);
@@ -328,7 +376,7 @@ public class ExchangeServiceTests extends ESTestCase {
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
             ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomIntBetween(1, 128));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node1.getLocalNode()), randomIntBetween(1, 5));
+            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,
                 () -> runConcurrentTest(maxSeqNo, maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink)
@@ -336,6 +384,96 @@ public class ExchangeServiceTests extends ESTestCase {
             Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
+        } finally {
+            IOUtils.close(node0, node1);
+        }
+    }
+
+    public void testTimeoutExchangeRequest() throws Exception {
+        int inactiveTimeoutInMillis = between(1, 100);
+        Settings settings = Settings.builder()
+            .put(ExchangeService.INACTIVE_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(inactiveTimeoutInMillis))
+            .build();
+        MockTransportService node0 = newTransportService();
+        ExchangeService exchange0 = new ExchangeService(settings, threadPool);
+        exchange0.registerTransportHandler(node0);
+        MockTransportService node1 = newTransportService();
+        ExchangeService exchange1 = new ExchangeService(settings, threadPool);
+        exchange1.registerTransportHandler(node1);
+        AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        // exchange source will retry the timed out response
+        CountDownLatch latch = new CountDownLatch(between(1, 5));
+        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
+            @Override
+            public void messageReceived(
+                TransportRequestHandler<TransportRequest> handler,
+                TransportRequest request,
+                TransportChannel channel,
+                Task task
+            ) throws Exception {
+                handler.messageReceived(request, new FilterTransportChannel(channel) {
+                    @Override
+                    public void sendResponse(TransportResponse response) throws IOException {
+                        latch.countDown();
+                        super.sendResponse(response);
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) throws IOException {
+                        latch.countDown();
+                        super.sendResponse(exception);
+                    }
+                }, task);
+            }
+        });
+        try {
+            String exchangeId = "exchange";
+            Task task = new Task(1, "", "", "", null, Collections.emptyMap());
+            final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            PlainActionFuture<Void> collectorFuture = new PlainActionFuture<>();
+            {
+                final int maxOutputSeqNo = randomIntBetween(1, 50_000);
+                SeqNoCollector seqNoCollector = new SeqNoCollector(maxOutputSeqNo);
+                ExchangeSourceHandler sourceHandler = exchange0.createSourceHandler(exchangeId, randomIntBetween(1, 128));
+                sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, node1.getLocalNode()), randomIntBetween(1, 5));
+                int numSources = randomIntBetween(1, 10);
+                List<Driver> sourceDrivers = new ArrayList<>(numSources);
+                for (int i = 0; i < numSources; i++) {
+                    String description = "source-" + i;
+                    ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
+                    Driver d = new Driver(description, () -> description, sourceOperator, List.of(), seqNoCollector.get(), () -> {});
+                    sourceDrivers.add(d);
+                }
+                new DriverRunner() {
+                    @Override
+                    protected void start(Driver driver, ActionListener<Void> listener) {
+                        Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
+                    }
+                }.runToCompletion(sourceDrivers, collectorFuture);
+            }
+            // Verify that some exchange requests are timed out because we don't have the exchange sink handler yet
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            PlainActionFuture<Void> generatorFuture = new PlainActionFuture<>();
+            {
+                SeqNoGenerator seqNoGenerator = new SeqNoGenerator(maxInputSeqNo);
+                int numSinks = randomIntBetween(1, 10);
+                ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
+                List<Driver> sinkDrivers = new ArrayList<>(numSinks);
+                for (int i = 0; i < numSinks; i++) {
+                    String description = "sink-" + i;
+                    ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink());
+                    Driver d = new Driver(description, () -> description, seqNoGenerator.get(), List.of(), sinkOperator, () -> {});
+                    sinkDrivers.add(d);
+                }
+                new DriverRunner() {
+                    @Override
+                    protected void start(Driver driver, ActionListener<Void> listener) {
+                        Driver.start(threadPool.executor("esql_test_executor"), driver, listener);
+                    }
+                }.runToCompletion(sinkDrivers, generatorFuture);
+            }
+            generatorFuture.actionGet(1, TimeUnit.MINUTES);
+            collectorFuture.actionGet(1, TimeUnit.MINUTES);
         } finally {
             IOUtils.close(node0, node1);
         }

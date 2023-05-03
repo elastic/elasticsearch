@@ -12,6 +12,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.compute.ann;
     requires org.elasticsearch.xcontent;
     requires t.digest;
+    requires org.apache.logging.log4j;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

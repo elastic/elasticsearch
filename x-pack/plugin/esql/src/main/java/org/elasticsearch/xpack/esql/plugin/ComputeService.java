@@ -81,6 +81,7 @@ public class ComputeService {
         SearchService searchService,
         ClusterService clusterService,
         TransportService transportService,
+        ExchangeService exchangeService,
         ThreadPool threadPool,
         BigArrays bigArrays
     ) {
@@ -96,7 +97,7 @@ public class ComputeService {
             new DataNodeRequestHandler()
         );
         this.driverRunner = new DriverTaskRunner(transportService, threadPool);
-        this.exchangeService = new ExchangeService(transportService, threadPool);
+        this.exchangeService = exchangeService;
     }
 
     public void execute(
@@ -140,7 +141,7 @@ public class ComputeService {
             );
             // link with exchange sinks
             for (String targetNode : targetNodes.keySet()) {
-                final var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, clusterState.nodes().get(targetNode));
+                var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, clusterState.nodes().get(targetNode));
                 sourceHandler.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
             }
             // dispatch compute requests to data nodes

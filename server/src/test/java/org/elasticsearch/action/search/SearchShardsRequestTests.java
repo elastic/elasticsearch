@@ -77,7 +77,7 @@ public class SearchShardsRequestTests extends AbstractWireSerializingTestCase<Se
                 r.preference(),
                 r.allowPartialSearchResults() == false
             );
-            default -> throw new AssertionError("unexpected value " + between(0, 5));
+            default -> throw new AssertionError("unexpected value");
         };
     }
 }

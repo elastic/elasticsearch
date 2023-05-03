@@ -154,6 +154,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("sql/translate/Translate SQL", "query folding changed in v 8.5, added track_total_hits: -1")
   task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
   task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
+  task.skipTest("spatial/70_script_doc_values/geoshape value", "error message changed in 8.9.0")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

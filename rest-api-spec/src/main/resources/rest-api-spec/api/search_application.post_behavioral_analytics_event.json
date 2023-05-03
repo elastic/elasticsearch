@@ -34,9 +34,15 @@
         }
       ]
     },
-    "body":{
-      "description":"The event definition",
-      "required":true
+    "params": {
+      "debug": {
+        "type": "boolean",
+        "description": "If true, returns event information that will be stored"
+      }
+    },
+    "body": {
+      "description": "The event definition",
+      "required": true
     }
   }
 }

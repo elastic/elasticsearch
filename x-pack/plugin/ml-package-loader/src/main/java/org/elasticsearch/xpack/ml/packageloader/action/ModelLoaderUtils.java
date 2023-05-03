@@ -65,6 +65,8 @@ final class ModelLoaderUtils {
         private final MessageDigest digestSha256 = MessageDigests.sha256();
         private final int chunkSize;
 
+        private int totalBytesRead = 0;
+
         InputStreamChunker(InputStream inputStream, int chunkSize) {
             this.inputStream = inputStream;
             this.chunkSize = chunkSize;
@@ -83,6 +85,7 @@ final class ModelLoaderUtils {
                 bytesRead += read;
             }
             digestSha256.update(buf, 0, bytesRead);
+            totalBytesRead += bytesRead;
 
             return new BytesArray(buf, 0, bytesRead);
         }
@@ -91,6 +94,9 @@ final class ModelLoaderUtils {
             return MessageDigests.toHexString(digestSha256.digest());
         }
 
+        public int getTotalBytesRead() {
+            return totalBytesRead;
+        }
     }
 
     static InputStream getInputStreamFromModelRepository(URI uri) throws IOException {
@@ -160,6 +166,8 @@ final class ModelLoaderUtils {
     @SuppressWarnings("'java.lang.SecurityManager' is deprecated and marked for removal ")
     @SuppressForbidden(reason = "we need socket connection to download")
     private static InputStream getHttpOrHttpsInputStream(URI uri) throws IOException {
+
+        assert uri.getUserInfo() == null : "URI's with credentials are not supported";
 
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

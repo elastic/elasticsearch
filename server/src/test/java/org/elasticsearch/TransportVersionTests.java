@@ -56,26 +56,20 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public static class CorrectFakeVersion {
-        public static final TransportVersion V_0_00_01 = new TransportVersion(199, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3, "3");
-        public static final TransportVersion V_0_000_004 = new TransportVersion(4, "4");
+        public static final TransportVersion V_0_00_01 = new TransportVersion(199);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(3);
+        public static final TransportVersion V_0_000_004 = new TransportVersion(4);
     }
 
     public static class IncorrectFormatVersion {
-        public static final TransportVersion V_1 = new TransportVersion(1, "1");
+        public static final TransportVersion V_1 = new TransportVersion(1);
     }
 
     public static class DuplicatedIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(2, "3");
-    }
-
-    public static class DuplicatedStringIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3, "2");
+        public static final TransportVersion V_0_000_001 = new TransportVersion(1);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(2);
     }
 
     public void testStaticTransportVersionChecks() {
@@ -98,8 +92,6 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("does not have the correct name format"));
         e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
-        e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class));
-        assertThat(e.getMessage(), containsString("have the same unique id"));
     }
 
     public void testDefinedConstants() throws IllegalAccessException {

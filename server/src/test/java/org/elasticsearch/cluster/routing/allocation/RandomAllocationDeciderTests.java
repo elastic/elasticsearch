@@ -66,7 +66,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = Metadata.builder();

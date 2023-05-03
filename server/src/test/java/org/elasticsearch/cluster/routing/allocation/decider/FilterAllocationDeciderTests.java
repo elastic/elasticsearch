@@ -67,7 +67,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
         ClusterState state = createInitialClusterState(
             service,

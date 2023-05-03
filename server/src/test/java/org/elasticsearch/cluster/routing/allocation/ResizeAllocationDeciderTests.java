@@ -58,7 +58,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
     }
 

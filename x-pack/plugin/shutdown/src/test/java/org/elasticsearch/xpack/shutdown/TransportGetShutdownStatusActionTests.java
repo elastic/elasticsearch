@@ -44,10 +44,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
@@ -78,7 +75,6 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     private AllocationDeciders allocationDeciders;
     private AllocationService allocationService;
     private SnapshotsInfoService snapshotsInfoService;
-    private ThreadPool testThreadPool;
 
     @FunctionalInterface
     private interface TestDecider {
@@ -128,21 +124,15 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             })
         );
         snapshotsInfoService = () -> new SnapshotShardSizeInfo(Map.of());
-        testThreadPool = new TestThreadPool(getTestName());
         allocationService = new AllocationService(
             allocationDeciders,
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
             snapshotsInfoService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
-    }
-
-    @After
-    public void tearDownTestThreadPool() {
-        terminate(testThreadPool);
     }
 
     /**

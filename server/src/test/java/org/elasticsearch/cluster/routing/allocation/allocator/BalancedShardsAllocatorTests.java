@@ -112,8 +112,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 TEST_WRITE_LOAD_FORECASTER
             ),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            testThreadPool
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
@@ -153,8 +152,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             Settings.builder()
                 // enable disk based balancing
                 .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
@@ -202,8 +200,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     Map.entry("zero-disk-usage-index", 0L)
                     // no-disk-usage-index is intentionally not present in cluster info
                 )
-            ),
-            testThreadPool
+            )
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
@@ -242,8 +239,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 // enable disk based balancing
                 .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9")
                 .build(),
-            createClusterInfoService(Map.of("heavy-index", ByteSizeValue.ofGb(8).getBytes())),
-            testThreadPool
+            createClusterInfoService(Map.of("heavy-index", ByteSizeValue.ofGb(8).getBytes()))
         );
 
         var clusterState = applyStartedShardsUntilNoChange(
@@ -321,8 +317,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         var reroutedState = allocationService.reroute(clusterState, "test", ActionListener.noop());
@@ -468,8 +463,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 Map.of(),
                 Map.of(),
                 Map.of()
-            ),
-            testThreadPool
+            )
         );
 
         assertSame(clusterState, reroute(allocationService, clusterState));

@@ -34,8 +34,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
     public void testIndexLevelShardsLimitAllocate() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("Building initial routing table");
@@ -86,8 +85,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Building initial routing table");
@@ -122,8 +120,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Do another reroute, make sure shards are now allocated");
@@ -148,8 +145,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.balance.index", 0.0f)
                 .put("cluster.routing.allocation.balance.replica", 1.0f)
                 .put("cluster.routing.allocation.balance.primary", 0.0f)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Building initial routing table");

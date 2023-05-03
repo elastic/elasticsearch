@@ -79,12 +79,11 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testStartsAtTimeZero() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = taskQueue.getCurrentTimeMillis();
-        assertThat(taskQueue.getCurrentTimeMillis(), is(baseTimeMillis + 0L));
+        assertThat(taskQueue.getCurrentTimeMillis(), is(0L));
     }
 
     private void advanceToRandomTime(DeterministicTaskQueue taskQueue) {
-        taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + randomLongBetween(1, 100), () -> {});
+        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {});
         taskQueue.advanceTime();
         taskQueue.runRandomTask();
         assertFalse(taskQueue.hasRunnableTasks());
@@ -123,13 +122,11 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testDefersTasksWithPositiveDelays() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = taskQueue.getCurrentTimeMillis();
-
         final List<String> strings = new ArrayList<>(1);
 
-        final long executionTimeMillis = baseTimeMillis + randomLongBetween(1, 100);
+        final long executionTimeMillis = randomLongBetween(1, 100);
         taskQueue.scheduleAt(executionTimeMillis, () -> strings.add("foo"));
-        assertThat(taskQueue.getCurrentTimeMillis(), is(baseTimeMillis + 0L));
+        assertThat(taskQueue.getCurrentTimeMillis(), is(0L));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
@@ -147,17 +144,15 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testKeepsFutureTasksDeferred() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = taskQueue.getCurrentTimeMillis();
-
         final List<String> strings = new ArrayList<>(2);
 
-        final long executionTimeMillis1 = baseTimeMillis + randomLongBetween(1, 100);
-        final long executionTimeMillis2 = executionTimeMillis1 + randomLongBetween(1, 200);
+        final long executionTimeMillis1 = randomLongBetween(1, 100);
+        final long executionTimeMillis2 = randomLongBetween(executionTimeMillis1 + 1, 200);
 
         taskQueue.scheduleAt(executionTimeMillis1, () -> strings.add("foo"));
         taskQueue.scheduleAt(executionTimeMillis2, () -> strings.add("bar"));
 
-        assertThat(taskQueue.getCurrentTimeMillis(), is(baseTimeMillis + 0L));
+        assertThat(taskQueue.getCurrentTimeMillis(), is(0L));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
@@ -182,17 +177,15 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testExecutesTasksInTimeOrder() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = taskQueue.getCurrentTimeMillis();
-
         final List<String> strings = new ArrayList<>(3);
 
-        final long executionTimeMillis1 = baseTimeMillis + randomLongBetween(1, 100);
-        final long executionTimeMillis2 = executionTimeMillis1 + randomLongBetween(100, 300);
+        final long executionTimeMillis1 = randomLongBetween(1, 100);
+        final long executionTimeMillis2 = randomLongBetween(executionTimeMillis1 + 100, 300);
 
         taskQueue.scheduleAt(executionTimeMillis1, () -> strings.add("foo"));
         taskQueue.scheduleAt(executionTimeMillis2, () -> strings.add("bar"));
 
-        assertThat(taskQueue.getCurrentTimeMillis(), is(baseTimeMillis + 0L));
+        assertThat(taskQueue.getCurrentTimeMillis(), is(0L));
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 
@@ -225,12 +218,10 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testRunInTimeOrder() {
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = taskQueue.getCurrentTimeMillis();
-
         final List<String> strings = new ArrayList<>(2);
 
-        final long executionTimeMillis1 = baseTimeMillis + randomLongBetween(1, 100);
-        final long executionTimeMillis2 = executionTimeMillis1 + randomLongBetween(1, 200);
+        final long executionTimeMillis1 = randomLongBetween(1, 100);
+        final long executionTimeMillis2 = randomLongBetween(executionTimeMillis1 + 1, 200);
 
         taskQueue.scheduleAt(executionTimeMillis1, () -> strings.add("foo"));
         taskQueue.scheduleAt(executionTimeMillis2, () -> strings.add("bar"));

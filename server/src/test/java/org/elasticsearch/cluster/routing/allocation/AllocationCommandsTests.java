@@ -74,8 +74,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
@@ -139,8 +138,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .build(),
-            testThreadPool
+                .build()
         );
         final String index = "test";
 
@@ -358,8 +356,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .build(),
-            testThreadPool
+                .build()
         );
         final String index = "test";
 
@@ -422,8 +419,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("--> building initial routing table");
@@ -794,8 +790,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardToNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
@@ -865,8 +860,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
     public void testMoveShardFromNonDataNode() {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         logger.info("creating an index with 1 shard, no replica");
@@ -938,8 +932,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         final String index1 = "test1";

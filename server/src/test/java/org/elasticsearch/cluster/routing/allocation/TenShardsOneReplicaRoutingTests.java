@@ -45,8 +45,7 @@ public class TenShardsOneReplicaRoutingTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.balance.index", 0.0f)
                 .put("cluster.routing.allocation.balance.replica", 1.0f)
                 .put("cluster.routing.allocation.balance.primary", 0.0f)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Building initial routing table");

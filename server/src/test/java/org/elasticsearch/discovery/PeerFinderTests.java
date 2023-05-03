@@ -76,7 +76,6 @@ public class PeerFinderTests extends ESTestCase {
 
     private CapturingTransport capturingTransport;
     private DeterministicTaskQueue deterministicTaskQueue;
-    private long baseTimeMillis;
     private DiscoveryNode localNode;
     private MockTransportAddressConnector transportAddressConnector;
     private TestPeerFinder peerFinder;
@@ -210,7 +209,6 @@ public class PeerFinderTests extends ESTestCase {
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
         deterministicTaskQueue = new DeterministicTaskQueue();
-        baseTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
 
         localNode = newDiscoveryNode("local-node");
 
@@ -294,7 +292,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers();
 
         final long successTime = addressResolveDelay + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
-        while (deterministicTaskQueue.getCurrentTimeMillis() < baseTimeMillis + successTime) {
+        while (deterministicTaskQueue.getCurrentTimeMillis() < successTime) {
             deterministicTaskQueue.advanceTime();
             runAllRunnableTasks();
         }
@@ -724,7 +722,7 @@ public class PeerFinderTests extends ESTestCase {
         // need to wait for the connection to timeout, then for another wakeup, before discovering the peer
         final long expectedTime = CONNECTION_TIMEOUT_MILLIS + PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(Settings.EMPTY).millis();
 
-        while (deterministicTaskQueue.getCurrentTimeMillis() < baseTimeMillis + expectedTime) {
+        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedTime) {
             deterministicTaskQueue.advanceTime();
             runAllRunnableTasks();
         }

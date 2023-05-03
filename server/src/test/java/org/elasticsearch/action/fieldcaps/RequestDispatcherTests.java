@@ -909,8 +909,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            testThreadPool
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
         return applyStartedShardsUntilNoChange(clusterState, allocationService);
     }

@@ -36,10 +36,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.Set;
@@ -48,18 +44,6 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportResizeActionTests extends ESTestCase {
-
-    private static ThreadPool testThreadPool;
-
-    @BeforeClass
-    public static void setupThreadPool() {
-        testThreadPool = new TestThreadPool(getTestClass().getName());
-    }
-
-    @AfterClass
-    public static void teardownThreadPool() {
-        terminate(testThreadPool);
-    }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
         return createClusterState(name, numShards, numReplicas, numShards, settings);
@@ -154,7 +138,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -185,7 +169,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -229,7 +213,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -278,7 +262,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();
@@ -344,7 +328,7 @@ public class TransportResizeActionTests extends ESTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute", ActionListener.noop()).routingTable();

@@ -37,7 +37,7 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(routingTable).build();
-        MockAllocationService allocation = createAllocationService(testThreadPool);
+        MockAllocationService allocation = createAllocationService();
         clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
         assertEquals(0, clusterState.nodes().getDataNodes().size());
         assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));

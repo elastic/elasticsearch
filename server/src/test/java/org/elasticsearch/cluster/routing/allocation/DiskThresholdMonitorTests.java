@@ -66,8 +66,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private void doTestMarkFloodStageIndicesReadOnly(boolean testMaxHeadroom) {
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
         Metadata metadata = Metadata.builder()
             .put(
@@ -433,8 +432,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indicesToMarkReadOnly = new AtomicReference<>();
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
@@ -770,8 +768,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         AtomicReference<Set<String>> indicesToRelease = new AtomicReference<>();
         AtomicReference<ClusterState> currentClusterState = new AtomicReference<>();
         AllocationService allocation = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test_1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
@@ -1324,7 +1321,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 .routingTable(routingTable)
                 .nodes(discoveryNodes)
                 .build(),
-            createAllocationService(Settings.EMPTY, testThreadPool)
+            createAllocationService(Settings.EMPTY)
         );
         Map<String, DiskUsage> diskUsages = new HashMap<>();
         diskUsages.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(0, 4)));

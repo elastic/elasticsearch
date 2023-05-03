@@ -78,7 +78,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
 
@@ -110,7 +110,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
 

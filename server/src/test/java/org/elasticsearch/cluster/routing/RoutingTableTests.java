@@ -58,8 +58,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
-            .build(),
-        testThreadPool
+            .build()
     );
     private ClusterState clusterState;
 

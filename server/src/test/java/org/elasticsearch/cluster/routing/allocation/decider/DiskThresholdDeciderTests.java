@@ -1272,7 +1272,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterInfoService,
             snapshotShardSizeInfoService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
     }
 

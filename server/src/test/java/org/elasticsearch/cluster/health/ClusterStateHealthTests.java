@@ -162,7 +162,7 @@ public class ClusterStateHealthTests extends ESTestCase {
                 null,
                 null,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                threadPool
+                System::nanoTime
             )
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();

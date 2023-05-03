@@ -182,7 +182,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testIndexClosedAndReopened() {
-        final var allocationService = createAllocationService(testThreadPool);
+        final var allocationService = createAllocationService();
 
         // cluster state 0: index fully assigned and ready to close
         final var metadata0 = Metadata.builder()
@@ -367,7 +367,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testExistingIndexRestored() {
-        final var allocationService = createAllocationService(testThreadPool);
+        final var allocationService = createAllocationService();
 
         // cluster state 0: index fully assigned and ready to close
         final var metadata0 = Metadata.builder()
@@ -472,7 +472,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testReplicaAdded() {
-        AllocationService allocation = createAllocationService(testThreadPool);
+        AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
             .build();
@@ -528,7 +528,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Tests that during reroute when a node is detected as leaving the cluster, the right unassigned meta is set
      */
     public void testNodeLeave() {
-        AllocationService allocation = createAllocationService(testThreadPool);
+        AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -566,7 +566,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * Verifies that when a shard fails, reason is properly set and details are preserved.
      */
     public void testFailedShard() {
-        AllocationService allocation = createAllocationService(testThreadPool);
+        AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -775,7 +775,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testNumberOfDelayedUnassigned() throws Exception {
-        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator(), testThreadPool);
+        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -807,7 +807,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testFindNextDelayedAllocation() {
-        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator(), testThreadPool);
+        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         final TimeValue delayTest1 = TimeValue.timeValueMillis(randomIntBetween(1, 200));
         final TimeValue delayTest2 = TimeValue.timeValueMillis(randomIntBetween(1, 200));
         final long expectMinDelaySettingsNanos = Math.min(delayTest1.nanos(), delayTest2.nanos());

@@ -52,8 +52,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
     public void setUp() throws Exception {
         super.setUp();
         AllocationService allocationService = createAllocationService(
-            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build(),
-            testThreadPool
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE).build()
         );
         executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
             allocationService,

@@ -221,8 +221,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -331,8 +330,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
 
     public void testShardsAndPreferNodeRouting() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build(),
-            testThreadPool
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
         Metadata metadata = Metadata.builder()

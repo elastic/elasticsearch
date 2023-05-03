@@ -59,8 +59,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()

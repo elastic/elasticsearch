@@ -1084,7 +1084,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = Collections.singletonList(
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
-                final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY, threadPool);
+                final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
                 final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
                 final var coordinationServices = coordinatorStrategy.getCoordinationServices(
                     threadPool,

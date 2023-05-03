@@ -58,6 +58,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -90,7 +91,8 @@ public class NodeJoinTests extends ESTestCase {
 
     @AfterClass
     public static void afterClass() {
-        terminate(threadPool);
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     @After
@@ -215,7 +217,7 @@ public class NodeJoinTests extends ESTestCase {
             transportService,
             null,
             writableRegistry(),
-            ESAllocationTestCase.createAllocationService(Settings.EMPTY, threadPool),
+            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new InMemoryPersistedState(term, initialState),
             r -> emptyList(),

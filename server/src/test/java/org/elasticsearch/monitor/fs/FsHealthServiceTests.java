@@ -43,12 +43,10 @@ import static org.hamcrest.Matchers.is;
 public class FsHealthServiceTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
-    private long baseTimeMills;
 
     @Before
     public void createObjects() {
         deterministicTaskQueue = new DeterministicTaskQueue();
-        baseTimeMills = deterministicTaskQueue.getCurrentTimeMillis();
     }
 
     public void testSchedulesHealthCheckAtRefreshIntervals() throws Exception {
@@ -66,10 +64,7 @@ public class FsHealthServiceTests extends ESTestCase {
                 if (deterministicTaskQueue.hasRunnableTasks()) {
                     deterministicTaskQueue.runRandomTask();
                 } else {
-                    assertThat(
-                        deterministicTaskQueue.getLatestDeferredExecutionTime(),
-                        is(baseTimeMills + refreshInterval * (rescheduledCount + 1))
-                    );
+                    assertThat(deterministicTaskQueue.getLatestDeferredExecutionTime(), is(refreshInterval * (rescheduledCount + 1)));
                     deterministicTaskQueue.advanceTime();
                     rescheduledCount++;
                 }

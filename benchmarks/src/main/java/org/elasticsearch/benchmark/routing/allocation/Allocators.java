@@ -26,13 +26,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision.NOT_TAKEN;
 
@@ -72,15 +72,16 @@ public final class Allocators {
         throw new AssertionError("Do not instantiate");
     }
 
-    public static AllocationService createAllocationService(Settings settings, ThreadPool threadPool) {
+    public static AllocationService createAllocationService(Settings settings) {
         return createAllocationService(
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            System::nanoTime
         );
     }
 
-    public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public static AllocationService createAllocationService(
+        Settings settings, ClusterSettings clusterSettings, LongSupplier nanoTimeSupplier) {
         return new AllocationService(
             defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE,
@@ -88,7 +89,7 @@ public final class Allocators {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            threadPool
+            nanoTimeSupplier
         );
     }
 

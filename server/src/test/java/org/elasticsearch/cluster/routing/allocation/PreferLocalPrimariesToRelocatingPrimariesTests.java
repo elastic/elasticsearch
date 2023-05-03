@@ -44,8 +44,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", concurrentRecoveries)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", primaryRecoveries)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("create 2 indices with [{}] no replicas, and wait till all are allocated", numberOfShards);

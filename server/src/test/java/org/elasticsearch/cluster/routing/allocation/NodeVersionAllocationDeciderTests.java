@@ -84,8 +84,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Building initial routing table");
@@ -182,8 +181,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Building initial routing table");
@@ -241,8 +239,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("Building initial routing table");
@@ -425,8 +422,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE,
-            testThreadPool
+            EmptySnapshotsInfoService.INSTANCE
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false, false, ActionListener.noop()).clusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
@@ -497,8 +493,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            () -> new SnapshotShardSizeInfo(snapshotShardSizes),
-            testThreadPool
+            () -> new SnapshotShardSizeInfo(snapshotShardSizes)
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false, false, ActionListener.noop()).clusterState();
 

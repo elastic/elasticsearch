@@ -53,7 +53,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         EmptyClusterInfoService.INSTANCE,
         EmptySnapshotsInfoService.INSTANCE,
         TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-        testThreadPool
+        System::nanoTime
     );
 
     private ClusterState createInitialClusterState() {

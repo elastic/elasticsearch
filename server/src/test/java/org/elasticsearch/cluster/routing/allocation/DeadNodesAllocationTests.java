@@ -41,8 +41,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("--> building initial routing table");
@@ -86,7 +85,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
     }
 
     public void testLoggingOnNodeLeft() throws IllegalAccessException {
-        final AllocationService allocationService = createAllocationService(testThreadPool);
+        final AllocationService allocationService = createAllocationService();
         final Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
@@ -139,8 +138,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("--> building initial routing table");
@@ -221,8 +219,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
             Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-                .build(),
-            testThreadPool
+                .build()
         );
 
         logger.info("--> building initial routing table");

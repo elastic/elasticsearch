@@ -43,10 +43,6 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,88 +84,48 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     };
 
-    protected static ThreadPool testThreadPool;
-
-    @BeforeClass
-    public static void setupThreadPool() {
-        testThreadPool = new TestThreadPool(getTestClass().getName());
+    public static MockAllocationService createAllocationService() {
+        return createAllocationService(Settings.EMPTY);
     }
 
-    @AfterClass
-    public static void teardownThreadPool() {
-        terminate(testThreadPool);
-    }
-
-    public static MockAllocationService createAllocationService(ThreadPool threadPool) {
-        return createAllocationService(Settings.EMPTY, threadPool);
-    }
-
-    public static MockAllocationService createAllocationService(Settings settings, ThreadPool threadPool) {
+    public static MockAllocationService createAllocationService(Settings settings) {
         return createAllocationService(
             settings,
             new TestGatewayAllocator(),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            threadPool
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
-    public static MockAllocationService createAllocationService(
-        Settings settings,
-        GatewayAllocator gatewayAllocator,
-        ThreadPool threadPool
-    ) {
+    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return createAllocationService(
             settings,
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            threadPool
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
     }
 
-    public static MockAllocationService createAllocationService(
-        Settings settings,
-        ClusterInfoService clusterInfoService,
-        ThreadPool threadPool
-    ) {
-        return createAllocationService(
-            settings,
-            new TestGatewayAllocator(),
-            clusterInfoService,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
-            threadPool
-        );
+    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), clusterInfoService, SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
     }
 
-    public static MockAllocationService createAllocationService(
-        Settings settings,
-        SnapshotsInfoService snapshotsInfoService,
-        ThreadPool threadPool
-    ) {
-        return createAllocationService(
-            settings,
-            new TestGatewayAllocator(),
-            EmptyClusterInfoService.INSTANCE,
-            snapshotsInfoService,
-            threadPool
-        );
+    public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
+        return createAllocationService(settings, new TestGatewayAllocator(), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
     }
 
     public static MockAllocationService createAllocationService(
         Settings settings,
         GatewayAllocator gatewayAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
-        ThreadPool threadPool
+        SnapshotsInfoService snapshotsInfoService
     ) {
         return new MockAllocationService(
             randomAllocationDeciders(settings, createBuiltInClusterSettings(settings)),
             gatewayAllocator,
             createShardsAllocator(settings),
             clusterInfoService,
-            snapshotsInfoService,
-            threadPool
+            snapshotsInfoService
         );
     }
 
@@ -398,8 +354,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             GatewayAllocator gatewayAllocator,
             ShardsAllocator shardsAllocator,
             ClusterInfoService clusterInfoService,
-            SnapshotsInfoService snapshotsInfoService,
-            ThreadPool threadPool
+            SnapshotsInfoService snapshotsInfoService
         ) {
             super(
                 allocationDeciders,
@@ -408,7 +363,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 clusterInfoService,
                 snapshotsInfoService,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                threadPool
+                System::nanoTime
             );
             this.gatewayAllocator = gatewayAllocator;
             this.shardsAllocator = shardsAllocator;

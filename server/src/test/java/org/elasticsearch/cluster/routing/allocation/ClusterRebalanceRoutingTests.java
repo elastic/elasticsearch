@@ -47,8 +47,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -132,8 +131,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -238,8 +236,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -319,8 +316,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -431,8 +427,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -512,8 +507,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                     ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
                 )
-                .build(),
-            testThreadPool
+                .build()
         );
 
         Metadata metadata = Metadata.builder()
@@ -617,7 +611,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                     super.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
                 }
             }
-        }, testThreadPool);
+        });
 
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
@@ -715,8 +709,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
                         allocation.setHasPendingAsyncFetch();
                     }
                 }
-            },
-            testThreadPool
+            }
         );
         assertCriticalWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."

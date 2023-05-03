@@ -473,7 +473,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             () -> ClusterInfo.EMPTY,
             () -> SnapshotShardSizeInfo.EMPTY,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
     }
 

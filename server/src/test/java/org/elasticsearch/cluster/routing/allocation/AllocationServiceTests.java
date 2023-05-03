@@ -37,10 +37,6 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,18 +58,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AllocationServiceTests extends ESTestCase {
-
-    private ThreadPool testThreadPool;
-
-    @Before
-    public void setupThreadPool() {
-        testThreadPool = new TestThreadPool(getTestName());
-    }
-
-    @After
-    public void teardownThreadPool() {
-        terminate(testThreadPool);
-    }
 
     public void testFirstListElementsToCommaDelimitedStringReportsAllElementsIfShort() {
         List<String> strings = IntStream.range(0, between(0, 10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
@@ -148,7 +132,7 @@ public class AllocationServiceTests extends ESTestCase {
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -253,7 +237,7 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            testThreadPool
+            System::nanoTime
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())

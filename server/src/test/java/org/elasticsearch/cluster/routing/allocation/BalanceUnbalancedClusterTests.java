@@ -47,7 +47,7 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
     @Override
     protected ClusterState allocateNew(ClusterState state) {
         String index = "tweets-2014-12-29:00";
-        AllocationService strategy = createAllocationService(Settings.builder().build(), testThreadPool);
+        AllocationService strategy = createAllocationService(Settings.builder().build());
         Metadata metadata = Metadata.builder(state.metadata())
             .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
             .build();

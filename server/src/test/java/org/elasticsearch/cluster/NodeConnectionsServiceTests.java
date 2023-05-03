@@ -192,7 +192,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
 
         MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
         TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
@@ -243,7 +242,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         // disable exceptions so things can be restored
         transport.randomConnectionExceptions = false;
         logger.info("renewing connections");
-        runTasksUntil(deterministicTaskQueue, baseTimeMillis + maxDisconnectionTime + reconnectIntervalMillis);
+        runTasksUntil(deterministicTaskQueue, maxDisconnectionTime + reconnectIntervalMillis);
         assertConnectedExactlyToNodes(transportService, targetNodes);
     }
 
@@ -334,7 +333,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     )
     public void testDebugLogging() {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
-        final long baseTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
 
         MockTransport transport = new MockTransport(deterministicTaskQueue.getThreadPool());
         TestTransportService transportService = new TestTransportService(transport, deterministicTaskQueue.getThreadPool());
@@ -398,7 +396,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                 }
             }
 
-            runTasksUntil(deterministicTaskQueue, baseTimeMillis + CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
+            runTasksUntil(deterministicTaskQueue, CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(Settings.EMPTY).millis());
             appender.assertAllExpectationsMatched();
         }
 

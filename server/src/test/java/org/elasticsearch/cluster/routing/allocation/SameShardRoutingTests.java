@@ -50,8 +50,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
     public void testSameHost() {
         AllocationService strategy = createAllocationService(
-            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build(),
-            testThreadPool
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
         );
 
         final Settings.Builder indexSettings = settings(Version.CURRENT);
@@ -145,7 +144,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         Settings sameHostSetting = Settings.builder()
             .put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true)
             .build();
-        AllocationService strategy = createAllocationService(sameHostSetting, testThreadPool);
+        AllocationService strategy = createAllocationService(sameHostSetting);
 
         final Settings.Builder indexSettings = settings(Version.CURRENT);
         if (randomBoolean()) {
@@ -253,8 +252,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
     public void testSameHostCheckDisabledByAutoExpandReplicas() {
         final AllocationService strategy = createAllocationService(
-            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build(),
-            testThreadPool
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build()
         );
 
         final Metadata metadata = Metadata.builder()

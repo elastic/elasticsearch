@@ -1616,7 +1616,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             TestClusterNode(DiscoveryNode node) throws IOException {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
-                threadPool = deterministicTaskQueue.getThreadPool(runnable -> DeterministicTaskQueue.onNodeLog(node, runnable));
+                threadPool = deterministicTaskQueue.getThreadPool(
+                    runnable -> DeterministicTaskQueue.onNodeLog(node, runnable), System::nanoTime
+                );
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -1755,8 +1757,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         .put(settings)
                         .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                         .build(),
-                    snapshotsInfoService,
-                    threadPool
+                    snapshotsInfoService
                 );
                 assertCriticalWarnings(
                     "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."

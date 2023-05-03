@@ -56,7 +56,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .build();
 
-        AllocationService strategy = createAllocationService(testThreadPool);
+        AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState)
             .routingTable(strategy.reroute(clusterState, "reroute", ActionListener.noop()).routingTable())
             .build();

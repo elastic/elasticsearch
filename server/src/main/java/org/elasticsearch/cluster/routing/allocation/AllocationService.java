@@ -44,7 +44,6 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -79,7 +79,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
-    private final ThreadPool threadPool;
+    private final LongSupplier nanoTimeSupplier;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -89,9 +89,9 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        ThreadPool threadPool
+        LongSupplier nanoTimeSupplier
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, threadPool);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, nanoTimeSupplier);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -101,14 +101,14 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        ThreadPool threadPool
+        LongSupplier nanoTimeSupplier
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
-        this.threadPool = threadPool;
+        this.nanoTimeSupplier = nanoTimeSupplier;
     }
 
     /**
@@ -635,7 +635,7 @@ public class AllocationService {
 
     /** override this to control time based decisions during allocation */
     protected long currentNanoTime() {
-        return threadPool.relativeTimeInNanos();
+        return nanoTimeSupplier.getAsLong();
     }
 
     public void cleanCaches() {

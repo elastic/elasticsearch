@@ -361,8 +361,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                     .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), nbShards)
                     .put("cluster.routing.allocation.type", "balanced") // TODO fix for desired_balance
                     .build(),
-                snapshotsInfoService,
-                threadPool
+                snapshotsInfoService
             );
             assertCriticalWarnings(
                 "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."

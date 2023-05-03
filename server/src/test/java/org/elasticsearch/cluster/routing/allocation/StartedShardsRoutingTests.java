@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StartedShardsRoutingTests extends ESAllocationTestCase {
     public void testStartedShardsMatching() {
-        AllocationService allocation = createAllocationService(testThreadPool);
+        AllocationService allocation = createAllocationService();
 
         logger.info("--> building initial cluster state");
         AllocationId allocationId = AllocationId.newRelocation(AllocationId.newInitializing());
@@ -101,7 +101,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
     }
 
     public void testRelocatingPrimariesWithInitializingReplicas() {
-        AllocationService allocation = createAllocationService(testThreadPool);
+        AllocationService allocation = createAllocationService();
 
         logger.info("--> building initial cluster state");
         AllocationId primaryId = AllocationId.newRelocation(AllocationId.newInitializing());

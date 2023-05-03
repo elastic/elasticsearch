@@ -627,7 +627,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Test that we don't error on exceeding field size if field is neither indexed nor has doc values
+     * Test that we don't error on exceeding field size if field is neither indexed nor has doc values nor stored
      */
     public void testKeywordFieldUtf8LongerThan32766SourceOnly() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {

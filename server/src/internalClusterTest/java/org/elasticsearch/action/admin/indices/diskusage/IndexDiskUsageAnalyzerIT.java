@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -66,12 +67,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
                 @Override
-                public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
-                        throw new EngineException(shardId, "simulated IO");
+                        listener.onFailure(new EngineException(shardId, "simulated IO"));
+                    } else {
+                        super.flush(force, waitIfOngoing, listener);
                     }
-                    return super.flush(force, waitIfOngoing);
                 }
             });
         }
@@ -195,10 +197,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                        .put("index.shard.check_on_startup", false)
+                    indexSettings(numberOfShards, between(0, 1)).put("index.shard.check_on_startup", false)
                         .put("index.routing.rebalance.enable", "none")
                 )
                 .get();
@@ -237,12 +236,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put("index.routing.rebalance.enable", "none")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            )
+            .setSettings(indexSettings(numberOfShards, 0).put("index.routing.rebalance.enable", "none"))
             .get();
         int numDocs = randomIntBetween(1, 10);
         for (int i = 0; i < numDocs; i++) {

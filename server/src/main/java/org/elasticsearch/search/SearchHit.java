@@ -78,6 +78,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     private static final float DEFAULT_SCORE = Float.NaN;
     private float score = DEFAULT_SCORE;
 
+    private static final int NO_RANK = -1;
+    private int rank = NO_RANK;
+
     private final Text id;
 
     private final NestedIdentity nestedIdentity;
@@ -134,6 +137,9 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     public SearchHit(StreamInput in) throws IOException {
         docId = -1;
         score = in.readFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            rank = in.readVInt();
+        }
         id = in.readOptionalText();
         if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalText();
@@ -236,6 +242,11 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(score);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeVInt(rank);
+        } else if (rank != NO_RANK) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
+        }
         out.writeOptionalText(id);
         if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalText(SINGLE_MAPPING_TYPE);
@@ -290,6 +301,14 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      */
     public float getScore() {
         return this.score;
+    }
+
+    public void setRank(int rank) {
+        this.rank = rank;
+    }
+
+    public int getRank() {
+        return this.rank;
     }
 
     public void version(long version) {
@@ -624,6 +643,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         static final String _SEQ_NO = "_seq_no";
         static final String _PRIMARY_TERM = "_primary_term";
         static final String _SCORE = "_score";
+        static final String _RANK = "_rank";
         static final String FIELDS = "fields";
         static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
@@ -685,6 +705,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.nullField(Fields._SCORE);
         } else {
             builder.field(Fields._SCORE, score);
+        }
+
+        if (rank != NO_RANK) {
+            builder.field(Fields._RANK, rank);
         }
 
         for (DocumentField field : metaFields.values()) {
@@ -815,6 +839,8 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             new ParseField(Fields._SCORE),
             ValueType.FLOAT_OR_NULL
         );
+        parser.declareInt((map, value) -> map.put(Fields._RANK, value), new ParseField(Fields._RANK));
+
         parser.declareLong((map, value) -> map.put(Fields._VERSION, value), new ParseField(Fields._VERSION));
         parser.declareLong((map, value) -> map.put(Fields._SEQ_NO, value), new ParseField(Fields._SEQ_NO));
         parser.declareLong((map, value) -> map.put(Fields._PRIMARY_TERM, value), new ParseField(Fields._PRIMARY_TERM));
@@ -912,6 +938,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             searchHit.clusterAlias = clusterAlias;
         }
         searchHit.score(get(Fields._SCORE, values, DEFAULT_SCORE));
+        searchHit.setRank(get(Fields._RANK, values, NO_RANK));
         searchHit.version(get(Fields._VERSION, values, -1L));
         searchHit.setSeqNo(get(Fields._SEQ_NO, values, SequenceNumbers.UNASSIGNED_SEQ_NO));
         searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));

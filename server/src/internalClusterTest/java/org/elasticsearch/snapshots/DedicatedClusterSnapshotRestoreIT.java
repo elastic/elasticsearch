@@ -196,7 +196,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> making sure that snapshot no longer exists");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
+            () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
 
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
@@ -1223,7 +1223,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testGetReposWithWildcard() {
         internalCluster().startMasterOnlyNode();
-        List<RepositoryMetadata> repositoryMetadata = client().admin().cluster().prepareGetRepositories("*").get().repositories();
+        List<RepositoryMetadata> repositoryMetadata = clusterAdmin().prepareGetRepositories("*").get().repositories();
         assertThat(repositoryMetadata, empty());
     }
 

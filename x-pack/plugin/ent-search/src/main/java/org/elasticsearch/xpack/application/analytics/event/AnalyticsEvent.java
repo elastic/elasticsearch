@@ -43,44 +43,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     public static final ParseField DATA_STREAM_DATASET_FIELD = new ParseField("dataset");
 
     /**
-     * Analytics context. Used to carry information to parsers.
-     */
-    public interface Context {
-        long eventTime();
-
-        Type eventType();
-
-        String eventCollectionName();
-
-        default AnalyticsCollection analyticsCollection() {
-            return new AnalyticsCollection(eventCollectionName());
-        }
-    }
-
-    static class AnalyticsEventContext implements Context {
-        private final AnalyticsEvent event;
-
-        AnalyticsEventContext(AnalyticsEvent event) {
-            this.event = Objects.requireNonNull(event, "event cannot be null");
-        }
-
-        @Override
-        public long eventTime() {
-            return event.eventTime();
-        }
-
-        @Override
-        public Type eventType() {
-            return event.eventType();
-        }
-
-        @Override
-        public String eventCollectionName() {
-            return event.eventCollectionName();
-        }
-    }
-
-    /**
      * Analytics event types.
      */
     public enum Type {
@@ -156,10 +118,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
         return XContentHelper.convertToMap(payload(), true, xContentType()).v2();
     }
 
-    public Context context() {
-        return new AnalyticsEventContext(this);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(eventCollectionName);
@@ -198,11 +156,6 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     }
 
     @Override
-    public boolean isFragment() {
-        return false;
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -215,13 +168,40 @@ public class AnalyticsEvent implements Writeable, ToXContentObject {
     }
 
     @Override
-    public String toString() {
-        return Strings.toString(this);
+    public boolean isFragment() {
+        return false;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(eventCollectionName, eventTime, xContentType, payloadAsMap());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    /**
+     * Analytics context. Used to carry information to parsers.
+     */
+    public interface Context {
+        long eventTime();
+
+        Type eventType();
+
+        String eventCollectionName();
+
+        String userAgent();
+
+        String clientAddress();
+
+        default AnalyticsCollection analyticsCollection() {
+            // TODO: remove. Only used in tests.
+            return new AnalyticsCollection(eventCollectionName());
+        }
+
+        // TODO: Move the interface to the package (renamed into AnalyticsContext)
     }
 
     public static class Builder {

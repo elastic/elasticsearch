@@ -90,7 +90,6 @@ teardown:
 
   - is_true: ''
 
-  - match: { "foo" }
   - do:
       search_application.get:
         name: test-search-application

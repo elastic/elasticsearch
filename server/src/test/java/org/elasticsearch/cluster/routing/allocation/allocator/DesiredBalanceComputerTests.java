@@ -681,7 +681,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var iteration = new AtomicInteger(0);
 
-        long diskSize = Math.max(totalShardsSize / nodes, usedDiskSpace.values().stream().max(Long::compare).get()) * 110 / 100;
+        long diskSize = Math.max(totalShardsSize / nodes, usedDiskSpace.values().stream().max(Long::compare).get()) * 120 / 100;
         assertTrue("Should have enough space for all shards", diskSize * nodes > totalShardsSize);
 
         var diskUsage = usedDiskSpace.entrySet()
@@ -725,8 +725,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static long smallShardSizeDeviation(long originalSize) {
-        var deviation = randomIntBetween(0, 50) - 100L;
-        return originalSize * (1000 + deviation) / 1000;
+        var deviation = randomIntBetween(0, 10) - 5;
+        return originalSize * (100 + deviation) / 100;
     }
 
     private String pickAndRemoveRandomValueFrom(List<String> values) {

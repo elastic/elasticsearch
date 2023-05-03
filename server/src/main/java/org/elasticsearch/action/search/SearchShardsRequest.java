@@ -132,7 +132,9 @@ public final class SearchShardsRequest extends ActionRequest implements IndicesR
             + '\''
             + ", preference='"
             + preference
-            + '\'';
+            + '\''
+            + ", allowPartialSearchResults="
+            + allowPartialSearchResults;
     }
 
     @Override

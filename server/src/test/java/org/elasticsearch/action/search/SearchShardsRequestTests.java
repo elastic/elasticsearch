@@ -46,7 +46,8 @@ public class SearchShardsRequestTests extends AbstractWireSerializingTestCase<Se
     protected SearchShardsRequest mutateInstance(SearchShardsRequest r) throws IOException {
         return switch (between(0, 5)) {
             case 0 -> {
-                String[] indices = ArrayUtils.concat(r.indices(), generateRandomStringArray(10, 10, false));
+                String[] extraIndices = randomArray(1, 10, String[]::new, () -> randomAlphaOfLength(10));
+                String[] indices = ArrayUtils.concat(r.indices(), extraIndices);
                 yield new SearchShardsRequest(indices, r.indicesOptions(), r.query(), r.routing(), r.preference(), randomBoolean());
             }
             case 1 -> {
@@ -76,7 +77,7 @@ public class SearchShardsRequestTests extends AbstractWireSerializingTestCase<Se
                 r.preference(),
                 r.allowPartialSearchResults() == false
             );
-            default -> throw new AssertionError("unexpected value");
+            default -> throw new AssertionError("unexpected value " + between(0, 5));
         };
     }
 }

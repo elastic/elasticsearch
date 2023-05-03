@@ -531,6 +531,10 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
                         );
                         putBody.field("target_node_name", targetNodeName);
                     }
+                    if (grace != null) {
+                        assertThat("grace only valid for SIGTERM-type shutdowns", type, equalToIgnoringCase("sigterm"));
+                        putBody.field("grace_period", grace);
+                    }
                 }
                 putBody.endObject();
                 putShutdown.setJsonEntity(Strings.toString(putBody));

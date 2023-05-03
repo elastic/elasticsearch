@@ -88,6 +88,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
@@ -948,15 +949,8 @@ public class RecoverySourceHandler {
         }
     }
 
-    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> outerListener) {
-        // NB we release the operation permit as soon as we have created the lease, but delay the outer listener until it is synced
-        final var leaseListener = new SubscribableListener<RetentionLease>();
-        final var delayedListener = new ThreadedActionListener<>(
-            shard.getThreadPool().generic(),
-            outerListener.<ReplicationResponse>delegateFailure((l, ignored) -> leaseListener.addListener(l))
-        );
-
-        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
+    void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
+        updateRetentionLease(syncListener -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
             // existing lease we (approximately) know that all our peers are also retaining history as requested by the cloned lease. If
@@ -966,8 +960,9 @@ public class RecoverySourceHandler {
             // (approximately) because we do not guarantee to be able to satisfy every lease on every peer.
             final var targetNodeId = request.targetNode().getId();
             logger.trace("cloning primary's retention lease for target node ID [{}]", targetNodeId);
+            final var backgroundSyncListener = wrapLeaseSyncListener(syncListener);
             try {
-                final var clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, delayedListener);
+                final var clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(targetNodeId, backgroundSyncListener);
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
                 return clonedLease;
             } catch (RetentionLeaseNotFoundException e) {
@@ -977,31 +972,59 @@ public class RecoverySourceHandler {
                 assert shard.indexSettings().getIndexVersionCreated().before(Version.V_7_4_0)
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
-                final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, delayedListener);
+                final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, backgroundSyncListener);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
                 return newLease;
             }
-        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
+        }, listener);
     }
 
-    private void deleteRetentionLease(ActionListener<Void> outerListener) {
-        // NB we release the operation permit as soon as we have deleted the lease, but delay the outer listener until it is synced
-        final var leaseListener = new SubscribableListener<Void>();
-        final var delayedListener = new ThreadedActionListener<>(
-            shard.getThreadPool().generic(),
-            outerListener.<Void>delegateFailure((l, ignored) -> leaseListener.addListener(l))
-        );
-
-        runUnderPrimaryPermit(permitListener -> ActionListener.completeWith(permitListener, () -> {
+    private void deleteRetentionLease(ActionListener<Void> listener) {
+        updateRetentionLease(syncListener -> {
             try {
-                shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), delayedListener.map(ignored -> null));
+                shard.removePeerRecoveryRetentionLease(request.targetNode().getId(), wrapLeaseSyncListener(syncListener));
             } catch (RetentionLeaseNotFoundException e) {
                 // this counts as success
                 logger.debug("no peer-recovery retention lease for [{}]", request.targetAllocationId());
-                leaseListener.addListener(outerListener);
+                syncListener.onResponse(null);
             }
             return null;
-        }), shard, cancellableThreads, leaseListener.delegateResponse((l, e) -> outerListener.onFailure(e)));
+        }, listener);
+    }
+
+    /**
+     * Updating (creating/deleting) a retention lease is a little complicated because we must do the update itself under a primary permit,
+     * then release the primary permit, and then wait for the update to be synced to the rest of the replication group before proceeding.
+     * <p>
+     * This method encapsulates that pattern so that callers can focus on doing their stuff.
+     *
+     * @param updateLeaseFunction A function which updates (creates/deletes) the lease and returns a result to be passed to the
+     *                            {@code outerListener} on success. It receives a listener which must be completed on a {@code GENERIC}
+     *                            thread when the updated leases are synced with the rest of the replication group.
+     * @param outerListener       The listener to be completed (with the result of {@code updateLeaseFunction}) once the leases are updated
+     *                            and synced.
+     */
+    private <R> void updateRetentionLease(Function<ActionListener<Void>, R> updateLeaseFunction, ActionListener<R> outerListener) {
+        final var leasesSyncedStep = new SubscribableListener<Void>();
+        runUnderPrimaryPermit(
+            resultListener -> ActionListener.completeWith(
+                // NB completing resultListener releases the permit, so must do this immediately
+                resultListener,
+                () -> updateLeaseFunction.apply(leasesSyncedStep)
+            ),
+            shard,
+            cancellableThreads,
+            // complete outerListener immediately on failure (e.g. permit not available), otherwise capture the result and wait for the sync
+            outerListener.<R>delegateFailure((l, result) -> leasesSyncedStep.addListener(l.map(ignored -> result)))
+        );
+    }
+
+    /**
+     * Methods to update retention leases asynchronously yield a {@link ReplicationResponse} which we can discard. Moreover they yield it
+     * on the wrong thread so we must fork back to GENERIC to carry on with the recovery. This method applies the appropriate wrappers.
+     */
+    private ActionListener<ReplicationResponse> wrapLeaseSyncListener(ActionListener<Void> listener) {
+        return new ThreadedActionListener<>(shard.getThreadPool().generic(), listener).map(ignored -> null);
     }
 
     boolean hasSameLegacySyncId(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {

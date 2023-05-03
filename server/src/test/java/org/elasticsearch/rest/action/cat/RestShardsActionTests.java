@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -41,7 +41,7 @@ public class RestShardsActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);
-        DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("local");
 
         List<ShardRouting> shardRoutings = new ArrayList<>(numShards);
         Map<ShardRouting, ShardStats> shardStatsMap = new HashMap<>();

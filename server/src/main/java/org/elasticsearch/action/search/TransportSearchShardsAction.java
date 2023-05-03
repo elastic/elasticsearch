@@ -94,6 +94,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 if (groupedIndices.isEmpty() == false) {
                     throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + searchRequest);
                 }
+                // TODO: Move a share stuff out of the TransportSearchAction.
                 Index[] concreteIndices = transportSearchAction.resolveLocalIndices(originalIndices, clusterState, timeProvider);
                 final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(

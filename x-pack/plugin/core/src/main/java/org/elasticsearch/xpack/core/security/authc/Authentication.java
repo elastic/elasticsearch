@@ -34,13 +34,8 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1473,20 +1468,7 @@ public final class Authentication implements ToXContentObject {
             final boolean isInternalUser = input.readBoolean();
             final String username = input.readString();
             if (isInternalUser) {
-                if (SystemUser.NAME.equals(username)) {
-                    return SystemUser.INSTANCE;
-                } else if (XPackUser.NAME.equals(username)) {
-                    return XPackUser.INSTANCE;
-                } else if (XPackSecurityUser.NAME.equals(username)) {
-                    return XPackSecurityUser.INSTANCE;
-                } else if (SecurityProfileUser.NAME.equals(username)) {
-                    return SecurityProfileUser.INSTANCE;
-                } else if (AsyncSearchUser.NAME.equals(username)) {
-                    return AsyncSearchUser.INSTANCE;
-                } else if (CrossClusterAccessUser.NAME.equals(username)) {
-                    return CrossClusterAccessUser.INSTANCE;
-                }
-                throw new IllegalStateException("username [" + username + "] does not match any internal user");
+                return InternalUsers.getUser(username);
             }
             String[] roles = input.readStringArray();
             Map<String, Object> metadata = input.readMap();
@@ -1499,22 +1481,7 @@ public final class Authentication implements ToXContentObject {
         private static void writeInternalUser(User user, StreamOutput output) throws IOException {
             assert User.isInternal(user);
             output.writeBoolean(true);
-            if (SystemUser.is(user)) {
-                output.writeString(SystemUser.NAME);
-            } else if (XPackUser.is(user)) {
-                output.writeString(XPackUser.NAME);
-            } else if (XPackSecurityUser.is(user)) {
-                output.writeString(XPackSecurityUser.NAME);
-            } else if (SecurityProfileUser.is(user)) {
-                output.writeString(SecurityProfileUser.NAME);
-            } else if (AsyncSearchUser.is(user)) {
-                output.writeString(AsyncSearchUser.NAME);
-            } else if (CrossClusterAccessUser.is(user)) {
-                output.writeString(CrossClusterAccessUser.NAME);
-            } else {
-                assert false;
-                throw new IllegalStateException("user [" + user + "] is not internal");
-            }
+            output.writeString(InternalUsers.getInternalUserName(user));
         }
     }
 }

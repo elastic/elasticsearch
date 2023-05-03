@@ -36,6 +36,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -100,6 +102,41 @@ public class FsBlobContainerTests extends ESTestCase {
     public void testIsTempBlobName() {
         final String tempBlobName = FsBlobContainer.tempBlobName(randomAlphaOfLengthBetween(1, 20));
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
+    }
+
+    public void testDeleteIgnoringIfNotExistsDoesNotThrowFileNotFound() throws IOException {
+        final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
+        final byte[] blobData = randomByteArrayOfLength(512);
+
+        final Path path = PathUtils.get(createTempDir().toString());
+        Files.write(path.resolve(blobName), blobData);
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        ArrayList<PlainActionFuture<Void>> futures = new ArrayList<>();
+        for (int i = 0; i < 5; ++i) {
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            futures.add(future);
+            new Thread(() -> {
+                try {
+                    container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
+                    future.onResponse(null);
+                } catch (IOException e) {
+                    future.onFailure(e);
+                }
+            }).start();
+        }
+
+        // Check that none throw
+        for (PlainActionFuture<Void> future : futures) {
+            future.actionGet();
+        }
+
+        assertFalse(container.blobExists(blobName));
     }
 
     private static long getLongAsync(Consumer<ActionListener<OptionalLong>> consumer) {

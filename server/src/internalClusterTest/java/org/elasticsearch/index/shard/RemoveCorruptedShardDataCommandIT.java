@@ -173,9 +173,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // shard should be failed due to a corrupted index
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -221,9 +219,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -241,9 +237,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, nodeId, true)).get();
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -337,9 +331,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // all shards should be failed due to a corrupted translog
         assertBusy(() -> {
-            final UnassignedInfo unassignedInfo = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final UnassignedInfo unassignedInfo = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -400,9 +392,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // there is only _stale_ primary (due to new allocation id)
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -420,9 +410,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true)).get();
 
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplanation explanation = clusterAdmin().prepareAllocationExplain()
                 .setIndex(indexName)
                 .setShard(0)
                 .setPrimary(true)
@@ -578,7 +566,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         final Map<String, String> nodeNameToNodeId = new HashMap<>();
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             nodeNameToNodeId.put(cursor.getValue().getName(), cursor.getKey());
@@ -638,7 +626,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     public static Path getPathToShardData(String nodeId, ShardId shardId, String shardPathSubdirectory) {
-        final NodesStatsResponse nodeStatsResponse = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
+        final NodesStatsResponse nodeStatsResponse = clusterAdmin().prepareNodesStats(nodeId).setFs(true).get();
         final Set<Path> paths = StreamSupport.stream(nodeStatsResponse.getNodes().get(0).getFs().spliterator(), false)
             .map(
                 dataPath -> PathUtils.get(dataPath.getPath())

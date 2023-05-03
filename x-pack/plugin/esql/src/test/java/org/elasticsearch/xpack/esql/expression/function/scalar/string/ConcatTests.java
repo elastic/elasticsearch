@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConcatTests extends AbstractScalarFunctionTestCase {
@@ -89,7 +90,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     public void testMany() {
         List<Object> simpleData = Stream.of("cats", " ", "and", " ", "dogs").map(s -> (Object) new BytesRef(s)).toList();
         assertThat(
-            valueAt(
+            toJavaObject(
                 evaluator(
                     new Concat(
                         Source.EMPTY,
@@ -106,7 +107,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
     public void testSomeConstant() {
         List<Object> simpleData = Stream.of("cats", "and", "dogs").map(s -> (Object) new BytesRef(s)).toList();
         assertThat(
-            valueAt(
+            toJavaObject(
                 evaluator(
                     new Concat(
                         Source.EMPTY,

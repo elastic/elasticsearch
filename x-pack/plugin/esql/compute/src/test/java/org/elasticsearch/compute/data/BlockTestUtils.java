@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -20,8 +21,6 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 
 public class BlockTestUtils {
-    public record Doc(int shard, int segment, int doc) {}
-
     /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
@@ -32,7 +31,7 @@ public class BlockTestUtils {
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomAlphaOfLength(5));
             case BOOLEAN -> randomBoolean();
-            case DOC -> new Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
+            case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
@@ -55,8 +54,8 @@ public class BlockTestUtils {
             b.appendBytesRef(v);
         } else if (builder instanceof BooleanBlock.Builder b && value instanceof Boolean v) {
             b.appendBoolean(v);
-        } else if (builder instanceof DocBlock.Builder b && value instanceof Doc v) {
-            b.appendShard(v.shard).appendSegment(v.segment).appendDoc(v.doc);
+        } else if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
+            b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
         } else {
             throw new IllegalArgumentException("Can't append [" + value + "/" + value.getClass() + "] to [" + builder + "]");
         }
@@ -78,25 +77,8 @@ public class BlockTestUtils {
     }
 
     public static void readInto(List<Object> values, Block block) {
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            if (block.isNull(i)) {
-                values.add(null);
-            } else if (block instanceof IntBlock b) {
-                values.add(b.getInt(i));
-            } else if (block instanceof LongBlock b) {
-                values.add(b.getLong(i));
-            } else if (block instanceof DoubleBlock b) {
-                values.add(b.getDouble(i));
-            } else if (block instanceof BytesRefBlock b) {
-                values.add(b.getBytesRef(i, new BytesRef()));
-            } else if (block instanceof BooleanBlock b) {
-                values.add(b.getBoolean(i));
-            } else if (block instanceof DocBlock b) {
-                DocVector v = b.asVector();
-                values.add(new Doc(v.shards().getInt(i), v.segments().getInt(i), v.docs().getInt(i)));
-            } else {
-                throw new IllegalArgumentException("can't read values from [" + block + "]");
-            }
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            values.add(toJavaObject(block, p));
         }
     }
 }

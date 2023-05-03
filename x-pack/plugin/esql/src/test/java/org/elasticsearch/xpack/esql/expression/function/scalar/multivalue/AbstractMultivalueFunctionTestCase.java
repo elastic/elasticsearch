@@ -21,6 +21,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -76,7 +77,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
             assertThat(result.asVector(), type == DataTypes.NULL ? nullValue() : notNullValue());
             for (int p = 0; p < data.size(); p++) {
-                assertThat(valueAt(result, p), equalTo(data.get(p).get(0)));
+                assertThat(toJavaObject(result, p), equalTo(data.get(p).get(0)));
             }
         }
     }
@@ -96,7 +97,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                         assertTrue(type.toString(), result.isNull(p));
                     } else {
                         assertFalse(type.toString(), result.isNull(p));
-                        assertThat(type.toString(), valueAt(result, p), resultMatcherForInput((List<?>) data.get(p).get(0)));
+                        assertThat(type.toString(), toJavaObject(result, p), resultMatcherForInput((List<?>) data.get(p).get(0)));
                     }
                 }
             }

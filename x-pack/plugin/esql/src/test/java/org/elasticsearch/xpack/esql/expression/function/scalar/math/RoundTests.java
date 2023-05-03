@@ -18,6 +18,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RoundTests extends AbstractScalarFunctionTestCase {
@@ -60,11 +61,11 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Number val) {
-        return valueAt(evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get().eval(row(List.of(val))), 0);
+        return toJavaObject(evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get().eval(row(List.of(val))), 0);
     }
 
     private Object process(Number val, int decimals) {
-        return valueAt(
+        return toJavaObject(
             evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get()
                 .eval(row(List.of(val, decimals))),
             0

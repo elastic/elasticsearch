@@ -20,6 +20,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LengthTests extends AbstractScalarFunctionTestCase {
@@ -65,12 +66,12 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
 
     public void testExamples() {
         EvalOperator.ExpressionEvaluator eval = evaluator(expressionForSimpleData()).get();
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef("")))), 0), equalTo(0));
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef("a")))), 0), equalTo(1));
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef("clump")))), 0), equalTo(5));
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef("☕")))), 0), equalTo(1));  // 3 bytes, 1 code point
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef("❗️")))), 0), equalTo(2));  // 6 bytes, 2 code points
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef(randomAlphaOfLength(100))))), 0), equalTo(100));
-        assertThat(valueAt(eval.eval(row(List.of(new BytesRef(randomUnicodeOfCodepointLength(100))))), 0), equalTo(100));
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("")))), 0), equalTo(0));
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("a")))), 0), equalTo(1));
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("clump")))), 0), equalTo(5));
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("☕")))), 0), equalTo(1));  // 3 bytes, 1 code point
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef("❗️")))), 0), equalTo(2));  // 6 bytes, 2 code points
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef(randomAlphaOfLength(100))))), 0), equalTo(100));
+        assertThat(toJavaObject(eval.eval(row(List.of(new BytesRef(randomUnicodeOfCodepointLength(100))))), 0), equalTo(100));
     }
 }

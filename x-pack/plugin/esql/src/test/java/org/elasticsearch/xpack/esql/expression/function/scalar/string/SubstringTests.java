@@ -19,6 +19,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -140,7 +141,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
             )
         ).get().eval(row(List.of(new BytesRef(str))));
-        return result == null ? null : ((BytesRef) valueAt(result, 0)).utf8ToString();
+        return result == null ? null : ((BytesRef) toJavaObject(result, 0)).utf8ToString();
     }
 
 }

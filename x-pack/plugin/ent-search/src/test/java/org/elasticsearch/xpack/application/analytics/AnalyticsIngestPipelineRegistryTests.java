@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -25,8 +26,11 @@ import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -123,6 +127,24 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelineConfigs().size())));
     }
 
+    public void testThatPipelinesAreNotInstalledWhenNoAnalyticsCollectionExist() {
+        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes, false);
+
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                fail("no behavioral analytics collection exists, pipeline should not be installed");
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        registry.clusterChanged(event);
+    }
+
     public void testThatNewerPipelinesAreNotUpgraded() throws Exception {
         DiscoveryNode node = TestDiscoveryNode.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
@@ -211,7 +233,15 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
     }
 
     private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingIngestPipelines, DiscoveryNodes nodes) {
-        ClusterState cs = createClusterState(existingIngestPipelines, nodes);
+        return createClusterChangedEvent(existingIngestPipelines, nodes, true);
+    }
+
+    private ClusterChangedEvent createClusterChangedEvent(
+        Map<String, Integer> existingIngestPipelines,
+        DiscoveryNodes nodes,
+        boolean withDataStreams
+    ) {
+        ClusterState cs = createClusterState(existingIngestPipelines, nodes, withDataStreams);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -223,19 +253,43 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
         return event;
     }
 
-    private ClusterState createClusterState(Map<String, Integer> existingIngestPipelines, DiscoveryNodes nodes) {
+    private ClusterState createClusterState(Map<String, Integer> existingIngestPipelines, DiscoveryNodes nodes, boolean withDataStreams) {
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
         for (Map.Entry<String, Integer> e : existingIngestPipelines.entrySet()) {
             pipelines.put(e.getKey(), createMockPipelineConfiguration(e.getKey(), e.getValue()));
         }
 
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .transientSettings(Settings.EMPTY)
+            .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines));
+
+        if (withDataStreams) {
+            DataStream dataStream = createDataStream();
+            metadataBuilder.dataStreams(
+                MapBuilder.<String, DataStream>newMapBuilder().put(dataStream.getName(), dataStream).map(),
+                Collections.emptyMap()
+            );
+        }
+
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder().transientSettings(Settings.EMPTY).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build()
-            )
+            .metadata(metadataBuilder)
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();
+    }
+
+    private DataStream createDataStream() {
+        return new DataStream(
+            AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX + randomIdentifier(),
+            randomList(1, 10, () -> new Index(randomIdentifier(), randomIdentifier())),
+            0,
+            Collections.emptyMap(),
+            false,
+            false,
+            false,
+            false,
+            IndexMode.STANDARD
+        );
     }
 
     private PipelineConfiguration createMockPipelineConfiguration(String pipelineId, int version) {

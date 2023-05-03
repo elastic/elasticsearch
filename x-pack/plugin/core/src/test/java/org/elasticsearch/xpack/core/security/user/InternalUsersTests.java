@@ -58,6 +58,12 @@ public class InternalUsersTests extends ESTestCase {
         assertThat(e, throwableWithMessage("should never try to get the roles for internal user [_cross_cluster_access]"));
     }
 
+    public void testStorageUser() {
+        assertThat(InternalUsers.getUser("_storage"), is(StorageInternalUser.INSTANCE));
+        assertThat(InternalUsers.getInternalUserName(StorageInternalUser.INSTANCE), is("_storage"));
+        assertThat(InternalUsers.getRoleDescriptor(StorageInternalUser.INSTANCE), is(StorageInternalUser.ROLE_DESCRIPTOR));
+    }
+
     public void testRegularUser() {
         var username = randomAlphaOfLengthBetween(4, 12);
         expectThrows(IllegalStateException.class, () -> InternalUsers.getUser(username));

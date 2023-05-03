@@ -184,9 +184,12 @@ arbitrarily large nodes to the cluster.
 The location of the {ml} model repository where the model artifact files are 
 available in case of a model installation in a restricted or closed network. 
 `xpack.ml.model_repository` can be a string of a file location or an HTTP/HTTPS 
-server. Example values can be:
+server. Example values are:
 ```
 xpack.ml.model_repository: file://${path.home}/config/models/
+```
+or
+```
 xpack.ml.model_repository: https://my-custom-backend
 ```
 If `xpack.ml.model_repository` is a file location, it must point to a 

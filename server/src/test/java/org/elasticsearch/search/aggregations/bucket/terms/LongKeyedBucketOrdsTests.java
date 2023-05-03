@@ -32,6 +32,21 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY));
     }
 
+    public void testCollectsFromManyBuckets() {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
+            assertCollectsFromManyBuckets(ords, scaledRandomIntBetween(1, 10000), Long.MIN_VALUE, Long.MAX_VALUE);
+        }
+    }
+
+    public void testCollectsFromManyBucketsSmall() {
+        int owningBucketOrds = scaledRandomIntBetween(2, 10000);
+        long maxValue = randomLongBetween(10000 / owningBucketOrds, 2 << (16 * 3));
+        CardinalityUpperBound cardinality = CardinalityUpperBound.ONE.multiply(owningBucketOrds);
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.buildForValueRange(bigArrays, cardinality, 0, maxValue)) {
+            assertCollectsFromManyBuckets(ords, owningBucketOrds, 0, maxValue);
+        }
+    }
+
     private void collectsFromSingleBucketCase(LongKeyedBucketOrds ords) {
         try {
             // Test a few explicit values
@@ -93,20 +108,6 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         }
     }
 
-    public void testCollectsFromManyBuckets() {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
-            assertCollectsFromManyBuckets(ords, scaledRandomIntBetween(1, 10000), Long.MIN_VALUE, Long.MAX_VALUE);
-        }
-    }
-
-    public void testCollectsFromManyBucketsSmall() {
-        int owningBucketOrds = scaledRandomIntBetween(2, 10000);
-        long maxValue = randomLongBetween(10000 / owningBucketOrds, 2 << (16 * 3));
-        CardinalityUpperBound cardinality = CardinalityUpperBound.ONE.multiply(owningBucketOrds);
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.buildForValueRange(bigArrays, cardinality, 0, maxValue)) {
-            assertCollectsFromManyBuckets(ords, owningBucketOrds, 0, maxValue);
-        }
-    }
 
     private void assertCollectsFromManyBuckets(LongKeyedBucketOrds ords, int maxAllowedOwningBucketOrd, long minValue, long maxValue) {
         // Test a few explicit values

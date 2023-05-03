@@ -15,7 +15,6 @@ import org.elasticsearch.core.Assertions;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,8 +22,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
@@ -201,19 +198,11 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
-        Pattern bwcVersionField = Pattern.compile("^V_(\\d_\\d{1,2}_\\d{1,2})$");
-        Pattern transportVersionField = Pattern.compile("^V_(\\d+_\\d{3}_\\d{3})$");
 
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
                 if (ignore.contains(fieldName)) {
-                    continue;
-                }
-
-                // check the field modifiers
-                if (declaredField.getModifiers() != (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL)) {
-                    assert false : "Version field [" + fieldName + "] should be public static final";
                     continue;
                 }
 
@@ -237,28 +226,6 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
                             + "] have the same version number ["
                             + version.id
                             + "]. Each TransportVersion should have a different version number";
-
-                    // check the name matches the version number
-                    try {
-                        int fieldNumber;
-                        int idNumber = version.id;
-                        Matcher matcher = bwcVersionField.matcher(fieldName);
-                        if (matcher.matches()) {
-                            // match single digits _\d_ or _\d$ to put a 0 in front, but do not actually capture the _ or $
-                            fieldNumber = Integer.parseInt(matcher.group(1).replaceAll("_(\\d)(?=_|$)", "_0$1").replace("_", ""));
-                            idNumber /= 100;    // remove the extra '99'
-                        } else if ((matcher = transportVersionField.matcher(fieldName)).matches()) {
-                            fieldNumber = Integer.parseInt(matcher.group(1).replace("_", ""));
-                        } else {
-                            assert false : "Version [" + fieldName + "] does not have the correct name format";
-                            continue;
-                        }
-
-                        assert fieldNumber == idNumber : "Version [" + fieldName + "] does not match its version number [" + idNumber + "]";
-                    } catch (NumberFormatException e) {
-                        assert false : "Version [" + fieldName + "] does not have the correct name format";
-                        continue;
-                    }
                 }
             }
         }

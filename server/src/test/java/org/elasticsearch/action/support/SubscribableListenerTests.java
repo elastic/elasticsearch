@@ -9,10 +9,13 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -26,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SubscribableListenerTests extends ESTestCase {
 
@@ -292,4 +296,81 @@ public class SubscribableListenerTests extends ESTestCase {
 
         assertTrue(completion.get());
     }
+
+    public void testTimeoutBeforeCompletion() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+
+        final var headerName = "test-header-name";
+        final var headerValue = randomAlphaOfLength(10);
+
+        final var timedOut = new AtomicBoolean();
+        final var listener = new SubscribableListener<Void>();
+        listener.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                fail("should not execute");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(ElasticsearchTimeoutException.class));
+                assertEquals("timed out after [30s/30000ms]", e.getMessage());
+                assertEquals(headerValue, threadPool.getThreadContext().getHeader(headerName));
+                assertTrue(timedOut.compareAndSet(false, true));
+            }
+        });
+        try (var ignored = threadPool.getThreadContext().stashContext()) {
+            threadPool.getThreadContext().putHeader(headerName, headerValue);
+            listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+        }
+
+        if (randomBoolean()) {
+            deterministicTaskQueue.scheduleAt(
+                deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(
+                    TimeValue.timeValueSeconds(30).millis() + 1,
+                    TimeValue.timeValueSeconds(60).millis()
+                ),
+                () -> listener.onResponse(null)
+            );
+        }
+
+        assertFalse(timedOut.get());
+        assertFalse(listener.isDone());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(timedOut.get());
+        assertTrue(listener.isDone());
+    }
+
+    public void testCompletionBeforeTimeout() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+
+        final var complete = new AtomicBoolean();
+        final var listener = new SubscribableListener<Void>();
+        listener.addListener(new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                assertTrue(complete.compareAndSet(false, true));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("should not fail");
+            }
+        });
+        listener.addTimeout(TimeValue.timeValueSeconds(30), threadPool, randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueSeconds(30).millis() - 1),
+            () -> listener.onResponse(null)
+        );
+
+        assertFalse(complete.get());
+        assertFalse(listener.isDone());
+        deterministicTaskQueue.runAllTasksInTimeOrder();
+        assertTrue(complete.get());
+        assertTrue(listener.isDone());
+    }
+
 }

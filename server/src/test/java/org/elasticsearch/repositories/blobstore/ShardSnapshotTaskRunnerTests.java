@@ -111,13 +111,8 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
         IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(indexId.getName()).settings(settings).build(),
+            IndexMetadata.builder(indexId.getName()).settings(indexSettings(Version.CURRENT, 1, 0)).build(),
             Settings.EMPTY
         );
         Store dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));

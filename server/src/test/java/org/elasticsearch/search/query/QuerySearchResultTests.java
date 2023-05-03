@@ -27,8 +27,15 @@ import org.elasticsearch.search.aggregations.InternalAggregationsTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.TestRankBuilder;
+import org.elasticsearch.search.rank.TestRankDoc;
+import org.elasticsearch.search.rank.TestRankShardResult;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.is;
@@ -40,7 +47,9 @@ public class QuerySearchResultTests extends ESTestCase {
 
     public QuerySearchResultTests() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-        this.namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(searchModule.getNamedWriteables());
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankShardResult.class, TestRankBuilder.NAME, TestRankShardResult::new));
+        this.namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }
 
     private static QuerySearchResult createTestInstance() throws Exception {
@@ -69,6 +78,14 @@ public class QuerySearchResultTests extends ESTestCase {
         result.topDocs(new TopDocsAndMaxScore(topDocs, randomBoolean() ? Float.NaN : randomFloat()), new DocValueFormat[0]);
         result.size(randomInt());
         result.from(randomInt());
+        if (randomBoolean()) {
+            int queryCount = randomIntBetween(2, 4);
+            TestRankDoc[] docs = new TestRankDoc[randomIntBetween(5, 20)];
+            for (int di = 0; di < docs.length; ++di) {
+                docs[di] = new TestRankDoc(di, -1, queryCount);
+            }
+            result.setRankShardResult(new TestRankShardResult(docs));
+        }
         if (randomBoolean()) {
             result.suggest(SuggestTests.createTestItem());
         }

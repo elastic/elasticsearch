@@ -31,6 +31,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -52,6 +53,12 @@ public class HealthNodeExecutorTests extends ESTestCase {
     private String localNodeId;
     private ClusterSettings clusterSettings;
     private Settings settings;
+
+    private static final List<SingleNodeShutdownMetadata.Type> REMOVE_SHUTDOWN_TYPES = List.of(
+        SingleNodeShutdownMetadata.Type.RESTART,
+        SingleNodeShutdownMetadata.Type.REMOVE,
+        SingleNodeShutdownMetadata.Type.SIGTERM
+    );
 
     @BeforeClass
     public static void setUpThreadPool() {
@@ -102,24 +109,38 @@ public class HealthNodeExecutorTests extends ESTestCase {
     }
 
     public void testDoNothingIfAlreadyShutdown() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
-        HealthNode task = mock(HealthNode.class);
-        PersistentTaskState state = mock(PersistentTaskState.class);
-        executor.nodeOperation(task, new HealthNodeTaskParams(), state);
-        ClusterState withShutdown = stateWithNodeShuttingDown(initialState());
-        executor.shuttingDown(new ClusterChangedEvent("unchanged", withShutdown, withShutdown));
-        verify(task, never()).markAsLocallyAborted(anyString());
+        for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
+            HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
+                clusterService,
+                persistentTasksService,
+                settings,
+                clusterSettings
+            );
+            HealthNode task = mock(HealthNode.class);
+            PersistentTaskState state = mock(PersistentTaskState.class);
+            executor.nodeOperation(task, new HealthNodeTaskParams(), state);
+            ClusterState withShutdown = stateWithNodeShuttingDown(initialState(), type);
+            executor.shuttingDown(new ClusterChangedEvent("unchanged", withShutdown, withShutdown));
+            verify(task, never()).markAsLocallyAborted(anyString());
+        }
     }
 
     public void testAbortOnShutdown() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
-        HealthNode task = mock(HealthNode.class);
-        PersistentTaskState state = mock(PersistentTaskState.class);
-        executor.nodeOperation(task, new HealthNodeTaskParams(), state);
-        ClusterState initialState = initialState();
-        ClusterState withShutdown = stateWithNodeShuttingDown(initialState);
-        executor.shuttingDown(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
-        verify(task, times(1)).markAsLocallyAborted(anyString());
+        for (SingleNodeShutdownMetadata.Type type : REMOVE_SHUTDOWN_TYPES) {
+            HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
+                clusterService,
+                persistentTasksService,
+                settings,
+                clusterSettings
+            );
+            HealthNode task = mock(HealthNode.class);
+            PersistentTaskState state = mock(PersistentTaskState.class);
+            executor.nodeOperation(task, new HealthNodeTaskParams(), state);
+            ClusterState initialState = initialState();
+            ClusterState withShutdown = stateWithNodeShuttingDown(initialState, type);
+            executor.shuttingDown(new ClusterChangedEvent("shutdown node", withShutdown, initialState));
+            verify(task, times(1)).markAsLocallyAborted(anyString());
+        }
     }
 
     public void testAbortOnDisable() {
@@ -142,14 +163,14 @@ public class HealthNodeExecutorTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
 
-    private ClusterState stateWithNodeShuttingDown(ClusterState clusterState) {
+    private ClusterState stateWithNodeShuttingDown(ClusterState clusterState, SingleNodeShutdownMetadata.Type type) {
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(
             Collections.singletonMap(
                 localNodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(localNodeId)
                     .setReason("shutdown for a unit test")
-                    .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+                    .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())
                     .build()
             )

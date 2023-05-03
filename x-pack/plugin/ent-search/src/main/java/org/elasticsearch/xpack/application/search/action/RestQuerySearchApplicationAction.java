@@ -10,9 +10,10 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
-import org.elasticsearch.xpack.application.search.action.QuerySearchApplicationAction.Request;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestQuerySearchApplicationAction extends BaseRestHandler {
 
     public static final String ENDPOINT_PATH = "/" + EnterpriseSearch.SEARCH_APPLICATION_API_ENDPOINT + "/{name}" + "/_search";
@@ -37,13 +39,13 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String searchAppName = restRequest.param("name");
-        Request request;
+        SearchApplicationSearchRequest request;
         if (restRequest.hasContent()) {
-            request = Request.fromXContent(searchAppName, restRequest.contentParser());
+            request = SearchApplicationSearchRequest.fromXContent(searchAppName, restRequest.contentParser());
         } else {
-            request = new Request(searchAppName);
+            request = new SearchApplicationSearchRequest(searchAppName);
         }
-        final Request finalRequest = request;
+        final SearchApplicationSearchRequest finalRequest = request;
         return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
     }
 }

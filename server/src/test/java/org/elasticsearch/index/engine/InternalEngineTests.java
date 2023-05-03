@@ -5840,7 +5840,7 @@ public class InternalEngineTests extends EngineTestCase {
         SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
         assertThat(uncommittedTranslogOperationsSinceLastCommit.getAsInt(), equalTo(numDocs));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
-        engine.flush(false, false);
+        engine.flush();
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
         assertThat(uncommittedTranslogOperationsSinceLastCommit.getAsInt(), equalTo(0));
         // If the new index commit still points to the same translog generation as the current index commit,

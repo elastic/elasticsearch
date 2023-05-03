@@ -29,6 +29,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
     private boolean hasScoreDocs;
+    private RankShardResult rankShardResult;
     private TotalHits totalHits;
     private float maxScore = Float.NaN;
     private DocValueFormat[] sortValueFormats;
@@ -201,6 +203,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         this.hasScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs.length > 0;
     }
 
+    public void setRankShardResult(RankShardResult rankShardResult) {
+        this.rankShardResult = rankShardResult;
+    }
+
+    public RankShardResult getRankShardResult() {
+        return rankShardResult;
+    }
+
     public DocValueFormat[] sortValueFormats() {
         return sortValueFormats;
     }
@@ -352,7 +362,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public boolean hasSearchContext() {
-        return hasScoreDocs || hasSuggestHits();
+        return hasScoreDocs || hasSuggestHits() || rankShardResult != null;
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
@@ -395,6 +405,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
                 setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
                 setRescoreDocIds(new RescoreDocIds(in));
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+                rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
             }
             success = true;
         } finally {
@@ -447,6 +460,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
             getRescoreDocIds().writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalNamedWriteable(rankShardResult);
+        } else if (rankShardResult != null) {
+            throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion() + "]");
         }
     }
 

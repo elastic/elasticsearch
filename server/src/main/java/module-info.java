@@ -296,6 +296,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins;
     exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security;
     exports org.elasticsearch.plugins.spi;
+    exports org.elasticsearch.plugins.internal to org.elasticsearch.settings.secure;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
@@ -343,6 +344,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.profile.dfs;
     exports org.elasticsearch.search.profile.query;
     exports org.elasticsearch.search.query;
+    exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rescore;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;

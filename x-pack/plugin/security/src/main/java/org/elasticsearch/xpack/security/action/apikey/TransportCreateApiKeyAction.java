@@ -15,6 +15,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
@@ -50,6 +51,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
 
     @Override
     protected void doExecute(Task task, CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
+        assert request.getType() == ApiKey.Type.REST;
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));

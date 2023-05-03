@@ -14,60 +14,132 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A request to find the list of target shards that might match the query for the given target indices.
  */
 public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
-    private final SearchRequest searchRequest;
+    private String[] indices;
+    private final IndicesOptions indicesOptions;
 
-    public SearchShardsRequest(SearchRequest searchRequest) {
-        this.searchRequest = searchRequest;
+    @Nullable
+    private final QueryBuilder query;
+
+    @Nullable
+    private final String routing;
+    @Nullable
+    private final String preference;
+
+    public SearchShardsRequest(String[] indices, IndicesOptions indicesOptions, QueryBuilder query, String routing, String preference) {
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.query = query;
+        this.routing = routing;
+        this.preference = preference;
     }
 
     public SearchShardsRequest(StreamInput in) throws IOException {
         super(in);
-        this.searchRequest = new SearchRequest(in);
+        this.indices = in.readStringArray();
+        this.indicesOptions = IndicesOptions.readIndicesOptions(in);
+        this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.routing = in.readOptionalString();
+        this.preference = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        searchRequest.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeOptionalNamedWriteable(query);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return searchRequest.validate();
+        return null;
     }
 
     @Override
     public String[] indices() {
-        return searchRequest.indices();
+        return indices;
     }
 
     @Override
     public IndicesOptions indicesOptions() {
-        return searchRequest.indicesOptions();
+        return indicesOptions;
     }
 
     @Override
     public IndicesRequest indices(String... indices) {
-        searchRequest.indices(indices);
+        this.indices = indices;
         return this;
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return searchRequest.createTask(id, type, action, parentTaskId, headers);
+        return new SearchTask(id, type, action, this::description, parentTaskId, headers);
     }
 
-    public SearchRequest getSearchRequest() {
-        return searchRequest;
+    public QueryBuilder query() {
+        return query;
+    }
+
+    public String routing() {
+        return routing;
+    }
+
+    public String preference() {
+        return preference;
+    }
+
+    private String description() {
+        return "indices="
+            + Arrays.toString(indices)
+            + ", indicesOptions="
+            + indicesOptions
+            + ", query="
+            + query
+            + ", routing='"
+            + routing
+            + '\''
+            + ", preference='"
+            + preference
+            + '\'';
+    }
+
+    @Override
+    public String toString() {
+        return "SearchShardsRequest{" + description() + "}";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchShardsRequest request = (SearchShardsRequest) o;
+        return Arrays.equals(indices, request.indices)
+            && Objects.equals(indicesOptions, request.indicesOptions)
+            && Objects.equals(query, request.query)
+            && Objects.equals(routing, request.routing)
+            && Objects.equals(preference, request.preference);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(indicesOptions, query, routing, preference);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

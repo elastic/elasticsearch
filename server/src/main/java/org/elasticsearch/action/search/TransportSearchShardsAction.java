@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -65,7 +66,12 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     @Override
     protected void doExecute(Task task, SearchShardsRequest searchShardsRequest, ActionListener<SearchShardsResponse> listener) {
         final long relativeStartNanos = System.nanoTime();
-        SearchRequest original = searchShardsRequest.getSearchRequest();
+        SearchRequest original = new SearchRequest(searchShardsRequest.indices()).indicesOptions(searchShardsRequest.indicesOptions())
+            .routing(searchShardsRequest.routing())
+            .preference(searchShardsRequest.preference());
+        if (searchShardsRequest.query() != null) {
+            original.source(new SearchSourceBuilder().query(searchShardsRequest.query()));
+        }
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             original.getOrCreateAbsoluteStartMillis(),
             relativeStartNanos,

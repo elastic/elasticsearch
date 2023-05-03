@@ -45,9 +45,15 @@ public class SearchShardsIT extends ESIntegTestCase {
         }
         // Range query
         {
-            SearchRequest rangeQuery = new SearchRequest().indices("index-*")
-                .source(new SearchSourceBuilder().query(new RangeQueryBuilder("value").from(0).includeLower(true)));
-            var resp = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(rangeQuery)).actionGet();
+            RangeQueryBuilder rangeQuery = new RangeQueryBuilder("value").from(0).includeLower(true);
+            var request = new SearchShardsRequest(
+                new String[] { "index-*" },
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                rangeQuery,
+                null,
+                null
+            );
+            var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             int skipped = 0;
             for (SearchShardsGroup g : resp.getGroups()) {
@@ -65,9 +71,9 @@ public class SearchShardsIT extends ESIntegTestCase {
         }
         // Match all
         {
-            SearchRequest matchAll = new SearchRequest().indices("index-*")
-                .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
-            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(matchAll)).actionGet();
+            MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
+            var request = new SearchShardsRequest(new String[] { "index-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS, matchAll, null, null);
+            SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
@@ -95,12 +101,19 @@ public class SearchShardsIT extends ESIntegTestCase {
         for (int i = 0; i < iterations; i++) {
             long from = randomLongBetween(1, 100);
             long to = randomLongBetween(from, from + 100);
-
+            String preference = randomBoolean() ? null : randomAlphaOfLength(10);
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("value").from(from).to(to).includeUpper(true).includeLower(true);
             SearchRequest searchRequest = new SearchRequest().indices("index-*").source(new SearchSourceBuilder().query(rangeQuery));
             searchRequest.setPreFilterShardSize(1);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, new SearchShardsRequest(searchRequest)).actionGet();
+            var searchShardsRequest = new SearchShardsRequest(
+                new String[] { "index-*" },
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                rangeQuery,
+                null,
+                preference
+            );
+            var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
 
             assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
             long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();

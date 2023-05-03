@@ -120,7 +120,11 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                     String bwcBranch = gitExtension.getBwcBranch().get();
                     final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
                         .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
-                        .orElse(task.getExtensions().getExtraProperties().get("refspec").toString())
+                        .orElse(
+                            task.getExtensions().getExtraProperties().has("refspec")
+                                ? task.getExtensions().getExtraProperties().get("refspec").toString()
+                                : null
+                        )
                         .getOrElse(remote.get() + "/" + bwcBranch);
 
                     String effectiveRefSpec = maybeAlignedRefSpec(task.getLogger(), refspec);

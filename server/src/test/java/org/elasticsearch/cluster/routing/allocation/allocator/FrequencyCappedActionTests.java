@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FrequencyCappedActionTest extends ESTestCase {
+public class FrequencyCappedActionTests extends ESTestCase {
 
     public void testFrequencyCapExecution() {
 

@@ -634,6 +634,8 @@ public abstract class Engine implements Closeable {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
 
+    // Similar to Engine.get, but it only attempts to serve the get from the translog.
+    // If not found in translog, it returns null, as {@code GetResult.NOT_EXISTS} could mean deletion.
     public GetResult getFromTranslog(
         Get get,
         MappingLookup mappingLookup,

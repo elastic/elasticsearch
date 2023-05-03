@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: "all"
+      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/95717"
+
   - do:
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection

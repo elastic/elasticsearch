@@ -175,9 +175,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(fsRepoName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
             .execute();
@@ -293,9 +291,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
         }
 
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, "snap")
+        clusterAdmin().prepareCreateSnapshot(repoName, "snap")
             .setIndices(indexName)
             .setWaitForCompletion(false)
             .setFeatureStates(NO_FEATURE_STATES_VALUE)

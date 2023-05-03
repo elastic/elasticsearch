@@ -8,13 +8,12 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +31,7 @@ public class SingleNodeReconfiguratorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        final var currentLeader = new DiscoveryNode("current-leader", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var currentLeader = TestDiscoveryNode.create("current-leader");
         final var currentVotingConfig = new CoordinationMetadata.VotingConfiguration(Set.of(currentLeader.getId()));
 
         assertThat(
@@ -47,8 +46,8 @@ public class SingleNodeReconfiguratorTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        final var oldLeader = new DiscoveryNode("old-leader", buildNewFakeTransportAddress(), Version.CURRENT);
-        final var currentLeader = new DiscoveryNode("current-leader", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var oldLeader = TestDiscoveryNode.create("old-leader");
+        final var currentLeader = TestDiscoveryNode.create("current-leader");
         final var currentVotingConfig = new CoordinationMetadata.VotingConfiguration(Set.of(oldLeader.getId()));
 
         final var updatedState = reconfigurator.maybeReconfigureAfterNewMasterIsElected(

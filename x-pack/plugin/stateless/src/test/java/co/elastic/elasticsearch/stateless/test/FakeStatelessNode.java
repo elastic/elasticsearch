@@ -22,6 +22,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -95,7 +96,7 @@ public class FakeStatelessNode implements Closeable {
         CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
         NamedXContentRegistry xContentRegistry
     ) throws IOException {
-        node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        node = TestDiscoveryNode.create("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         repoPath = LuceneTestCase.createTempDir();
         nodeSettings = Settings.builder().put(PATH_REPO_SETTING.getKey(), repoPath).put(BUCKET_SETTING.getKey(), repoPath).build();
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

@@ -86,17 +86,20 @@ public abstract class PipelineRegistry implements ClusterStateListener {
             return false;
         }
 
-        if (getMinClusterVersion() != null && event.state().nodes().getMinNodeVersion().onOrBefore(getMinClusterVersion())) {
-            // Not all node satisfies the minimum version requirement: skipping install.
+        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
+        if (getMinSupportedNodeVersion().after(minNodeVersion)) {
             return false;
         }
 
         return true;
     }
 
-    protected Version getMinClusterVersion() {
-        return null;
-    }
+    /**
+     * Pipelines will not be installed until all nodes in the cluster are updated to at least the version returned by the method.
+     *
+     * @return {@link Version} minimum required version.
+     */
+    protected abstract Version getMinSupportedNodeVersion();
 
     private void addIngestPipelinesIfMissing(ClusterState state) {
         for (PipelineTemplateConfiguration pipelineTemplateConfig : getIngestPipelineConfigs()) {

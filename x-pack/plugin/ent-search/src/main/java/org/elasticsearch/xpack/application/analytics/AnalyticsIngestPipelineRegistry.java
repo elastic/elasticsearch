@@ -61,7 +61,7 @@ public class AnalyticsIngestPipelineRegistry extends PipelineRegistry {
     }
 
     @Override
-    protected Version getMinClusterVersion() {
+    protected Version getMinSupportedNodeVersion() {
         return Version.V_8_8_0;
     }
 

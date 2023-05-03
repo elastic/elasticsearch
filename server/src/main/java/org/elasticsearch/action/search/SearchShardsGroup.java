@@ -17,6 +17,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A group of target shards of a response of the search_shards API
+ */
 public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
@@ -50,14 +53,24 @@ public class SearchShardsGroup implements Writeable {
         return shardId;
     }
 
+    /**
+     * Returns true if the target shards in this group won't match the query given {@link SearchShardsRequest}.
+     */
     public boolean skipped() {
         return skipped;
     }
 
+    /**
+     * Returns true if the can_match was performed against this group. This flag is for BWC purpose. It's always
+     * true for a response from the new search_shards API; but always false for a response from the old API.
+     */
     public boolean preFiltered() {
         return preFiltered;
     }
 
+    /**
+     * The list of node ids that shard copies on this group are allocated on.
+     */
     public List<String> allocatedNodes() {
         return allocatedNodes;
     }

@@ -20,6 +20,9 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * A request to find the list of target shards that might match the query for the given target indices.
+ */
 public final class SearchShardsRequest extends ActionRequest implements IndicesRequest.Replaceable {
     private final SearchRequest searchRequest;
 

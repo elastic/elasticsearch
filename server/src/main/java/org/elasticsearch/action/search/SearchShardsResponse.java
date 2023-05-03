@@ -19,6 +19,9 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * A response of {@link SearchShardsRequest} which contains the target shards grouped by {@link org.elasticsearch.index.shard.ShardId}
+ */
 public final class SearchShardsResponse extends ActionResponse {
     private final Collection<SearchShardsGroup> groups;
     private final Collection<DiscoveryNode> nodes;
@@ -44,14 +47,23 @@ public final class SearchShardsResponse extends ActionResponse {
         out.writeMap(aliasFilters, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
+    /**
+     * List of nodes in the cluster
+     */
     public Collection<DiscoveryNode> getNodes() {
         return nodes;
     }
 
+    /**
+     * List of target shards grouped by ShardId
+     */
     public Collection<SearchShardsGroup> getGroups() {
         return groups;
     }
 
+    /**
+     * A map from index uuid to alias filters
+     */
     public Map<String, AliasFilter> getAliasFilters() {
         return aliasFilters;
     }

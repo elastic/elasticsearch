@@ -757,7 +757,11 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
-                return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper);
+                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper);
+                if (result != null) {
+                    return result;
+                }
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
                 return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
@@ -826,12 +830,17 @@ public class InternalEngine extends Engine {
                     }
                 } else {
                     trackTranslogLocation.set(true);
+                    // We need to start tracking translog locations in the live version map. Refresh and
+                    // serve the get from the internal searcher.
+                    assert versionValue.seqNo >= 0 : versionValue;
+                    refreshIfNeeded("realtime_get", versionValue.seqNo);
+                    return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
                 }
             }
             assert versionValue.seqNo >= 0 : versionValue;
             refreshIfNeeded("realtime_get", versionValue.seqNo);
         }
-        return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+        return null;
     }
 
     /**
@@ -2877,8 +2886,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    // visible only for testing
-    public boolean isSafeAccessRequired() {
+    boolean isSafeAccessRequired() {
         return versionMap.isSafeAccessRequired();
     }
 
@@ -3200,5 +3208,10 @@ public class InternalEngine extends Engine {
 
     public long getLastUnsafeSegmentGenerationForGets() {
         return lastUnsafeSegmentGenerationForGets.get();
+    }
+
+    // Visible for testing purposes only
+    public LiveVersionMap getLiveVersionMap() {
+        return versionMap;
     }
 }

@@ -119,7 +119,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 translogOnly
             );
 
-            if (getResult.isExists()) {
+            if (getResult != null && getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
                 missingMetric.inc(System.nanoTime() - now);
@@ -229,6 +229,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         try (Engine.GetResult get = getFromIndexShard(id, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, translogOnly)) {
+            if (get == null) {
+                return null;
+            }
             if (get.exists() == false) {
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }

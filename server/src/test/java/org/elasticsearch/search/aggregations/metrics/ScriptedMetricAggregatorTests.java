@@ -287,10 +287,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT_NOOP).reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(
-                    newIndexSearcher(indexReader),
-                    new AggTestConfig(aggregationBuilder)
-                );
+                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(0, scriptedMetric.aggregation());
@@ -350,10 +347,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.initScript(INIT_SCRIPT).mapScript(MAP_SCRIPT).combineScript(COMBINE_SCRIPT).reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(
-                    newIndexSearcher(indexReader),
-                    new AggTestConfig(aggregationBuilder)
-                );
+                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 assertEquals(numDocs, scriptedMetric.aggregation());
@@ -378,10 +372,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .mapScript(MAP_SCRIPT_SCORE)
                     .combineScript(COMBINE_SCRIPT_SCORE)
                     .reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(
-                    newIndexSearcher(indexReader),
-                    new AggTestConfig(aggregationBuilder)
-                );
+                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
                 assertEquals(AGG_NAME, scriptedMetric.getName());
                 assertNotNull(scriptedMetric.aggregation());
                 // all documents have score of 1.0
@@ -406,10 +397,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                     .mapScript(MAP_SCRIPT_PARAMS)
                     .combineScript(COMBINE_SCRIPT_PARAMS)
                     .reduceScript(REDUCE_SCRIPT);
-                ScriptedMetric scriptedMetric = searchAndReduce(
-                    newIndexSearcher(indexReader),
-                    new AggTestConfig(aggregationBuilder)
-                );
+                ScriptedMetric scriptedMetric = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(aggregationBuilder));
 
                 // The result value depends on the script params.
                 assertEquals(4896, scriptedMetric.aggregation());

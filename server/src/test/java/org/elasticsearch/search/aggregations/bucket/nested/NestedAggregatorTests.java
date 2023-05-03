@@ -411,10 +411,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 nestedBuilder.subAggregation(maxAgg);
                 termsBuilder.subAggregation(nestedBuilder);
 
-                Terms terms = searchAndReduce(
-                    newIndexSearcher(indexReader),
-                    new AggTestConfig(termsBuilder, fieldType1, fieldType2)
-                );
+                Terms terms = searchAndReduce(newIndexSearcher(indexReader), new AggTestConfig(termsBuilder, fieldType1, fieldType2));
 
                 assertEquals(7, terms.getBuckets().size());
                 assertEquals("authors", terms.getName());

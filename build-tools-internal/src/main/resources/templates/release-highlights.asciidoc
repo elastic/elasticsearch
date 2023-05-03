@@ -13,8 +13,7 @@ Other versions:
 
 <%
 print priorVersions.join("\n| ")
-print "\n"
-}%>
+print "\n" }%>
 endif::[]
 <%
 /* The `notable-highlights` tag needs to exist, whether or not we actually have any notable highlights. */

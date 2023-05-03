@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringC
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -48,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -82,7 +84,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
                 FillMaskConfigTests.createRandom(),
                 TextEmbeddingConfigTests.createRandom(),
                 QuestionAnsweringConfigTests.createRandom(),
-                TextSimilarityConfigTests.createRandom() }
+                TextSimilarityConfigTests.createRandom(),
+                TextExpansionConfigTests.createRandom() }
             : new InferenceConfig[] {
                 ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig() };
@@ -398,7 +401,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     public void testValidatePackagedModelRequiredFields() {
-        String modelId = "." + randomAlphaOfLength(20);
+        String modelId = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
 
         TrainedModelConfig.Builder builder = TrainedModelConfig.builder().setModelId(modelId);
 

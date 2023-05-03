@@ -132,6 +132,60 @@ public class MustacheScriptEngineTests extends ESTestCase {
         }
     }
 
+    public void testChangingDelimiters() {
+        Map<String, String> compileParams = Map.of("content_type", "application/json");
+        {
+            String template = """
+                GET _search
+                {
+                  "query": {
+                    "match": {
+                      "content": "{{query_string}}"
+                    }
+                  },
+                  "highlight": {
+                    {{=<% %>=}}
+                    "pre_tags": [
+                      "{{{{"
+                    ],
+                    "post_tags": [
+                      "}}}}"
+                    ],
+                    <%={{ }}=%>
+                    "fields": {
+                      "content": {},
+                      "title": {}
+                    }
+                  }
+                }""";
+            Map<String, Object> vars = Map.of("query_string", "test");
+            String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
+            assertEquals("""
+                GET _search
+                {
+                  "query": {
+                    "match": {
+                      "content": "test"
+                    }
+                  },
+                  "highlight": {
+                   \s
+                    "pre_tags": [
+                      "{{{{"
+                    ],
+                    "post_tags": [
+                      "}}}}"
+                    ],
+                   \s
+                    "fields": {
+                      "content": {},
+                      "title": {}
+                    }
+                  }
+                }""", o);
+        }
+    }
+
     public void testSimple() throws IOException {
         String templateString = """
             {"source":{"match_{{template}}": {}},"params":{"template":"all"}}""";

@@ -104,6 +104,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    "profiling-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "traces-apm.sampled-*"
                   ],
                   "privileges": [

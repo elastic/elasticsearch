@@ -400,12 +400,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static Settings getSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
-            .build();
+        return indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6).build();
     }
 
     private static XContentBuilder getMappings() {

@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.UUIDs;
@@ -72,12 +71,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {
-        assertAcked(
-            prepareCreate(
-                INDEX_NAME,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -256,12 +250,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
             Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
         );
 
-        assertAcked(
-            prepareCreate(
-                INDEX_NAME,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -324,12 +313,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
             Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), (long) (bulkShardRequestSize * 1.5) + "B").build()
         );
 
-        assertAcked(
-            prepareCreate(
-                INDEX_NAME,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -373,12 +357,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
     public void testWritesWillSucceedIfBelowThreshold() throws Exception {
         restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1MB").build());
-        assertAcked(
-            prepareCreate(
-                INDEX_NAME,
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-        );
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
@@ -416,17 +395,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
     }
 
     private String getCoordinatingOnlyNode() {
-        return client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getCoordinatingOnlyNodes()
-            .values()
-            .iterator()
-            .next()
-            .getName();
+        return clusterAdmin().prepareState().get().getState().nodes().getCoordinatingOnlyNodes().values().iterator().next().getName();
     }
 
     private Tuple<String, String> getPrimaryReplicaNodeNames() {
@@ -443,7 +412,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
             .findAny()
             .get()
             .currentNodeId();
-        DiscoveryNodes nodes = client().admin().cluster().prepareState().get().getState().nodes();
+        DiscoveryNodes nodes = clusterAdmin().prepareState().get().getState().nodes();
         String primaryName = nodes.get(primaryId).getName();
         String replicaName = nodes.get(replicaId).getName();
         return new Tuple<>(primaryName, replicaName);

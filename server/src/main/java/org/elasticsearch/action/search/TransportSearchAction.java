@@ -287,6 +287,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
+
             if (rewritten.pointInTimeBuilder() != null) {
                 searchContext = rewritten.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
                 remoteClusterIndices = getIndicesFromSearchContexts(searchContext, rewritten.indicesOptions());

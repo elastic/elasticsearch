@@ -22,6 +22,7 @@ entsearch:
         "test-re-creating-search-application",
         "test-search-application-to-delete",
         "test-nonexistent-search-application",
+        "test-search-application-with-invalid-template"
     ]
       privileges: [ "manage" ]
     - names: [

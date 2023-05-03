@@ -32,6 +32,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -142,6 +146,14 @@ public final class TestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
     public static FieldAttribute fieldAttribute() {

@@ -832,14 +832,30 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                     );
                 }
             }
-            if (modelId != null && packagedModel
-                ? MlStrings.isValidId(modelId.substring(1)) // packaged models
-                : MlStrings.isValidId(modelId) == false) {
-                validationException = addValidationError(
-                    Messages.getMessage(Messages.INVALID_ID, TrainedModelConfig.MODEL_ID.getPreferredName(), modelId),
-                    validationException
-                );
+
+            if (modelId != null) {
+                if (packagedModel) {
+                    String idToValidate = modelId.substring(1);
+                    if (idToValidate.endsWith("_SNAPSHOT")) {
+                        idToValidate = idToValidate.substring(0, idToValidate.length() - 9);
+                    }
+
+                    if (MlStrings.isValidId(idToValidate) == false) {
+                        validationException = addValidationError(
+                            Messages.getMessage(Messages.INVALID_MODEL_PACKAGE_ID, TrainedModelConfig.MODEL_ID.getPreferredName(), modelId),
+                            validationException
+                        );
+                    }
+                } else {
+                    if (MlStrings.isValidId(modelId) == false) {
+                        validationException = addValidationError(
+                            Messages.getMessage(Messages.INVALID_ID, TrainedModelConfig.MODEL_ID.getPreferredName(), modelId),
+                            validationException
+                        );
+                    }
+                }
             }
+
             if (modelId != null && MlStrings.hasValidLengthForId(modelId) == false) {
                 validationException = addValidationError(
                     Messages.getMessage(
@@ -921,7 +937,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             validationException = checkIllegalPackagedModelSetting(definition, DEFINITION.getPreferredName(), validationException);
             validationException = checkIllegalPackagedModelSetting(modelType, MODEL_TYPE.getPreferredName(), validationException);
             validationException = checkIllegalPackagedModelSetting(metadata, METADATA.getPreferredName(), validationException);
-            validationException = checkIllegalPackagedModelSetting(modelSize, MODEL_SIZE_BYTES.getPreferredName(), validationException);
+            if (modelSize != null && modelSize > 0) {
+                validationException = checkIllegalPackagedModelSetting(modelSize, MODEL_SIZE_BYTES.getPreferredName(), validationException);
+            }
             validationException = checkIllegalPackagedModelSetting(
                 inferenceConfig,
                 INFERENCE_CONFIG.getPreferredName(),

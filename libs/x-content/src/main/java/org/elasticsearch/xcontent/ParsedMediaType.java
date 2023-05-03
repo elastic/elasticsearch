@@ -62,7 +62,7 @@ public class ParsedMediaType {
             if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
                 return null;
             }
-            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
+            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split(";");
 
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2

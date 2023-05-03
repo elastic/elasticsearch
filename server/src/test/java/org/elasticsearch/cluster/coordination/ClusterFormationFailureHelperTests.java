@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -992,13 +993,13 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode localNode = makeDiscoveryNode("local");
         List<TransportAddress> resolvedAddresses = List.of(buildNewFakeTransportAddress(), buildNewFakeTransportAddress());
         List<DiscoveryNode> foundPeers = List.of(
-            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
-            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
-            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT)
+            TestDiscoveryNode.create(UUID.randomUUID().toString()),
+            TestDiscoveryNode.create(UUID.randomUUID().toString()),
+            TestDiscoveryNode.create(UUID.randomUUID().toString())
         );
         List<JoinStatus> joinStatuses = List.of(
             new JoinStatus(
-                new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+                TestDiscoveryNode.create(UUID.randomUUID().toString()),
                 1,
                 "join status message",
                 new TimeValue(500, TimeUnit.SECONDS)
@@ -1067,7 +1068,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             }
             case 2 -> {
                 List<DiscoveryNode> newFoundPeers = new ArrayList<>(foundPeers);
-                newFoundPeers.add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT));
+                newFoundPeers.add(TestDiscoveryNode.create(UUID.randomUUID().toString()));
                 return new ClusterFormationState(
                     settings,
                     clusterState,
@@ -1083,7 +1084,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 List<JoinStatus> newJoinStatuses = new ArrayList<>(joinStatuses);
                 newJoinStatuses.add(
                     new JoinStatus(
-                        new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+                        TestDiscoveryNode.create(UUID.randomUUID().toString()),
                         1,
                         "join status message",
                         new TimeValue(500, TimeUnit.SECONDS)

@@ -79,6 +79,9 @@ public final class XPackField {
     public static final String ENTERPRISE_SEARCH = "enterprise_search";
     public static final String REMOTE_CLUSTERS = "remote_clusters";
 
+    /** Name constant for the redact processor feature. */
+    public static final String REDACT_PROCESSOR = "redact_processor";
+
     private XPackField() {}
 
     public static String featureSettingPrefix(String featureName) {

@@ -10,13 +10,14 @@ package org.elasticsearch.preallocate;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
 public class PreallocateModuleExportsService extends ModuleQualifiedExportsService {
+
     @Override
     protected void addExports(String pkg, Module target) {
-        selfModule.addExports(pkg, target);
+        module.addExports(pkg, target);
     }
 
     @Override
     protected void addOpens(String pkg, Module target) {
-        selfModule.addOpens(pkg, target);
+        module.addOpens(pkg, target);
     }
 }

@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
@@ -167,12 +168,14 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TracerPlugin;
+import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -521,7 +524,8 @@ public class Node implements Closeable {
                 scriptService,
                 analysisModule.getAnalysisRegistry(),
                 pluginsService.filterPlugins(IngestPlugin.class),
-                client
+                client,
+                IngestService.createGrokThreadWatchdog(this.environment, threadPool)
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -650,6 +654,7 @@ public class Node implements Closeable {
 
             if (DiscoveryNode.isMasterNode(settings)) {
                 clusterService.addListener(new SystemIndexManager(systemIndices, client));
+                clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
             }
 
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -1011,6 +1016,9 @@ public class Node implements Closeable {
             HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
             HealthApiStats healthApiStats = new HealthApiStats();
 
+            List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
+            pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
+
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -1200,6 +1208,23 @@ public class Node implements Closeable {
                 }
             }
         }
+    }
+
+    /**
+     * Wrap a group of reloadable plugins into a single reloadable plugin interface
+     * @param reloadablePlugins A list of reloadable plugins
+     * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
+     */
+    private static ReloadablePlugin wrapPlugins(List<ReloadablePlugin> reloadablePlugins) {
+        return settings -> {
+            for (ReloadablePlugin plugin : reloadablePlugins) {
+                try {
+                    plugin.reload(settings);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
     }
 
     private Tracer getTracer(PluginsService pluginsService, Settings settings) {

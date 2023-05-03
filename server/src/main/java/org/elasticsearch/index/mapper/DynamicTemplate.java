@@ -375,14 +375,6 @@ public class DynamicTemplate implements ToXContentObject {
         }
     }
 
-    private static void validatePatterns(String templateName, MatchType matchType, List<String> patterns) {
-        for (String pattern : patterns) {
-            // no need to check results - the method impls either have side effects (set header warnings)
-            // or throw an exception that should be sent back to the user
-            matchType.isValidPattern(pattern, templateName);
-        }
-    }
-
     private final String name;
     private final List<String> pathMatch;
     private final List<String> pathUnmatch;

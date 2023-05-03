@@ -51,19 +51,11 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
     }
 
-    private static String padNumber(String number) {
-        return number.length() == 1 ? "0" + number : number;
-    }
-
     public static class CorrectFakeVersion {
         public static final TransportVersion V_0_00_01 = new TransportVersion(199, "1");
         public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
         public static final TransportVersion V_0_000_003 = new TransportVersion(3, "3");
         public static final TransportVersion V_0_000_004 = new TransportVersion(4, "4");
-    }
-
-    public static class IncorrectFormatVersion {
-        public static final TransportVersion V_1 = new TransportVersion(1, "1");
     }
 
     public static class DuplicatedIdFakeVersion {
@@ -94,23 +86,31 @@ public class TransportVersionTests extends ESTestCase {
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(IncorrectFormatVersion.class));
-        assertThat(e.getMessage(), containsString("does not have the correct name format"));
-        e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
         e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same unique id"));
     }
 
+    private static String padNumber(String number) {
+        return number.length() == 1 ? "0" + number : number;
+    }
+
     public void testDefinedConstants() throws IllegalAccessException {
         Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
-        Pattern transportVersion = Pattern.compile("^V_(\\d{2,})_(\\d{3})_(\\d{3})$");
+        Pattern transportVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
 
         for (java.lang.reflect.Field field : TransportVersion.class.getFields()) {
-            if (Modifier.isStatic(field.getModifiers())
-                && field.getType() == TransportVersion.class
-                && ignore.contains(field.getName()) == false) {
+            if (field.getType() == TransportVersion.class && ignore.contains(field.getName()) == false) {
+
+                // check the field modifiers
+                assertEquals(
+                    "Field " + field.getName() + " should be public static final",
+                    Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL,
+                    field.getModifiers()
+                );
+
                 Matcher historical = historicalVersion.matcher(field.getName());
                 Matcher transport;
                 if (historical.matches()) {

@@ -32,6 +32,12 @@ public class Types {
     static final ClassName LONG_BLOCK = ClassName.get(DATA_PACKAGE, "LongBlock");
     static final ClassName DOUBLE_BLOCK = ClassName.get(DATA_PACKAGE, "DoubleBlock");
 
+    static final ClassName BOOLEAN_BLOCK_BUILDER = BOOLEAN_BLOCK.nestedClass("Builder");
+    static final ClassName BYTES_REF_BLOCK_BUILDER = BYTES_REF_BLOCK.nestedClass("Builder");
+    static final ClassName INT_BLOCK_BUILDER = INT_BLOCK.nestedClass("Builder");
+    static final ClassName LONG_BLOCK_BUILDER = LONG_BLOCK.nestedClass("Builder");
+    static final ClassName DOUBLE_BLOCK_BUILDER = DOUBLE_BLOCK.nestedClass("Builder");
+
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 
     static final ClassName AGGREGATOR_STATE_VECTOR = ClassName.get(DATA_PACKAGE, "AggregatorStateVector");
@@ -118,4 +124,24 @@ public class Types {
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
     }
+
+    static TypeName elementType(TypeName t) {
+        if (t.equals(BOOLEAN_BLOCK) || t.equals(BOOLEAN_VECTOR) || t.equals(BOOLEAN_BLOCK_BUILDER)) {
+            return TypeName.BOOLEAN;
+        }
+        if (t.equals(BYTES_REF_BLOCK) || t.equals(BYTES_REF_VECTOR) || t.equals(BYTES_REF_BLOCK_BUILDER)) {
+            return BYTES_REF;
+        }
+        if (t.equals(INT_BLOCK) || t.equals(INT_VECTOR) || t.equals(INT_BLOCK_BUILDER)) {
+            return TypeName.INT;
+        }
+        if (t.equals(LONG_BLOCK) || t.equals(LONG_VECTOR) || t.equals(LONG_BLOCK_BUILDER)) {
+            return TypeName.LONG;
+        }
+        if (t.equals(DOUBLE_BLOCK) || t.equals(DOUBLE_VECTOR) || t.equals(DOUBLE_BLOCK_BUILDER)) {
+            return TypeName.DOUBLE;
+        }
+        throw new IllegalArgumentException("unknown element type for [" + t + "]");
+    }
+
 }

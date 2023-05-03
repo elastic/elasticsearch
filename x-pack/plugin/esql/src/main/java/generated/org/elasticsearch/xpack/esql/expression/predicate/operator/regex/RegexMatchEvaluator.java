@@ -50,13 +50,12 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
     BytesRefBlock inputBlock = (BytesRefBlock) inputUncastBlock;
     BytesRefVector inputVector = inputBlock.asVector();
     if (inputVector == null) {
-      return eval(page.getPositionCount(), inputBlock, pattern);
+      return eval(page.getPositionCount(), inputBlock);
     }
-    return eval(page.getPositionCount(), inputVector, pattern).asBlock();
+    return eval(page.getPositionCount(), inputVector).asBlock();
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock,
-      CharacterRunAutomaton pattern) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
     BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
     BytesRef inputScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {
@@ -69,8 +68,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
     return result.build();
   }
 
-  public BooleanVector eval(int positionCount, BytesRefVector inputVector,
-      CharacterRunAutomaton pattern) {
+  public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
     BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
     BytesRef inputScratch = new BytesRef();
     position: for (int p = 0; p < positionCount; p++) {

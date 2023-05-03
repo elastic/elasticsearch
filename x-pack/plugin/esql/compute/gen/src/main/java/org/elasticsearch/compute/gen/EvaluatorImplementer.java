@@ -73,28 +73,29 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
 
-        processFunction.args.stream().forEach(a -> builder.addField(a.fieldType(), a.name(), Modifier.PRIVATE, Modifier.FINAL));
+        processFunction.args.stream().forEach(a -> a.declareField(builder));
 
         builder.addMethod(ctor());
-        builder.addMethod(fold());
+        if (processFunction.builderArg == null) {
+            builder.addMethod(fold());
+        }
         builder.addMethod(eval());
-        builder.addMethod(realEval(blockType(processFunction.resultType), true, "newBlockBuilder"));
-        builder.addMethod(realEval(vectorType(processFunction.resultType), false, "newVectorBuilder"));
+        builder.addMethod(realEval(true));
+        builder.addMethod(realEval(false));
         builder.addMethod(toStringMethod());
         return builder.build();
     }
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
-        processFunction.args.stream().forEach(a -> builder.addParameter(a.fieldType(), a.name()));
-        processFunction.args.stream().forEach(a -> builder.addStatement("this.$L = $L", a.name(), a.name()));
+        processFunction.args.stream().forEach(a -> a.implementCtor(builder));
         return builder.build();
     }
 
     private MethodSpec fold() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("fold")
             .addModifiers(Modifier.STATIC)
-            .returns(processFunction.resultType.box());
+            .returns(TypeName.get(processFunction.function.getReturnType()).box());
 
         for (VariableElement v : processFunction.function.getParameters()) {
             String name = v.getSimpleName().toString();
@@ -172,23 +173,34 @@ public class EvaluatorImplementer {
         processFunction.args.stream().forEach(a -> a.evalToBlock(builder));
         String invokeBlockEval = invokeRealEval(true);
         processFunction.args.stream().forEach(a -> a.resolveVectors(builder, invokeBlockEval));
-        builder.addStatement(invokeRealEval(false) + ".asBlock()");
+        builder.addStatement(invokeRealEval(false));
         return builder.build();
     }
 
     private String invokeRealEval(boolean blockStyle) {
         return "return eval(page.getPositionCount(), "
-            + processFunction.args.stream().map(a -> a.paramName(blockStyle)).collect(Collectors.joining(", "))
-            + ")";
+            + processFunction.args.stream().map(a -> a.paramName(blockStyle)).filter(a -> a != null).collect(Collectors.joining(", "))
+            + ")"
+            + (processFunction.resultDataType(blockStyle).simpleName().endsWith("Vector") ? ".asBlock()" : "");
     }
 
-    private MethodSpec realEval(TypeName resultType, boolean blockStyle, String resultBuilderMethod) {
+    private MethodSpec realEval(boolean blockStyle) {
+        ClassName resultDataType = processFunction.resultDataType(blockStyle);
         MethodSpec.Builder builder = MethodSpec.methodBuilder("eval");
-        builder.addModifiers(Modifier.PUBLIC).returns(resultType);
+        builder.addModifiers(Modifier.PUBLIC).returns(resultDataType);
         builder.addParameter(TypeName.INT, "positionCount");
 
-        processFunction.args.stream().forEach(a -> builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle)));
-        builder.addStatement("$T.Builder result = $T.$L(positionCount)", resultType, resultType, resultBuilderMethod);
+        processFunction.args.stream().forEach(a -> {
+            if (a.paramName(blockStyle) != null) {
+                builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
+            }
+        });
+        builder.addStatement(
+            "$T.Builder result = $T.$L(positionCount)",
+            resultDataType,
+            resultDataType,
+            resultDataType.simpleName().endsWith("Vector") ? "newVectorBuilder" : "newBlockBuilder"
+        );
         processFunction.args.stream().forEach(a -> a.createScratch(builder));
 
         builder.beginControlFlow("position: for (int p = 0; p < positionCount; p++)");
@@ -200,17 +212,26 @@ public class EvaluatorImplementer {
 
             StringBuilder pattern = new StringBuilder();
             List<Object> args = new ArrayList<>();
-            pattern.append("result.$L($T.$N(");
-            args.add(appendMethod(processFunction.resultType));
+            pattern.append("$T.$N(");
             args.add(declarationType);
             args.add(processFunction.function.getSimpleName());
             processFunction.args.stream().forEach(a -> {
-                if (args.size() > 3) {
+                if (args.size() > 2) {
                     pattern.append(", ");
                 }
                 a.buildInvocation(pattern, args, blockStyle);
             });
-            builder.addStatement(pattern.append("))").toString(), args.toArray());
+            pattern.append(")");
+
+            String builtPattern;
+            if (processFunction.builderArg == null) {
+                builtPattern = "result.$L(" + pattern + ")";
+                args.add(0, appendMethod(resultDataType));
+            } else {
+                builtPattern = pattern.toString();
+            }
+
+            builder.addStatement(builtPattern, args.toArray());
         }
         builder.endControlFlow();
         builder.addStatement("return result.build()");
@@ -242,14 +263,6 @@ public class EvaluatorImplementer {
     }
 
     private interface ProcessFunctionArg {
-        String name();
-
-        /**
-         * Type of the field on the Evaluator object. It can produce values of {@link #dataType}
-         * by calling the code emitted by {@link #evalToBlock}.
-         */
-        TypeName fieldType();
-
         /**
          * Type containing the actual data for a page of values for this field. Usually a
          * Block or Vector, but for fixed fields will be the original fixed type.
@@ -260,6 +273,17 @@ public class EvaluatorImplementer {
          * The parameter passed to the real evaluation function
          */
         String paramName(boolean blockStyle);
+
+        /**
+         * Declare any required fields on the type for this parameter.
+         */
+        void declareField(TypeSpec.Builder builder);
+
+        /**
+         * Implement the ctor for this parameter. Will declare parameters
+         * and assign values to declared fields.
+         */
+        void implementCtor(MethodSpec.Builder builder);
 
         /**
          * Emits code to evaluate this parameter to a Block or array of Blocks.
@@ -300,16 +324,6 @@ public class EvaluatorImplementer {
 
     private record StandardProcessFunctionArg(TypeName type, String name) implements ProcessFunctionArg {
         @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public TypeName fieldType() {
-            return EXPRESSION_EVALUATOR;
-        }
-
-        @Override
         public TypeName dataType(boolean blockStyle) {
             if (blockStyle) {
                 return blockType(type);
@@ -320,6 +334,17 @@ public class EvaluatorImplementer {
         @Override
         public String paramName(boolean blockStyle) {
             return name + (blockStyle ? "Block" : "Vector");
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(EXPRESSION_EVALUATOR, name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(EXPRESSION_EVALUATOR, name);
+            builder.addStatement("this.$L = $L", name, name);
         }
 
         @Override
@@ -390,16 +415,6 @@ public class EvaluatorImplementer {
 
     private record ArrayProcessFunctionArg(TypeName componentType, String name) implements ProcessFunctionArg {
         @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public TypeName fieldType() {
-            return ArrayTypeName.of(EXPRESSION_EVALUATOR);
-        }
-
-        @Override
         public TypeName dataType(boolean blockStyle) {
             if (blockStyle) {
                 return ArrayTypeName.of(blockType(componentType));
@@ -410,6 +425,17 @@ public class EvaluatorImplementer {
         @Override
         public String paramName(boolean blockStyle) {
             return name + (blockStyle ? "Block" : "Vector") + "s";
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(ArrayTypeName.of(EXPRESSION_EVALUATOR), name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(ArrayTypeName.of(EXPRESSION_EVALUATOR), name);
+            builder.addStatement("this.$L = $L", name, name);
         }
 
         @Override
@@ -491,23 +517,25 @@ public class EvaluatorImplementer {
 
     private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString) implements ProcessFunctionArg {
         @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public TypeName fieldType() {
-            return type;
-        }
-
-        @Override
         public TypeName dataType(boolean blockStyle) {
             return type;
         }
 
         @Override
         public String paramName(boolean blockStyle) {
-            return name;
+            // No need to pass it
+            return null;
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            builder.addField(type, name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            builder.addParameter(type, name);
+            builder.addStatement("this.$L = $L", name, name);
         }
 
         @Override
@@ -551,20 +579,91 @@ public class EvaluatorImplementer {
         }
     }
 
+    private record BuilderProcessFunctionArg(ClassName type, String name) implements ProcessFunctionArg {
+        @Override
+        public TypeName dataType(boolean blockStyle) {
+            return type;
+        }
+
+        @Override
+        public String paramName(boolean blockStyle) {
+            // never passed as a parameter
+            return null;
+        }
+
+        @Override
+        public void declareField(TypeSpec.Builder builder) {
+            // Nothing to declare
+        }
+
+        @Override
+        public void implementCtor(MethodSpec.Builder builder) {
+            // Nothing to do
+        }
+
+        @Override
+        public void evalToBlock(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void resolveVectors(MethodSpec.Builder builder, String invokeBlockEval) {
+            // nothing to do
+        }
+
+        @Override
+        public void createScratch(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void skipNull(MethodSpec.Builder builder) {
+            // nothing to do
+        }
+
+        @Override
+        public void unpackValues(MethodSpec.Builder builder, boolean blockStyle) {
+            // nothing to do
+        }
+
+        @Override
+        public void buildInvocation(StringBuilder pattern, List<Object> args, boolean blockStyle) {
+            pattern.append("$L");
+            args.add("result");
+        }
+
+        @Override
+        public void buildToStringInvocation(StringBuilder pattern, List<Object> args, String prefix) {
+            // Don't want to include
+        }
+    }
+
     private static class ProcessFunction {
         private final ExecutableElement function;
         private final List<ProcessFunctionArg> args;
-        private final TypeName resultType;
+        private final BuilderProcessFunctionArg builderArg;
 
         private ProcessFunction(ExecutableElement function) {
             this.function = function;
             args = new ArrayList<>();
+            BuilderProcessFunctionArg builderArg = null;
             for (VariableElement v : function.getParameters()) {
                 TypeName type = TypeName.get(v.asType());
                 String name = v.getSimpleName().toString();
                 Fixed fixed = v.getAnnotation(Fixed.class);
                 if (fixed != null) {
                     args.add(new FixedProcessFunctionArg(type, name, fixed.includeInToString()));
+                    continue;
+                }
+                if (type instanceof ClassName c
+                    && c.simpleName().equals("Builder")
+                    && c.enclosingClassName() != null
+                    && c.enclosingClassName().simpleName().endsWith("Block")) {
+                    if (builderArg != null) {
+                        throw new IllegalArgumentException("only one builder allowed");
+                    }
+                    builderArg = new BuilderProcessFunctionArg(c, name);
+                    args.add(builderArg);
                     continue;
                 }
                 if (v.asType().getKind() == TypeKind.ARRAY) {
@@ -574,7 +673,14 @@ public class EvaluatorImplementer {
                 }
                 args.add(new StandardProcessFunctionArg(type, name));
             }
-            resultType = TypeName.get(function.getReturnType());
+            this.builderArg = builderArg;
+        }
+
+        private ClassName resultDataType(boolean blockStyle) {
+            if (builderArg != null) {
+                return builderArg.type.enclosingClassName();
+            }
+            return blockStyle ? blockType(TypeName.get(function.getReturnType())) : vectorType(TypeName.get(function.getReturnType()));
         }
     }
 }

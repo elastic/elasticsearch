@@ -56,14 +56,13 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     for (int i = 0; i < valuesBlocks.length; i++) {
       valuesVectors[i] = valuesBlocks[i].asVector();
       if (valuesVectors[i] == null) {
-        return eval(page.getPositionCount(), scratch, valuesBlocks);
+        return eval(page.getPositionCount(), valuesBlocks);
       }
     }
-    return eval(page.getPositionCount(), scratch, valuesVectors).asBlock();
+    return eval(page.getPositionCount(), valuesVectors).asBlock();
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBuilder scratch,
-      BytesRefBlock[] valuesBlocks) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
     BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
     BytesRef[] valuesValues = new BytesRef[values.length];
     BytesRef[] valuesScratch = new BytesRef[values.length];
@@ -87,8 +86,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     return result.build();
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefBuilder scratch,
-      BytesRefVector[] valuesVectors) {
+  public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
     BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
     BytesRef[] valuesValues = new BytesRef[values.length];
     BytesRef[] valuesScratch = new BytesRef[values.length];

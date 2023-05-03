@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
@@ -89,7 +90,8 @@ public class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvAvg.class, MvAvg::new, "mv_avg"),
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMin.class, MvMin::new, "mv_min"),
-                def(MvSum.class, MvSum::new, "mv_sum") } };
+                def(MvSum.class, MvSum::new, "mv_sum"),
+                def(Split.class, Split::new, "split") } };
     }
 
     @Override

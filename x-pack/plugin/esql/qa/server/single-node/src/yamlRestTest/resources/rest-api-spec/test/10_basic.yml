@@ -303,6 +303,7 @@ setup:
         - mv_sum
         - pow
         - round
+        - split
         - starts_with
         - substring
         - sum
@@ -332,6 +333,7 @@ setup:
         - mv_sum(arg1)
         - pow(arg1, arg2)
         - round(arg1, arg2)
+        - split(arg1, arg2)
         - starts_with(arg1, arg2)
         - substring(arg1, arg2, arg3)
         - sum(arg1)

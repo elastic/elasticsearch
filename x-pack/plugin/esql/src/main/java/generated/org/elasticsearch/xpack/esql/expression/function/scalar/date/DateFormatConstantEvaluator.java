@@ -49,12 +49,12 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
     LongBlock valBlock = (LongBlock) valUncastBlock;
     LongVector valVector = valBlock.asVector();
     if (valVector == null) {
-      return eval(page.getPositionCount(), valBlock, formatter);
+      return eval(page.getPositionCount(), valBlock);
     }
-    return eval(page.getPositionCount(), valVector, formatter).asBlock();
+    return eval(page.getPositionCount(), valVector).asBlock();
   }
 
-  public BytesRefBlock eval(int positionCount, LongBlock valBlock, DateFormatter formatter) {
+  public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
     BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
       if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
@@ -66,7 +66,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
     return result.build();
   }
 
-  public BytesRefVector eval(int positionCount, LongVector valVector, DateFormatter formatter) {
+  public BytesRefVector eval(int positionCount, LongVector valVector) {
     BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount);
     position: for (int p = 0; p < positionCount; p++) {
       result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatter));

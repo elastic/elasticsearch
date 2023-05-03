@@ -835,7 +835,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
     }
 
-    public void testEqualsHashCode() {
+    public void testForceMergeRequestWrapperEqualsHashCode() {
         String[] indices = new String[randomIntBetween(0, 10)];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = randomAlphaOfLength(20);
@@ -849,21 +849,21 @@ public class DataLifecycleServiceTests extends ESTestCase {
         originalRequest.flush(randomBoolean());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new DataLifecycleService.ForceMergeRequestWrapper(originalRequest),
-            DataLifecycleServiceTests::copyForceMergeRequest,
-            DataLifecycleServiceTests::mutateTestItem
+            DataLifecycleServiceTests::copyForceMergeRequestWrapperRequest,
+            DataLifecycleServiceTests::mutateForceMergeRequestWrapper
         );
     }
 
-    private static DataLifecycleService.ForceMergeRequestWrapper copyForceMergeRequest(
+    private static DataLifecycleService.ForceMergeRequestWrapper copyForceMergeRequestWrapperRequest(
         DataLifecycleService.ForceMergeRequestWrapper original
     ) {
         return new DataLifecycleService.ForceMergeRequestWrapper(original);
     }
 
-    private static DataLifecycleService.ForceMergeRequestWrapper mutateTestItem(DataLifecycleService.ForceMergeRequestWrapper original) {
+    private static DataLifecycleService.ForceMergeRequestWrapper mutateForceMergeRequestWrapper(DataLifecycleService.ForceMergeRequestWrapper original) {
         switch (randomIntBetween(0, 4)) {
             case 0 -> {
-                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequest(original);
+                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 String[] originalIndices = original.indices();
                 int changedIndexIndex;
                 if (originalIndices.length > 0) {
@@ -879,22 +879,22 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 return copy;
             }
             case 1 -> {
-                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequest(original);
+                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.onlyExpungeDeletes(original.onlyExpungeDeletes() == false);
                 return copy;
             }
             case 2 -> {
-                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequest(original);
+                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.flush(original.flush() == false);
                 return copy;
             }
             case 3 -> {
-                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequest(original);
+                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.maxNumSegments(original.maxNumSegments() + 1);
                 return copy;
             }
             case 4 -> {
-                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequest(original);
+                DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.setRequestId(original.getRequestId() + 1);
                 return copy;
             }

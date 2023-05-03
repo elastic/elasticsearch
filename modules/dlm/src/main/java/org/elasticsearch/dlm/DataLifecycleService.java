@@ -544,6 +544,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         );
     }
 
+    /*
+     * This returns the number of force merge failures that are currently recorded in the cluster state for the given index.
+     */
     private int getCurrentNumberOfForceMergeFailures(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
         if (customMetadata == null) {
@@ -560,6 +563,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
     }
 
+    /*
+     * This method submits a cluster state update that will record one additional force merge failure for the given targetIndex. The cluster
+     * state update happens asynchronously and the method returns immediately.
+     */
     private void recordForceMergeFailure(String targetIndex) {
         ActionListener<Void> listener = new ActionListener<>() {
             @Override

@@ -154,4 +154,21 @@ public class BitArrayTests extends ESTestCase {
             }
         }
     }
+
+    public void testGetAndSet() {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+            assertFalse(bitArray.getAndSet(100));
+            assertFalse(bitArray.getAndSet(1000));
+            assertTrue(bitArray.getAndSet(100));
+            assertFalse(bitArray.getAndSet(101));
+            assertFalse(bitArray.getAndSet(999));
+            assertTrue(bitArray.getAndSet(1000));
+            assertFalse(bitArray.get(99));
+            assertTrue(bitArray.get(100));
+            assertTrue(bitArray.get(101));
+            assertTrue(bitArray.get(999));
+            assertTrue(bitArray.get(1000));
+            assertFalse(bitArray.get(1001));
+        }
+    }
 }

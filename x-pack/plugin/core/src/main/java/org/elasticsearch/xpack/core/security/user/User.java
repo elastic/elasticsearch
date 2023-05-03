@@ -148,12 +148,14 @@ public class User implements ToXContentObject {
     }
 
     public static boolean isInternal(User user) {
+        // TODO : Drop this method and rely entirely on the InternalUsers class
         return SystemUser.is(user)
             || XPackUser.is(user)
             || XPackSecurityUser.is(user)
             || SecurityProfileUser.is(user)
             || AsyncSearchUser.is(user)
-            || CrossClusterAccessUser.is(user);
+            || CrossClusterAccessUser.is(user)
+            || StorageInternalUser.is(user);
     }
 
     /** Write the given {@link User} */

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
@@ -77,7 +78,7 @@ import static org.mockito.Mockito.when;
 public class PublicationTransportHandlerTests extends ESTestCase {
 
     public void testDiffSerializationFailure() {
-        final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("localNode");
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
@@ -88,7 +89,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 
-        final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNode = TestDiscoveryNode.create("otherNode");
         final ClusterState clusterState = CoordinationStateTests.clusterState(
             2L,
             1L,
@@ -227,7 +228,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final List<DiscoveryNode> allNodes = new ArrayList<>();
             while (allNodes.size() < 10) {
-                var node = new DiscoveryNode(
+                var node = TestDiscoveryNode.create(
                     "node-" + allNodes.size(),
                     buildNewFakeTransportAddress(),
                     VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
@@ -359,8 +360,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var receivedStateRef = new AtomicReference<ClusterState>();
         final var completed = new AtomicBoolean();
 
-        final var localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
-        final var otherNode = new DiscoveryNode(
+        final var localNode = TestDiscoveryNode.create("localNode");
+        final var otherNode = TestDiscoveryNode.create(
             "otherNode",
             buildNewFakeTransportAddress(),
             VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)

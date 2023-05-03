@@ -75,7 +75,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
 
         ensureGreen(INDEX_NAME);
         final RetentionLeases retentionLeases = getRetentionLeases();
-        final String nodeId = client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
+        final String nodeId = clusterAdmin().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
         assertTrue(
             "expected lease for [" + nodeId + "] in " + retentionLeases,
             retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId))

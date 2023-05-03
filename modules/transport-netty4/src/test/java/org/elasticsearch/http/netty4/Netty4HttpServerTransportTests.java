@@ -38,6 +38,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
@@ -77,8 +78,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -86,6 +90,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -823,12 +828,98 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
+    public void testMultipleValidationsOnTheSameChannel() throws InterruptedException {
+        // ensure that there is a single channel active
+        final Settings settings = createBuilderWithPort().put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
+        final Set<String> okURIs = ConcurrentHashMap.newKeySet();
+        final Set<String> nokURIs = ConcurrentHashMap.newKeySet();
+        final SetOnce<Channel> channelSetOnce = new SetOnce<>();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertThat(okURIs.contains(request.uri()), is(true));
+                // assert validated request is dispatched
+                okURIs.remove(request.uri());
+                channel.sendResponse(new RestResponse(OK, RestResponse.TEXT_CONTENT_TYPE, new BytesArray("dispatch OK")));
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                // assert unvalidated request is NOT dispatched
+                assertThat(nokURIs.contains(channel.request().uri()), is(true));
+                nokURIs.remove(channel.request().uri());
+                try {
+                    channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+        final Supplier<Netty4HttpHeaderValidator> headersValidator = () -> HttpHeadersAuthenticatorUtils.getValidatorInboundHandler(
+            (httpPreRequest, channel, validationListener) -> {
+                // assert all validations run on the same channel
+                channelSetOnce.trySet(channel);
+                assertThat(channelSetOnce.get(), is(channel));
+                // some requests are validated while others are not
+                if (httpPreRequest.uri().contains("X-Auth=OK")) {
+                    validationListener.onResponse(null);
+                } else if (httpPreRequest.uri().contains("X-Auth=NOK")) {
+                    validationListener.onFailure(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
+                } else {
+                    throw new AssertionError("Unrecognized URI");
+                }
+            },
+            threadPool.getThreadContext()
+        );
+        try (
+            Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
+                settings,
+                dispatcher,
+                headersValidator,
+                (restRequest, threadContext) -> {}
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            final int totalRequestCount = randomIntBetween(64, 128);
+            for (int requestId = 0; requestId < totalRequestCount; requestId++) {
+                String uri = "/" + randomAlphaOfLengthBetween(4, 8) + "?Request-Id=" + requestId;
+                if (randomBoolean()) {
+                    uri = uri + "&X-Auth=OK";
+                    okURIs.add(uri);
+                } else {
+                    uri = uri + "&X-Auth=NOK";
+                    nokURIs.add(uri);
+                }
+            }
+            List<String> allURIs = new ArrayList<>();
+            allURIs.addAll(okURIs);
+            allURIs.addAll(nokURIs);
+            Collections.shuffle(allURIs, getRandom());
+            assertThat(allURIs.size(), is(totalRequestCount));
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                client.get(remoteAddress.address(), allURIs.toArray(new String[0]));
+                // assert all validations have been dispatched (or not) correctly
+                assertThat(okURIs.size(), is(0));
+                assertThat(nokURIs.size(), is(0));
+            }
+        }
+    }
+
     private Netty4HttpServerTransport getTestNetty4HttpServerTransport(
         HttpServerTransport.Dispatcher dispatcher,
         Supplier<Netty4HttpHeaderValidator> validatorSupplier,
         BiConsumer<RestRequest, ThreadContext> populatePerRequestContext
     ) {
-        final Settings settings = createSettings();
+        return getTestNetty4HttpServerTransport(createSettings(), dispatcher, validatorSupplier, populatePerRequestContext);
+    }
+
+    private Netty4HttpServerTransport getTestNetty4HttpServerTransport(
+        Settings settings,
+        HttpServerTransport.Dispatcher dispatcher,
+        Supplier<Netty4HttpHeaderValidator> validatorSupplier,
+        BiConsumer<RestRequest, ThreadContext> populatePerRequestContext
+    ) {
         return new Netty4HttpServerTransport(
             settings,
             networkService,

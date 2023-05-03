@@ -75,6 +75,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    /*
+     * This setting controls the number of non-snapshot-related forcemerge errors that can happen for an index before we give up retrying
+     * forcemerge on that index.
+     */
+    public static final Setting<Integer> DLM_MAX_FORCEMERGE_ERRORS_SETTING = Setting.intSetting(
+        "indices.dlm.max_forcemerge_errors",
+        5,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private static final Logger logger = LogManager.getLogger(DataLifecycleService.class);
     /**
      * Name constant for the job DLM schedules
@@ -84,7 +95,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * This is the key for DLM-related custom index metadata.
      */
     static final String DLM_CUSTOM_INDEX_METADATA_KEY = "dlm";
-    static final String FORCE_MERGE_METADATA_KEY = "force_merge_completed_timestamp";
+    static final String FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY = "force_merge_completed_timestamp";
+    static final String FORCE_MERGE_ERROR_COUNT_METADATA_KEY = "force_merge_error_count";
 
     private final Settings settings;
     private final Client client;
@@ -96,6 +108,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private final DataLifecycleErrorStore errorStore;
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
+    private volatile int maxForcemergeErrors;
     private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
@@ -135,6 +148,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.errorStore = errorStore;
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
+        this.maxForcemergeErrors = DLM_MAX_FORCEMERGE_ERRORS_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
         this.clusterStateUpdateTaskQueue = clusterService.createTaskQueue(
             "dlm-clusterstate-update",
@@ -149,6 +163,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     public void init() {
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_MAX_FORCEMERGE_ERRORS_SETTING, this::updateMaxForcemergeErrors);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
     }
@@ -341,9 +356,15 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 IndexMetadata backingIndex = metadata.index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
                 String indexName = index.getName();
-                boolean alreadyForceMerged = isForceMergeMarkerSet(backingIndex);
-                logger.trace("Already force merged {}: {}", indexName, alreadyForceMerged);
-                if (alreadyForceMerged == false) {
+                boolean alreadyForceMerged = isForceMergeComplete(backingIndex);
+                if (alreadyForceMerged) {
+                    logger.trace("Already force merged {}", indexName);
+                }
+                boolean maxErrorsExceeded = getCurrentNumberOfForceMergeFailures(backingIndex) >= maxForcemergeErrors;
+                if (maxErrorsExceeded) {
+                    logger.trace("Already failed force merging {} too many times", indexName);
+                }
+                if (alreadyForceMerged == false && maxErrorsExceeded == false) {
                     ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
                     // time to force merge the index
                     transportActionsDeduplicator.executeOnce(
@@ -448,7 +469,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {
                 logger.info("DLM successfully force merged index [{}]", targetIndex);
-                setForceMergeMarker(targetIndex, listener);
+                setForceMergeCompletedTimestamp(targetIndex, listener);
             }
 
             @Override
@@ -460,13 +481,33 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                         targetIndex
                     );
                 } else {
-                    logger.error(
-                        () -> Strings.format(
-                            "DLM encountered an error trying to force merge index [%s]. Retrying on the next DLM run",
-                            targetIndex
-                        ),
-                        e
+                    int failuresNotCountingThisOne = getCurrentNumberOfForceMergeFailures(
+                        clusterService.state().metadata().index(targetIndex)
                     );
+                    int failures = failuresNotCountingThisOne + 1;
+                    if (failures >= maxForcemergeErrors) {
+                        logger.error(
+                            () -> Strings.format(
+                                "DLM encountered an error trying to force merge index [%s]. There have now been %d failures "
+                                    + "trying to force merge this index. DLM will not attempt to force merge the index again.",
+                                targetIndex,
+                                failures
+                            ),
+                            e
+                        );
+
+                    } else {
+                        logger.warn(
+                            () -> Strings.format(
+                                "DLM encountered an error trying to force merge index [%s]. There have now been %d failures "
+                                    + "trying to force merge this index. DLM will attempt to force merge the index on its next run.",
+                                targetIndex,
+                                failures
+                            ),
+                            e
+                        );
+                    }
+                    recordForceMergeFailure(targetIndex);
                 }
                 listener.onFailure(e);
             }
@@ -477,7 +518,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * This method sets the value of the custom index metadata field "force_merge_completed_timestamp" within the field "dlm" to value. The
      * method returns immediately, but the update happens asynchronously and listener is notified on success or failure.
      */
-    private void setForceMergeMarker(String targetIndex, ActionListener<Void> listener) {
+    private void setForceMergeCompletedTimestamp(String targetIndex, ActionListener<Void> listener) {
         clusterStateUpdateTaskQueue.submitTask(
             Strings.format("Adding force merge complete marker to cluster state for [%s]", targetIndex),
             new DataLifecycleClusterStateUpdateTask(listener) {
@@ -490,7 +531,64 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                     if (customMetadata != null) {
                         newCustomMetadata.putAll(customMetadata);
                     }
-                    newCustomMetadata.put(FORCE_MERGE_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
+                    newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
+                    IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
+                        DLM_CUSTOM_INDEX_METADATA_KEY,
+                        newCustomMetadata
+                    ).build();
+                    Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
+                    return ClusterState.builder(currentState).metadata(metadata).build();
+                }
+            },
+            null
+        );
+    }
+
+    private int getCurrentNumberOfForceMergeFailures(IndexMetadata backingIndex) {
+        Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+        if (customMetadata == null) {
+            return 0;
+        }
+        String errorCountString = customMetadata.get(FORCE_MERGE_ERROR_COUNT_METADATA_KEY);
+        if (errorCountString == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(errorCountString);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private void recordForceMergeFailure(String targetIndex) {
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.trace("Updating the force merge error counter in the cluster state for index {} succeeded", targetIndex);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(
+                    () -> Strings.format("Updating the force merge error counter in the cluster state for index {} failed", targetIndex),
+                    e
+                );
+            }
+        };
+        clusterStateUpdateTaskQueue.submitTask(
+            Strings.format("Incrementing force merge error count in cluster state for [%s]", targetIndex),
+            new DataLifecycleClusterStateUpdateTask(listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    logger.trace("Incrementing force merge error count in cluster state for {}", targetIndex);
+                    IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
+                    Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+                    Map<String, String> newCustomMetadata = new HashMap<>();
+                    if (customMetadata != null) {
+                        newCustomMetadata.putAll(customMetadata);
+                    }
+                    int previousErrors = getCurrentNumberOfForceMergeFailures(indexMetadata);
+                    newCustomMetadata.put(FORCE_MERGE_ERROR_COUNT_METADATA_KEY, Integer.toString(previousErrors + 1));
                     IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
                         DLM_CUSTOM_INDEX_METADATA_KEY,
                         newCustomMetadata
@@ -506,9 +604,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     /*
      * Returns true if a value has been set for the custom index metadata field "force_merge_completed_timestamp" within the field "dlm".
      */
-    private boolean isForceMergeMarkerSet(IndexMetadata backingIndex) {
+    private boolean isForceMergeComplete(IndexMetadata backingIndex) {
         Map<String, String> customMetadata = backingIndex.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
-        return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_METADATA_KEY);
+        return customMetadata != null && customMetadata.containsKey(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
     }
 
     @Nullable
@@ -557,6 +655,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void updatePollInterval(TimeValue newInterval) {
         this.pollInterval = newInterval;
         maybeScheduleJob();
+    }
+
+    private void updateMaxForcemergeErrors(int newMaxForcemergeErrors) {
+        this.maxForcemergeErrors = newMaxForcemergeErrors;
     }
 
     private void updateRolloverConfiguration(RolloverConfiguration newRolloverConfiguration) {

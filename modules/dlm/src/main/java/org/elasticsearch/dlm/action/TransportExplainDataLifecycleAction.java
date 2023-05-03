@@ -79,7 +79,7 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
         ActionListener<ExplainDataLifecycleAction.Response> listener
     ) {
         // Empty array to force cluster privilege check, but no need for index privileges checks
-        // TODO this is hacky, and we don't do this in the final implementation
+        // TODO this is hacky, and we won't do this in the final implementation
         privilegesCheck.checkCanConfigure(Strings.EMPTY_ARRAY, ActionListener.wrap(ignored -> {
             String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
             List<ExplainIndexDataLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);

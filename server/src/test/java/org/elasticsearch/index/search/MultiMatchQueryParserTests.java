@@ -20,8 +20,10 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -44,12 +46,16 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
 
@@ -73,15 +79,27 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                             "properties": {
                                 "first": {
                                     "type": "text",
-                                    "analyzer": "standard"
+                                    "analyzer": "standard",
+                                    "index_prefixes": {
+                                      "min_chars" : 1,
+                                      "max_chars" : 19
+                                    }
                                 },
                                 "last": {
                                     "type": "text",
-                                    "analyzer": "standard"
+                                    "analyzer": "standard",
+                                    "index_prefixes": {
+                                      "min_chars" : 1,
+                                      "max_chars" : 19
+                                    }
                                 },
                                 "nickname": {
                                     "type": "text",
-                                    "analyzer": "whitespace"
+                                    "analyzer": "whitespace",
+                                    "index_prefixes": {
+                                      "min_chars" : 1,
+                                      "max_chars" : 19
+                                    }
                                 }
                             }
                         }
@@ -91,6 +109,29 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             """;
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         this.indexService = indexService;
+    }
+
+    public void testToQueryPhrasePrefix() throws IOException {
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap());
+        searchExecutionContext.setAllowUnmappedFields(true);
+        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("Har", "name.first", "name.last",
+            "name.nickname");
+        multiMatchQueryBuilder.type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX);
+        Query query = multiMatchQueryBuilder.toQuery(searchExecutionContext);
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        Set<Term> expectedTerms = new HashSet<>(Arrays.asList(new Term("name.first._index_prefix", "har"),
+            new Term("name.last._index_prefix", "har"), new Term("name.nickname._index_prefix", "Har")));
+        for (Query disjunct : disjunctionMaxQuery.getDisjuncts()) {
+            assertThat(disjunct, instanceOf(SynonymQuery.class));
+            SynonymQuery synonymQuery = (SynonymQuery) disjunct;
+            assertEquals(1, synonymQuery.getTerms().size());
+            Term term = synonymQuery.getTerms().get(0);
+            assertTrue("Unexpected term " + term, expectedTerms.remove(term));
+        }
+        assertEquals("Expected terms not found in the query: " + expectedTerms, 0, expectedTerms.size());
     }
 
     public void testCrossFieldMultiMatchQuery() throws IOException {

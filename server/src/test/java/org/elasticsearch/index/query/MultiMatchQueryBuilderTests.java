@@ -452,28 +452,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         );
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
-
-    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
-        Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();
-        return IndexMetadata.builder(name).settings(build).build();
-    }
-
-    private void assertQueryWithAllFieldsWildcard(Query query) {
-        assertEquals(DisjunctionMaxQuery.class, query.getClass());
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        int noMatchNoDocsQueries = 0;
-        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
-            if (q.getClass() == MatchNoDocsQuery.class) {
-                noMatchNoDocsQueries++;
-            }
-        }
-        assertEquals(9, noMatchNoDocsQueries);
-        assertThat(
-            disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
-        );
-    }
-
     /**
      * "now" on date fields should make the query non-cachable.
      */

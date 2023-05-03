@@ -294,9 +294,9 @@ public class Strings {
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
 
-    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile("[" +
-        INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining())
-    +"]+");
+    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile(
+        "[" + INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining()) + "]+"
+    );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {

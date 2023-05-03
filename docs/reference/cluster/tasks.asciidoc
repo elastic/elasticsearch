@@ -44,7 +44,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=group-by]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=nodes]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 

@@ -63,7 +63,7 @@ public class DynamicTemplate implements ToXContentObject {
              *         and it parses correctly as a Java regex.
              */
             @Override
-            public void isValidPattern(String pattern) {
+            public void validate(String pattern) {
                 // regex's cannot start with '*' so we assume this is valid (not a regex)
                 if (pattern.startsWith("*")) {
                     return;
@@ -108,7 +108,7 @@ public class DynamicTemplate implements ToXContentObject {
             }
 
             @Override
-            public void isValidPattern(String pattern) {
+            public void validate(String pattern) {
                 // no-op. All patterns are valid if user explicitly set match_pattern=simple
             }
         },
@@ -129,7 +129,7 @@ public class DynamicTemplate implements ToXContentObject {
              * @throws PatternSyntaxException if pattern is not a valid Java regex
              */
             @Override
-            public void isValidPattern(String pattern) {
+            public void validate(String pattern) {
                 // if it parses as a Java regex, it is valid
                 this.matches(pattern, "");  // throws PatternSyntaxException if invalid regex
             }
@@ -151,7 +151,7 @@ public class DynamicTemplate implements ToXContentObject {
          * Whether the {@code pattern} is a valid for the MatchType.
          * @throws IllegalArgumentException if the pattern is not valid
          */
-        public abstract void isValidPattern(String pattern);
+        public abstract void validate(String pattern);
     }
 
     /** The type of a field as detected while parsing a json document. */
@@ -349,7 +349,7 @@ public class DynamicTemplate implements ToXContentObject {
     private static void validatePatterns(String templateName, MatchType matchType, List<String> patterns) {
         for (String pattern : patterns) {
             try {
-                matchType.isValidPattern(pattern);
+                matchType.validate(pattern);
             } catch (IllegalArgumentException e) {
                 if (matchType == MatchType.DEFAULT) {
                     // simple patterns only warrant a warning and only if the user did not explicitly set match_pattern=simple

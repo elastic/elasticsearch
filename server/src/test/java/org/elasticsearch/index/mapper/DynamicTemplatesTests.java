@@ -2409,12 +2409,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         for (MatchPattern c : candidates) {
             if (c.isValid) {
                 // should not throw an Exception
-                matchType.isValidPattern(c.pattern);
+                matchType.validate(c.pattern);
             } else {
                 Exception e = expectThrows(
                     IllegalArgumentException.class,
                     "pattern tested: " + c.pattern,
-                    () -> matchType.isValidPattern(c.pattern)
+                    () -> matchType.validate(c.pattern)
                 );
                 assertThat(
                     e.getMessage(),
@@ -2425,39 +2425,36 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testIsValidPatternForSimpleMatchType() {
-        record MatchPattern(String pattern) {}
-
         // match_pattern=simple does not reject any entries
-        MatchPattern[] candidates = new MatchPattern[] {
-            // invalid match_pattern=REGEX entries
-            new MatchPattern("*foo"),
-            new MatchPattern("a(cb)"),
-            new MatchPattern("*.*"),
-            new MatchPattern("*two.three$"),
-            new MatchPattern("$^[foo"),
-            new MatchPattern("zero.one*"),
-            new MatchPattern(".middle*"),
-            new MatchPattern("foo.*.bar"),
-            new MatchPattern("foo*"),
-            new MatchPattern("foo?"),
-            new MatchPattern("foo+"),
-            new MatchPattern(""),
-            new MatchPattern("foo"),
-            new MatchPattern("user.name"),
-            new MatchPattern(".*foo"),
-            new MatchPattern("^foo"),
-            new MatchPattern("foo$"),
-            new MatchPattern("f.*oo$"),
-            new MatchPattern("a|b"),
-            new MatchPattern("a[cb]"),
-            new MatchPattern("a{1,2}"),
-            new MatchPattern("[xyz]*.*") };
+        String[] candidates = new String[] {
+            "*foo",
+            "a(cb",
+            "*.*",
+            "*two.three$",
+            "$^[foo",
+            "zero.one*",
+            ".middle*",
+            "foo.*.bar",
+            "foo*",
+            "foo?",
+            "foo+",
+            "",
+            "foo",
+            "user.name",
+            ".*foo",
+            "^foo",
+            "foo$",
+            "f.*oo$",
+            "a|b",
+            "a[cb]",
+            "a{1,2}",
+            "[xyz]*.*" };
 
         DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.SIMPLE;
 
-        for (MatchPattern c : candidates) {
+        for (String pattern : candidates) {
             // should not throw an Exception
-            matchType.isValidPattern(c.pattern);
+            matchType.validate(pattern);
         }
     }
 
@@ -2496,12 +2493,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         for (MatchPattern c : candidates) {
             if (c.isValid) {
                 // should not throw an Exception
-                matchType.isValidPattern(c.pattern);
+                matchType.validate(c.pattern);
             } else {
                 Exception e = expectThrows(
                     PatternSyntaxException.class,
                     "pattern tested: " + c.pattern,
-                    () -> matchType.isValidPattern(c.pattern)
+                    () -> matchType.validate(c.pattern)
                 );
             }
         }

@@ -1307,8 +1307,8 @@ setup:
 ---
 "Downsample empty and missing labels":
   - skip:
-      version: " - 8.4.99"
-      reason: "rollup renamed to downsample in 8.5.0"
+      version: " - 8.6.99"
+      reason: "Downsampling GA-ed in 8.7.0"
 
   - do:
       indices.downsample:

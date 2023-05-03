@@ -128,7 +128,7 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
     }
 
     public void testThatPipelinesAreNotInstalledWhenNoAnalyticsCollectionExist() {
-        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNode node =  new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes, false);

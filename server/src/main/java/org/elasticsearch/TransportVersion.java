@@ -60,11 +60,13 @@ import java.util.regex.Pattern;
  * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version
  * representing the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
  */
-public class TransportVersion implements Comparable<TransportVersion> {
+public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     private static Map<String, Integer> IDS = new HashMap<>();
 
     private static TransportVersion registerTransportVersion(int id, String uniqueId) {
+        if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
+
         Strings.requireNonEmpty(uniqueId, "Each TransportVersion needs a unique string id");
         Integer existing = IDS.put(uniqueId, id);
         if (existing != null) {
@@ -299,12 +301,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
      */
     public static TransportVersion max(TransportVersion version1, TransportVersion version2) {
         return version1.id > version2.id ? version1 : version2;
-    }
-
-    public final int id;
-
-    TransportVersion(int id) {
-        this.id = id;
     }
 
     /**

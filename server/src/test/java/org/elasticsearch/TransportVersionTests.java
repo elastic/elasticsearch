@@ -138,7 +138,7 @@ public class TransportVersionTests extends ESTestCase {
         );
         TransportVersion version = TransportVersionUtils.randomVersion();
         TransportVersion version1 = TransportVersionUtils.randomVersion();
-        if (version.id <= version1.id) {
+        if (version.id() <= version1.id()) {
             assertEquals(version, TransportVersion.min(version1, version));
         } else {
             assertEquals(version1, TransportVersion.min(version1, version));
@@ -150,7 +150,7 @@ public class TransportVersionTests extends ESTestCase {
         assertEquals(TransportVersion.CURRENT, TransportVersion.max(TransportVersion.fromId(1_01_01_99), TransportVersion.CURRENT));
         TransportVersion version = TransportVersionUtils.randomVersion();
         TransportVersion version1 = TransportVersionUtils.randomVersion();
-        if (version.id >= version1.id) {
+        if (version.id() >= version1.id()) {
             assertEquals(version, TransportVersion.max(version1, version));
         } else {
             assertEquals(version1, TransportVersion.max(version1, version));
@@ -159,12 +159,12 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testVersionConstantPresent() {
         Set<TransportVersion> ignore = Set.of(TransportVersion.ZERO, TransportVersion.CURRENT, TransportVersion.MINIMUM_COMPATIBLE);
-        assertThat(TransportVersion.CURRENT, sameInstance(TransportVersion.fromId(TransportVersion.CURRENT.id)));
+        assertThat(TransportVersion.CURRENT, sameInstance(TransportVersion.fromId(TransportVersion.CURRENT.id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             TransportVersion version = TransportVersionUtils.randomVersion(ignore);
 
-            assertThat(version, sameInstance(TransportVersion.fromId(version.id)));
+            assertThat(version, sameInstance(TransportVersion.fromId(version.id())));
         }
     }
 

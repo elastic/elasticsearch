@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermissionResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
@@ -101,7 +102,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             apiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        rolesRetrievalResult.addDescriptors(maybeRemoveRoleDescriptorsUsingWorkflows(Set.copyOf(roleDescriptors)));
         listener.onResponse(rolesRetrievalResult);
     }
 
@@ -116,7 +117,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             bwcApiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        rolesRetrievalResult.addDescriptors(maybeRemoveRoleDescriptorsUsingWorkflows(Set.copyOf(roleDescriptors)));
         listener.onResponse(rolesRetrievalResult);
     }
 
@@ -127,7 +128,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         serviceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
             final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-            rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
+            rolesRetrievalResult.addDescriptors(maybeRemoveRoleDescriptorsUsingWorkflows(Set.of(roleDescriptor)));
             return rolesRetrievalResult;
         }));
     }
@@ -171,7 +172,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 logger.debug(() -> format("Could not find roles with names %s", rolesRetrievalResult.getMissingRoles()));
             }
             final Set<RoleDescriptor> effectiveDescriptors = maybeSkipRolesUsingDocumentOrFieldLevelSecurity(
-                rolesRetrievalResult.getRoleDescriptors()
+                maybeRemoveRoleDescriptorsUsingWorkflows(rolesRetrievalResult.getRoleDescriptors())
             );
             logger.trace(() -> format("Exposing effective role descriptors [%s] for role names [%s]", effectiveDescriptors, roleNames));
             effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
@@ -276,6 +277,30 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 providerListener.onResponse(result);
             }, providerListener::onFailure));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
+    }
+
+    private Set<RoleDescriptor> maybeRemoveRoleDescriptorsUsingWorkflows(Set<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors.stream().filter(roleDescriptor -> {
+            // TODO: Add license check and disable the role if license is not allowing workflow feature.
+            final String restEndpoint = threadContext.getHeader("_xpack_rest_handler_name");
+            logger.trace(() -> "Filtering role descriptors based on rest endpoint: " + restEndpoint);
+            boolean includeDescriptor = true;
+            if (restEndpoint == null) {
+                includeDescriptor = roleDescriptor.hasWorkflowPrivileges() == false;
+            } else if (roleDescriptor.hasWorkflowPrivileges()) {
+                includeDescriptor = WorkflowPermissionResolver.resolve(Set.of(roleDescriptor.getWorkflowPrivileges()))
+                    .checkEndpoint(restEndpoint);
+            }
+            if (includeDescriptor == false) {
+                logger.debug(
+                    () -> format(
+                        "Ignoring role descriptor [%s] as it includes workflow permissions which are not supported.",
+                        roleDescriptor.getName()
+                    )
+                );
+            }
+            return includeDescriptor;
+        }).collect(Collectors.toSet());
     }
 
 }

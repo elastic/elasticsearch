@@ -157,16 +157,6 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeEndpoint(String endpoint, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
-            final Role role = rbacAuthzInfo.getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(new AuthorizationResult(role.checkWorkflowEndpoint(endpoint)));
-        } else {
-            listener.onFailure(new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass()));
-        }
-    }
-
-    @Override
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();

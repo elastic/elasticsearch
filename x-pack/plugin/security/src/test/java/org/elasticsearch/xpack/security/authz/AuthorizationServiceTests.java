@@ -2860,15 +2860,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public void authorizeEndpoint(
-                String endpoint,
-                AuthorizationInfo authorizationInfo,
-                ActionListener<AuthorizationResult> listener
-            ) {
-                throw new UnsupportedOperationException("not implemented");
-            }
-
-            @Override
             public void authorizeRunAs(
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,

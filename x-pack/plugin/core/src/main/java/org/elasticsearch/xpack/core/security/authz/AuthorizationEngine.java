@@ -121,8 +121,6 @@ public interface AuthorizationEngine {
      */
     void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener);
 
-    void authorizeEndpoint(String endpoint, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
-
     /**
      * Asynchronously authorizes an attempt for a user to run as another user.
      *

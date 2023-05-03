@@ -257,7 +257,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             || hasConfigurableClusterPrivileges()
             || hasApplicationPrivileges()
             || hasRunAs()
-            || hasRemoteIndicesPrivileges();
+            || hasRemoteIndicesPrivileges()
+            || hasWorkflowPrivileges();
     }
 
     public String[] getRunAs() {

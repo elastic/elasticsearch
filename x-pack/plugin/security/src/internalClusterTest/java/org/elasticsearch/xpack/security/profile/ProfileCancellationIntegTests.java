@@ -384,15 +384,6 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 }
 
                 @Override
-                public void authorizeEndpoint(
-                    String endpoint,
-                    AuthorizationInfo authorizationInfo,
-                    ActionListener<AuthorizationResult> listener
-                ) {
-                    listener.onResponse(AuthorizationResult.granted());
-                }
-
-                @Override
                 public void authorizeRunAs(
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,

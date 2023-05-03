@@ -265,7 +265,6 @@ public class AuthorizationService {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
         final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
-        final String restEndpoint = securityContext.getThreadContext().getHeader("_xpack_rest_handler_name");
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -318,16 +317,8 @@ public class AuthorizationService {
                 );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
-                    engine.authorizeEndpoint(restEndpoint, authorizationInfo, ActionListener.wrap(result -> {
-                        if (result.isGranted()) {
-                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                        } else {
-                            logger.debug("denying access as request is not allowed for endpoint [{}]", restEndpoint);
-                            auditTrailService.get().accessDenied(auditId, authentication, action, unwrappedRequest, authorizationInfo);
-                            listener.onFailure(new ElasticsearchSecurityException("access to [" + restEndpoint + "] is not allowed"));
-                        }
-                    }, listener::onFailure));
+                    threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                    maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
                 }, listener::onFailure), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }

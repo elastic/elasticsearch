@@ -51,6 +51,7 @@ public class InternalUsers {
             null /* CrossClusterAccessUser has a role descriptor, but it should never be resolved by this class */,
             CrossClusterAccessUser::is
         );
+        defineUser(StorageInternalUser.NAME, StorageInternalUser.INSTANCE, StorageInternalUser.ROLE_DESCRIPTOR, StorageInternalUser::is);
     }
 
     private static void defineUser(String name, User user, @Nullable RoleDescriptor roleDescriptor, Predicate<User> predicate) {

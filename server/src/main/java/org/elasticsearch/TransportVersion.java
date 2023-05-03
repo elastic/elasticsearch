@@ -59,6 +59,11 @@ import java.util.TreeMap;
  */
 public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
+    /*
+     * NOTE: IntelliJ lies!
+     * This map is used during class construction, referenced by the registerTransportVersion method.
+     * When all the transport version constants have been registered, the map is cleared & never touched again.
+     */
     private static Map<String, Integer> IDS = new HashMap<>();
 
     private static TransportVersion registerTransportVersion(int id, String uniqueId) {
@@ -171,7 +176,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      */
 
     static {
-        // now we're registered the TVs, we can remove the map
+        // see comment on IDS field
+        // now we're registered the transport versions, we can clear the map
         IDS = null;
     }
 
@@ -306,28 +312,4 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public String toString() {
         return Integer.toString(id);
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        TransportVersion version = (TransportVersion) o;
-
-        if (id != version.id) {
-            return false;
-        }
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return id;
-    }
-
 }

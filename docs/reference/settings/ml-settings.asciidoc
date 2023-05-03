@@ -182,7 +182,7 @@ arbitrarily large nodes to the cluster.
 `xpack.ml.model_repository`::
 (<<cluster-update-settings,Dynamic>>)
 The location of the {ml} model repository where the model artifact files are 
-available in case of a modell installation in a restricted or closed network. 
+available in case of a model installation in a restricted or closed network. 
 `xpack.ml.model_repository` can be a string of a file location or an HTTP/HTTPS 
 server. Example values can be:
 ```

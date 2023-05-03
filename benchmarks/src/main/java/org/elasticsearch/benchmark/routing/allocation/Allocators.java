@@ -81,7 +81,10 @@ public final class Allocators {
     }
 
     public static AllocationService createAllocationService(
-        Settings settings, ClusterSettings clusterSettings, LongSupplier nanoTimeSupplier) {
+        Settings settings,
+        ClusterSettings clusterSettings,
+        LongSupplier nanoTimeSupplier
+    ) {
         return new AllocationService(
             defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE,

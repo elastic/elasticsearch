@@ -1617,7 +1617,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(
-                    runnable -> DeterministicTaskQueue.onNodeLog(node, runnable), System::nanoTime
+                    runnable -> DeterministicTaskQueue.onNodeLog(node, runnable),
+                    System::nanoTime
                 );
                 masterService = new FakeThreadPoolMasterService(node.getName(), threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();

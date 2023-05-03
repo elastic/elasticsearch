@@ -62,24 +62,31 @@ public abstract class PipelineRegistry implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        ClusterState state = event.state();
-        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            // wait until recovered from disk, so the cluster state view is consistent
-            return;
-        }
 
-        DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
-        if (masterNode == null || state.nodes().isLocalNodeElectedMaster() == false) {
-            // no master node elected or current node is not master
-            return;
+        if (isClusterReady(event)) {
+            addIngestPipelinesIfMissing(event.state());
         }
-
-        addIngestPipelinesIfMissing(state);
     }
 
     protected abstract String getOrigin();
 
     protected abstract List<PipelineTemplateConfiguration> getIngestPipelineConfigs();
+
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        ClusterState state = event.state();
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait until recovered from disk, so the cluster state view is consistent
+            return false;
+        }
+
+        DiscoveryNode masterNode = event.state().getNodes().getMasterNode();
+        if (masterNode == null || state.nodes().isLocalNodeElectedMaster() == false) {
+            // no master node elected or current node is not master
+            return false;
+        }
+
+        return true;
+    }
 
     private void addIngestPipelinesIfMissing(ClusterState state) {
         for (PipelineTemplateConfiguration pipelineTemplateConfig : getIngestPipelineConfigs()) {
@@ -121,7 +128,7 @@ public abstract class PipelineRegistry implements ClusterStateListener {
         }
     }
 
-    private static boolean ingestPipelineExists(ClusterState state, String pipelineId) {
+    protected boolean ingestPipelineExists(ClusterState state, String pipelineId) {
         Optional<IngestMetadata> maybeMeta = Optional.ofNullable(state.metadata().custom(IngestMetadata.TYPE));
         return maybeMeta.isPresent() && maybeMeta.get().getPipelines().containsKey(pipelineId);
     }

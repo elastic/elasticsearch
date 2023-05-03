@@ -294,6 +294,14 @@ public class SubscribableListener<T> implements ActionListener<T> {
         }
     }
 
+    /**
+     * Adds a timeout to this listener, such that if the timeout elapses before the listener is completed then it will be completed with an
+     * {@link ElasticsearchTimeoutException}.
+     * <p>
+     * The process which is racing against this timeout should stop and clean up promptly when the timeout occurs to avoid unnecessary
+     * work. For instance, it could check that the race is not lost by calling {@link #isDone} whenever appropriate, or it could subscribe
+     * another listener which performs any necessary cleanup steps.
+     */
     public void addTimeout(TimeValue timeout, ThreadPool threadPool, String timeoutExecutor) {
         if (isDone()) {
             return;

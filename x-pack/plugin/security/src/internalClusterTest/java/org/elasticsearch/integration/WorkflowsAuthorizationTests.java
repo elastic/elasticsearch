@@ -101,7 +101,8 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "action [indices:data/read/search] is unauthorized for user [user_b] with effective roles [] (assigned roles [role_b] were not found)"
+                "action [indices:data/read/search] is unauthorized for user [user_b] "
+                    + "with effective roles [] (assigned roles [role_b] were not found)"
             )
         );
 
@@ -109,7 +110,8 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "action [cluster:monitor/xpack/license/get] is unauthorized for user [user_b] with effective roles [] (assigned roles [role_b] were not found)"
+                "action [cluster:monitor/xpack/license/get] is unauthorized for user [user_b] "
+                    + "with effective roles [] (assigned roles [role_b] were not found)"
             )
         );
     }

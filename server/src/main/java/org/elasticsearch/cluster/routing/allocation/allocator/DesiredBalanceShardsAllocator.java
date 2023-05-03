@@ -85,7 +85,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             threadPool,
             clusterService,
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
-            new DesiredBalanceReconciler(),
+            new DesiredBalanceReconciler(clusterSettings, threadPool),
             reconciler
         );
     }

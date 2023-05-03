@@ -114,7 +114,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
                 return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
             }
         };
-        var reconciler = new DesiredBalanceReconciler();
+        var reconciler = new DesiredBalanceReconciler(clusterSettings, threadPool);
         var allocator = new DesiredBalanceShardsAllocator(
             delegate,
             threadPool,

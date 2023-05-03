@@ -23,9 +23,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -45,7 +49,33 @@ public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
 
+    public static final Setting<TimeValue> UNDESIRED_LOG_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.routing.allocation.desired_balance.undesired_allocations.log_interval",
+        TimeValue.timeValueHours(1),
+        TimeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Double> UNDESIRED_LOG_THRESHOLD_SETTING = Setting.doubleSetting(
+        "cluster.routing.allocation.desired_balance.undesired_allocations.threshold",
+        0.1,
+        0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    private TimeValue undesiredLogInterval;
+    private double undesiredLogThreshold;
+
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
+    private final ThreadPool threadPool;
+
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this.threadPool = threadPool;
+        clusterSettings.initializeAndWatch(UNDESIRED_LOG_INTERVAL_SETTING, value -> this.undesiredLogInterval = value);
+        clusterSettings.initializeAndWatch(UNDESIRED_LOG_THRESHOLD_SETTING, value -> this.undesiredLogThreshold = value);
+    }
 
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
         allocationOrdering.retainNodes(getNodeIds(allocation.routingNodes()));
@@ -66,7 +96,7 @@ public class DesiredBalanceReconciler {
         private final RoutingAllocation allocation; // name chosen to align with code in BalancedShardsAllocator but TODO rename
         private final RoutingNodes routingNodes;
 
-        public Reconciler(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        Reconciler(DesiredBalance desiredBalance, RoutingAllocation allocation) {
             this.desiredBalance = desiredBalance;
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();

@@ -453,9 +453,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testDurationSerialization() throws IOException {
-        Stream.generate(AbstractStreamTests::randomDuration)
-            .limit(100)
-            .forEach(this::assertDurationSerialization);
+        Stream.generate(AbstractStreamTests::randomDuration).limit(100).forEach(this::assertDurationSerialization);
     }
 
     void assertDurationSerialization(Duration duration) {
@@ -471,9 +469,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testPeriodSerialization() {
-        Stream.generate(AbstractStreamTests::randomPeriod)
-            .limit(100)
-            .forEach(this::assertPeriodSerialization);
+        Stream.generate(AbstractStreamTests::randomPeriod).limit(100).forEach(this::assertPeriodSerialization);
     }
 
     void assertPeriodSerialization(Period period) {
@@ -489,22 +485,26 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     static Duration randomDuration() {
-        return randomFrom(List.of(
-            Duration.ofNanos(randomIntBetween(1, 100_000)),
-            Duration.ofMillis(randomIntBetween(1, 1_000)),
-            Duration.ofSeconds(randomIntBetween(1, 100)),
-            Duration.ofHours(randomIntBetween(1, 10)),
-            Duration.ofDays(randomIntBetween(1, 5))
-        ));
+        return randomFrom(
+            List.of(
+                Duration.ofNanos(randomIntBetween(1, 100_000)),
+                Duration.ofMillis(randomIntBetween(1, 1_000)),
+                Duration.ofSeconds(randomIntBetween(1, 100)),
+                Duration.ofHours(randomIntBetween(1, 10)),
+                Duration.ofDays(randomIntBetween(1, 5))
+            )
+        );
     }
 
     static Period randomPeriod() {
-        return randomFrom(List.of(
-            Period.ofDays(randomIntBetween(1, 31)),
-            Period.ofWeeks(randomIntBetween(1, 52)),
-            Period.ofMonths(randomIntBetween(1, 12)),
-            Period.ofYears(randomIntBetween(1, 1000))
-        ));
+        return randomFrom(
+            List.of(
+                Period.ofDays(randomIntBetween(1, 31)),
+                Period.ofWeeks(randomIntBetween(1, 52)),
+                Period.ofMonths(randomIntBetween(1, 12)),
+                Period.ofYears(randomIntBetween(1, 1000))
+            )
+        );
     }
 
     public void testOptionalInstantSerialization() throws IOException {

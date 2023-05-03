@@ -860,7 +860,9 @@ public class DataLifecycleServiceTests extends ESTestCase {
         return new DataLifecycleService.ForceMergeRequestWrapper(original);
     }
 
-    private static DataLifecycleService.ForceMergeRequestWrapper mutateForceMergeRequestWrapper(DataLifecycleService.ForceMergeRequestWrapper original) {
+    private static DataLifecycleService.ForceMergeRequestWrapper mutateForceMergeRequestWrapper(
+        DataLifecycleService.ForceMergeRequestWrapper original
+    ) {
         switch (randomIntBetween(0, 4)) {
             case 0 -> {
                 DataLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);

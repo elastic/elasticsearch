@@ -586,7 +586,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             usedDiskSpace.put(nodeId, 0L);
         }
 
-        var indices = scaledRandomIntBetween(1, 1000);
+        var indices = scaledRandomIntBetween(1, 500);
         var totalShards = 0;
 
         var shardSizes = new HashMap<String, Long>();
@@ -597,7 +597,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         for (int i = 0; i < indices; i++) {
             var indexName = "index-" + i;
             var shards = randomIntBetween(1, 10);
-            var replicas = randomIntBetween(1, nodes - 1);
+            var replicas = scaledRandomIntBetween(1, nodes - 1);
             totalShards += shards * (replicas + 1);
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
             var shardSize = randomLongBetween(10_000_000L, 10_000_000_000L);

@@ -3,15 +3,16 @@ pluginManagement {
     mavenCentral()
     gradlePluginPortal()
   }
+
+    includeBuild "build-conventions"
+  includeBuild "build-tools"
+  includeBuild "build-tools-internal"
 }
 
 plugins {
   id "com.gradle.enterprise" version "3.16.1"
+  id 'elasticsearch.java-toolchain'
 }
-
-includeBuild "build-conventions"
-includeBuild "build-tools"
-includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -302,12 +303,23 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * Returns true if the cluster state contains all of the dependencies required by the provided component template
      */
     private static boolean templateDependenciesExist(ClusterState state, ComponentTemplate indexTemplate) {
+        Template template = indexTemplate.template();
+        if (template == null) {
+            return true;
+        }
+        Settings settings = template.settings();
+        if (settings == null) {
+            return true;
+        }
         IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        String defaultPipeline = indexTemplate.template().settings().get("index.default_pipeline");
+        if (ingestMetadata == null) {
+            return false;
+        }
+        String defaultPipeline = settings.get("index.default_pipeline");
         if (defaultPipeline != null && ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
             return false;
         }
-        String finalPipeline = indexTemplate.template().settings().get("index.final_pipeline");
+        String finalPipeline = settings.get("index.final_pipeline");
         return finalPipeline == null || ingestMetadata.getPipelines().containsKey(finalPipeline);
     }
 

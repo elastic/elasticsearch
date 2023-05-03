@@ -62,7 +62,7 @@ import java.util.regex.Pattern;
  */
 public class TransportVersion implements Comparable<TransportVersion> {
 
-    private static final Map<String, Integer> IDS = new HashMap<>();
+    private static Map<String, Integer> IDS = new HashMap<>();
 
     private static TransportVersion registerTransportVersion(int id, String uniqueId) {
         Strings.requireNonEmpty(uniqueId, "Each TransportVersion needs a unique string id");
@@ -170,6 +170,11 @@ public class TransportVersion implements Comparable<TransportVersion> {
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
+
+    static {
+        // now we're registered the TVs, we can remove the map
+        IDS = null;
+    }
 
     /**
      * Reference to the most recent transport version.

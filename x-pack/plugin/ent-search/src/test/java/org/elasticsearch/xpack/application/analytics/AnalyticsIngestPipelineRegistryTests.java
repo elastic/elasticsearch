@@ -264,17 +264,7 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
             .putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines));
 
         if (withDataStreams) {
-            DataStream dataStream = new DataStream(
-                AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX + randomIdentifier(),
-                randomList(1, 10, () -> new Index(randomIdentifier(), randomIdentifier())),
-                0,
-                Collections.emptyMap(),
-                false,
-                false,
-                false,
-                false,
-                IndexMode.STANDARD
-            );
+            DataStream dataStream = createDataStream();
             metadataBuilder.dataStreams(
                 MapBuilder.<String, DataStream>newMapBuilder().put(dataStream.getName(), dataStream).map(),
                 Collections.emptyMap()
@@ -282,12 +272,24 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
         }
 
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder().transientSettings(Settings.EMPTY).putCustom(IngestMetadata.TYPE, new IngestMetadata(pipelines)).build()
-            )
+            .metadata(metadataBuilder)
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();
+    }
+
+    private DataStream createDataStream() {
+        return new DataStream(
+            AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX + randomIdentifier(),
+            randomList(1, 10, () -> new Index(randomIdentifier(), randomIdentifier())),
+            0,
+            Collections.emptyMap(),
+            false,
+            false,
+            false,
+            false,
+            IndexMode.STANDARD
+        );
     }
 
     private PipelineConfiguration createMockPipelineConfiguration(String pipelineId, int version) {

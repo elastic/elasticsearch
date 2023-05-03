@@ -16,7 +16,7 @@ import java.util.Set;
 
 public record WorkflowPermission(Set<Workflow> workflows) {
 
-    public static final TransportVersion WORKFLOW_VERSION = TransportVersion.V_8_8_0;
+    public static final TransportVersion WORKFLOW_VERSION = TransportVersion.V_8_9_0;
 
     public static final FeatureFlag WORKFLOW_FEATURE_FLAG = new FeatureFlag("workflow_authorization");
 

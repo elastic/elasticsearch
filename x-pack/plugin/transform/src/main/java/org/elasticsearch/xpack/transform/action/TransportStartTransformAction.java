@@ -196,7 +196,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             );
         }, e -> {
             if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
-                logger.debug(() -> format("[%s] Validation failed: %s", transformConfigHolder.get().getId(), e.getMessage()));
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );

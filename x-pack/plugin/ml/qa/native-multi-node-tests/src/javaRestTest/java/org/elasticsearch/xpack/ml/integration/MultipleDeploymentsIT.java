@@ -43,8 +43,17 @@ public class MultipleDeploymentsIT extends PyTorchModelRestTestCase {
         inference = infer("my words", forIngest);
         assertOK(inference);
 
-        assertInferenceCount(1, forSearch);
-        assertInferenceCount(2, forIngest);
+        assertInferenceCountOnDeployment(1, forSearch);
+        assertInferenceCountOnDeployment(2, forIngest);
+
+        // infer by model Id
+        inference = infer("my words", baseModelId);
+        assertOK(inference);
+        assertInferenceCountOnModel(4, baseModelId);
+
+        inference = infer("my words", baseModelId);
+        assertOK(inference);
+        assertInferenceCountOnModel(5, baseModelId);
 
         stopDeployment(forSearch);
         stopDeployment(forIngest);

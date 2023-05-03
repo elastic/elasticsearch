@@ -1,5 +1,0 @@
-pr: 94931
-summary: Reuse `FieldPermissionsCache` in Role parsing
-area: Authorization
-type: enhancement
-issues: []

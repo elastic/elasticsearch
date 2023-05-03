@@ -67,9 +67,8 @@ public class DlmPermissionsIT extends ESRestTestCase {
         makeRequest(client(), deleteLifecycleRequest, true);
         makeRequest(client(), putLifecycleRequest, true);
 
-        Request deniedPutLifecycleRequest = new Request("PUT", "_data_stream/no-access-dlm-test/_lifecycle");
-        deniedPutLifecycleRequest.setJsonEntity("{}");
-        makeRequest(client(), deniedPutLifecycleRequest, false);
+        makeRequest(client(), requestWithBody("PUT", "_data_stream/no-access-dlm-test/_lifecycle", "{}"), false);
+        makeRequest(client(), new Request("DELETE", "_data_stream/no-access-dlm-test/_lifecycle"), false);
 
         try (RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
             makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
@@ -181,7 +180,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
     }
 
     public void testAuthorizeDlmForComponentTemplateActions() throws IOException {
-        makeRequest(client(), newRequest("PUT", "/_component_template/lifecycle", """
+        makeRequest(client(), requestWithBody("PUT", "/_component_template/lifecycle", """
             {
               "template": {
                   "settings": {
@@ -190,21 +189,21 @@ public class DlmPermissionsIT extends ESRestTestCase {
               }
             }"""), true);
 
-        makeRequest(client(), newRequest("PUT", "/_index_template/dlm_test_template", """
+        makeRequest(client(), requestWithBody("PUT", "/_index_template/dlm_test_template", """
             {
                 "index_patterns": ["dlm-test*"],
                 "data_stream": { },
                 "composed_of": [ "lifecycle" ]
             }"""), true);
 
-        makeRequest(client(), newRequest("PUT", "/_index_template/dlm_test_template_2", """
+        makeRequest(client(), requestWithBody("PUT", "/_index_template/dlm_test_template_2", """
             {
                 "index_patterns": ["other-dlm-test*"],
                 "data_stream": { },
                 "composed_of": [ "lifecycle" ]
             }"""), true);
 
-        makeRequest(client(), newRequest("PUT", "/_component_template/lifecycle", """
+        makeRequest(client(), requestWithBody("PUT", "/_component_template/lifecycle", """
             {
               "template": {
                   "lifecycle": {
@@ -217,7 +216,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
             }"""), false);
     }
 
-    private Request newRequest(String method, String endpoint, String jsonBody) {
+    private Request requestWithBody(String method, String endpoint, String jsonBody) {
         var request = new Request(method, endpoint);
         request.setJsonEntity(jsonBody);
         return request;

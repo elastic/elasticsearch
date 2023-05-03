@@ -51,22 +51,20 @@ public class DynamicTemplate implements ToXContentObject {
              * regular ES field name (or dotted path) with no regex metacharacters.
              *
              * The method looks for the presence of standard regex metacharacters
-             * like $, ^, |, .*, or paired braces or brackets.
-             * If found, it will then attempt to compile it as a regex to determine
-             * if it is a valid regex.
+             * like $, ^, |, .*, or paired braces or brackets. If found, it will then
+             * attempt to compile it as a regex to determine if it is a valid regex.
              *
-             * This function should be used as a heuristic to warn users
-             * if they appear to be passing in a regex in a "simple" match scenario.
+             * It will add a {@link HeaderWarning} if the user appears to be passing in a regex
+             * in a default (simple) match scenario.
              *
              * @param pattern pattern to evaluate
-             * @throws IllegalArgumentException if the pattern has at least one Java regex metacharacter,
-             *         and it parses correctly as a Java regex.
+             * @return true if pattern is valid, false if not
              */
             @Override
-            public void validate(String pattern) {
-                // regex's cannot start with '*' so we assume this is valid (not a regex)
+            public boolean isValidPattern(String pattern, String templateName) {
+                // regexes cannot start with '*' so we assume this is valid (not a regex)
                 if (pattern.startsWith("*")) {
-                    return;
+                    return true;
                 }
 
                 boolean regexCandidate = false;
@@ -87,13 +85,20 @@ public class DynamicTemplate implements ToXContentObject {
                 if (regexCandidate) {
                     try {
                         Pattern.compile(pattern);
-                        throw new IllegalArgumentException(
-                            "Pattern [" + pattern + "] appears to be a regular expression, not a simple wildcard pattern"
-                        );
+                        // simple patterns only warrant a warning and only if the user did not explicitly set match_pattern=simple
+                        String warning = "Pattern ["
+                            + pattern
+                            + "] in dynamic template ["
+                            + templateName
+                            + "] appears to be a regular expression, not a simple wildcard pattern"
+                            + ". To remove this warning, set [match_pattern] in the dynamic template.";
+                        HeaderWarning.addWarning(warning);
+                        return false;
                     } catch (PatternSyntaxException e) {
-                        // does not compile to a regex, so cannot be one, so ignore
+                        // ignore since it is not a valid regex
                     }
                 }
+                return true;
             }
         },
         SIMPLE {
@@ -107,9 +112,13 @@ public class DynamicTemplate implements ToXContentObject {
                 return "simple";
             }
 
+            /**
+             * @return true if valid pattern, false if not
+             */
             @Override
-            public void validate(String pattern) {
-                // no-op. All patterns are valid if user explicitly set match_pattern=simple
+            public boolean isValidPattern(String pattern, String templateName) {
+                // All patterns are valid if user explicitly set match_pattern=simple
+                return true;
             }
         },
         REGEX {
@@ -125,13 +134,27 @@ public class DynamicTemplate implements ToXContentObject {
 
             /**
              * If pattern is valid, no exception is thrown.
-             * @param pattern pattern to evaluate
-             * @throws PatternSyntaxException if pattern is not a valid Java regex
+             * @param pattern to evaluate
+             * @return true if valid pattern (throws Exception if not)
+             * @throws MapperParsingException if pattern is not a valid Java regex
              */
             @Override
-            public void validate(String pattern) {
-                // if it parses as a Java regex, it is valid
-                this.matches(pattern, "");  // throws PatternSyntaxException if invalid regex
+            public boolean isValidPattern(String pattern, String templateName) {
+                try {
+                    // if it parses as a Java regex, it is valid
+                    this.matches(pattern, "");
+                    return true;
+                } catch (PatternSyntaxException e) {
+                    // fail dynamic_template calls that have invalid regexes
+                    throw new MapperParsingException(
+                        Strings.format(
+                            "Pattern [%s] of type [regex] is invalid. Cannot create dynamic template [%s].",
+                            pattern,
+                            templateName
+                        ),
+                        e
+                    );
+                }
             }
         };
 
@@ -149,9 +172,11 @@ public class DynamicTemplate implements ToXContentObject {
 
         /**
          * Whether the {@code pattern} is a valid for the MatchType.
+         * @param pattern to validate
+         * @param templateName naming of the dynamic_template passed in (for use in warnings/error messages)
          * @throws IllegalArgumentException if the pattern is not valid
          */
-        public abstract void validate(String pattern);
+        public abstract boolean isValidPattern(String pattern, String templateName);
     }
 
     /** The type of a field as detected while parsing a json document. */
@@ -314,7 +339,11 @@ public class DynamicTemplate implements ToXContentObject {
         List<String> allPatterns = Stream.of(match.stream(), unmatch.stream(), pathMatch.stream(), pathUnmatch.stream())
             .flatMap(s -> s)
             .toList();
-        validatePatterns(name, matchType, allPatterns);
+        for (String pattern : allPatterns) {
+            // no need to check return value - the method impls either have side effects (set header warnings)
+            // or throw an exception that should be sent back to the user
+            matchType.isValidPattern(pattern, name);
+        }
 
         return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xContentFieldTypes, matchType, mapping, runtime);
     }
@@ -348,26 +377,9 @@ public class DynamicTemplate implements ToXContentObject {
 
     private static void validatePatterns(String templateName, MatchType matchType, List<String> patterns) {
         for (String pattern : patterns) {
-            try {
-                matchType.validate(pattern);
-            } catch (IllegalArgumentException e) {
-                if (matchType == MatchType.DEFAULT) {
-                    // simple patterns only warrant a warning and only if the user did not explicitly set match_pattern=simple
-                    String warning = e.getMessage() + ". To remove this warning, set [match_pattern] in the dynamic template.";
-                    HeaderWarning.addWarning(warning);
-                } else {
-                    // fail dynamic_template calls that have invalid regexes
-                    throw new MapperParsingException(
-                        Strings.format(
-                            "Pattern [%s] of type [%s] is invalid. Cannot create dynamic template [%s].",
-                            pattern,
-                            matchType,
-                            templateName
-                        ),
-                        e
-                    );
-                }
-            }
+            // no need to check results - the method impls either have side effects (set header warnings)
+            // or throw an exception that should be sent back to the user
+            matchType.isValidPattern(pattern, templateName);
         }
     }
 

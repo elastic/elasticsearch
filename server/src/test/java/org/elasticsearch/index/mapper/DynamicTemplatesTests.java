@@ -30,9 +30,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
@@ -1957,10 +1958,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         // patterns that appear to be regexes when using simple matching show up as warnings in the headers
         assertWarnings(
-            "Pattern [.*two$] appears to be a regular expression, not a simple wildcard pattern. "
-                + "To remove this warning, set [match_pattern] in the dynamic template.",
-            "Pattern [^xyz.*] appears to be a regular expression, not a simple wildcard pattern. "
-                + "To remove this warning, set [match_pattern] in the dynamic template."
+            "Pattern [.*two$] in dynamic template [test] appears to be a regular expression, "
+                + "not a simple wildcard pattern. To remove this warning, set [match_pattern] in the dynamic template.",
+            "Pattern [^xyz.*] in dynamic template [test] appears to be a regular expression, "
+                + "not a simple wildcard pattern. To remove this warning, set [match_pattern] in the dynamic template."
         );
     }
 
@@ -2015,10 +2016,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("ip", fieldMapper.typeName());
 
         assertWarnings(
-            "Pattern [[xyz]*.*] appears to be a regular expression, not a simple wildcard pattern. "
-                + "To remove this warning, set [match_pattern] in the dynamic template.",
-            "Pattern [^quux.*] appears to be a regular expression, not a simple wildcard pattern. "
-                + "To remove this warning, set [match_pattern] in the dynamic template."
+            "Pattern [[xyz]*.*] in dynamic template [test] appears to be a regular expression, "
+                + "not a simple wildcard pattern. To remove this warning, set [match_pattern] in the dynamic template.",
+            "Pattern [^quux.*] in dynamic template [test] appears to be a regular expression, "
+                + "not a simple wildcard pattern. To remove this warning, set [match_pattern] in the dynamic template."
         );
     }
 
@@ -2406,22 +2407,22 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         DynamicTemplate.MatchType matchType = DynamicTemplate.MatchType.DEFAULT;
 
+        List<String> expectedWarnings = new ArrayList<>();
         for (MatchPattern c : candidates) {
-            if (c.isValid) {
-                // should not throw an Exception
-                matchType.validate(c.pattern);
-            } else {
-                Exception e = expectThrows(
-                    IllegalArgumentException.class,
-                    "pattern tested: " + c.pattern,
-                    () -> matchType.validate(c.pattern)
-                );
-                assertThat(
-                    e.getMessage(),
-                    containsString("Pattern [" + c.pattern + "] appears to be a regular expression, not a simple wildcard pattern")
+            assertThat(matchType.isValidPattern(c.pattern, "my-template"), is(c.isValid));
+
+            if (c.isValid == false) {
+                expectedWarnings.add(
+                    "Pattern ["
+                        + c.pattern
+                        + "] in dynamic template [my-template] appears to be a regular expression, "
+                        + "not a simple wildcard pattern. To remove this warning, set [match_pattern] in the dynamic template."
                 );
             }
         }
+
+        // DEFAULT match type isValidPattern adds header warnings, so ensure all expected ones are present
+        assertWarnings(expectedWarnings.toArray(new String[0]));
     }
 
     public void testIsValidPatternForSimpleMatchType() {
@@ -2454,7 +2455,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         for (String pattern : candidates) {
             // should not throw an Exception
-            matchType.validate(pattern);
+            assertTrue("pattern: " + pattern, matchType.isValidPattern(pattern, "my-template"));
         }
     }
 
@@ -2493,12 +2494,12 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         for (MatchPattern c : candidates) {
             if (c.isValid) {
                 // should not throw an Exception
-                matchType.validate(c.pattern);
+                assertTrue("pattern: " + c.pattern, matchType.isValidPattern(c.pattern, "my-template"));
             } else {
                 Exception e = expectThrows(
-                    PatternSyntaxException.class,
+                    MapperParsingException.class,
                     "pattern tested: " + c.pattern,
-                    () -> matchType.validate(c.pattern)
+                    () -> matchType.isValidPattern(c.pattern, "my-template")
                 );
             }
         }

@@ -120,7 +120,7 @@ public class LocalClusterFactory implements ClusterFactory<LocalClusterSpec, Loc
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
-            this.name = spec.getCluster().getName() + "-" + (suffix == null ? spec.getName() : spec.getName() + "-" + suffix);
+            this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
             this.workingDir = baseWorkingDir.resolve(name);
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");

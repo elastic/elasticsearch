@@ -121,9 +121,11 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                     final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
                         .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
                         .orElse(
-                            task.getExtensions().getExtraProperties().has("refspec")
-                                ? task.getExtensions().getExtraProperties().get("refspec").toString()
-                                : null
+                            providerFactory.provider(
+                                () -> task.getExtensions().getExtraProperties().has("refspec")
+                                    ? task.getExtensions().getExtraProperties().get("refspec").toString()
+                                    : null
+                            )
                         )
                         .getOrElse(remote.get() + "/" + bwcBranch);
 

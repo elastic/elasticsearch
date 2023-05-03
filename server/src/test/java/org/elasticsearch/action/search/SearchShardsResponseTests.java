@@ -9,17 +9,16 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,15 +42,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
 
     @Override
     protected SearchShardsResponse createTestInstance() {
-        List<DiscoveryNode> nodes = randomList(
-            1,
-            10,
-            () -> new DiscoveryNode(
-                UUIDs.randomBase64UUID(),
-                new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-                VersionUtils.randomVersion(random())
-            )
-        );
+        List<DiscoveryNode> nodes = randomList(1, 10, () -> TestDiscoveryNode.create(UUIDs.randomBase64UUID()));
         int numGroups = randomIntBetween(0, 10);
         List<SearchShardsGroup> groups = new ArrayList<>();
         for (int i = 0; i < numGroups; i++) {
@@ -88,13 +79,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             }
             case 1 -> {
                 List<DiscoveryNode> nodes = new ArrayList<>(r.getNodes());
-                nodes.add(
-                    new DiscoveryNode(
-                        UUIDs.randomBase64UUID(),
-                        new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-                        VersionUtils.randomVersion(random())
-                    )
-                );
+                nodes.add(TestDiscoveryNode.create(UUIDs.randomBase64UUID()));
                 return new SearchShardsResponse(r.getGroups(), nodes, r.getAliasFilters());
             }
             case 2 -> {

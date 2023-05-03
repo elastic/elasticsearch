@@ -14,5 +14,5 @@ dependencies {
 }
 
 tasks.named("processResources").configure {
-  from(new File(Util.locateElasticsearchWorkspace(gradle), "build-tools-internal/version.properties"))
+  from(new File(Util.locateElasticsearchWorkspace(project.gradle), "build-tools-internal/version.properties"))
 }

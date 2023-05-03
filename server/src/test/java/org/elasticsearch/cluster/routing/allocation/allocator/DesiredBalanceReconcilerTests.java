@@ -1014,14 +1014,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testDoNotRebalanceToTheNodeThatNoLongerExists() {
 
-        var indexMetadata = IndexMetadata.builder("index-1")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-            )
-            .build();
+        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(Version.CURRENT, 1, 0)).build();
         final var index = indexMetadata.getIndex();
         final var shardId = new ShardId(index, 0);
 
@@ -1228,12 +1221,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static IndexMetadata randomPriorityIndex(String name, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(name)
             .settings(
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                    .put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), between(1, 5))
-                    .put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates))
+                indexSettings(Version.CURRENT, numberOfShards, numberOfReplicas).put(
+                    IndexMetadata.INDEX_PRIORITY_SETTING.getKey(),
+                    between(1, 5)
+                ).put(IndexMetadata.SETTING_CREATION_DATE, randomFrom(creationDates))
             )
             .system(randomBoolean())
             .build();

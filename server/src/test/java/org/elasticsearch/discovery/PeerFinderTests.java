@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -872,7 +873,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(otherNode);
 
         transportAddressConnector.reachableNodes.clear();
-        final DiscoveryNode rebootedOtherNode = new DiscoveryNode("rebooted-node", otherNode.getAddress(), Version.CURRENT);
+        final DiscoveryNode rebootedOtherNode = TestDiscoveryNode.create("rebooted-node", otherNode.getAddress());
         transportAddressConnector.addReachableNode(rebootedOtherNode);
 
         connectedNodes.remove(otherNode);
@@ -911,7 +912,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), Version.CURRENT);
+        return TestDiscoveryNode.create(nodeId);
     }
 
     private void runAllRunnableTasks() {

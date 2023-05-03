@@ -95,7 +95,7 @@ public class XPackSettings {
 
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
-        "xpack.ent-search.enabled",
+        "xpack.ent_search.enabled",
         true,
         Setting.Property.NodeScope
     );

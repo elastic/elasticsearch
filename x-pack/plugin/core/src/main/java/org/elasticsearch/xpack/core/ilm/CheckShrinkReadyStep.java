@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
-import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -75,10 +74,14 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
             .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
-            .map(
-                singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE
-                    || singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE
-            )
+            .map(singleNodeShutdown -> switch (singleNodeShutdown.getType()) {
+                case REMOVE:
+                case SIGTERM:
+                case REPLACE:
+                    yield true;
+                case RESTART:
+                    yield false;
+            })
             .orElse(false);
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);

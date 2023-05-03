@@ -25,12 +25,11 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 public class CrossClusterAccessAuthenticationService {
-
-    public static final Version VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
@@ -63,12 +62,12 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        if (getMinNodeVersion().before(VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION)) {
+        if (getMinNodeVersion().before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have version ["
-                        + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
+                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener

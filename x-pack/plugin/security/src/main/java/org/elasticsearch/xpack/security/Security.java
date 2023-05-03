@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
+import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -115,7 +115,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.dlm.DataLifecycleAuthorizationCheckWithSecurity;
+import org.elasticsearch.xpack.core.security.action.dlm.DataLifecyclePrivilegesCheckWithSecurity;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
@@ -996,8 +996,8 @@ public class Security extends Plugin
 
         components.add(
             new PluginComponentBinding<>(
-                DataLifecycleAuthorizationCheck.class,
-                new DataLifecycleAuthorizationCheckWithSecurity(securityContext.get(), client)
+                DataLifecyclePrivilegesCheck.class,
+                new DataLifecyclePrivilegesCheckWithSecurity(securityContext.get(), client)
             )
         );
 

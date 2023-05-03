@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.core.security.action.dlm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
+import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -18,18 +17,18 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-public class DataLifecycleAuthorizationCheckWithSecurity implements DataLifecycleAuthorizationCheck {
+public class DataLifecyclePrivilegesCheckWithSecurity implements DataLifecyclePrivilegesCheck {
     private final SecurityContext securityContext;
     private final Client client;
 
     @Inject
-    public DataLifecycleAuthorizationCheckWithSecurity(SecurityContext securityContext, Client client) {
+    public DataLifecyclePrivilegesCheckWithSecurity(SecurityContext securityContext, Client client) {
         this.securityContext = securityContext;
         this.client = client;
     }
 
     @Override
-    public void check(String[] dataStreamPatterns, ActionListener<AcknowledgedResponse> listener) {
+    public void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener) {
         RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = dataStreamPatterns.length == 0
             ? new RoleDescriptor.IndicesPrivileges[0]
             : new RoleDescriptor.IndicesPrivileges[] {
@@ -42,9 +41,9 @@ public class DataLifecycleAuthorizationCheckWithSecurity implements DataLifecycl
 
         client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(hasPrivilegesResponse -> {
             if (hasPrivilegesResponse.isCompleteMatch()) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+                listener.onResponse(null);
             } else {
-                // TODO more detailed failure message
+                // TODO detailed failure message here
                 listener.onFailure(Exceptions.authorizationError("insufficient privileges to configure DLM"));
             }
         }, listener::onFailure));

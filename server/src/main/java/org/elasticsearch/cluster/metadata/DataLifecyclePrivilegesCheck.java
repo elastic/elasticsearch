@@ -9,19 +9,18 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.inject.Inject;
 
-public interface DataLifecycleAuthorizationCheck {
-    void check(String[] dataStreamPatterns, ActionListener<AcknowledgedResponse> listener);
+public interface DataLifecyclePrivilegesCheck {
+    void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener);
 
-    class Noop implements DataLifecycleAuthorizationCheck {
+    class Noop implements DataLifecyclePrivilegesCheck {
         @Inject
         public Noop() {}
 
         @Override
-        public void check(String[] dataStreamPatterns, ActionListener<AcknowledgedResponse> listener) {
-            listener.onResponse(AcknowledgedResponse.TRUE);
+        public void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 }

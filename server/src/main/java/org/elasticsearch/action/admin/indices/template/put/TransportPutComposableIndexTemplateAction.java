@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
+import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -39,7 +39,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
     PutComposableIndexTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
-    private final DataLifecycleAuthorizationCheck authorizationCheck;
+    private final DataLifecyclePrivilegesCheck privilegesCheck;
 
     public TransportPutComposableIndexTemplateAction(
         TransportService transportService,
@@ -60,7 +60,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        DataLifecycleAuthorizationCheck authorizationCheck
+        DataLifecyclePrivilegesCheck privilegesCheck
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -73,7 +73,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             ThreadPool.Names.SAME
         );
         this.indexTemplateService = indexTemplateService;
-        this.authorizationCheck = authorizationCheck;
+        this.privilegesCheck = privilegesCheck;
     }
 
     @Override
@@ -98,9 +98,9 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
                 var componentTemplate = componentTemplateEntry.getValue();
                 return indexTemplate.composedOf().contains(componentTemplateEntry.getKey()) && componentTemplate.hasDataLifecycle();
             });
-        boolean needsDlmAuthorizationCheck = indexTemplate.hasDataLifecycle() || hasComponentTemplatesWithDataLifecycles;
-        if (needsDlmAuthorizationCheck) {
-            authorizationCheck.check(
+        boolean needsDlmPrivilegesCheck = indexTemplate.hasDataLifecycle() || hasComponentTemplatesWithDataLifecycles;
+        if (needsDlmPrivilegesCheck) {
+            privilegesCheck.checkCanConfigure(
                 indexTemplate.indexPatterns().toArray(new String[0]),
                 ActionListener.wrap(
                     ignored -> indexTemplateService.putIndexTemplateV2(

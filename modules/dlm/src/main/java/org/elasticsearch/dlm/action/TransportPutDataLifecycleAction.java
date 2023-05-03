@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
+import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,7 +34,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
-    private final DataLifecycleAuthorizationCheck authorizationCheck;
+    private final DataLifecyclePrivilegesCheck privilegesCheck;
 
     @Inject
     public TransportPutDataLifecycleAction(
@@ -45,7 +45,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         SystemIndices systemIndices,
-        DataLifecycleAuthorizationCheck authorizationCheck
+        DataLifecyclePrivilegesCheck privilegesCheck
     ) {
         super(
             PutDataLifecycleAction.NAME,
@@ -59,7 +59,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
-        this.authorizationCheck = authorizationCheck;
+        this.privilegesCheck = privilegesCheck;
     }
 
     @Override
@@ -69,7 +69,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        authorizationCheck.check(request.getNames(), ActionListener.wrap(acknowledgedResponse -> {
+        privilegesCheck.checkCanConfigure(request.getNames(), ActionListener.wrap(ignored -> {
             List<String> dataStreamNames = DataStreamsActionUtil.getDataStreamNames(
                 indexNameExpressionResolver,
                 state,

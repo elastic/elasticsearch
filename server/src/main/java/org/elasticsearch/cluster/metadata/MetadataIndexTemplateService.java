@@ -239,11 +239,6 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComponentTemplate template
     ) throws Exception {
-        // Collect all the composable (index) templates that use this component template, we'll use
-        // this for validating that they're still going to be valid after this component template
-        // has been updated
-        final Map<String, ComposableIndexTemplate> templatesUsingComponent = getTemplatesUsingComponent(currentState, name);
-
         final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
@@ -257,6 +252,11 @@ public class MetadataIndexTemplateService {
         if (finalSettings != null) {
             finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
         }
+
+        // Collect all the composable (index) templates that use this component template, we'll use
+        // this for validating that they're still going to be valid after this component template
+        // has been updated
+        final Map<String, ComposableIndexTemplate> templatesUsingComponent = getTemplatesUsingComponent(currentState, name);
 
         // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
         if (create == false && finalSettings != null) {

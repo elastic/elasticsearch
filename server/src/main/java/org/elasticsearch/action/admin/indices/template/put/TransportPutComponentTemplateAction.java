@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycleAuthorizationCheck;
+import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -38,7 +38,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
-    private final DataLifecycleAuthorizationCheck authorizationCheck;
+    private final DataLifecyclePrivilegesCheck privilegesCheck;
 
     public TransportPutComponentTemplateAction(
         TransportService transportService,
@@ -70,7 +70,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        DataLifecycleAuthorizationCheck authorizationCheck
+        DataLifecyclePrivilegesCheck privilegesCheck
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -84,7 +84,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
-        this.authorizationCheck = authorizationCheck;
+        this.privilegesCheck = privilegesCheck;
     }
 
     @Override
@@ -123,7 +123,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
                 .stream()
                 .flatMap(it -> it.indexPatterns().stream())
                 .collect(Collectors.toUnmodifiableSet());
-            authorizationCheck.check(
+            privilegesCheck.checkCanConfigure(
                 indexPatterns.toArray(new String[0]),
                 ActionListener.wrap(
                     ignored -> indexTemplateService.putComponentTemplate(

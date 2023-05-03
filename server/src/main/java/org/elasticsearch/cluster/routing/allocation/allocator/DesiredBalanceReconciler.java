@@ -49,7 +49,7 @@ public class DesiredBalanceReconciler {
 
     private static final Logger logger = LogManager.getLogger(DesiredBalanceReconciler.class);
 
-    public static final Setting<TimeValue> UNDESIRED_LOG_INTERVAL_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.log_interval",
         TimeValue.timeValueHours(1),
         TimeValue.ZERO,
@@ -57,7 +57,7 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Double> UNDESIRED_LOG_THRESHOLD_SETTING = Setting.doubleSetting(
+    public static final Setting<Double> UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING = Setting.doubleSetting(
         "cluster.routing.allocation.desired_balance.undesired_allocations.threshold",
         0.1,
         0,
@@ -65,16 +65,18 @@ public class DesiredBalanceReconciler {
         Setting.Property.NodeScope
     );
 
-    private TimeValue undesiredLogInterval;
-    private double undesiredLogThreshold;
+    private final FrequencyCappedAction undesiredAllocationLogInterval;
+    private double undesiredAllocationsLogThreshold;
 
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
-    private final ThreadPool threadPool;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this.threadPool = threadPool;
-        clusterSettings.initializeAndWatch(UNDESIRED_LOG_INTERVAL_SETTING, value -> this.undesiredLogInterval = value);
-        clusterSettings.initializeAndWatch(UNDESIRED_LOG_THRESHOLD_SETTING, value -> this.undesiredLogThreshold = value);
+        this.undesiredAllocationLogInterval = new FrequencyCappedAction(threadPool);
+        clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
+        clusterSettings.initializeAndWatch(
+            UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
+            value -> this.undesiredAllocationsLogThreshold = value
+        );
     }
 
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -93,7 +95,7 @@ public class DesiredBalanceReconciler {
     private class Reconciler {
 
         private final DesiredBalance desiredBalance;
-        private final RoutingAllocation allocation; // name chosen to align with code in BalancedShardsAllocator but TODO rename
+        private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
 
         Reconciler(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -405,11 +407,11 @@ public class DesiredBalanceReconciler {
                 return;
             }
 
+            long allAllocations = 0;
+            long undesiredAllocations = 0;
             // Iterate over the started shards interleaving between nodes, and try to move any which are on undesired nodes. In the presence
-            // of
-            // throttling shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that
-            // are
-            // offloading the shards.
+            // of throttling shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that
+            // are offloading the shards.
             for (final var iterator = routingNodes.nodeInterleavedShardIterator(); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
 
@@ -424,10 +426,14 @@ public class DesiredBalanceReconciler {
                     continue;
                 }
 
+                allAllocations++;
+
                 if (assignment.nodeIds().contains(shardRouting.currentNodeId())) {
                     // shard is already on a desired node
                     continue;
                 }
+
+                undesiredAllocations++;
 
                 if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {
                     // rebalancing disabled for this shard
@@ -448,6 +454,16 @@ public class DesiredBalanceReconciler {
                         allocation.changes()
                     );
                 }
+            }
+
+            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations);
+        }
+
+        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations) {
+            if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
+                undesiredAllocationLogInterval.maybeExecute(
+                    () -> logger.warn("{}/{} of shards are allocated on undesired nodes", allAllocations, undesiredAllocations)
+                );
             }
         }
 

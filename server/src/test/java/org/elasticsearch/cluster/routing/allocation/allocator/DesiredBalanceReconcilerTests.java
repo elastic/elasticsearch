@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -60,6 +62,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
 
@@ -77,7 +80,6 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
-import static org.elasticsearch.cluster.ESAllocationTestCase.startInitializingShardsAndReroute;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -87,13 +89,15 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class DesiredBalanceReconcilerTests extends ESTestCase {
+public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testNoChangesOnEmptyDesiredBalance() {
         final var clusterState = DesiredBalanceComputerTests.createInitialClusterState(3);
@@ -1056,6 +1060,57 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         assertThat(allocation.routingNodes().node("data-node-2"), notNullValue());
         // shard is kept wherever until balance is recalculated
         assertThat(allocation.routingNodes().node("data-node-2").getByShardId(shardId), notNullValue());
+    }
+
+    public void testShouldLogOnTooManyUndesiredAllocations() {
+
+        var indexMetadata = IndexMetadata.builder("index-1")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            )
+            .build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("data-node-1")).add(newNode("data-node-2")))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-2", true, STARTED)))
+            )
+            .build();
+
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0)));
+
+        var threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L);
+
+        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool);
+
+        assertThatLogger(
+            () -> reconciler.reconcile(balance, createRoutingAllocationFrom(clusterState)),
+            DesiredBalanceReconciler.class,
+            new MockLogAppender.SeenEventExpectation(
+                "Should log first too many shards on undesired locations",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                "1/1 of shards are allocated on undesired nodes"
+            )
+        );
+        assertThatLogger(
+            () -> reconciler.reconcile(balance, createRoutingAllocationFrom(clusterState)),
+            DesiredBalanceReconciler.class,
+            new MockLogAppender.UnseenEventExpectation(
+                "Should not log immediate second too many shards on undesired locations",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                "1/1 of shards are allocated on undesired nodes"
+            )
+        );
     }
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {

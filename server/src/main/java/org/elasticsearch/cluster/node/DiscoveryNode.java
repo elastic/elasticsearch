@@ -191,46 +191,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Creates a new {@link DiscoveryNode}
-     * <p>
-     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
-     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
-     * the node might not be able to communicate with the remote node. After initial handshakes node versions will be discovered
-     * and updated.
-     * </p>
-     *
-     * @param nodeName   the nodes name
-     * @param nodeId     the nodes unique persistent id. An ephemeral id will be auto generated.
-     * @param address    the nodes transport address
-     * @param attributes node attributes
-     * @param roles      node roles
-     * @param version    the version of the node
-     * @param externalId the external id used to identify this node by external systems
-     */
-    public DiscoveryNode(
-        @Nullable String nodeName,
-        String nodeId,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        @Nullable Version version,
-        @Nullable String externalId
-    ) {
-        this(
-            nodeName,
-            nodeId,
-            UUIDs.randomBase64UUID(),
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            attributes,
-            roles,
-            version,
-            externalId
-        );
-    }
-
-    /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
      * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current

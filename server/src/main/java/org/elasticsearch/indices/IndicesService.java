@@ -537,9 +537,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
                     commitStats,
                     seqNoStats,
-                    retentionLeaseStats,
-                    indexShard.isSearchIdle(),
-                    indexShard.searchIdleTime()
+                    retentionLeaseStats
                 ) }
         );
     }

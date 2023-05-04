@@ -391,6 +391,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
+        assertFalse(indexShard.searchStats().isSearchIdle());
+        assertEquals(0, indexShard.searchStats().getSearchIdleTime());
     }
 
     public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {

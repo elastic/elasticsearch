@@ -145,7 +145,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
-        ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null, false, 0);
+        ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null);
         ShardStats[] shardStats = new ShardStats[1];
         shardStats[0] = sStats;
         mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, shardStats));
@@ -238,7 +238,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     }
 
     private ShardStats randomShardStats(boolean isLeaderIndex) {
-        return new ShardStats(null, mockShardPath(), null, null, null, randomRetentionLeaseStats(isLeaderIndex), false, 0);
+        return new ShardStats(null, mockShardPath(), null, null, null, randomRetentionLeaseStats(isLeaderIndex));
     }
 
     private RetentionLeaseStats randomRetentionLeaseStats(boolean isLeaderIndex) {

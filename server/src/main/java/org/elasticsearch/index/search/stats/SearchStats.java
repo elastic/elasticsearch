@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -283,14 +284,28 @@ public class SearchStats implements Writeable, ToXContentFragment {
     @Nullable
     private Map<String, Stats> groupStats;
 
+    private boolean isSearchIdle;
+
+    private long searchIdleTime;
+
     public SearchStats() {
         totalStats = new Stats();
+        isSearchIdle = false;
+        searchIdleTime = 0;
     }
 
-    public SearchStats(Stats totalStats, long openContexts, @Nullable Map<String, Stats> groupStats) {
+    public SearchStats(
+        Stats totalStats,
+        long openContexts,
+        @Nullable Map<String, Stats> groupStats,
+        boolean isSearchIdle,
+        long searchIdleTime
+    ) {
         this.totalStats = totalStats;
         this.openContexts = openContexts;
         this.groupStats = groupStats;
+        this.isSearchIdle = isSearchIdle;
+        this.searchIdleTime = searchIdleTime;
     }
 
     public SearchStats(StreamInput in) throws IOException {
@@ -298,6 +313,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
         openContexts = in.readVLong();
         if (in.readBoolean()) {
             groupStats = in.readMap(StreamInput::readString, Stats::readStats);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            isSearchIdle = in.readBoolean();
+            searchIdleTime = in.readVLong();
+        } else {
+            isSearchIdle = false;
+            searchIdleTime = 0;
         }
     }
 
@@ -316,6 +338,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 groupStats.get(entry.getKey()).add(entry.getValue());
             }
         }
+        isSearchIdle = searchStats.isSearchIdle;
+        searchIdleTime = searchStats.searchIdleTime;
     }
 
     public void addTotals(SearchStats searchStats) {
@@ -345,6 +369,14 @@ public class SearchStats implements Writeable, ToXContentFragment {
         return this.groupStats != null ? Collections.unmodifiableMap(this.groupStats) : null;
     }
 
+    public boolean isSearchIdle() {
+        return isSearchIdle;
+    }
+
+    public long getSearchIdleTime() {
+        return searchIdleTime;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.SEARCH);
@@ -359,6 +391,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             }
             builder.endObject();
         }
+        builder.field(Fields.IS_SEARCH_IDLE, isSearchIdle);
+        builder.field(Fields.SEARCH_IDLE_TIME, searchIdleTime);
         builder.endObject();
         return builder;
     }
@@ -388,6 +422,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_TIME = "suggest_time";
         static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
+        static final String IS_SEARCH_IDLE = "is_search_idle";
+        static final String SEARCH_IDLE_TIME = "search_idle_time";
     }
 
     @Override
@@ -400,6 +436,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeBoolean(true);
             out.writeMap(groupStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeBoolean(isSearchIdle);
+            out.writeVLong(searchIdleTime);
+        }
     }
 
     @Override
@@ -409,11 +449,13 @@ public class SearchStats implements Writeable, ToXContentFragment {
         SearchStats that = (SearchStats) o;
         return Objects.equals(totalStats, that.totalStats)
             && openContexts == that.openContexts
-            && Objects.equals(groupStats, that.groupStats);
+            && Objects.equals(groupStats, that.groupStats)
+            && isSearchIdle == that.isSearchIdle
+            && searchIdleTime == that.searchIdleTime;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalStats, openContexts, groupStats);
+        return Objects.hash(totalStats, openContexts, groupStats, isSearchIdle, searchIdleTime);
     }
 }

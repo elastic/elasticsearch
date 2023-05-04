@@ -660,7 +660,7 @@ public class NodeStatsTests extends ESTestCase {
         );
         Map<String, SearchStats.Stats> groupStats = new HashMap<>();
         groupStats.put("group", searchStats);
-        indicesCommonStats.getSearch().add(new SearchStats(searchStats, ++iota, groupStats));
+        indicesCommonStats.getSearch().add(new SearchStats(searchStats, ++iota, groupStats, false, 0));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
         segmentsStats.add(++iota);
@@ -705,7 +705,7 @@ public class NodeStatsTests extends ESTestCase {
             .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
-        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null, false, 0);
+        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null);
     }
 
     public static NodeStats createNodeStats() {

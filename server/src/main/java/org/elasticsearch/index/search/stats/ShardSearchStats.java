@@ -34,7 +34,7 @@ public final class ShardSearchStats implements SearchOperationListener {
      * is returned for them. If they are set, then only groups provided will be returned, or
      * {@code _all} for all groups.
      */
-    public SearchStats stats(String... groups) {
+    public SearchStats stats(boolean isSearchIdle, long searchIdleTime, String... groups) {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
         if (CollectionUtils.isEmpty(groups) == false) {
@@ -51,7 +51,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 }
             }
         }
-        return new SearchStats(total, openContexts.count(), groupsSt);
+        return new SearchStats(total, openContexts.count(), groupsSt, isSearchIdle, searchIdleTime);
     }
 
     @Override

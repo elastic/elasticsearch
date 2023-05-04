@@ -31,7 +31,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,7 +66,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersion.MINIMUM_COMPATIBLE,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_8_0)
+                TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
             )
         );
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
@@ -101,7 +101,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             actual.getCause().getCause().getMessage(),
             equalTo(
                 "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
                     + "] or higher to support cross cluster requests through the dedicated remote cluster port"
             )
         );

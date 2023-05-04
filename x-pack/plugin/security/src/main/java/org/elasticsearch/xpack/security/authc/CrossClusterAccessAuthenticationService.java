@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
@@ -63,12 +63,12 @@ public class CrossClusterAccessAuthenticationService {
         }
 
         // This check is to ensure all nodes understand cross_cluster_access subject type
-        if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
                     "all nodes must have transport version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener

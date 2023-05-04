@@ -20,6 +20,9 @@ import org.gradle.testing.jacoco.plugins.JacocoPluginExtension;
 import org.gradle.testing.jacoco.plugins.JacocoReportAggregationPlugin;
 import org.gradle.testing.jacoco.tasks.JacocoReport;
 
+import java.io.File;
+import java.util.Set;
+
 public class TransportClassesCoveragePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
@@ -66,6 +69,18 @@ public class TransportClassesCoveragePlugin implements Plugin<Project> {
                         task.reports(reports -> reports.getXml().getRequired().set(true));
 
                         task.mustRunAfter(project.getTasks().named("test"));
+
+                        /*
+                         * need to exclude libs/x-content/build/generated-resources/impl/IMPL-JARS/x-content/snakeyaml-2.0.jar/org...
+                         * Error while creating report
+                         * > Error while analyzing Logger.class with JaCoCo 0.8.9.202303310957/c0ad781.
+                         *   > Can't add different class with same name: org/yaml/snakeyaml/internal/Logger
+                         */
+                        Set<File> files = task.getClassDirectories().getAsFileTree().matching(pattern -> {
+                            pattern.exclude("**/*.jar/*");// why I cannot use **/generated-resources/**/* ??
+                        }).getFiles();
+
+                        task.getClassDirectories().setFrom(files);
                     });
 
                     project.getRootProject().getTasks().named("testCodeCoverageReport").configure(t -> t.dependsOn(jacocoTestReport));

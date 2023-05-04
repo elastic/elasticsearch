@@ -16,9 +16,12 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -32,6 +35,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final ShardStateAction shardStateAction;
 
     protected final String transportUnpromotableAction;
     protected final String executor;
@@ -40,12 +44,14 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         String actionName,
         ClusterService clusterService,
         TransportService transportService,
+        ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         String executor
     ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.clusterService = clusterService;
+        this.shardStateAction = shardStateAction;
         this.transportService = transportService;
         this.transportUnpromotableAction = actionName + "[u]";
         this.executor = executor;
@@ -65,13 +71,16 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                 }
                 request.indexShardRoutingTable.unpromotableShards().forEach(shardRouting -> {
                     final DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+                    final ActionListener<TransportResponse.Empty> acquired = listeners.acquire(ignored -> {});
                     transportService.sendRequest(
                         node,
                         transportUnpromotableAction,
                         request,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(
-                            listeners.acquire(ignored -> {}),
+                            request.failShardOnError()
+                                ? acquired.delegateResponse((l, e) -> failShard(shardRouting, clusterState, l, e))
+                                : acquired,
                             (in) -> TransportResponse.Empty.INSTANCE,
                             executor
                         )
@@ -80,6 +89,30 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
                 return null;
             });
         }
+    }
+
+    private void failShard(ShardRouting shardRouting, ClusterState clusterState, ActionListener<TransportResponse.Empty> l, Exception e) {
+        shardStateAction.remoteShardFailed(
+            shardRouting.shardId(),
+            shardRouting.allocationId().getId(),
+            clusterState.metadata().index(shardRouting.getIndexName()).primaryTerm(shardRouting.shardId().getId()),
+            true,
+            "mark unpromotable copy as stale after refresh failure",
+            e,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.debug("Marked shard {} as failed", shardRouting.shardId());
+                    l.onResponse(TransportResponse.Empty.INSTANCE);
+                }
+
+                @Override
+                public void onFailure(Exception sfe) {
+                    logger.error(Strings.format("Unable to mark shard [%s] as failed", shardRouting.shardId()), sfe);
+                    l.onFailure(e);
+                }
+            }
+        );
     }
 
     class UnpromotableTransportHandler implements TransportRequestHandler<Request> {

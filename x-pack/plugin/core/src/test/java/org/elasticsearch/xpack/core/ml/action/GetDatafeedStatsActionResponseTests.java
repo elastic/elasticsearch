@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -51,7 +52,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
             DatafeedState datafeedState = randomFrom(DatafeedState.values());
             DiscoveryNode node = randomBoolean()
                 ? null
-                : new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+                : TestDiscoveryNode.create("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
             String explanation = randomBoolean() ? null : randomAlphaOfLength(3);
             DatafeedTimingStats timingStats = randomBoolean() ? null : DatafeedTimingStatsTests.createRandom();
             Response.DatafeedStats datafeedStats = new Response.DatafeedStats(

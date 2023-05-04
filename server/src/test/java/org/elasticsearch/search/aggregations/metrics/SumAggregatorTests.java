@@ -239,7 +239,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
             ) {
 
-                final IndexSearcher searcher = newSearcher(multiReader, true, true);
+                final IndexSearcher searcher = newIndexSearcher(multiReader);
 
                 final Sum internalSum = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
                 assertEquals(sum, internalSum.value(), 0d);

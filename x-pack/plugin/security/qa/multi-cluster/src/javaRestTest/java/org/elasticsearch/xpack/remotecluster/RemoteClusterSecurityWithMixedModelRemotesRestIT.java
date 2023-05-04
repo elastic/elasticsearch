@@ -45,7 +45,7 @@ public class RemoteClusterSecurityWithMixedModelRemotesRestIT extends AbstractRe
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
                           "role": {
-                            "cluster": ["cross_cluster_access"],
+                            "cluster": ["cross_cluster_search"],
                             "index": [
                               {
                                  "names": ["cluster1_index*"],

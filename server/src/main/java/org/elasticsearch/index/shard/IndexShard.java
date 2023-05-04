@@ -312,8 +312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
-        final Engine.IndexCommitListener indexCommitListener,
-        final ReplicationTracker.Factory replicationTrackerFactory
+        final Engine.IndexCommitListener indexCommitListener
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -361,11 +360,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
-        this.replicationTracker = replicationTrackerFactory.create(
+        this.replicationTracker = new ReplicationTracker(
             shardId,
             aId,
             indexSettings,
             primaryTerm,
+            UNASSIGNED_SEQ_NO,
             globalCheckpointListeners::globalCheckpointUpdated,
             threadPool::absoluteTimeInMillis,
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
@@ -3694,7 +3694,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // for tests
-    public ReplicationTracker getReplicationTracker() {
+    ReplicationTracker getReplicationTracker() {
         return replicationTracker;
     }
 

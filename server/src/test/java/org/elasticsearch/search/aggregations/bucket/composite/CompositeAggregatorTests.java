@@ -3104,7 +3104,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 indexWriter.addDocument(document);
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 try (
                     AggregationContext context = createAggregationContext(
                         indexSearcher,

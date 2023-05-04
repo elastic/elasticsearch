@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -67,12 +67,11 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode(
+        localNode = TestDiscoveryNode.create(
             "local_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );
         allNodes = new DiscoveryNode[] { localNode };
     }

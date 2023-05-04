@@ -147,15 +147,7 @@ public class AuthenticationService {
             allowAnonymous,
             realms
         );
-        authenticate(context, logger.isDebugEnabled() ? authenticationListener.map(authentication -> {
-            // authentication should never be null?
-            if (authentication == null) {
-                logger.trace("No authentication available for HTTP request [{}]", request.uri());
-            } else {
-                logger.trace("Authenticated HTTP request [{}] as {}", request.uri(), authentication);
-            }
-            return authentication;
-        }) : authenticationListener);
+        authenticate(context, authenticationListener);
     }
 
     /**

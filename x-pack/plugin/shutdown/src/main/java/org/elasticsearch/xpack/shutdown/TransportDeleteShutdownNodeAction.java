@@ -131,8 +131,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
-            NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
-            if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
+            if (NodesShutdownMetadata.isNodeShuttingDown(state.metadata(), request.getNodeId()) == false) {
                 throw new ResourceNotFoundException("node [" + request.getNodeId() + "] is not currently shutting down");
             }
         }

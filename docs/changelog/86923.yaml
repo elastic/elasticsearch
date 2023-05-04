@@ -1,0 +1,6 @@
+pr: 86923
+summary: Add explanation for persistent task assignment failure due to node shutdown
+area: Infra/Node Lifecycle
+type: bug
+issues:
+ - 84195

@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -47,6 +49,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -58,7 +61,7 @@ import static org.mockito.Mockito.when;
 public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeVersionAssignment() {
-        DiscoveryNodes.Builder nodes = buildNodes(false, true, true, true, true);
+        DiscoveryNodes nodes = buildNodes(false, true, true, true, true);
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
@@ -79,7 +82,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeAssignmentProblems() {
         // no data nodes
-        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);
+        DiscoveryNodes nodes = buildNodes(false, false, false, false, true);
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
@@ -174,6 +177,39 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         assertThat(assignment.getExecutorNode(), equalTo("past-data-node-1"));
     }
 
+    public void testNodeAssignmentProblemDueToNodeShutdown() {
+        DiscoveryNodes nodes = buildNodes(false, false, false, true, false);
+
+        final String targetNodeName = randomAlphaOfLengthBetween(10, 20);
+        final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
+            .setNodeId(nodes.getNodes().keySet().stream().findFirst().get())
+            .setType(SingleNodeShutdownMetadata.Type.REPLACE)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(1L)
+            .setTargetNodeName(targetNodeName)
+            .build();
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
+            nodeShutdownMetadata
+        );
+
+        ClusterState cs = buildClusterState(nodes, nodesShutdownMetadata);
+        TransformPersistentTasksExecutor executor = buildTaskExecutor();
+
+        Assignment assignment = executor.getAssignment(
+            new TransformTaskParams("new-task-id", Version.CURRENT, null, false),
+            cs.nodes(),
+            cs
+        );
+
+        assertThat(
+            assignment.getExplanation(),
+            equalTo(
+                "Not starting transform [new-task-id], "
+                    + "reasons [current-data-node-with-0-tasks-transform-remote-disabled:node is shutting down]"
+            )
+        );
+    }
+
     public void testVerifyIndicesPrimaryShardsAreActive() {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -246,7 +282,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         }
     }
 
-    private DiscoveryNodes.Builder buildNodes(
+    private DiscoveryNodes buildNodes(
         boolean dedicatedTransformNode,
         boolean pastDataNode,
         boolean transformRemoteNodes,
@@ -351,10 +387,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
         }
 
-        return nodes;
+        return nodes.build();
     }
 
-    private ClusterState buildClusterState(DiscoveryNodes.Builder nodes) {
+    private ClusterState buildClusterState(DiscoveryNodes nodes) {
+        return buildClusterState(nodes, null);
+    }
+
+    private ClusterState buildClusterState(DiscoveryNodes nodes, NodesShutdownMetadata nodesShutdownMetadata) {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);
@@ -363,30 +403,32 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 "transform-task-1",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-1", Version.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-1-tasks", "")
+                new Assignment("current-data-node-with-1-tasks", "")
             )
             .addTask(
                 "transform-task-2",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-2", Version.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new Assignment("current-data-node-with-2-tasks", "")
             )
             .addTask(
                 "transform-task-3",
                 TransformTaskParams.NAME,
                 new TransformTaskParams("transform-task-3", Version.CURRENT, null, false),
-                new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+                new Assignment("current-data-node-with-2-tasks", "")
             );
 
         PersistentTasksCustomMetadata pTasks = pTasksBuilder.build();
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, pTasks);
+        if (nodesShutdownMetadata != null) {
+            metadata.putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata);
+        }
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).nodes(nodes);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
 
         return csBuilder.build();
-
     }
 
     private TransformPersistentTasksExecutor buildTaskExecutor() {

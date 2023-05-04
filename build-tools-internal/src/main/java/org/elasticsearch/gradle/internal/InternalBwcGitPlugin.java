@@ -84,11 +84,11 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         TaskProvider<LoggedExec> addRemoteTaskProvider = tasks.register("addRemote", LoggedExec.class, addRemote -> {
             addRemote.dependsOn(findRemoteTaskProvider);
             addRemote.onlyIf("remote exists", task -> ((boolean) extraProperties.get("remoteExists")) == false);
-            addRemote.getWorkingDir().set(gitExtension.getCheckoutDir().get());
+            addRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                .getOrElse("https://github.com/" + remoteRepo + "/elasticsearch.git");
+                .getOrElse("https://github.com/" + remoteRepo + "/" + project.getRootProject().getName());
             addRemote.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
         });
 
@@ -105,8 +105,9 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             });
             fetchLatest.onlyIf("online and gitFetchLatest == true", t -> isOffline == false && gitFetchLatest.get());
             fetchLatest.dependsOn(addRemoteTaskProvider);
-            fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir().get());
-            fetchLatest.commandLine("git", "fetch", "--all");
+            fetchLatest.getWorkingDir().set(gitExtension.getCheckoutDir());
+            // Fetch latest from remotes, including tags, overriding any existing local refs
+            fetchLatest.commandLine("git", "fetch", "--all", "--tags", "--force");
         });
 
         String projectPath = project.getPath();
@@ -119,13 +120,20 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                     String bwcBranch = gitExtension.getBwcBranch().get();
                     final String refspec = providerFactory.systemProperty("bwc.refspec." + bwcBranch)
                         .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
+                        .orElse(
+                            providerFactory.provider(
+                                () -> task.getExtensions().getExtraProperties().has("refspec")
+                                    ? task.getExtensions().getExtraProperties().get("refspec").toString()
+                                    : null
+                            )
+                        )
                         .getOrElse(remote.get() + "/" + bwcBranch);
 
                     String effectiveRefSpec = maybeAlignedRefSpec(task.getLogger(), refspec);
                     task.getLogger().lifecycle("Performing checkout of {}...", refspec);
                     LoggedExec.exec(execOperations, spec -> {
                         spec.workingDir(checkoutDir);
-                        spec.commandLine("git", "checkout", effectiveRefSpec);
+                        spec.commandLine("git", "checkout", "--recurse-submodules", effectiveRefSpec);
                     });
 
                     String checkoutHash = GitInfo.gitInfo(checkoutDir).getRevision();

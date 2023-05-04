@@ -147,6 +147,8 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.node.internal.TerminationHandlerProvider;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -238,13 +240,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -316,6 +318,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    private final List<TerminationHandler> terminationHandlers;
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -764,6 +767,11 @@ public class Node implements Closeable {
                 ReservedClusterStateHandlerProvider.class
             );
             pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+
+            terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
+                .stream()
+                .flatMap(prov -> prov.handlers().stream())
+                .toList();
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -1591,6 +1599,24 @@ public class Node implements Closeable {
     // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
+        CountDownLatch terminationHandlersComplete = new CountDownLatch(terminationHandlers.size());
+        terminationHandlers.forEach(handler -> {
+            // This AtomicBoolean is used to ensure one plugin calling its runnable over and over won't run down the CountDownLatch early
+            AtomicBoolean thisHandlerComplete = new AtomicBoolean(false);
+            handler.handleTermination(() -> {
+                if (thisHandlerComplete.compareAndSet(false, true)) {
+                    terminationHandlersComplete.countDown();
+                }
+            });
+        });
+
+        try {
+            terminationHandlersComplete.await(1, TimeUnit.SECONDS); // TODO: Make this variable
+        } catch (InterruptedException e) {
+            // Not much to do but warn and move on shutting down here.
+            logger.warn("Graceful termination interrupted", e);
+        }
+
         synchronized (lifecycle) {
             if (lifecycle.started()) {
                 stop();

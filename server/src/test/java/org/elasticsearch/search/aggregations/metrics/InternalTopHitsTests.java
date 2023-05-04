@@ -28,11 +28,13 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -272,6 +274,24 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore
         );
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
+    }
+
+    public void testGetProperty() {
+        // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
+        SearchHit hit = new SearchHit(0);
+        hit = hit.sourceRef(Source.fromMap(Map.of("foo", Double.valueOf(1000)), XContentType.YAML).internalSourceRef());
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+        InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
+
+        assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
+        assertEquals(1000.0, internalTopHits.getProperty(List.of("foo")));
+        expectThrows(AssertionError.class, () -> internalTopHits.getProperty(List.of("foo", "bar")));  // Path size has to be 1.
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
+
+        // Two SearchHit instances are not allowed, only the first will be used without assertion.
+        hits = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
+        InternalTopHits internalTopHits2 = new InternalTopHits("test", 0, 0, null, hits, null);
+        expectThrows(AssertionError.class, () -> internalTopHits2.getProperty(List.of("foo")));
     }
 
     @Override

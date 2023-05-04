@@ -184,9 +184,15 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;
-        } else {
-            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
+        assert path.size() == 1 : "property paths for top_hits can only contain a single field";
+        assert searchHits.getHits().length == 1 : "property paths should only resolve against top_hits with size == 1.";
+        Map<String, Object> sourceAsMap = searchHits.getAt(0).getSourceAsMap();
+        if (sourceAsMap != null) {
+            Object property = sourceAsMap.get(path.get(0));
+            if (property != null) return property;
+        }
+        throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }
 
     @Override

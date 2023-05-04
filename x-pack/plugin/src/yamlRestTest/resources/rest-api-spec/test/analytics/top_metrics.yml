@@ -797,12 +797,10 @@
           aggs:
             groupby:
               composite:
-                size: 1000
                 sources:
                   - gender_comp:
                       terms:
                         field: gender
-                        missing_bucket: true
                         order: asc
               aggs:
                 top_salary:
@@ -836,12 +834,10 @@
           aggs:
             groupby:
               composite:
-                size: 1000
                 sources:
                   - gender_comp:
                       terms:
                         field: gender
-                        missing_bucket: true
                         order: asc
               aggs:
                 top_salary:
@@ -862,3 +858,98 @@
   - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
   - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
   - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
+
+  - do:
+      bulk:
+        index: test
+        body:
+          - { index: { } }
+          - { gender: 3 }
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary[salary]
+                    script: "params.ts < 6000"
+
+  # Empty bucket for gender '3' doesn't impact results.
+  - length: { aggregations.groupby.buckets: 1}
+  - match: { aggregations.groupby.buckets.0.key.gender_comp: 1}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.sort.0: 1981}
+  - match: { aggregations.groupby.buckets.0.top_salary.top.0.metrics.salary: 1000}
+
+  - do:
+      catch: /path not supported for \[top_salary\]:\ \[nosuchfield\]./
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary[nosuchfield]
+                    script: "params.ts < 6000"
+
+  - do:
+      catch: /No aggregation found for path \[nosuchagg\[salary\]\]/
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            groupby:
+              composite:
+                sources:
+                  - gender_comp:
+                      terms:
+                        field: gender
+                        order: asc
+              aggs:
+                top_salary:
+                  top_metrics:
+                    metrics:
+                      field: salary
+                    sort:
+                      birth_date: asc
+                    size: 1
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: nosuchagg[salary]
+                    script: "params.ts < 6000"

@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportPutComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
@@ -88,33 +89,23 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        verifyIfUsingReservedComponentTemplates(request, state);
         var indexTemplate = request.indexTemplate();
-        var hasComponentTemplatesWithDataLifecycles = state.metadata()
-            .componentTemplates()
-            .entrySet()
-            .stream()
-            .anyMatch(componentTemplateEntry -> {
-                var componentTemplate = componentTemplateEntry.getValue();
-                return indexTemplate.composedOf().contains(componentTemplateEntry.getKey()) && componentTemplate.hasDataLifecycle();
-            });
-        boolean needsDlmPrivilegesCheck = indexTemplate.hasDataLifecycle() || hasComponentTemplatesWithDataLifecycles;
-        if (needsDlmPrivilegesCheck) {
-            privilegesCheck.checkCanConfigure(
-                indexTemplate.indexPatterns().toArray(new String[0]),
-                ActionListener.wrap(
-                    ignored -> indexTemplateService.putIndexTemplateV2(
-                        request.cause(),
-                        request.create(),
-                        request.name(),
-                        request.masterNodeTimeout(),
-                        indexTemplate,
-                        listener
-                    ),
-                    listener::onFailure
-                )
-            );
+        boolean requiresDlmPrivilegesCheck = indexTemplate.hasDataLifecycle()
+            || resolveLifecycle(indexTemplate, state.metadata().componentTemplates()) != null;
+        if (requiresDlmPrivilegesCheck) {
+            privilegesCheck.checkCanConfigure(indexTemplate.indexPatterns().toArray(new String[0]), ActionListener.wrap(ignored -> {
+                verifyIfUsingReservedComponentTemplates(request, state);
+                indexTemplateService.putIndexTemplateV2(
+                    request.cause(),
+                    request.create(),
+                    request.name(),
+                    request.masterNodeTimeout(),
+                    indexTemplate,
+                    listener
+                );
+            }, listener::onFailure));
         } else {
+            verifyIfUsingReservedComponentTemplates(request, state);
             indexTemplateService.putIndexTemplateV2(
                 request.cause(),
                 request.create(),

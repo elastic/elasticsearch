@@ -87,9 +87,6 @@ public class DlmPermissionsIT extends ESRestTestCase {
                 "template": {
                     "lifecycle": {
                       "data_retention": "60d"
-                    },
-                    "settings": {
-                      "number_of_shards": 1
                     }
                 }
             }""", dataStreamName));
@@ -103,9 +100,6 @@ public class DlmPermissionsIT extends ESRestTestCase {
                 "template": {
                     "lifecycle": {
                       "data_retention": "60d"
-                    },
-                    "settings": {
-                      "number_of_shards": 1
                     }
                 }
             }""", "no-access-dlm-test"));
@@ -141,9 +135,6 @@ public class DlmPermissionsIT extends ESRestTestCase {
               "template": {
                   "lifecycle": {
                     "data_retention": "60d"
-                  },
-                  "settings": {
-                    "number_of_shards": 1
                   }
               }
             }""");
@@ -207,9 +198,6 @@ public class DlmPermissionsIT extends ESRestTestCase {
               "template": {
                   "lifecycle": {
                     "data_retention": "60d"
-                  },
-                  "settings": {
-                    "number_of_shards": 1
                   }
               }
             }"""), false);

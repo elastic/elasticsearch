@@ -92,7 +92,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton MANAGE_AUTOMATON = unionAndMinimize(
         Arrays.asList(
             MONITOR_AUTOMATON,
-            patterns("indices:admin/*", FieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*")
+            patterns("indices:admin/*", FieldCapabilitiesAction.NAME + "*", GetRollupIndexCapsAction.NAME + "*", SearchShardsAction.NAME)
         )
     );
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
@@ -107,13 +107,13 @@ public final class IndexPrivilege extends Privilege {
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
         ClusterSearchShardsAction.NAME,
-        SearchShardsAction.NAME,
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,
         GetDataStreamAction.NAME,
         ResolveIndexAction.NAME,
         FieldCapabilitiesAction.NAME + "*",
+        SearchShardsAction.NAME,
         GetRollupIndexCapsAction.NAME + "*",
         GetCheckpointAction.NAME + "*" // transform internal action
     );

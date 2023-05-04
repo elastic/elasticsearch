@@ -9,7 +9,6 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -1018,12 +1017,11 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             nodeId,
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );
     }
 

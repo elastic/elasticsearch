@@ -105,7 +105,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             InternalAvg avgResult;
             InternalDateHistogram histogramResult;
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD);
 

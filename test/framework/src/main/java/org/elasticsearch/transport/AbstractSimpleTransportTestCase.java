@@ -22,6 +22,7 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -2305,7 +2306,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
+            DiscoveryNode dummy = TestDiscoveryNode.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
@@ -2334,7 +2335,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode dummy = new DiscoveryNode(
+            DiscoveryNode dummy = TestDiscoveryNode.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),

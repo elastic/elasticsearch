@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices.store;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -39,7 +39,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = new DiscoveryNode("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        localNode = TestDiscoveryNode.create("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet());
     }
 
     public void testShardCanBeDeletedNoShardStarted() {

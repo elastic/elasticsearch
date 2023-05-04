@@ -72,7 +72,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
+        testCase(new MatchAllDocsQuery(), newIndexSearcher(indexReader), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
@@ -91,8 +91,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         testCase(new MatchAllDocsQuery(), indexSearcher, child -> {
             int expectedTotalChildren = 0;
@@ -134,7 +133,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                     new ShardId(new Index("foo", "_na_"), 1)
                 )
             ) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 AggregationBuilder request = new TermsAggregationBuilder("t").field("kwd")
                     .subAggregation(
@@ -190,7 +189,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             ) {
                 // maybeWrap should be false here, in ValueSource.java we sometimes cast to DirectoryReader and
                 // these casts can then fail if the maybeWrap is true.
-                var indexSearcher = newSearcher(indexReader, false, true);
+                var indexSearcher = newIndexSearcher(indexReader);
                 // invalid usage,
                 {
                     var aggregationBuilder = new ChildrenAggregationBuilder("_name1", CHILD_TYPE);

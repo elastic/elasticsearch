@@ -115,7 +115,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     private static final Consumer<IndexShard.ShardFailure> DEFAULT_SHARD_FAILURE_HANDLER = failure -> {
         if (failOnShardFailures.get()) {
-            throw new AssertionError(failure.reason, failure.cause);
+            throw new AssertionError(failure.reason(), failure.cause());
         }
     };
 
@@ -504,8 +504,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
-                null,
-                ReplicationTracker.DEFAULT_FACTORY
+                null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

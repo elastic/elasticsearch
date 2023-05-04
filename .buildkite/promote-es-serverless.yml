@@ -1,8 +1,0 @@
-steps:
-  - trigger: elasticsearch-serverless
-    label: ":elasticsearch: Run serverless tests"
-    build:
-      message: "Elasticsearch submodule promotion build"
-      env:
-        ELASTICSEARCH_SUBMODULE_COMMIT: "${BUILDKITE_COMMIT}"
-

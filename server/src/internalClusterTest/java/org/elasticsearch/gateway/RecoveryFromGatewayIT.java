@@ -152,7 +152,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             previousTerms = new HashMap<>();
         }
         final Map<String, long[]> result = new HashMap<>();
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
@@ -398,7 +398,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
-        String metadataUuid = client().admin().cluster().prepareState().execute().get().getState().getMetadata().clusterUUID();
+        String metadataUuid = clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID();
         assertThat(metadataUuid, not(equalTo("_na_")));
 
         logger.info("--> closing first node, and indexing more data to the second node");
@@ -412,7 +412,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .actionGet();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
-        // client().admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
+        // clusterAdmin().prepareHealth("test").setWaitForYellowStatus().get();
         logger.info("--> refreshing all indices after indexing is complete");
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -466,13 +466,13 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
 
-        assertThat(client().admin().cluster().prepareState().execute().get().getState().getMetadata().clusterUUID(), equalTo(metadataUuid));
+        assertThat(clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID(), equalTo(metadataUuid));
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
         }
 
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = clusterAdmin().prepareState().execute().actionGet().getState();
         assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
         assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());

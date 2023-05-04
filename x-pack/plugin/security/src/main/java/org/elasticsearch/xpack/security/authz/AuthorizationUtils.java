@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.StorageInternalUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -23,6 +24,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
@@ -124,6 +126,9 @@ public final class AuthorizationUtils {
                 break;
             case SECURITY_PROFILE_ORIGIN:
                 securityContext.executeAsInternalUser(SecurityProfileUser.INSTANCE, version, consumer);
+                break;
+            case POST_WRITE_REFRESH_ORIGIN:
+                securityContext.executeAsInternalUser(StorageInternalUser.INSTANCE, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:

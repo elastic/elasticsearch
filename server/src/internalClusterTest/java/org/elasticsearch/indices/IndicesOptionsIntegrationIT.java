@@ -248,9 +248,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("test1");
         waitForRelocation();
 
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("dummy-repo")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("dummy-repo")
             .setType("fs")
             .setSettings(Settings.builder().put("location", randomRepoPath()))
             .get();
@@ -367,9 +365,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         ensureGreen("foobar");
         waitForRelocation();
 
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository("dummy-repo")
+        AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository("dummy-repo")
             .setType("fs")
             .setSettings(Settings.builder().put("location", randomRepoPath()))
             .get();
@@ -681,13 +677,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {
-        return client().admin().cluster().prepareCreateSnapshot("dummy-repo", name).setWaitForCompletion(true).setIndices(indices);
+        return clusterAdmin().prepareCreateSnapshot("dummy-repo", name).setWaitForCompletion(true).setIndices(indices);
     }
 
     private static RestoreSnapshotRequestBuilder restore(String name, String... indices) {
-        return client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("dummy-repo", name)
+        return clusterAdmin().prepareRestoreSnapshot("dummy-repo", name)
             .setRenamePattern("(.+)")
             .setRenameReplacement("$1-copy-" + name)
             .setWaitForCompletion(true)

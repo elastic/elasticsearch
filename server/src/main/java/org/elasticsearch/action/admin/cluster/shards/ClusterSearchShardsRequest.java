@@ -20,10 +20,6 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- * Use {@link org.elasticsearch.action.search.SearchShardsRequest} instead
- */
-@Deprecated
 public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;

@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class ILMMultiNodeWithCCREnabledIT extends ESIntegTestCase {
+public class ILMMultiNodeIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
     @Override

@@ -157,10 +157,16 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
 
-    private static final Set<String> CROSS_CLUSTER_ACCESS_PATTERN = Set.of(
+    private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.NAME,
         XPackInfoAction.NAME
+    );
+    private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
+        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+        RemoteClusterNodesAction.NAME,
+        XPackInfoAction.NAME,
+        ClusterStateAction.NAME
     );
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
@@ -284,9 +290,14 @@ public class ClusterPrivilegeResolver {
         POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
     );
 
-    public static final NamedClusterPrivilege CROSS_CLUSTER_ACCESS = new ActionClusterPrivilege(
-        "cross_cluster_access",
-        CROSS_CLUSTER_ACCESS_PATTERN
+    public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
+        "cross_cluster_search",
+        CROSS_CLUSTER_SEARCH_PATTERN
+    );
+
+    public static final NamedClusterPrivilege CROSS_CLUSTER_REPLICATION = new ActionClusterPrivilege(
+        "cross_cluster_replication",
+        CROSS_CLUSTER_REPLICATION_PATTERN
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
@@ -338,7 +349,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_SEARCH_APPLICATION,
             MANAGE_BEHAVIORAL_ANALYTICS,
             POST_BEHAVIORAL_ANALYTICS_EVENT,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_ACCESS : null
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_REPLICATION : null
         ).filter(Objects::nonNull).toList()
     );
 

@@ -104,6 +104,7 @@ public class FsBlobContainerTests extends ESTestCase {
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95768")
     public void testDeleteIgnoringIfNotExistsDoesNotThrowFileNotFound() throws IOException {
         final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final byte[] blobData = randomByteArrayOfLength(512);

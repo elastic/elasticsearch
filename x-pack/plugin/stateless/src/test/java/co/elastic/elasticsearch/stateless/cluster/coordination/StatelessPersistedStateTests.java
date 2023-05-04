@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -117,12 +118,11 @@ public class StatelessPersistedStateTests extends ESTestCase {
     }
 
     public void testClusterStateIsOnlyWrittenByTheElectedMasterTakeOver() throws Exception {
-        var remoteNode = new DiscoveryNode(
+        var remoteNode = TestDiscoveryNode.create(
             "remote-node",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
 
         try (var ctx = createTestContext()) {

@@ -28,6 +28,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -1036,15 +1037,29 @@ public abstract class Engine implements Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
-     * Flushes the state of the engine including the transaction log, clearing memory.
+     * A Blocking helper method for calling the async flush method.
+     */
+    // TODO: Remove or rename for increased clarity
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(force, waitIfOngoing, future);
+        future.actionGet();
+    }
+
+    /**
+     * Flushes the state of the engine including the transaction log, clearing memory, and writing the
+     * documents in the Lucene index to disk. This method will synchronously flush on the calling thread.
+     * However, depending on engine implementation, full durability will not be guaranteed until the listener
+     * is triggered.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
-     * @return <code>false</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, else <code>true</code>.
-     *         If <code>false</code> is returned, no flush happened.
+     * @param listener      to notify after fully durability has been achieved. if <code>waitIfOngoing==false</code> and ongoing
+     *                      request is detected, no flush will have occurred and the listener will be completed with a marker
+     *                      indicating no flush and unknown generation.
      */
-    public abstract boolean flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1053,7 +1068,9 @@ public abstract class Engine implements Closeable {
      * a lucene commit if nothing needs to be committed.
      */
     public final void flush() throws EngineException {
-        flush(false, false);
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(false, false, future);
+        future.actionGet();
     }
 
     /**
@@ -1755,7 +1772,8 @@ public abstract class Engine implements Closeable {
                     try {
                         // TODO we might force a flush in the future since we have the write lock already even though recoveries
                         // are running.
-                        flush();
+                        // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                        flush(false, false, ActionListener.noop());
                     } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
@@ -1968,15 +1986,6 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Adds a listener which will be executed once the request generation has been durably persisted.
-     */
-    public void addFlushDurabilityListener(long generation, ActionListener<Void> listener) {
-        listener.onFailure(
-            new UnsupportedOperationException("Engine type " + this.getClass() + " does not support generation durability listeners.")
-        );
-    }
-
-    /**
      * Captures the result of a refresh operation on the index shard.
      * <p>
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
@@ -1990,5 +1999,11 @@ public abstract class Engine implements Closeable {
         public RefreshResult(boolean refreshed) {
             this(refreshed, UNKNOWN_GENERATION);
         }
+    }
+
+    public record FlushResult(boolean flushPerformed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
     }
 }

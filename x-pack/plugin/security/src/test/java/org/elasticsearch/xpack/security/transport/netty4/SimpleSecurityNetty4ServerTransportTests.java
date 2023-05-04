@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
@@ -443,7 +444,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         ) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
-            DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
+            DiscoveryNode node = TestDiscoveryNode.create(
+                service.getLocalNode().getId(),
+                clientAddress,
+                service.getLocalNode().getVersion()
+            );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
@@ -466,7 +471,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         ) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
-            DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
+            DiscoveryNode node = TestDiscoveryNode.create(
+                service.getLocalNode().getId(),
+                clientAddress,
+                service.getLocalNode().getVersion()
+            );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
@@ -494,7 +503,11 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         ) {
             TcpTransport originalTransport = (TcpTransport) service.getOriginalTransport();
             TransportAddress clientAddress = originalTransport.profileBoundAddresses().get("client").publishAddress();
-            DiscoveryNode node = new DiscoveryNode(service.getLocalNode().getId(), clientAddress, service.getLocalNode().getVersion());
+            DiscoveryNode node = TestDiscoveryNode.create(
+                service.getLocalNode().getId(),
+                clientAddress,
+                service.getLocalNode().getVersion()
+            );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
                 assertEquals("client", getAcceptedChannel(originalTransport, connection2).getProfile());
@@ -534,7 +547,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try (MockTransportService fcService = buildService("FC", Version.CURRENT, TransportVersion.CURRENT, fcSettings)) {
             final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
             final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
-            final DiscoveryNode node = new DiscoveryNode(
+            final DiscoveryNode node = TestDiscoveryNode.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
                 fcService.getLocalNode().getVersion()
@@ -654,7 +667,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         try (MockTransportService fcService = buildService("FC", Version.CURRENT, TransportVersion.CURRENT, fcSettings)) {
             final TcpTransport originalTransport = (TcpTransport) fcService.getOriginalTransport();
             final TransportAddress remoteAccessAddress = originalTransport.profileBoundAddresses().get("_remote_cluster").publishAddress();
-            final DiscoveryNode node = new DiscoveryNode(
+            final DiscoveryNode node = TestDiscoveryNode.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
                 fcService.getLocalNode().getVersion()

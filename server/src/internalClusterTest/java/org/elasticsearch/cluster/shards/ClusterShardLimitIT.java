@@ -48,15 +48,11 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         int negativeShardsPerNode = between(-50_000, 0);
         try {
             if (frequently()) {
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings()
                     .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, negativeShardsPerNode).build())
                     .get();
             } else {
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings()
                     .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, negativeShardsPerNode).build())
                     .get();
             }
@@ -70,7 +66,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
     }
 
     public void testIndexCreationOverLimit() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
 
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
 
@@ -98,12 +94,12 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
         }
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
     }
 
     public void testIndexCreationOverLimitFromTemplate() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
 
         final ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
 
@@ -135,12 +131,12 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             () -> client().admin().indices().prepareCreate("should-fail").get()
         );
         verifyException(dataNodes, counts, e);
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
     }
 
     public void testIncreaseReplicasOverLimit() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
 
         dataNodes = ensureMultipleDataNodes(dataNodes);
 
@@ -167,12 +163,12 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + "] maximum normal shards open;";
             assertEquals(expectedError, e.getMessage());
         }
-        Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
         assertEquals(0, clusterState.index("growing-should-fail").getNumberOfReplicas());
     }
 
     public void testChangingMultipleIndicesOverLimit() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
 
         dataNodes = ensureMultipleDataNodes(dataNodes);
 
@@ -228,13 +224,13 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 + "] maximum normal shards open;";
             assertEquals(expectedError, e.getMessage());
         }
-        Metadata clusterState = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata clusterState = clusterAdmin().prepareState().get().getState().metadata();
         assertEquals(firstIndexReplicas, clusterState.index("test-1-index").getNumberOfReplicas());
         assertEquals(secondIndexReplicas, clusterState.index("test-2-index").getNumberOfReplicas());
     }
 
     public void testPreserveExistingSkipsCheck() {
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
 
         dataNodes = ensureMultipleDataNodes(dataNodes);
 
@@ -257,7 +253,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
                 .get()
         );
-        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertEquals(0, clusterState.getMetadata().index("test-index").getNumberOfReplicas());
     }
 
@@ -272,7 +268,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
         assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("fs").setSettings(repoSettings.build()));
 
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
         createIndex(
             "snapshot-index",
@@ -343,7 +339,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
 
     public void testOpenIndexOverLimit() {
         Client client = client();
-        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
 
         createIndex(
@@ -386,9 +382,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         if (dataNodes == 1) {
             internalCluster().startNode(dataNode());
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareHealth()
+                clusterAdmin().prepareHealth()
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNodes(">=2")
                     .setLocal(true)
@@ -397,29 +391,17 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                     .isTimedOut(),
                 equalTo(false)
             );
-            dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+            dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();
         }
         return dataNodes;
     }
 
     private void setShardsPerNode(int shardsPerNode) {
         try {
-            ClusterUpdateSettingsResponse response;
-            if (frequently()) {
-                response = client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
-                    .get();
-                assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
-            } else {
-                response = client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
-                    .get();
-                assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
-            }
+            ClusterUpdateSettingsResponse response = clusterAdmin().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
+                .get();
+            assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());
         }

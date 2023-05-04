@@ -290,6 +290,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
+    @Deprecated(forRemoval = true)
     public final IndexVersion indexVersion;
     private final String toString;
     private final int previousMajorId;
@@ -331,6 +332,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return builder.value(toString());
     }
 
+    @Deprecated(forRemoval = true)
     public org.apache.lucene.util.Version luceneVersion() {
         return indexVersion.luceneVersion;
     }

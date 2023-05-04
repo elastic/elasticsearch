@@ -88,6 +88,13 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             String remoteRepo = remote.get();
             // for testing only we can override the base remote url
             String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
+                .orElse(
+                    providerFactory.provider(
+                        () -> addRemote.getExtensions().getExtraProperties().has("remote")
+                            ? addRemote.getExtensions().getExtraProperties().get("remote").toString()
+                            : null
+                    )
+                )
                 .getOrElse("https://github.com/" + remoteRepo + "/" + project.getRootProject().getName());
             addRemote.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
         });

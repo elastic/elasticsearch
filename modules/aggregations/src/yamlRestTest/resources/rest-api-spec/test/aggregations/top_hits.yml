@@ -432,6 +432,9 @@ synthetic _source:
 
 ---
 "having":
+  - skip:
+      version: " - 8.8.99"
+      reason: fixed in 8.9.0
   - do:
       bulk:
         index: test2

@@ -249,7 +249,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     throw faee;
                 }
                 deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-                writeToPath(inputStream, file, blobSize);
             }
         }
         IOUtils.fsync(path, true);
@@ -267,7 +266,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     throw faee;
                 }
                 deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-                writeToPath(bytes, file);
             }
         }
         IOUtils.fsync(path, true);

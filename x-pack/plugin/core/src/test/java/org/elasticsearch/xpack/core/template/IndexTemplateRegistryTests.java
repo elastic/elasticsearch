@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -344,7 +345,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
                 pipelineEntry.getKey(),
                 new PipelineConfiguration(
                     pipelineEntry.getKey(),
-                    new BytesArray(String.format("{\"version\": %d}", pipelineEntry.getValue())),
+                    new BytesArray(Strings.format("{\"version\": %d}", pipelineEntry.getValue())),
                     XContentType.JSON
                 )
             );

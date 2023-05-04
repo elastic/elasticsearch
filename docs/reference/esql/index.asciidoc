@@ -9,7 +9,7 @@
 
 [partintro]
 --
-The {es} Query Language (ESQL) is a query language that enables the iterative 
+The {es} Query Language (ESQL) is a query language that enables the iterative
 exploration of data.
 
 An ESQL query consists of a series of commands, separated by pipes. Each query
@@ -97,7 +97,7 @@ POST /_esql?format=txt
 
 ESQL can be used in Discover to explore a data set, and in Lens to visualize it.
 First, enable the `enableTextBased` setting in *Advanced Settings*. Next, in
-Discover or Lens, from the data view dropdown, select *ESQL*. 
+Discover or Lens, from the data view dropdown, select *ESQL*.
 
 NOTE: ESQL queries in Discover and Lens are subject to the time range selected
 with the time filter.

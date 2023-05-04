@@ -39,9 +39,11 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -1165,5 +1167,26 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         ExchangeExec remoteSink = as(remoteSource.child(), ExchangeExec.class);
         assertThat(remoteSink.mode(), equalTo(ExchangeExec.Mode.REMOTE_SINK));
         return remoteSink;
+    }
+
+    public void testFieldExtractWithoutSourceAttributes() {
+        PhysicalPlan verifiedPlan = optimizedPlan(physicalPlan("""
+            from test
+            | where round(emp_no) > 10
+            """));
+        // Transform the verified plan so that it is invalid (i.e. no source attributes)
+        List<Attribute> emptyAttrList = List.of();
+        var badPlan = verifiedPlan.transformDown(
+            EsQueryExec.class,
+            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query())
+        );
+
+        var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Need to add field extractor for [[emp_no]] but cannot detect source attributes from node [EsSourceExec[test][]]"
+            )
+        );
     }
 }

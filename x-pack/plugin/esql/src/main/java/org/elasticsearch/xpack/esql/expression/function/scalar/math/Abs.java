@@ -27,16 +27,7 @@ public class Abs extends UnaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        if (dataType() == DataTypes.DOUBLE) {
-            return AbsDoubleEvaluator.fold(field());
-        }
-        if (dataType() == DataTypes.LONG) {
-            return AbsLongEvaluator.fold(field());
-        }
-        if (dataType() == DataTypes.INTEGER) {
-            return AbsIntEvaluator.fold(field());
-        }
-        throw new UnsupportedOperationException("unsupported data type [" + dataType() + "]");
+        return Mappable.super.fold();
     }
 
     @Evaluator(extraName = "Double")

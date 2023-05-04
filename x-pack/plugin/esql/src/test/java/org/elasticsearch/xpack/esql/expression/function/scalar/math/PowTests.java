@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PowTests extends AbstractScalarFunctionTestCase {
@@ -56,7 +57,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
     }
 
     private Object process(Number base, Number exponent) {
-        return valueAt(
+        return toJavaObject(
             evaluator(new Pow(Source.EMPTY, field("base", typeOf(base)), field("exponent", typeOf(exponent)))).get()
                 .eval(row(List.of(base, exponent))),
             0

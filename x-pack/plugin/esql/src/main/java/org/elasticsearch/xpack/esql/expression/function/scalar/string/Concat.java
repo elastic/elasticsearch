@@ -67,8 +67,8 @@ public class Concat extends ScalarFunction implements Mappable {
     }
 
     @Override
-    public BytesRef fold() {
-        return ConcatEvaluator.fold(new BytesRefBuilder(), children());
+    public Object fold() {
+        return Mappable.super.fold();
     }
 
     @Override

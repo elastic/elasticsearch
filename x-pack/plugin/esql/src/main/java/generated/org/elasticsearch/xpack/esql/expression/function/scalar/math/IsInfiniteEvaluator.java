@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Boolean;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -14,7 +13,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link IsInfinite}.
@@ -25,14 +23,6 @@ public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluat
 
   public IsInfiniteEvaluator(EvalOperator.ExpressionEvaluator val) {
     this.val = val;
-  }
-
-  static Boolean fold(Expression val) {
-    Object valVal = val.fold();
-    if (valVal == null) {
-      return null;
-    }
-    return IsInfinite.process(((Number) valVal).doubleValue());
   }
 
   @Override

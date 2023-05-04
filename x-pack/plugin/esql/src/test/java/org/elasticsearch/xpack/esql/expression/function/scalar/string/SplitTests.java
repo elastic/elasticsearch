@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SplitTests extends AbstractScalarFunctionTestCase {
@@ -91,7 +92,7 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
         assert ':' == 58;
         assertThat(eval.toString(), equalTo("SplitSingleByteEvaluator[str=Attribute[channel=0], delim=58]"));
         assertThat(
-            valueAt(eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1))), 0),
+            toJavaObject(eval.eval(new Page(BytesRefBlock.newConstantBlockWith(new BytesRef("foo:bar"), 1))), 0),
             equalTo(List.of(new BytesRef("foo"), new BytesRef("bar")))
         );
     }

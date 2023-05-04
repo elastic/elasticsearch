@@ -12,11 +12,6 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
@@ -41,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -119,37 +115,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testSimple() {
         List<Object> simpleData = simpleData();
         Expression expression = expressionForSimpleData();
-        Object result = valueAt(evaluator(expression).get().eval(row(simpleData)), 0);
+        Object result = toJavaObject(evaluator(expression).get().eval(row(simpleData)), 0);
         assertThat(result, resultMatcher(simpleData));
-    }
-
-    protected static Object valueAt(Block block, int position) {
-        if (block.isNull(position)) {
-            return null;
-        }
-        int count = block.getValueCount(position);
-        int start = block.getFirstValueIndex(position);
-        if (count == 1) {
-            return valueAtOffset(block, start);
-        }
-        int end = start + count;
-        List<Object> result = new ArrayList<>(count);
-        for (int i = start; i < end; i++) {
-            result.add(valueAtOffset(block, i));
-        }
-        return result;
-    }
-
-    private static Object valueAtOffset(Block block, int offset) {
-        return switch (block.elementType()) {
-            case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
-            case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(offset, new BytesRef());
-            case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
-            case INT -> ((IntBlock) block).getInt(offset);
-            case LONG -> ((LongBlock) block).getLong(offset);
-            case NULL -> null;
-            case DOC, UNKNOWN -> throw new IllegalArgumentException();
-        };
     }
 
     public final void testSimpleWithNulls() {
@@ -191,7 +158,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 futures.add(exec.submit(() -> {
                     EvalOperator.ExpressionEvaluator eval = evalSupplier.get();
                     for (int c = 0; c < count; c++) {
-                        assertThat(valueAt(eval.eval(page), 0), resultMatcher);
+                        assertThat(toJavaObject(eval.eval(page), 0), resultMatcher);
                     }
                 }));
             }

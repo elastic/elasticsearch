@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CaseTests extends AbstractFunctionTestCase {
@@ -60,21 +61,21 @@ public class CaseTests extends AbstractFunctionTestCase {
     @Override
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
         if (nullBlock == 0) {
-            assertThat(valueAt(value, 0), equalTo(data.get(2)));
+            assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
             return;
         }
         if (((Boolean) data.get(0)).booleanValue()) {
             if (nullBlock == 1) {
                 super.assertSimpleWithNulls(data, value, nullBlock);
             } else {
-                assertThat(valueAt(value, 0), equalTo(data.get(1)));
+                assertThat(toJavaObject(value, 0), equalTo(data.get(1)));
             }
             return;
         }
         if (nullBlock == 2) {
             super.assertSimpleWithNulls(data, value, nullBlock);
         } else {
-            assertThat(valueAt(value, 0), equalTo(data.get(2)));
+            assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
         }
     }
 
@@ -99,7 +100,7 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     public void testEvalCase() {
         testCase(
-            caseExpr -> valueAt(
+            caseExpr -> toJavaObject(
                 caseExpr.toEvaluator(child -> evaluator(child)).get().eval(new Page(IntBlock.newConstantBlockWith(0, 1))),
                 0
             )
@@ -158,7 +159,7 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     public void testCaseIsLazy() {
         Case caseExpr = caseExpr(true, 1, true, 2);
-        assertEquals(1, valueAt(caseExpr.toEvaluator(child -> {
+        assertEquals(1, toJavaObject(caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value != null && value.equals(2)) {
                 return () -> page -> {

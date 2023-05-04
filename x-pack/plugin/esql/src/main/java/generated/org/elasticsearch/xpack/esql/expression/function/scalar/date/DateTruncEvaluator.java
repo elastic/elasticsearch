@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import java.lang.Long;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.common.Rounding;
@@ -13,7 +12,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateTrunc}.
@@ -27,14 +25,6 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   public DateTruncEvaluator(EvalOperator.ExpressionEvaluator fieldVal, Rounding.Prepared rounding) {
     this.fieldVal = fieldVal;
     this.rounding = rounding;
-  }
-
-  static Long fold(Expression fieldVal, Rounding.Prepared rounding) {
-    Object fieldValVal = fieldVal.fold();
-    if (fieldValVal == null) {
-      return null;
-    }
-    return DateTrunc.process(((Number) fieldValVal).longValue(), rounding);
   }
 
   @Override

@@ -76,10 +76,7 @@ public class DateFormat extends ScalarFunction implements OptionalArgument, Mapp
 
     @Override
     public Object fold() {
-        if (format == null) {
-            return DateFormatConstantEvaluator.fold(field, UTC_DATE_TIME_FORMATTER);
-        }
-        return DateFormatEvaluator.fold(field, format);
+        return Mappable.super.fold();
     }
 
     @Evaluator(extraName = "Constant")

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.logical;
 
-import java.lang.Boolean;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Not}.
@@ -23,14 +21,6 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public NotEvaluator(EvalOperator.ExpressionEvaluator v) {
     this.v = v;
-  }
-
-  static Boolean fold(Expression v) {
-    Object vVal = v.fold();
-    if (vVal == null) {
-      return null;
-    }
-    return Not.process((boolean) vVal);
   }
 
   @Override

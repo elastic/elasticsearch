@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import java.lang.Double;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Mod}.
@@ -27,18 +25,6 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
       EvalOperator.ExpressionEvaluator rhs) {
     this.lhs = lhs;
     this.rhs = rhs;
-  }
-
-  static Double fold(Expression lhs, Expression rhs) {
-    Object lhsVal = lhs.fold();
-    if (lhsVal == null) {
-      return null;
-    }
-    Object rhsVal = rhs.fold();
-    if (rhsVal == null) {
-      return null;
-    }
-    return Mod.processDoubles(((Number) lhsVal).doubleValue(), ((Number) rhsVal).doubleValue());
   }
 
   @Override

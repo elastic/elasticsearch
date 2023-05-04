@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -14,7 +13,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
@@ -29,18 +27,6 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
       EvalOperator.ExpressionEvaluator decimals) {
     this.val = val;
     this.decimals = decimals;
-  }
-
-  static Integer fold(Expression val, Expression decimals) {
-    Object valVal = val.fold();
-    if (valVal == null) {
-      return null;
-    }
-    Object decimalsVal = decimals.fold();
-    if (decimalsVal == null) {
-      return null;
-    }
-    return Round.process(((Number) valVal).intValue(), ((Number) decimalsVal).longValue());
   }
 
   @Override

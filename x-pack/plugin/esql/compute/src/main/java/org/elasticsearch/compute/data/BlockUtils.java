@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -190,4 +191,45 @@ public final class BlockUtils {
         }
     }
 
+    /**
+     * Returned by {@link #toJavaObject} for "doc" type blocks.
+     */
+    public record Doc(int shard, int segment, int doc) {}
+
+    /**
+     * Read all values from a positions into a java object. This is not fast
+     * but fine to call in the "fold" path.
+     */
+    public static Object toJavaObject(Block block, int position) {
+        if (block.isNull(position)) {
+            return null;
+        }
+        int count = block.getValueCount(position);
+        int start = block.getFirstValueIndex(position);
+        if (count == 1) {
+            return valueAtOffset(block, start);
+        }
+        int end = start + count;
+        List<Object> result = new ArrayList<>(count);
+        for (int i = start; i < end; i++) {
+            result.add(valueAtOffset(block, i));
+        }
+        return result;
+    }
+
+    private static Object valueAtOffset(Block block, int offset) {
+        return switch (block.elementType()) {
+            case BOOLEAN -> ((BooleanBlock) block).getBoolean(offset);
+            case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(offset, new BytesRef());
+            case DOUBLE -> ((DoubleBlock) block).getDouble(offset);
+            case INT -> ((IntBlock) block).getInt(offset);
+            case LONG -> ((LongBlock) block).getLong(offset);
+            case NULL -> null;
+            case DOC -> {
+                DocVector v = ((DocBlock) block).asVector();
+                yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
+            }
+            case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
+        };
+    }
 }

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Pow}.
@@ -27,18 +25,6 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
       EvalOperator.ExpressionEvaluator exponent) {
     this.base = base;
     this.exponent = exponent;
-  }
-
-  static Integer fold(Expression base, Expression exponent) {
-    Object baseVal = base.fold();
-    if (baseVal == null) {
-      return null;
-    }
-    Object exponentVal = exponent.fold();
-    if (exponentVal == null) {
-      return null;
-    }
-    return Pow.process(((Number) baseVal).intValue(), ((Number) exponentVal).intValue());
   }
 
   @Override

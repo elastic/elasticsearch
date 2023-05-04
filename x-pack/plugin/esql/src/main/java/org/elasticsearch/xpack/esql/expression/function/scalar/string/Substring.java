@@ -74,10 +74,7 @@ public class Substring extends ScalarFunction implements OptionalArgument, Mappa
 
     @Override
     public Object fold() {
-        if (length == null) {
-            return SubstringNoLengthEvaluator.fold(str, start);
-        }
-        return SubstringEvaluator.fold(str, start, length);
+        return Mappable.super.fold();
     }
 
     @Evaluator(extraName = "NoLength")

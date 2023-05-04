@@ -4,11 +4,9 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
-import java.lang.Boolean;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
-import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -17,7 +15,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link CIDRMatch}.
@@ -32,21 +29,6 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
       EvalOperator.ExpressionEvaluator[] cidrs) {
     this.ip = ip;
     this.cidrs = cidrs;
-  }
-
-  static Boolean fold(Expression ip, List<Expression> cidrs) {
-    Object ipVal = ip.fold();
-    if (ipVal == null) {
-      return null;
-    }
-    BytesRef[] cidrsVal = new BytesRef[cidrs.size()];
-    for (int i = 0; i < cidrsVal.length; i++) {
-      cidrsVal[i] = (BytesRef) cidrs.get(i).fold();
-      if (cidrsVal[i] == null) {
-        return null;
-      }
-    }
-    return CIDRMatch.process((BytesRef) ipVal, cidrsVal);
   }
 
   @Override

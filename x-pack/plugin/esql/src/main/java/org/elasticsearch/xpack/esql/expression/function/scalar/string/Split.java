@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -25,7 +23,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -65,12 +62,7 @@ public class Split extends BinaryScalarFunction implements Mappable {
 
     @Override
     public Object fold() {
-        BytesRefBlock b = (BytesRefBlock) toEvaluator(e -> () -> p -> BlockUtils.fromArrayRow(e.fold())[0]).get().eval(new Page(1));
-        int count = b.getValueCount(0);
-        if (count == 1) {
-            return b.getBytesRef(0, new BytesRef());
-        }
-        return IntStream.range(0, count).mapToObj(i -> b.getBytesRef(i, new BytesRef())).toList();
+        return Mappable.super.fold();
     }
 
     @Evaluator(extraName = "SingleByte")

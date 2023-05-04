@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
-import java.lang.Boolean;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Equals}.
@@ -27,18 +25,6 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
       EvalOperator.ExpressionEvaluator rhs) {
     this.lhs = lhs;
     this.rhs = rhs;
-  }
-
-  static Boolean fold(Expression lhs, Expression rhs) {
-    Object lhsVal = lhs.fold();
-    if (lhsVal == null) {
-      return null;
-    }
-    Object rhsVal = rhs.fold();
-    if (rhsVal == null) {
-      return null;
-    }
-    return Equals.processBools((boolean) lhsVal, (boolean) rhsVal);
   }
 
   @Override

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+
 public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTestCase {
     @Override
     protected final List<Object> simpleData() {
@@ -76,7 +78,7 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                     field("lhs", lhsType),
                     field("rhs", rhsType)
                 );
-                Object result = valueAt(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
+                Object result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
                 assertThat(op.toString(), result, resultMatcher(List.of(lhs.value(), rhs.value())));
             }
         }

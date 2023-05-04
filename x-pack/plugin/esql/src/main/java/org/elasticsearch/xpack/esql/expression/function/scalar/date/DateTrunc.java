@@ -65,7 +65,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements Mappable {
 
     @Override
     public Object fold() {
-        return DateTruncEvaluator.fold(timestampField(), createRounding(interval().fold()));
+        return Mappable.super.fold();
     }
 
     @Evaluator

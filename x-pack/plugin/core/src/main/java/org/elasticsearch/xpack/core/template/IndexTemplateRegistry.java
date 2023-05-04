@@ -259,7 +259,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
             if (creationCheck.compareAndSet(false, true)) {
                 ComponentTemplate currentTemplate = state.metadata().componentTemplates().get(templateName);
-                if (templateDependenciesExist(state, newTemplate.getValue()) == false) {
+                if (templateDependenciesSatisfied(state, newTemplate.getValue()) == false) {
                     creationCheck.set(false);
                     logger.trace(
                         "not adding index template [{}] for [{}] because its required dependencies do not exist",
@@ -302,7 +302,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Returns true if the cluster state contains all of the dependencies required by the provided component template
      */
-    private static boolean templateDependenciesExist(ClusterState state, ComponentTemplate indexTemplate) {
+    private static boolean templateDependenciesSatisfied(ClusterState state, ComponentTemplate indexTemplate) {
         Template template = indexTemplate.template();
         if (template == null) {
             return true;
@@ -312,15 +312,17 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return true;
         }
         IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        if (ingestMetadata == null) {
-            return false;
-        }
         String defaultPipeline = settings.get("index.default_pipeline");
-        if (defaultPipeline != null && ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
-            return false;
+        if (defaultPipeline != null) {
+            if (ingestMetadata == null || ingestMetadata.getPipelines().containsKey(defaultPipeline) == false) {
+                return false;
+            }
         }
         String finalPipeline = settings.get("index.final_pipeline");
-        return finalPipeline == null || ingestMetadata.getPipelines().containsKey(finalPipeline);
+        if (finalPipeline != null) {
+            return ingestMetadata != null && ingestMetadata.getPipelines().containsKey(finalPipeline);
+        }
+        return true;
     }
 
     private void addComposableTemplatesIfMissing(ClusterState state) {

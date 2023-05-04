@@ -30,7 +30,7 @@ public class DlmAuthorizationService {
 
     public void authorize(AuthorizeDlmConfigurationRequest request, ActionListener<Void> listener) {
         String[] dataStreamPatterns = request.dataStreamPatterns(clusterService.state());
-        // TODO hack hack hack
+        // TODO hack: null stream patterns means don't run the check
         if (dataStreamPatterns == null) {
             listener.onResponse(null);
             return;

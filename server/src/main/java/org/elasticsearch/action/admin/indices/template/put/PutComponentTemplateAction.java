@@ -143,7 +143,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
         @Override
         public String[] dataStreamPatterns(ClusterState state) {
             if (false == componentTemplate.hasDataLifecycle()) {
-                // TODO hack hack hack
+                // TODO hack: null stream patterns means don't run the check
                 return null;
             }
             var composableTemplates = MetadataIndexTemplateService.getTemplatesUsingComponent(state, name());

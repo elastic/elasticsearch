@@ -6,7 +6,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -15,7 +14,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
@@ -30,14 +28,6 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
       DateFormatter formatter) {
     this.val = val;
     this.formatter = formatter;
-  }
-
-  static BytesRef fold(Expression val, DateFormatter formatter) {
-    Object valVal = val.fold();
-    if (valVal == null) {
-      return null;
-    }
-    return DateFormat.process(((Number) valVal).longValue(), formatter);
   }
 
   @Override

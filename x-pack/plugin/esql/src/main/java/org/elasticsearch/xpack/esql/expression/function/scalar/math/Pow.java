@@ -63,13 +63,7 @@ public class Pow extends ScalarFunction implements OptionalArgument, Mappable {
 
     @Override
     public Object fold() {
-        if (dataType == DataTypes.DOUBLE) {
-            return PowDoubleEvaluator.fold(base, exponent);
-        } else if (dataType == DataTypes.LONG) {
-            return PowLongEvaluator.fold(base, exponent);
-        } else {
-            return PowIntEvaluator.fold(base, exponent);
-        }
+        return Mappable.super.fold();
     }
 
     @Evaluator(extraName = "Double")

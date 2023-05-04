@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Double;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -14,7 +13,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
@@ -25,14 +23,6 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
 
   public CastLongToDoubleEvaluator(EvalOperator.ExpressionEvaluator v) {
     this.v = v;
-  }
-
-  static Double fold(Expression v) {
-    Object vVal = v.fold();
-    if (vVal == null) {
-      return null;
-    }
-    return Cast.castLongToDouble(((Number) vVal).longValue());
   }
 
   @Override

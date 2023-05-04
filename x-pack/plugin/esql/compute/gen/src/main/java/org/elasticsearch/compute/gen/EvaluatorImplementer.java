@@ -11,7 +11,6 @@ import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -35,7 +34,6 @@ import static org.elasticsearch.compute.gen.Methods.appendMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.EXPRESSION;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -76,9 +74,6 @@ public class EvaluatorImplementer {
         processFunction.args.stream().forEach(a -> a.declareField(builder));
 
         builder.addMethod(ctor());
-        if (processFunction.builderArg == null) {
-            builder.addMethod(fold());
-        }
         builder.addMethod(eval());
         builder.addMethod(realEval(true));
         builder.addMethod(realEval(false));
@@ -89,80 +84,6 @@ public class EvaluatorImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
-        return builder.build();
-    }
-
-    private MethodSpec fold() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("fold")
-            .addModifiers(Modifier.STATIC)
-            .returns(TypeName.get(processFunction.function.getReturnType()).box());
-
-        for (VariableElement v : processFunction.function.getParameters()) {
-            String name = v.getSimpleName().toString();
-            if (v.getAnnotation(Fixed.class) != null) {
-                builder.addParameter(TypeName.get(v.asType()), name);
-                continue;
-            }
-            if (v.asType().getKind() == TypeKind.ARRAY) {
-                TypeMirror componentType = ((ArrayType) v.asType()).getComponentType();
-                builder.addParameter(ParameterizedTypeName.get(ClassName.get(List.class), EXPRESSION), name);
-                builder.addStatement("$T $LVal = new $T[$L.size()]", v.asType(), name, componentType, name);
-                builder.beginControlFlow("for (int i = 0; i < $LVal.length; i++)", name);
-                switch (componentType.getKind()) {
-                    case INT -> builder.addStatement("$LVal[i] = ((Number) $L.get(i).fold()).intValue()", name, name);
-                    case LONG -> builder.addStatement("$LVal[i] = ((Number) $L.get(i).fold()).longValue()", name, name);
-                    case DOUBLE -> builder.addStatement("$LVal[i] = ((Number) $L.get(i).fold()).doubleValue()", name, name);
-                    default -> builder.addStatement("$LVal[i] = ($T) $L.get(i).fold()", name, componentType, name);
-                }
-
-                builder.beginControlFlow("if ($LVal[i] == null)", name).addStatement("return null").endControlFlow();
-                builder.endControlFlow();
-                continue;
-            }
-            builder.addParameter(EXPRESSION, name);
-            builder.addStatement("Object $LVal = $L.fold()", name, name);
-            builder.beginControlFlow("if ($LVal == null)", name).addStatement("return null").endControlFlow();
-        }
-
-        StringBuilder pattern = new StringBuilder();
-        List<Object> args = new ArrayList<>();
-        pattern.append("return $T.$N(");
-        args.add(declarationType);
-        args.add(processFunction.function.getSimpleName());
-        for (VariableElement v : processFunction.function.getParameters()) {
-            if (args.size() > 2) {
-                pattern.append(", ");
-            }
-            if (v.getAnnotation(Fixed.class) == null) {
-                switch (v.asType().getKind()) {
-                    case ARRAY -> {
-                        pattern.append("$LVal");
-                        args.add(v.getSimpleName());
-                    }
-                    case INT -> {
-                        pattern.append("((Number) $LVal).intValue()");
-                        args.add(v.getSimpleName());
-                    }
-                    case LONG -> {
-                        pattern.append("((Number) $LVal).longValue()");
-                        args.add(v.getSimpleName());
-                    }
-                    case DOUBLE -> {
-                        pattern.append("((Number) $LVal).doubleValue()");
-                        args.add(v.getSimpleName());
-                    }
-                    default -> {
-                        pattern.append("($T) $LVal");
-                        args.add(v.asType());
-                        args.add(v.getSimpleName());
-                    }
-                }
-            } else {
-                pattern.append("$L");
-                args.add(v.getSimpleName());
-            }
-        }
-        builder.addStatement(pattern.append(")").toString(), args.toArray());
         return builder.build();
     }
 
@@ -366,7 +287,7 @@ public class EvaluatorImplementer {
         @Override
         public void createScratch(MethodSpec.Builder builder) {
             if (type.equals(BYTES_REF)) {
-                builder.addStatement("BytesRef $LScratch = new BytesRef()", name);
+                builder.addStatement("$T $LScratch = new $T()", BYTES_REF, name, BYTES_REF);
             }
         }
 
@@ -469,7 +390,7 @@ public class EvaluatorImplementer {
             if (componentType.equals(BYTES_REF)) {
                 builder.addStatement("$T[] $LScratch = new $T[$L.length]", componentType, name, componentType, name);
                 builder.beginControlFlow("for (int i = 0; i < $L.length; i++)", name);
-                builder.addStatement("$LScratch[i] = new BytesRef()", name);
+                builder.addStatement("$LScratch[i] = new $T()", name, BYTES_REF);
                 builder.endControlFlow();
             }
         }

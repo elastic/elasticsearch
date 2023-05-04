@@ -23,11 +23,6 @@ public class IsFinite extends RationalUnaryPredicate {
     }
 
     @Override
-    public Object fold() {
-        return IsFiniteEvaluator.fold(field());
-    }
-
-    @Override
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {

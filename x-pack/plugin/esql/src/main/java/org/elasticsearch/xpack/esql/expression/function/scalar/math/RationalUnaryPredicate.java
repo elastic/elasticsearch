@@ -34,4 +34,9 @@ public abstract class RationalUnaryPredicate extends UnaryScalarFunction impleme
     public final DataType dataType() {
         return DataTypes.BOOLEAN;
     }
+
+    @Override
+    public final Object fold() {
+        return Mappable.super.fold();
+    }
 }

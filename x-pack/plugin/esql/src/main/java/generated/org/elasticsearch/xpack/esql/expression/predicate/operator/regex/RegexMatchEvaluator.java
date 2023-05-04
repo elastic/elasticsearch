@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.regex;
 
-import java.lang.Boolean;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -16,7 +15,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RegexMatch}.
@@ -31,14 +29,6 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
       CharacterRunAutomaton pattern) {
     this.input = input;
     this.pattern = pattern;
-  }
-
-  static Boolean fold(Expression input, CharacterRunAutomaton pattern) {
-    Object inputVal = input.fold();
-    if (inputVal == null) {
-      return null;
-    }
-    return RegexMatch.process((BytesRef) inputVal, pattern);
   }
 
   @Override

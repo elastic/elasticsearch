@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link DateFormat}.
@@ -29,18 +28,6 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
       EvalOperator.ExpressionEvaluator formatter) {
     this.val = val;
     this.formatter = formatter;
-  }
-
-  static BytesRef fold(Expression val, Expression formatter) {
-    Object valVal = val.fold();
-    if (valVal == null) {
-      return null;
-    }
-    Object formatterVal = formatter.fold();
-    if (formatterVal == null) {
-      return null;
-    }
-    return DateFormat.process(((Number) valVal).longValue(), (BytesRef) formatterVal);
   }
 
   @Override

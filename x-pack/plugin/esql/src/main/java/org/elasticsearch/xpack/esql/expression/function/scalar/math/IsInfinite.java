@@ -23,11 +23,6 @@ public class IsInfinite extends RationalUnaryPredicate {
     }
 
     @Override
-    public Object fold() {
-        return IsInfiniteEvaluator.fold(field());
-    }
-
-    @Override
     public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
         Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
     ) {

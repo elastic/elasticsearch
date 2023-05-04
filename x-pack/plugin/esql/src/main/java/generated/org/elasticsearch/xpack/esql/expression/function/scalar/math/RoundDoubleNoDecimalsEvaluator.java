@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Double;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Round}.
@@ -23,14 +21,6 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
 
   public RoundDoubleNoDecimalsEvaluator(EvalOperator.ExpressionEvaluator val) {
     this.val = val;
-  }
-
-  static Double fold(Expression val) {
-    Object valVal = val.fold();
-    if (valVal == null) {
-      return null;
-    }
-    return Round.process(((Number) valVal).doubleValue());
   }
 
   @Override

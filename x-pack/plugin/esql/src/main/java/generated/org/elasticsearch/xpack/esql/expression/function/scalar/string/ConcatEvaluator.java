@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
-import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
@@ -15,7 +14,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Concat}.
@@ -29,17 +27,6 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   public ConcatEvaluator(BytesRefBuilder scratch, EvalOperator.ExpressionEvaluator[] values) {
     this.scratch = scratch;
     this.values = values;
-  }
-
-  static BytesRef fold(BytesRefBuilder scratch, List<Expression> values) {
-    BytesRef[] valuesVal = new BytesRef[values.size()];
-    for (int i = 0; i < valuesVal.length; i++) {
-      valuesVal[i] = (BytesRef) values.get(i).fold();
-      if (valuesVal[i] == null) {
-        return null;
-      }
-    }
-    return Concat.process(scratch, valuesVal);
   }
 
   @Override

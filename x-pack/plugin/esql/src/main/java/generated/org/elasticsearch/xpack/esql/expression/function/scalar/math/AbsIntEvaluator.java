@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
@@ -23,14 +21,6 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public AbsIntEvaluator(EvalOperator.ExpressionEvaluator fieldVal) {
     this.fieldVal = fieldVal;
-  }
-
-  static Integer fold(Expression fieldVal) {
-    Object fieldValVal = fieldVal.fold();
-    if (fieldValVal == null) {
-      return null;
-    }
-    return Abs.process(((Number) fieldValVal).intValue());
   }
 
   @Override

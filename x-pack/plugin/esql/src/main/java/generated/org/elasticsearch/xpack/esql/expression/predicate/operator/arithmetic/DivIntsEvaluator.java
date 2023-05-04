@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -12,7 +11,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Div}.
@@ -27,18 +25,6 @@ public final class DivIntsEvaluator implements EvalOperator.ExpressionEvaluator 
       EvalOperator.ExpressionEvaluator rhs) {
     this.lhs = lhs;
     this.rhs = rhs;
-  }
-
-  static Integer fold(Expression lhs, Expression rhs) {
-    Object lhsVal = lhs.fold();
-    if (lhsVal == null) {
-      return null;
-    }
-    Object rhsVal = rhs.fold();
-    if (rhsVal == null) {
-      return null;
-    }
-    return Div.processInts(((Number) lhsVal).intValue(), ((Number) rhsVal).intValue());
   }
 
   @Override

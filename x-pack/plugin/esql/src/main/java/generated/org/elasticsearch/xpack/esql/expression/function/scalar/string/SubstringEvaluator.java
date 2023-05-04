@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Substring}.
@@ -32,22 +31,6 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
     this.str = str;
     this.start = start;
     this.length = length;
-  }
-
-  static BytesRef fold(Expression str, Expression start, Expression length) {
-    Object strVal = str.fold();
-    if (strVal == null) {
-      return null;
-    }
-    Object startVal = start.fold();
-    if (startVal == null) {
-      return null;
-    }
-    Object lengthVal = length.fold();
-    if (lengthVal == null) {
-      return null;
-    }
-    return Substring.process((BytesRef) strVal, ((Number) startVal).intValue(), ((Number) lengthVal).intValue());
   }
 
   @Override

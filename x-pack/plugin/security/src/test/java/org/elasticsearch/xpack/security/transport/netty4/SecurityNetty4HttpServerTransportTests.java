@@ -346,7 +346,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         }
     }
 
-    public void testHttpHeaderAuthnWithoutHeaderValidator() throws Exception {
+    public void testHttpHeaderAuthnFaultyHeaderValidator() throws Exception {
         final Settings settings = Settings.builder().put(env.settings()).build();
         final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
         try (

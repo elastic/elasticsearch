@@ -17,7 +17,6 @@ module org.elasticsearch.security {
     requires org.elasticsearch.transport.netty4;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.xcore;
-    requires io.netty.codec.http;
 
     requires org.apache.commons.codec;
     requires org.apache.httpcomponents.httpcore;
@@ -41,6 +40,7 @@ module org.elasticsearch.security {
 
     requires com.nimbusds.jose.jwt;
     requires io.netty.common;
+    requires io.netty.codec.http;
     requires io.netty.handler;
     requires io.netty.transport;
     requires jopt.simple;

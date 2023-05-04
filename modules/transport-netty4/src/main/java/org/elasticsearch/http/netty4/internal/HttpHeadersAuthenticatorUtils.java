@@ -36,7 +36,7 @@ public final class HttpHeadersAuthenticatorUtils {
     private HttpHeadersAuthenticatorUtils() {}
 
     /**
-     * Supplies a netty {@code ChannelInboundHandler} that runs the provided {@param authenticator} on the HTTP request headers.
+     * Supplies a netty {@code ChannelInboundHandler} that runs the provided {@param validator} on the HTTP request headers.
      * The HTTP headers of the to-be-authenticated {@link HttpRequest} must be wrapped by the special
      * {@link HttpHeadersWithAuthenticationContext}, see {@link #wrapAsMessageWithAuthenticationContext(HttpMessage)}.
      */

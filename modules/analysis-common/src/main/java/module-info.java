@@ -22,7 +22,5 @@ module org.elasticsearch.analysis.common {
 
     opens org.elasticsearch.analysis.common to org.elasticsearch.painless.spi; // whitelist resource access
 
-    exports org.elasticsearch.analysis.common.synonyms.action to org.elasticsearch.server; // Needed for synonyms actions execution
-
     provides org.elasticsearch.painless.spi.PainlessExtension with org.elasticsearch.analysis.common.AnalysisPainlessExtension;
 }

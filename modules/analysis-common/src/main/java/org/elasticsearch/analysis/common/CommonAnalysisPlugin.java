@@ -100,25 +100,15 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.analysis.common.synonyms.action.PutSynonymsAction;
-import org.elasticsearch.analysis.common.synonyms.action.RestPutSynonymsAction;
-import org.elasticsearch.analysis.common.synonyms.action.TransportPutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -130,18 +120,13 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -161,7 +146,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
-public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, ScriptPlugin, SystemIndexPlugin, ActionPlugin {
+public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, ScriptPlugin {
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisPlugin.class);
 
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
@@ -665,50 +651,5 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("PathHierarchy", PathHierarchyTokenizer::new));
 
         return tokenizers;
-    }
-
-    @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        if (SynonymsManagementAPIService.isEnabled()) {
-            return Collections.singletonList(SynonymsManagementAPIService.getSystemIndexDescriptor());
-        } else {
-            return Collections.emptyList();
-        }
-    }
-
-    @Override
-    public String getFeatureName() {
-        return "synonyms";
-    }
-
-    @Override
-    public String getFeatureDescription() {
-        return "Index for storing synonyms managed through APIs";
-    }
-
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (SynonymsManagementAPIService.isEnabled() == false) {
-            return Collections.emptyList();
-        }
-
-        return List.of(new ActionHandler<>(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class));
-    }
-
-    @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
-
-        if (SynonymsManagementAPIService.isEnabled() == false) {
-            return Collections.emptyList();
-        }
-        return List.of(new RestPutSynonymsAction());
     }
 }

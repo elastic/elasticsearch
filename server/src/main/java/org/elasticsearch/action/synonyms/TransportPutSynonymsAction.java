@@ -6,14 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.analysis.common.synonyms.action;
+package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.analysis.common.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 

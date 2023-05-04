@@ -107,6 +107,7 @@ public class SystemIndicesTests extends ESTestCase {
         assertTrue(systemIndices.isSystemIndex(".tasks"));
         assertTrue(systemIndices.isSystemIndex(".tasks1"));
         assertTrue(systemIndices.isSystemIndex(".tasks-old"));
+        assertTrue(systemIndices.isSystemIndex(".synonyms"));
     }
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.analysis.common.synonyms;
+package org.elasticsearch.synonyms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -34,7 +34,19 @@ public class SynonymsManagementAPIService {
     public static final String SYNONYMS_INDEX = ".synonyms";
     public static final String SYNONYMS_ORIGIN = "synonyms";
 
+    public static final String SYNONYMS_FEATURE_NAME = "synonyms";
+
     private final Client client;
+
+    public static final SystemIndexDescriptor SYNONYMS_DESCRIPTOR = SystemIndexDescriptor.builder()
+        .setIndexPattern(SYNONYMS_INDEX + "*")
+        .setDescription("Synonyms index for synonyms managed through APIs")
+        .setPrimaryIndex(SYNONYMS_INDEX)
+        .setMappings(mappings())
+        .setSettings(settings())
+        .setVersionMetaKey("version")
+        .setOrigin(SYNONYMS_ORIGIN)
+        .build();
 
     public SynonymsManagementAPIService(Client client) {
         // TODO Should we set an OriginSettingClient? We would need to check the origin at AuthorizationUtils if we set an
@@ -58,18 +70,6 @@ public class SynonymsManagementAPIService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    public static SystemIndexDescriptor getSystemIndexDescriptor() {
-        return SystemIndexDescriptor.builder()
-            .setIndexPattern(SYNONYMS_INDEX + "*")
-            .setDescription("Synonyms index for synonyms managed through APIs")
-            .setPrimaryIndex(SYNONYMS_INDEX)
-            .setMappings(mappings())
-            .setSettings(settings())
-            .setVersionMetaKey("version")
-            .setOrigin(SYNONYMS_ORIGIN)
-            .build();
     }
 
     private static XContentBuilder mappings() {

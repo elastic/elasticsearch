@@ -6,8 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.analysis.common.synonyms.action;
+package org.elasticsearch.rest.action.synonyms;
 
+import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;

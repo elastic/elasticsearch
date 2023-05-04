@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -30,6 +31,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTestCase {
 
@@ -57,6 +60,8 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         safeCommitInfo = null; // must be set in each test
 
         final long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenAnswer(invocation -> currentTimeMillis.get());
         replicationTracker = new ReplicationTracker(
             new ShardId("test", "_na", 0),
             primaryAllocationId.getId(),
@@ -64,7 +69,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             primaryTerm,
             UNASSIGNED_SEQ_NO,
             value -> {},
-            currentTimeMillis::get,
+            threadPool,
             (leases, listener) -> {},
             () -> safeCommitInfo
         );

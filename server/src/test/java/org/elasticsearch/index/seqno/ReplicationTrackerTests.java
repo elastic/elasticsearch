@@ -24,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +57,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
@@ -416,7 +419,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
-        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L);
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, mock(ThreadPool.class));
     }
 
     public void testWaitForAllocationIdToBeInSyncCanBeInterrupted() throws BrokenBarrierException, InterruptedException {
@@ -715,6 +718,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final long primaryTerm = randomNonNegativeLong();
         final long globalCheckpoint = UNASSIGNED_SEQ_NO;
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease = (leases, listener) -> {};
+        final ThreadPool threadPool = mock(ThreadPool.class);
         ReplicationTracker oldPrimary = new ReplicationTracker(
             shardId,
             aId.getId(),
@@ -722,7 +726,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             primaryTerm,
             globalCheckpoint,
             onUpdate,
-            () -> 0L,
+            threadPool,
             onNewRetentionLease,
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -733,7 +737,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             primaryTerm,
             globalCheckpoint,
             onUpdate,
-            () -> 0L,
+            threadPool,
             onNewRetentionLease,
             OPS_BASED_RECOVERY_ALWAYS_REASONABLE
         );
@@ -1057,7 +1061,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final long initialClusterStateVersion = randomNonNegativeLong();
 
         final AtomicLong currentTimeMillis = new AtomicLong(0L);
-        final ReplicationTracker tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, currentTimeMillis::get);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenAnswer(invocation -> currentTimeMillis.get());
+        final ReplicationTracker tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, threadPool);
 
         final long retentionLeaseExpiryTimeMillis = tracker.indexSettings().getRetentionLeaseMillis();
         final long peerRecoveryRetentionLeaseRenewalTimeMillis = retentionLeaseExpiryTimeMillis / 2;
@@ -1249,7 +1255,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final var initialClusterStateVersion = randomNonNegativeLong();
 
         final var currentTimeMillis = new AtomicLong(0L);
-        final var tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, currentTimeMillis::get);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.absoluteTimeInMillis()).thenAnswer(invocation -> currentTimeMillis.get());
+        final var tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, threadPool);
 
         final var routingTable = routingTable(initializingAllocationIds, primaryId);
         tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable);

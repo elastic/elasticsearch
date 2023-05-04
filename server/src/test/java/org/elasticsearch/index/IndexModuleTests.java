@@ -118,7 +118,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -773,7 +772,7 @@ public class IndexModuleTests extends ESTestCase {
                 long operationPrimaryTerm,
                 long globalCheckpoint,
                 LongConsumer onGlobalCheckpointUpdated,
-                LongSupplier currentTimeMillisSupplier,
+                ThreadPool threadPool,
                 BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
                 Supplier<SafeCommitInfo> safeCommitInfoSupplier,
                 Consumer<ReplicationGroup> onReplicationGroupUpdated
@@ -785,7 +784,7 @@ public class IndexModuleTests extends ESTestCase {
                     operationPrimaryTerm,
                     globalCheckpoint,
                     onGlobalCheckpointUpdated,
-                    currentTimeMillisSupplier,
+                    threadPool,
                     onSyncRetentionLeases,
                     safeCommitInfoSupplier,
                     onReplicationGroupUpdated
@@ -799,7 +798,7 @@ public class IndexModuleTests extends ESTestCase {
                 indexSettings,
                 operationPrimaryTerm,
                 onGlobalCheckpointUpdated,
-                currentTimeMillisSupplier,
+                threadPool,
                 onSyncRetentionLeases,
                 safeCommitInfoSupplier,
                 onReplicationGroupUpdated) -> new CustomReplicationTracker(
@@ -809,7 +808,7 @@ public class IndexModuleTests extends ESTestCase {
                     operationPrimaryTerm,
                     UNASSIGNED_SEQ_NO,
                     onGlobalCheckpointUpdated,
-                    currentTimeMillisSupplier,
+                    threadPool,
                     onSyncRetentionLeases,
                     safeCommitInfoSupplier,
                     onReplicationGroupUpdated

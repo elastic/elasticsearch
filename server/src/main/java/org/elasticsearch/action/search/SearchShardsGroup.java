@@ -18,7 +18,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A group of target shards of a response of the search_shards API
+ * Represents a group of nodes that a given ShardId is allocated on, along with information about
+ * whether this group might match the query or not.
  */
 public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;

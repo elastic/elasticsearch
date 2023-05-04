@@ -36,6 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * An internal search shards API performs the can_match phase and returns target shards of indices that might match a query.
+ */
 public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
     private final TransportSearchAction transportSearchAction;
     private final SearchService searchService;

@@ -659,7 +659,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         final XContentParser parser,
         final boolean allow2xFormat,
         final boolean allowRemoteClusters,
-        String[] privileges
+        final String[] predefinedPrivileges
     ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
@@ -674,6 +674,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String currentFieldName = null;
         String[] names = null;
         BytesReference query = null;
+        String[] privileges = predefinedPrivileges;
         String[] grantedFields = null;
         String[] deniedFields = null;
         boolean allowRestrictedIndices = false;

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.action.ActionType;
 
 /**
- * ActionType for the creation of an API key
+ * ActionType for the creation of a cross-cluster API key
  */
 public final class CreateCrossClusterApiKeyAction extends ActionType<CreateApiKeyResponse> {
 

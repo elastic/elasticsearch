@@ -79,7 +79,7 @@ public class AllocationService {
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
-    private final LongSupplier nanoTimeSupplier;
+    private final LongSupplier relativeTimeInNanoSupplier;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -89,9 +89,16 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        LongSupplier nanoTimeSupplier
+        LongSupplier relativeTimeInNanoSupplier
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, nanoTimeSupplier);
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            shardRoutingRoleStrategy,
+            relativeTimeInNanoSupplier
+        );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -101,14 +108,14 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        LongSupplier nanoTimeSupplier
+        LongSupplier relativeTimeInNanoSupplier
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
-        this.nanoTimeSupplier = nanoTimeSupplier;
+        this.relativeTimeInNanoSupplier = relativeTimeInNanoSupplier;
     }
 
     /**
@@ -635,7 +642,7 @@ public class AllocationService {
 
     /** override this to control time based decisions during allocation */
     protected long currentNanoTime() {
-        return nanoTimeSupplier.getAsLong();
+        return relativeTimeInNanoSupplier.getAsLong();
     }
 
     public void cleanCaches() {

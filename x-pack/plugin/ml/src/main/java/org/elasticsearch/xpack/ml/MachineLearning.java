@@ -559,7 +559,6 @@ public class MachineLearning extends Plugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        logger.warn("DMR loading extensions");
         if (loader != null) {
             loader.loadExtensions(MachineLearningExtension.class).forEach(machineLearningExtension::set);
         }

@@ -1084,6 +1084,7 @@ public class Node implements Closeable {
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) pcb.inter();
                         b.bind(clazz).toInstance(pcb.impl());
+
                     } else {
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) p.getClass();

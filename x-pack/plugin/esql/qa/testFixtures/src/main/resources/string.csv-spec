@@ -198,8 +198,14 @@ emp_no:integer | name:keyword
 ;
 
 split
-row words="foo;bar;baz;qux;quux;corge;grault;garply;waldo;fred;plugh;xyzzy;thud" | eval word = split(words, ";");
+// tag::split[]
+ROW words="foo;bar;baz;qux;quux;corge"
+| EVAL word = SPLIT(words, ";")
+// end::split[]
+;
 
 words:keyword | word:keyword
-foo;bar;baz;qux;quux;corge;grault;garply;waldo;fred;plugh;xyzzy;thud | [foo,bar,baz,qux,quux,corge,grault,garply,waldo,fred,plugh,xyzzy,thud]
+// tag::split-result[]
+foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
+// end::split-result[]
 ;

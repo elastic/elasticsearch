@@ -51,11 +51,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     public final Object fold() {
         Object folded = field().fold();
         if (folded instanceof List<?> l) {
-            return switch (l.size()) {
-                case 0 -> null;
-                case 1 -> l.get(0);
-                default -> foldMultivalued(l);
-            };
+            return l.size() == 0 ? null : foldMultivalued(l);
         }
         return folded;
     }

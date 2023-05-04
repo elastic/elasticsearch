@@ -60,7 +60,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
                           "role": {
-                            "cluster": ["cross_cluster_access"],
+                            "cluster": ["cross_cluster_search"],
                             "index": [
                               {
                                 "names": ["index*", "not_found_index"],

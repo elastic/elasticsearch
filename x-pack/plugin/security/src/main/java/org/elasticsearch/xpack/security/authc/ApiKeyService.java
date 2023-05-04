@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -136,7 +137,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -300,30 +302,33 @@ public class ApiKeyService {
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            // TODO: change to transport version
-            final Version version = getMinNodeVersion();
-            if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
+            final TransportVersion transportVersion = getMinTransportVersion();
+            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+                && hasRemoteIndices(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "all nodes must have version ["
-                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have transport version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
                             + "] or higher to support remote indices privileges for API keys"
                     )
                 );
                 return;
             }
-            if (version.before(Version.V_8_9_0) && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
+            if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
+                && request.getType() == ApiKey.Type.CROSS_CLUSTER) {
                 listener.onFailure(
                     new IllegalArgumentException(
-                        "all nodes must have version [" + Version.V_8_9_0 + "] or higher to support creating cross cluster API keys"
+                        "all nodes must have transport version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
+                            + "] or higher to support creating cross cluster API keys"
                     )
                 );
             }
 
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
                 userRoleDescriptors,
-                version,
+                transportVersion,
                 request.getId()
             );
 
@@ -331,8 +336,8 @@ public class ApiKeyService {
         }
     }
 
-    private Version getMinNodeVersion() {
-        return clusterService.state().nodes().getMinNodeVersion();
+    private TransportVersion getMinTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
     }
 
     private static boolean hasRemoteIndices(Collection<RoleDescriptor> roleDescriptors) {
@@ -419,13 +424,14 @@ public class ApiKeyService {
             return;
         }
 
-        final Version version = getMinNodeVersion();
-        if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY) && hasRemoteIndices(request.getRoleDescriptors())) {
+        final TransportVersion transportVersion = getMinTransportVersion();
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
+            && hasRemoteIndices(request.getRoleDescriptors())) {
             // Updating API keys with roles which define remote indices privileges is not allowed in a mixed cluster.
             listener.onFailure(
                 new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    "all nodes must have transport version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
                         + "] or higher to support remote indices privileges for API keys"
                 )
             );
@@ -433,7 +439,11 @@ public class ApiKeyService {
         }
 
         final String[] apiKeyIds = request.getIds().toArray(String[]::new);
-        final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, version, apiKeyIds);
+        final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(
+            userRoleDescriptors,
+            transportVersion,
+            apiKeyIds
+        );
 
         if (logger.isDebugEnabled()) {
             logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
@@ -526,15 +536,15 @@ public class ApiKeyService {
      * This method removes remote indices privileges from the given role descriptors
      * when we are in a mixed cluster in which some of the nodes do not support remote indices.
      * Storing these roles would cause parsing issues on old nodes
-     * (i.e. nodes running on version before
-     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY}).
+     * (i.e. nodes running with transport version before
+     * {@link org.elasticsearch.transport.RemoteClusterPortSettings#TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS}).
      */
     static Set<RoleDescriptor> maybeRemoveRemoteIndicesPrivileges(
         final Set<RoleDescriptor> userRoleDescriptors,
-        final Version version,
+        final TransportVersion transportVersion,
         final String... apiKeyIds
     ) {
-        if (version.before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
             final Set<String> affectedRoles = new TreeSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
                 if (roleDescriptor.hasRemoteIndicesPrivileges()) {

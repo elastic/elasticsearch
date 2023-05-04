@@ -66,12 +66,12 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -150,6 +150,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
@@ -2044,14 +2045,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         // Selecting random unsupported version.
-        final Version minNodeVersion = randomFrom(
-            Version.getDeclaredVersions(Version.class)
-                .stream()
-                .filter(v -> v.before(RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY))
-                .toList()
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
+            userRoleDescriptors,
+            minTransportVersion,
+            apiKeyId
+        );
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
@@ -2079,14 +2083,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         // Selecting random supported version.
-        final Version minNodeVersion = randomFrom(
-            Version.getDeclaredVersions(Version.class)
-                .stream()
-                .filter(v -> v.onOrAfter(RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY))
-                .toList()
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS,
+            TransportVersion.CURRENT
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(userRoleDescriptors, minNodeVersion, apiKeyId);
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
+            userRoleDescriptors,
+            minTransportVersion,
+            apiKeyId
+        );
 
         // User roles should be unchanged.
         assertThat(result, equalTo(userRoleDescriptors));

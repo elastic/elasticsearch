@@ -835,7 +835,7 @@ public class InternalEngine extends Engine {
                 } else {
                     trackTranslogLocation.set(true);
                     // We need to start tracking translog locations in the live version map. Refresh and
-                    // serve the get from the internal searcher.
+                    // serve the get from the internal searcher even if we're supposed to only get from translog.
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                     return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);

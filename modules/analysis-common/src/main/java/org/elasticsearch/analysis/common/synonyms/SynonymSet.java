@@ -8,7 +8,6 @@
 
 package org.elasticsearch.analysis.common.synonyms;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,7 +18,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class SynonymSet implements Writeable, ToXContentObject {
@@ -27,29 +27,27 @@ public class SynonymSet implements Writeable, ToXContentObject {
     public static final ParseField SYNONYMS_FIELD = new ParseField("synonyms");
     private static final ConstructingObjectParser<SynonymSet, Void> PARSER = new ConstructingObjectParser<>("synonyms", args -> {
         @SuppressWarnings("unchecked")
-        final Map<String, String> synonyms = (Map<String, String>) args[0];
-        return new SynonymSet(synonyms);
+        final List<String> synonyms = (List<String>) args[0];
+        return new SynonymSet(synonyms.toArray(new String[0]));
     });
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), SYNONYMS_FIELD);
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), SYNONYMS_FIELD);
     }
 
-    private final Map<String, String> synonyms;
+    private final String[] synonyms;
 
-    public SynonymSet(Map<String, String> synonyms) {
+    public SynonymSet(String[] synonyms) {
         Objects.requireNonNull(synonyms, "synonyms cannot be null");
         this.synonyms = synonyms;
 
-        synonyms.forEach((key, value) -> {
-            if (Strings.isEmpty(value)) {
-                throw new IllegalArgumentException("synonym with key [" + key + "] has an empty value");
-            }
-        });
+        if (Arrays.stream(synonyms).anyMatch(String::isEmpty)) {
+            throw new IllegalArgumentException("synonym has an empty value");
+        }
     }
 
     public SynonymSet(StreamInput in) throws IOException {
-        this.synonyms = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.synonyms = in.readStringArray();
     }
 
     public static SynonymSet fromXContent(XContentParser parser) {
@@ -64,6 +62,6 @@ public class SynonymSet implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(synonyms, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeStringArray(synonyms);
     }
 }

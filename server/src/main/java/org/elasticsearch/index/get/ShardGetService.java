@@ -228,7 +228,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean translogOnly
     ) throws IOException {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-        try (Engine.GetResult get = getFromIndexShard(id, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, translogOnly)) {
+        var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+            .versionType(versionType)
+            .setIfSeqNo(ifSeqNo)
+            .setIfPrimaryTerm(ifPrimaryTerm);
+        try (Engine.GetResult get = translogOnly ? indexShard.getFromTranslog(engineGet) : indexShard.get(engineGet)) {
             if (get == null) {
                 return null;
             }
@@ -238,22 +242,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetFetch(id, gFields, fetchSourceContext, get, forceSyntheticSource);
         }
-    }
-
-    private Engine.GetResult getFromIndexShard(
-        String id,
-        boolean realtime,
-        long version,
-        VersionType versionType,
-        long ifSeqNo,
-        long ifPrimaryTerm,
-        boolean translogOnly
-    ) {
-        var engineGet = new Engine.Get(realtime, realtime, id).version(version)
-            .versionType(versionType)
-            .setIfSeqNo(ifSeqNo)
-            .setIfPrimaryTerm(ifPrimaryTerm);
-        return translogOnly ? indexShard.getFromTranslog(engineGet) : indexShard.get(engineGet);
     }
 
     private GetResult innerGetFetch(

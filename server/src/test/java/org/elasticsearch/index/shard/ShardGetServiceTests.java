@@ -30,6 +30,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ShardGetServiceTests extends IndexShardTestCase {
 
@@ -233,7 +234,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
-        assertTrue(lastUnsafeGeneration > 0);
+        assertThat(lastUnsafeGeneration, greaterThan(0L));
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
         // A flush shouldn't change the recorded last unsafe generation for gets

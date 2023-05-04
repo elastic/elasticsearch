@@ -142,7 +142,7 @@ public class InternalEngine extends Engine {
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap = new LiveVersionMap();
-    // Records the last known generation during which LiverVersionMap was in unsafe mode. This indicates that only after this
+    // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
     // generation it is safe to rely on the LiveVersionMap for a real-time get.
     private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
 
@@ -753,7 +753,7 @@ public class InternalEngine extends Engine {
         DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        assert assertGetUsesIdField(get);
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
@@ -776,7 +776,7 @@ public class InternalEngine extends Engine {
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        assert assertGetUsesIdField(get);
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper);
@@ -790,6 +790,7 @@ public class InternalEngine extends Engine {
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
         assert readLock.isHeldByCurrentThread();
+        assert get.realtime();
         final VersionValue versionValue;
         try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
             // we need to lock here to access the version map to do this truly in RT
@@ -3213,5 +3214,10 @@ public class InternalEngine extends Engine {
     // Visible for testing purposes only
     public LiveVersionMap getLiveVersionMap() {
         return versionMap;
+    }
+
+    private static boolean assertGetUsesIdField(Get get) {
+        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        return true;
     }
 }

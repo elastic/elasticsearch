@@ -75,7 +75,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
     }
 
     public void testDescription() {
-        final var node = new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final var node = TestDiscoveryNode.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         assertEquals(
             "recovery of [index][0] to "
                 + node.descriptionWithoutAttributes()

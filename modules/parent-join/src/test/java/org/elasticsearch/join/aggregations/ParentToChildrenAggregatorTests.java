@@ -91,7 +91,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         testCase(new MatchAllDocsQuery(), indexSearcher, child -> {

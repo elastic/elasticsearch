@@ -89,7 +89,6 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         // verify with all documents
@@ -157,7 +156,6 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         // verify a terms-aggregation inside the parent-aggregation
@@ -201,7 +199,6 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         // verify a terms-aggregation inside the parent-aggregation which itself is inside a

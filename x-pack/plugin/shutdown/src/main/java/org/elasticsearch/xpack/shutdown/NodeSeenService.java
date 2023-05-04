@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -49,17 +50,26 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
-            && event.state().nodes().isLocalNodeElectedMaster();
-        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
-            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
-            return;
-        }
-
         NodesShutdownMetadata eventShutdownMetadata = event.state().metadata().custom(NodesShutdownMetadata.TYPE);
 
         if (eventShutdownMetadata == null) {
             // Since there's no shutdown metadata at all, we know no shutdowns have ever been registered and we can bail.
+            return;
+        }
+
+        long now = this.clusterService.threadPool().absoluteTimeInMillis();
+
+        Set<String> expiredShutdowns = eventShutdownMetadata.getAllNodeMetadataMap()
+            .values()
+            .stream()
+            .filter(shutdown -> keepShutdownMetadata(shutdown, now, event.state().nodes()) == false)
+            .map(SingleNodeShutdownMetadata::getNodeId)
+            .collect(Collectors.toUnmodifiableSet());
+
+        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && event.state().nodes().isLocalNodeElectedMaster();
+        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false && expiredShutdowns.isEmpty()) {
+            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
             return;
         }
 
@@ -71,27 +81,32 @@ public class NodeSeenService implements ClusterStateListener {
             .filter(nodeId -> event.state().nodes().nodeExists(nodeId))
             .collect(Collectors.toUnmodifiableSet());
 
-        long now = this.clusterService.threadPool().absoluteTimeInMillis();
-
-        if (nodesNotPreviouslySeen.isEmpty() == false) {
+        if (nodesNotPreviouslySeen.isEmpty() == false || expiredShutdowns.isEmpty() == false) {
             submitUnbatchedTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
-
-                    final Map<String, SingleNodeShutdownMetadata> newShutdownMetadataMap = currentShutdownMetadata.getAllNodeMetadataMap()
-                        .values()
-                        .stream()
-                        .map(singleNodeShutdownMetadata -> {
-                            if (nodesNotPreviouslySeen.contains(singleNodeShutdownMetadata.getNodeId())
-                                || currentState.nodes().nodeExists(singleNodeShutdownMetadata.getNodeId())) {
-                                return SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).setNodeSeen(true).build();
-                            }
-                            return singleNodeShutdownMetadata;
-                        })
-                        .filter(s -> keepShutdownMetadata(s, now, currentState))
-                        .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
-
+                    Map<String, SingleNodeShutdownMetadata> newShutdownMetadataMap;
+                    if (nodesNotPreviouslySeen.isEmpty() == false) {
+                        newShutdownMetadataMap = currentShutdownMetadata.getAllNodeMetadataMap()
+                            .values()
+                            .stream()
+                            .map(singleNodeShutdownMetadata -> {
+                                if (nodesNotPreviouslySeen.contains(singleNodeShutdownMetadata.getNodeId())
+                                    || currentState.nodes().nodeExists(singleNodeShutdownMetadata.getNodeId())) {
+                                    return SingleNodeShutdownMetadata.builder(singleNodeShutdownMetadata).setNodeSeen(true).build();
+                                }
+                                return singleNodeShutdownMetadata;
+                            })
+                            .filter(s -> expiredShutdowns.contains(s.getNodeId()) == false)
+                            .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
+                    } else {
+                        newShutdownMetadataMap = currentShutdownMetadata.getAllNodeMetadataMap()
+                            .values()
+                            .stream()
+                            .filter(s -> expiredShutdowns.contains(s.getNodeId()) == false)
+                            .collect(Collectors.toUnmodifiableMap(SingleNodeShutdownMetadata::getNodeId, Function.identity()));
+                    }
                     final NodesShutdownMetadata newNodesMetadata = new NodesShutdownMetadata(newShutdownMetadataMap);
                     if (newNodesMetadata.equals(currentShutdownMetadata)) {
                         // Turns out the update was a no-op
@@ -120,12 +135,16 @@ public class NodeSeenService implements ClusterStateListener {
      * The {@link SingleNodeShutdownMetadata} should be kept if an external node is responsible for the shutdown, or the target node still
      * exists, or the shutdown has been running for less time than the grace period (plus safety factor).
      */
-    static boolean keepShutdownMetadata(SingleNodeShutdownMetadata shutdown, long nowMillis, ClusterState state) {
+    static boolean keepShutdownMetadata(SingleNodeShutdownMetadata shutdown, long nowMillis, DiscoveryNodes nodes) {
+        if (shutdown.getType() != SingleNodeShutdownMetadata.Type.SIGTERM) {
+            return true;
+        }
+
         TimeValue grace = shutdown.getGracePeriod();
         if (grace == null) {
             return true;
         }
-        if (state.nodes().nodeExists(shutdown.getNodeId())) {
+        if (nodes.nodeExists(shutdown.getNodeId())) {
             return true;
         }
         long timeRunning = nowMillis - shutdown.getStartedAtMillis();

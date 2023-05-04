@@ -65,7 +65,7 @@ public class ShutdownTests extends ESTestCase {
                             .setReason("my reason")
                             .build(),
                         now,
-                        state
+                        state.nodes()
                     )
                 )
             );
@@ -95,7 +95,7 @@ public class ShutdownTests extends ESTestCase {
                             .setReason("my reason")
                             .build(),
                         start + (2 * grace.millis()), // would otherwise be cleaned up
-                        state
+                        state.nodes()
                     )
                 )
             );
@@ -113,7 +113,7 @@ public class ShutdownTests extends ESTestCase {
                     .setReason("my reason")
                     .build(),
                 start - 120_000,
-                state
+                state.nodes()
             )
         );
     }
@@ -130,7 +130,7 @@ public class ShutdownTests extends ESTestCase {
                     .setReason("my reason")
                     .build(),
                 start - 1_000,
-                state
+                state.nodes()
             )
         );
     }
@@ -145,9 +145,9 @@ public class ShutdownTests extends ESTestCase {
             .setGracePeriod(grace)
             .setReason("my reason")
             .build();
-        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs - 1, state));
-        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs, state));
-        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs + (graceMs / 10), state));
-        assertFalse(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs + (graceMs / 10) + 1, state));
+        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs - 1, state.nodes()));
+        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs, state.nodes()));
+        assertTrue(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs + (graceMs / 10), state.nodes()));
+        assertFalse(NodeSeenService.keepShutdownMetadata(shutdown, start + graceMs + (graceMs / 10) + 1, state.nodes()));
     }
 }

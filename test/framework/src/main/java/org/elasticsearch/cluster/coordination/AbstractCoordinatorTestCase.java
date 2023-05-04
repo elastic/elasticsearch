@@ -575,7 +575,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             // noinspection ReplaceInefficientStreamCount using .count() to run the filter on every node
             while (clusterNodes.stream().filter(ClusterNode::deliverBlackholedRegisterRequests).count() != 0L) {
                 logger.debug("--> delivering blackholed register requests");
-                runFor(DEFAULT_DELAY_VARIABILITY, "re-stabilising");
+                // one delay to schedule the request failure, but this forks back to CLUSTER_COORDINATION so a second delay is needed
+                runFor(DEFAULT_DELAY_VARIABILITY * 2, "re-stabilising");
             }
 
             final ClusterNode leader = getAnyLeader();

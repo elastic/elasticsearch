@@ -79,16 +79,12 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
               "role_descriptors": {
                 "role": {
                   "cluster": [
-                    "cross_cluster_access",
-                    "cluster:monitor/state",
-                    "cluster:monitor/xpack/info"
+                    "cross_cluster_replication"
                   ],
                   "index": [
                     {
                        "names": ["leader-index", "leader-alias", "metrics-*"],
-                       "privileges": ["manage", "read",
-                         "indices:internal/admin/ccr/restore/*",
-                         "internal:transport/proxy/indices:internal/admin/ccr/restore/*"]
+                       "privileges": ["cross_cluster_replication", "cross_cluster_replication_internal"]
                     }
                   ]
                 }

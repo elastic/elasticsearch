@@ -15,7 +15,6 @@ import org.elasticsearch.core.Assertions;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,8 +22,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Represents the version of the wire protocol used to communicate between ES nodes.
@@ -60,7 +57,7 @@ import java.util.regex.Pattern;
  * If you revert a commit with a transport version change, you <em>must</em> ensure there is a <em>new</em> transport version
  * representing the reverted change. <em>Do not</em> let the transport version go backwards, it must <em>always</em> be incremented.
  */
-public class TransportVersion implements Comparable<TransportVersion> {
+public final class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion ZERO = new TransportVersion(0, "00000000-0000-0000-0000-000000000000");
     public static final TransportVersion V_7_0_0 = new TransportVersion(7_00_00_99, "7505fd05-d982-43ce-a63f-ff4c6c8bdeec");
     public static final TransportVersion V_7_0_1 = new TransportVersion(7_00_01_99, "ae772780-e6f9-46a1-b0a0-20ed0cae37f7");
@@ -183,19 +180,11 @@ public class TransportVersion implements Comparable<TransportVersion> {
         NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
-        Pattern bwcVersionField = Pattern.compile("^V_(\\d_\\d{1,2}_\\d{1,2})$");
-        Pattern transportVersionField = Pattern.compile("^V_(\\d+_\\d{3}_\\d{3})$");
 
         for (Field declaredField : cls.getFields()) {
             if (declaredField.getType().equals(TransportVersion.class)) {
                 String fieldName = declaredField.getName();
                 if (ignore.contains(fieldName)) {
-                    continue;
-                }
-
-                // check the field modifiers
-                if (declaredField.getModifiers() != (Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL)) {
-                    assert false : "Version field [" + fieldName + "] should be public static final";
                     continue;
                 }
 
@@ -219,28 +208,6 @@ public class TransportVersion implements Comparable<TransportVersion> {
                             + "] have the same version number ["
                             + version.id
                             + "]. Each TransportVersion should have a different version number";
-
-                    // check the name matches the version number
-                    try {
-                        int fieldNumber;
-                        int idNumber = version.id;
-                        Matcher matcher = bwcVersionField.matcher(fieldName);
-                        if (matcher.matches()) {
-                            // match single digits _\d_ or _\d$ to put a 0 in front, but do not actually capture the _ or $
-                            fieldNumber = Integer.parseInt(matcher.group(1).replaceAll("_(\\d)(?=_|$)", "_0$1").replace("_", ""));
-                            idNumber /= 100;    // remove the extra '99'
-                        } else if ((matcher = transportVersionField.matcher(fieldName)).matches()) {
-                            fieldNumber = Integer.parseInt(matcher.group(1).replace("_", ""));
-                        } else {
-                            assert false : "Version [" + fieldName + "] does not have the correct name format";
-                            continue;
-                        }
-
-                        assert fieldNumber == idNumber : "Version [" + fieldName + "] does not match its version number [" + idNumber + "]";
-                    } catch (NumberFormatException e) {
-                        assert false : "Version [" + fieldName + "] does not have the correct name format";
-                        continue;
-                    }
 
                     // check the id is unique
                     var sameUniqueId = uniqueIdFields.put(version.uniqueId, fieldName);

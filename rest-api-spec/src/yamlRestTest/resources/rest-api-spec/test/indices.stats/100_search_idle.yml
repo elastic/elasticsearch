@@ -14,6 +14,9 @@ setup:
 
 ---
 "Search idle stats":
+  - skip:
+      version: " - 8.8.99"
+      reason: "search idle stats added in 8.9.0"
 
   - do:
       indices.stats: { level: shards }

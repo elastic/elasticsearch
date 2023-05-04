@@ -286,8 +286,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (e.getCause() != null && e.getCause() instanceof EsRejectedExecutionException esRejectedExecutionException) {
                 assert esRejectedExecutionException.isExecutorShutdown();
                 // TODO now what? onNoLongerMaster() asserts it's on the master thread but we could be anywhere here
-            } else {
-                onNoLongerMaster();
             }
         }
 

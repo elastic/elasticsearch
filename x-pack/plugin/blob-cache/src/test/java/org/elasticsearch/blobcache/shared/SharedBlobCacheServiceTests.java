@@ -230,11 +230,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(
             e.getCause().getMessage(),
             is(
-                "setting ["
+                "Setting ["
                     + SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()
                     + "] to be positive ["
                     + cacheSize
-                    + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
+                    + "] is only permitted on nodes with the data_frozen, search, or indexing role. Roles are [data_hot]"
             )
         );
     }
@@ -307,9 +307,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThat(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofBytes(-1)));
     }
 
-    public void testSearchNodeCacheSizeDefaults() {
+    public void testSearchOrIndexNodeCacheSizeDefaults() {
         final Settings settings = Settings.builder()
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .putList(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName()
+            )
             .build();
 
         RelativeByteSizeValue relativeCacheSize = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.get(settings);

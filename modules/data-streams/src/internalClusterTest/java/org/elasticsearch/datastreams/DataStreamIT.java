@@ -1283,7 +1283,6 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94481")
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
         DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
@@ -1570,10 +1569,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     // Test that datastream's segments by default are sorted on @timestamp desc
     public void testSegmentsSortedOnTimestampDesc() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        Settings settings = indexSettings(1, 0).build();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -2048,10 +2044,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final String dataStreamName = "logs-es";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .build();
+        final var indexSettings = indexSettings(numberOfShards, numberOfReplicas).build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
@@ -2098,10 +2091,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
         final String dataStreamName = "logs-es";
 
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+        final var indexSettings = indexSettings(2, 1).put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
             .build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -2173,11 +2163,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final String dataOnlyNode = internalCluster().startDataOnlyNode();
         final String dataStreamName = "logs-es";
 
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.require._name", dataOnlyNode)
-            .build();
+        final var indexSettings = indexSettings(1, 0).put("index.routing.allocation.require._name", dataOnlyNode).build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
@@ -2218,10 +2204,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final String dataStreamName = "logs-es";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .build();
+        final var indexSettings = indexSettings(numberOfShards, numberOfReplicas).build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());

@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -20,6 +21,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -52,6 +54,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -103,6 +106,7 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchShardTask task;
+    private RankShardContext rankShardContext;
 
     /**
      * The original query as sent by the user without the types and aliases
@@ -125,7 +129,7 @@ final class DefaultSearchContext extends SearchContext {
     private Profilers profilers;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
-    private Collector aggCollector;
+    private CollectorManager<Collector, Void> aggCollectorManager;
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
@@ -178,6 +182,7 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void addQueryResult() {
         this.queryResult = new QuerySearchResult(this.readerContext.id(), this.shardTarget, this.request);
+        addReleasable(queryResult::decRef);
     }
 
     @Override
@@ -397,6 +402,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
+    }
+
+    @Override
+    public RankShardContext rankShardContext() {
+        return rankShardContext;
+    }
+
+    @Override
+    public void rankShardContext(RankShardContext rankShardContext) {
+        this.rankShardContext = rankShardContext;
     }
 
     @Override
@@ -713,6 +728,10 @@ final class DefaultSearchContext extends SearchContext {
         return queryResult;
     }
 
+    public void addQuerySearchResultReleasable(Releasable releasable) {
+        queryResult.addReleasable(releasable);
+    }
+
     @Override
     public TotalHits getTotalHits() {
         if (queryResult != null) {
@@ -745,13 +764,13 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public Collector getAggsCollector() {
-        return aggCollector;
+    public CollectorManager<Collector, Void> getAggsCollectorManager() {
+        return aggCollectorManager;
     }
 
     @Override
-    public void registerAggsCollector(Collector collector) {
-        this.aggCollector = collector;
+    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
+        this.aggCollectorManager = collectorManager;
     }
 
     @Override

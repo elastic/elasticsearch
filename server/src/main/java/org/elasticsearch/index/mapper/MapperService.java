@@ -110,7 +110,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
     public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.dimension_fields.limit",
-        16,
+        21,
         0,
         Property.Dynamic,
         Property.IndexScope

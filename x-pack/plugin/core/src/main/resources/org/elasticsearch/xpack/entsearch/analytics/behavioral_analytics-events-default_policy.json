@@ -4,7 +4,7 @@
       "actions": {
         "rollover": {
           "max_age": "30d",
-          "max_size": "3GB"
+          "max_primary_shard_size": "50gb"
         }
       }
     },
@@ -18,6 +18,10 @@
           "max_num_segments": 1
         }
       }
+    },
+    "cold": {
+      "min_age": "30d",
+      "actions": {}
     },
     "delete": {
       "min_age": "180d",

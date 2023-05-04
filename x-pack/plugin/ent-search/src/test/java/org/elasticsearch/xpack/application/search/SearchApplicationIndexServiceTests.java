@@ -73,7 +73,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             "my_search_app",
             new String[] { "index_1" },
             null,
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            null
         );
 
         IndexResponse resp = awaitPutSearchApplication(searchApp, true);
@@ -83,6 +84,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
         SearchApplication getSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(getSearchApp, equalTo(searchApp));
         checkAliases(searchApp);
+
+        assertThat(getSearchApp.searchApplicationTemplate(), equalTo(SearchApplicationTemplate.DEFAULT_TEMPLATE));
 
         expectThrows(VersionConflictEngineException.class, () -> awaitPutSearchApplication(searchApp, true));
     }
@@ -104,7 +107,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 "my_search_app",
                 new String[] { "index_1", "index_2" },
                 null,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                SearchApplicationTestUtils.getRandomSearchApplicationTemplate()
             );
             IndexResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -118,13 +122,15 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
             "my_search_app",
             new String[] { "index_3", "index_4" },
             "my_search_app_analytics_collection",
-            System.currentTimeMillis()
+            System.currentTimeMillis(),
+            SearchApplicationTestUtils.getRandomSearchApplicationTemplate()
         );
         IndexResponse newResp = awaitPutSearchApplication(searchApp, false);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(SEARCH_APPLICATION_CONCRETE_INDEX_NAME));
         SearchApplication getNewSearchApp = awaitGetSearchApplication(searchApp.name());
         assertThat(searchApp, equalTo(getNewSearchApp));
+        assertThat(searchApp.searchApplicationTemplate(), equalTo(getNewSearchApp.searchApplicationTemplate()));
         checkAliases(searchApp);
     }
 
@@ -134,7 +140,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 "my_search_app_" + i,
                 new String[] { "index_" + i },
                 null,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                null
             );
             IndexResponse resp = awaitPutSearchApplication(searchApp, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -177,7 +184,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 "my_search_app_" + i,
                 new String[] { "index_" + i },
                 null,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                null
             );
             IndexResponse resp = awaitPutSearchApplication(app, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
@@ -211,7 +219,8 @@ public class SearchApplicationIndexServiceTests extends ESSingleNodeTestCase {
                 "my_search_app_" + i,
                 new String[] { "index_" + i },
                 null,
-                System.currentTimeMillis()
+                System.currentTimeMillis(),
+                null
             );
             IndexResponse resp = awaitPutSearchApplication(app, false);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));

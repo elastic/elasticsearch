@@ -760,11 +760,9 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
-                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper);
-                if (result != null) {
-                    return result;
-                }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
+                assert result != null : "real-time get result must not be null";
+                return result;
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
                 return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
@@ -782,15 +780,20 @@ public class InternalEngine extends Engine {
         assert assertGetUsesIdField(get);
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper);
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
         }
     }
 
+    /**
+     * @param getFromSearcher indicates whether we also try the internal searcher if not found in translog. In the case where
+     * we just started tracking locations in the translog, we always use the internal searcher.
+     */
     protected GetResult realtimeGetUnderLock(
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
+        boolean getFromSearcher
     ) {
         assert readLock.isHeldByCurrentThread();
         assert get.realtime();
@@ -799,6 +802,7 @@ public class InternalEngine extends Engine {
             // we need to lock here to access the version map to do this truly in RT
             versionValue = getVersionFromMap(get.uid().bytes());
         }
+        boolean getFromSearcherIfNotInTranslog = getFromSearcher;
         if (versionValue != null) {
             if (versionValue.isDelete()) {
                 return GetResult.NOT_EXISTS;
@@ -836,13 +840,14 @@ public class InternalEngine extends Engine {
                     trackTranslogLocation.set(true);
                     // We need to start tracking translog locations in the live version map. Refresh and
                     // serve the get from the internal searcher even if we're supposed to only get from translog.
-                    assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded("realtime_get", versionValue.seqNo);
-                    return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+                    getFromSearcherIfNotInTranslog = true;
                 }
             }
             assert versionValue.seqNo >= 0 : versionValue;
             refreshIfNeeded("realtime_get", versionValue.seqNo);
+        }
+        if (getFromSearcherIfNotInTranslog) {
+            return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
         }
         return null;
     }

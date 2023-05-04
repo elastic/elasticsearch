@@ -1222,9 +1222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (translogOnly) {
             return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
         }
-        var result = getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
-        assert result != null : "result cannot be null";
-        return result;
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }
 
     /**

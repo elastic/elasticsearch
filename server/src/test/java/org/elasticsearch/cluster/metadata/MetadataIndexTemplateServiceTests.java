@@ -125,9 +125,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
-        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+        Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
 
         request.settings(settingsBuilder.build());
 
@@ -140,9 +138,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_specified_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
-        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
+        Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
 
         request.settings(settingsBuilder.build());
 
@@ -1666,6 +1662,40 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testRemoveRequiredAndNonRequiredComponents() throws Exception {
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("pattern"),
+            null,
+            List.of("required1", "non-required", "required2"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.singletonList("non-required")
+        );
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState clusterState = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "required1", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "required2", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "non-required", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "composable-index-template", composableIndexTemplate);
+
+        final ClusterState cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "required*"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "component templates [required1, required2] cannot be removed as they are still in use by index templates "
+                    + "[composable-index-template]"
+            )
+        );
+
+        // This removal should succeed
+        innerRemoveComponentTemplate(cs, "non-required*");
+    }
+
     /**
      * Tests that we check that settings/mappings/etc are valid even after template composition,
      * when adding/updating a composable index template
@@ -1874,16 +1904,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
-                    .build()
             )
             .build();
 
@@ -1911,16 +1933,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
-                    .build()
             )
             .build();
 
@@ -2034,16 +2048,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
-                    .build()
             )
             .build();
 
@@ -2071,16 +2077,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
-                    .build()
             )
             .build();
 

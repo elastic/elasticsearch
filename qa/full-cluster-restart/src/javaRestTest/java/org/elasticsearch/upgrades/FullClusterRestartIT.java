@@ -1502,9 +1502,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      */
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            Settings.Builder settings = indexSettings(1, 1);
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
@@ -1742,9 +1740,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assumeTrue("soft deletes must be enabled on 8.0+", getOldClusterVersion().before(Version.V_8_0_0));
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            final Settings.Builder settings = indexSettings(1, 1);
             settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             createIndex(index, settings.build());
             ensureGreen(index);
@@ -1802,10 +1798,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {
-            final Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            final Settings.Builder settings = indexSettings(1, 1).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
             createIndex(index, settings.build());
             ensureGreen(index);
             int numDocs = randomIntBetween(0, 100);

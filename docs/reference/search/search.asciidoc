@@ -550,6 +550,18 @@ Period of time used to extend the life of the PIT.
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
 
+[[request-body-rank]]
+`rank`::
+(Optional, object) Defines a method for combining and ranking `1` standard query
+with `1..n` knn searches or no standard query with `2..n` knn searches.
++
+.Ranking methods
+[%collapsible%open]
+====
+`rrf`::
+(Optional, object) Sets the ranking method to <<rrf, reciprocal rank fusion (RRF)>>.
+====
+
 [[search-api-body-runtime]]
 // tag::runtime-mappings-def[]
 `runtime_mappings`::

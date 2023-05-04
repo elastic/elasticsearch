@@ -308,6 +308,12 @@ The following mapping parameters are accepted:
     whitespace when building a query for this field. Accepts `true` or `false`
     (default).
 
+`time_series_dimensions`::
+    (Optional, array of strings) A list of fields inside the flattened object, where each field is a dimension
+    of the time series. Each field is specified using the relative path from the
+    root field and does not include the root field name.
+
+
 [[flattened-synthetic-source]]
 ==== Synthetic `_source`
 

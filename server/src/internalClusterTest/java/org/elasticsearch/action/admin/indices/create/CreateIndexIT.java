@@ -70,7 +70,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         long timeBeforeRequest = System.currentTimeMillis();
         prepareCreate("test").get();
         long timeAfterRequest = System.currentTimeMillis();
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState().get();
         ClusterState state = response.getState();
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
@@ -279,9 +279,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
+        clusterAdmin().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
             .get();
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();

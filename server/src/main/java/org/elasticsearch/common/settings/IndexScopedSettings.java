@@ -169,6 +169,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+        IndexSettings.PREFER_ILM_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

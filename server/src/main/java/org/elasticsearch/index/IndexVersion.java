@@ -89,11 +89,8 @@ public final class IndexVersion implements Comparable<IndexVersion> {
     public static final IndexVersion V_7_17_7 = new IndexVersion(7_17_07_99, Version.LUCENE_8_11_1, "b672ff6b-8078-4f6e-b426-6fcf7f8687b4");
     public static final IndexVersion V_7_17_8 = new IndexVersion(7_17_08_99, Version.LUCENE_8_11_1, "0faffa1b-5fb3-4439-9367-f154fb25395f");
     public static final IndexVersion V_7_17_9 = new IndexVersion(7_17_09_99, Version.LUCENE_8_11_1, "8044989f-77ef-4d6d-9dd8-1bdd805cef74");
-    public static final IndexVersion V_7_17_10 = new IndexVersion(
-        7_17_10_99,
-        Version.LUCENE_8_11_1,
-        "66b743fb-8be6-443f-8920-d8c5ed561857"
-    );
+    public static final IndexVersion V_7_17_10 = new IndexVersion(7_17_10_99, Version.LUCENE_8_11_1, "66b743fb-8be6-443f-8920-d8c5ed561857");
+    public static final IndexVersion V_7_17_11 = new IndexVersion(7_17_11_99, Version.LUCENE_8_11_1, "f1935acc-1af9-44b0-97e9-67112d333753");
     public static final IndexVersion V_8_0_0 = new IndexVersion(8_00_00_99, Version.LUCENE_9_0_0, "ff18a13c-1fa7-4cf7-a3b1-4fdcd9461d5b");
     public static final IndexVersion V_8_0_1 = new IndexVersion(8_00_01_99, Version.LUCENE_9_0_0, "4bd5650f-3eff-418f-a7a6-ad46b2a9c941");
     public static final IndexVersion V_8_1_0 = new IndexVersion(8_01_00_99, Version.LUCENE_9_0_0, "b4742461-ee43-4fd0-a260-29f8388b82ec");
@@ -121,9 +118,11 @@ public final class IndexVersion implements Comparable<IndexVersion> {
     public static final IndexVersion V_8_6_2 = new IndexVersion(8_06_02_99, Version.LUCENE_9_4_2, "e1e73b88-d188-4d82-b5e1-dee261418783");
     public static final IndexVersion V_8_7_0 = new IndexVersion(8_07_00_99, Version.LUCENE_9_5_0, "f9227941-d6f4-462b-957f-2bcd36c28382");
     public static final IndexVersion V_8_7_1 = new IndexVersion(8_07_01_99, Version.LUCENE_9_5_0, "758780b8-4b0c-44c6-af5d-fdac10b6093a");
+    public static final IndexVersion V_8_7_2 = new IndexVersion(8_07_02_99, Version.LUCENE_9_5_0, "d896de80-420f-4616-9d74-7e7219446bbd");
     public static final IndexVersion V_8_8_0 = new IndexVersion(8_08_00_99, Version.LUCENE_9_6_0, "d6ffc8d7-f6bd-469b-8495-01688c310000");
+    public static final IndexVersion V_8_9_0 = new IndexVersion(8_09_00_99, Version.LUCENE_9_6_0, "32f6dbab-cc24-4f5b-87b5-015a848480d9");
 
-    public static final IndexVersion CURRENT = V_8_8_0;
+    public static final IndexVersion CURRENT = V_8_9_0;
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 

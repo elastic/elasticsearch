@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralName;
@@ -36,9 +35,9 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -62,6 +61,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -942,14 +942,16 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    @SuppressForbidden(reason = "Commons IO lib uses the File API")
     private void deleteDirectory(Path directory) throws IOException {
-        FileUtils.deleteDirectory(directory.toFile());
+        IOUtils.rm(directory);
     }
 
-    @SuppressForbidden(reason = "Commons IO lib uses the File API")
     private void moveDirectory(Path srcDir, Path dstDir) throws IOException {
-        FileUtils.moveDirectory(srcDir.toFile(), dstDir.toFile());
+        try {
+            Files.move(srcDir, dstDir, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(srcDir, dstDir);
+        }
     }
 
     private GeneralNames getSubjectAltNames(Settings settings) throws IOException {

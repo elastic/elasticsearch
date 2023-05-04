@@ -505,6 +505,9 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final String PREFER_ILM = "index.lifecycle.prefer_ilm";
+    public static final Setting<Boolean> PREFER_ILM_SETTING = Setting.boolSetting(PREFER_ILM, true, Property.Dynamic, Property.IndexScope);
+
     /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
      */

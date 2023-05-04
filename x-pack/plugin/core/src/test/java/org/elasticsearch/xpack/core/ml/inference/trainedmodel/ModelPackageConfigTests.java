@@ -8,15 +8,23 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<ModelPackageConfig> {
 
@@ -31,9 +39,9 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
                 : null,
             randomLongBetween(0, Long.MAX_VALUE - 100),
             randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomInferenceConfigAsMap(),
             randomBoolean() ? Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null,
-            randomBoolean() ? Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null,
-            randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomFrom(TrainedModelType.values()).toString(),
             randomBoolean() ? Arrays.asList(generateRandomStringArray(randomIntBetween(0, 5), 15, false)) : null,
             randomBoolean() ? randomAlphaOfLength(10) : null
         );
@@ -103,5 +111,31 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
         return instance;
+    }
+
+    private static Map<String, Object> randomInferenceConfigAsMap() {
+        InferenceConfig inferenceConfig = randomFrom(
+            new InferenceConfig[] {
+                ClassificationConfigTests.randomClassificationConfig(),
+                RegressionConfigTests.randomRegressionConfig(),
+                NerConfigTests.createRandom(),
+                PassThroughConfigTests.createRandom(),
+                TextClassificationConfigTests.createRandom(),
+                FillMaskConfigTests.createRandom(),
+                TextEmbeddingConfigTests.createRandom(),
+                QuestionAnsweringConfigTests.createRandom(),
+                TextSimilarityConfigTests.createRandom(),
+                TextExpansionConfigTests.createRandom() }
+        );
+
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            XContentBuilder content = inferenceConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            return Collections.singletonMap(
+                inferenceConfig.getWriteableName(),
+                XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2()
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

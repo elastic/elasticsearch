@@ -72,7 +72,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
                           "role": {
-                            "cluster": ["cross_cluster_access"],
+                            "cluster": ["cross_cluster_search"],
                             "index": [
                                 {
                                     "names": ["index*", "not_found_index", "shared-metrics"],
@@ -287,18 +287,21 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
 
             // Check that authentication fails if we use a non-existent API key
             updateClusterSettings(
-                Settings.builder()
-                    .put("cluster.remote.invalid_remote.mode", "proxy")
-                    .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                    .build()
+                randomBoolean()
+                    ? Settings.builder()
+                        .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+                    : Settings.builder()
+                        .put("cluster.remote.invalid_remote.mode", "proxy")
+                        .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
             );
             final ResponseException exception4 = expectThrows(
                 ResponseException.class,
                 () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
             );
-            // TODO: improve the error code and message
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-            assertThat(exception4.getMessage(), containsString("Unable to open any proxy connections to cluster [invalid_remote]"));
+            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(exception4.getMessage(), containsString("unable to authenticate user "));
         }
     }
 

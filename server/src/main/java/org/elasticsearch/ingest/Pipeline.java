@@ -108,12 +108,6 @@ public final class Pipeline {
      */
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
-        /*
-         * Our assumption is that the listener passed to the processor is only ever called once. However, there is no way to enforce
-         * that in all processors and all of the code that they call. If the listener is called more than once it causes problems
-         * such as the metrics being wrong. The listenerHasBeenCalled variable is used to make sure that the code in the listener
-         * is only executed once.
-         */
         metrics.preIngest();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
             long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;

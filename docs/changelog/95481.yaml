@@ -1,0 +1,6 @@
+pr: 95481
+summary: "Add support for `logs@custom` component template for `logs-*-* data streams"
+area: Data streams
+type: enhancement
+issues:
+ - 95469

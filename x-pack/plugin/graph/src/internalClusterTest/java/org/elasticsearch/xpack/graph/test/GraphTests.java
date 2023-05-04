@@ -38,8 +38,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -82,7 +80,7 @@ public class GraphTests extends ESSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(indexSettings(2, 0))
                 .setMapping("decade", "type=keyword", "people", "type=keyword", "description", "type=text,fielddata=true")
         );
         createIndex("idx_unmapped");

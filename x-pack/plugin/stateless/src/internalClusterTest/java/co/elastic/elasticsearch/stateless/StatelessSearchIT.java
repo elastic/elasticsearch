@@ -38,6 +38,8 @@ import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
@@ -58,6 +60,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -83,6 +86,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
@@ -410,6 +414,53 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
         ensureGreen(indexName);
+
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
+    }
+
+    public void testUnpromotableRefreshFailure() throws Exception {
+        List<String> indexNodes = startIndexNodes(1);
+        startSearchNodes(2);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        String beforeShardSearchNode = shardSearchNodeName(indexName);
+        String beforeShardAllocationId = shardAllocationId(indexName);
+
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            indexNodes.get(0)
+        );
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            connection.sendRequest(requestId, action, request, options);
+            if (action.equals("indices:admin/refresh/unpromotable[u]")) {
+                throw new ConnectTransportException(connection.getNode(), action);
+            }
+        });
+
+        var bulkRequest = client().prepareBulk();
+        int docsToIndex = randomIntBetween(1, 100);
+        for (int i = 0; i < docsToIndex; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        bulkRequest.setRefreshPolicy(IMMEDIATE);
+        var bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Wait until the shard gets re-allocated
+        ensureGreen(indexName);
+        assertThat(beforeShardAllocationId, not(shardAllocationId(indexName)));
+        assertThat(beforeShardSearchNode, equalTo(shardSearchNodeName(indexName)));
 
         var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
         assertNoFailures(searchResponse);
@@ -746,5 +797,31 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             bulkRequest.add(new DeleteRequest(indexName, id));
         }
         assertNoFailures(bulkRequest.get());
+    }
+
+    private static ShardRouting searchShard(String indexName) {
+        return client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setRoutingTable(true)
+            .get()
+            .getState()
+            .getRoutingTable()
+            .index(indexName)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .stream()
+            .filter(sr -> sr.role() == ShardRouting.Role.SEARCH_ONLY)
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private static String shardAllocationId(String indexName) {
+        return searchShard(indexName).allocationId().getId();
+    }
+
+    private static String shardSearchNodeName(String indexName) {
+        var nodeId = searchShard(indexName).currentNodeId();
+        return client().admin().cluster().prepareNodesStats(nodeId).get().getNodesMap().get(nodeId).getNode().getName();
     }
 }

@@ -1,3 +1,4 @@
+ Class org/elasticsearch/transport/AbstractSimpleTransportTestCase$1Response
 org/elasticsearch/ElasticsearchAuthenticationProcessingError
 org/elasticsearch/ElasticsearchGenerationException
 org/elasticsearch/ElasticsearchParseException
@@ -136,6 +137,7 @@ org/elasticsearch/action/search/OpenPointInTimeRequest
 org/elasticsearch/action/search/OpenPointInTimeResponse
 org/elasticsearch/action/search/ReduceSearchPhaseException
 org/elasticsearch/action/search/SearchResponseSections
+org/elasticsearch/action/search/SearchTransportService$SearchFreeContextRequest
 org/elasticsearch/action/search/TransportOpenPointInTimeAction$ShardOpenReaderRequest
 org/elasticsearch/action/search/TransportOpenPointInTimeAction$ShardOpenReaderResponse
 org/elasticsearch/action/search/VersionMismatchException
@@ -184,6 +186,7 @@ org/elasticsearch/common/settings/StatelessSecureSettings
 org/elasticsearch/common/time/WriteableZoneId
 org/elasticsearch/common/util/CancellableThreads$ExecutionCancelledException
 org/elasticsearch/common/util/concurrent/UncategorizedExecutionException
+org/elasticsearch/discovery/DiscoveryStats
 org/elasticsearch/discovery/MasterNotDiscoveredException
 org/elasticsearch/dlm/action/DeleteDataLifecycleAction$Request
 org/elasticsearch/dlm/action/ExplainDataLifecycleAction$Request
@@ -219,6 +222,7 @@ org/elasticsearch/index/mapper/StrictDynamicMappingException
 org/elasticsearch/index/query/TermsQueryBuilder$ListValues
 org/elasticsearch/index/query/TypeQueryV7Builder
 org/elasticsearch/index/query/functionscore/GaussDecayFunctionBuilder
+org/elasticsearch/index/query/functionscore/LinearDecayFunctionBuilder
 org/elasticsearch/index/rankeval/DiscountedCumulativeGain$Detail
 org/elasticsearch/index/rankeval/ExpectedReciprocalRank$Detail
 org/elasticsearch/index/rankeval/MeanReciprocalRank$Detail
@@ -267,6 +271,7 @@ org/elasticsearch/indices/InvalidAliasNameException
 org/elasticsearch/indices/InvalidIndexNameException
 org/elasticsearch/indices/InvalidTypeNameException
 org/elasticsearch/indices/TypeMissingException
+org/elasticsearch/indices/breaker/CircuitBreakerStats
 org/elasticsearch/indices/recovery/PeerRecoveryNotFound
 org/elasticsearch/indices/recovery/RecoveryHandoffPrimaryContextRequest
 org/elasticsearch/indices/recovery/RecoverySnapshotFileRequest
@@ -290,6 +295,13 @@ org/elasticsearch/license/PostStartBasicResponse
 org/elasticsearch/license/PostStartTrialRequest
 org/elasticsearch/license/PostStartTrialResponse
 org/elasticsearch/license/PutLicenseRequest
+org/elasticsearch/monitor/fs/FsInfo$Path
+org/elasticsearch/monitor/jvm/JvmStats
+org/elasticsearch/monitor/jvm/JvmStats$Classes
+org/elasticsearch/monitor/jvm/JvmStats$GarbageCollector
+org/elasticsearch/monitor/jvm/JvmStats$GarbageCollectors
+org/elasticsearch/monitor/jvm/JvmStats$Mem
+org/elasticsearch/monitor/jvm/JvmStats$Threads
 org/elasticsearch/node/NodeClosedException
 org/elasticsearch/painless/action/PainlessContextAction$Request
 org/elasticsearch/painless/action/PainlessContextAction$Response
@@ -318,8 +330,10 @@ org/elasticsearch/protocol/xpack/watcher/DeleteWatchRequest
 org/elasticsearch/protocol/xpack/watcher/DeleteWatchResponse
 org/elasticsearch/protocol/xpack/watcher/PutWatchResponse
 org/elasticsearch/repositories/RepositoryConflictException
+org/elasticsearch/repositories/RepositoryInfo
 org/elasticsearch/repositories/RepositoryMissingException
 org/elasticsearch/repositories/RepositoryShardId
+org/elasticsearch/repositories/RepositoryStatsSnapshot
 org/elasticsearch/repositories/RepositoryVerificationException
 org/elasticsearch/script/GeneralScriptException
 org/elasticsearch/script/ScriptCacheStats
@@ -336,12 +350,14 @@ org/elasticsearch/search/aggregations/bucket/composite/TermsValuesSourceBuilder
 org/elasticsearch/search/aggregations/bucket/histogram/VariableWidthHistogramAggregationBuilder
 org/elasticsearch/search/aggregations/bucket/sampler/UnmappedSampler
 org/elasticsearch/search/aggregations/bucket/terms/heuristic/ScriptHeuristic
+org/elasticsearch/search/aggregations/metrics/PercentilesConfig$TDigest
 org/elasticsearch/search/aggregations/pipeline/MovAvgPipelineAggregationBuilder
 org/elasticsearch/search/builder/SearchSourceBuilderException
 org/elasticsearch/search/dfs/DfsKnnResults
 org/elasticsearch/search/dfs/DfsPhaseExecutionException
 org/elasticsearch/search/fetch/FetchPhaseExecutionException
 org/elasticsearch/search/query/QueryPhaseExecutionException
+org/elasticsearch/search/sort/MinAndMax
 org/elasticsearch/search/suggest/completion/CompletionSuggestion
 org/elasticsearch/search/suggest/completion/CompletionSuggestion$Entry
 org/elasticsearch/search/suggest/completion/CompletionSuggestion$Entry$Option
@@ -354,10 +370,13 @@ org/elasticsearch/search/suggest/term/TermSuggestion$Entry$Option
 org/elasticsearch/snapshots/ConcurrentSnapshotExecutionException
 org/elasticsearch/snapshots/InvalidSnapshotNameException
 org/elasticsearch/snapshots/SnapshotCreationException
+org/elasticsearch/snapshots/SnapshotMissingException
 org/elasticsearch/snapshots/SnapshotNameAlreadyInUseException
 org/elasticsearch/snapshots/SnapshotRestoreException
 org/elasticsearch/threadpool/ThreadPoolStats
 org/elasticsearch/threadpool/ThreadPoolStats$Stats
+org/elasticsearch/transport/AbstractSimpleTransportTestCase$1Request
+org/elasticsearch/transport/AbstractSimpleTransportTestCase$1Response
 org/elasticsearch/transport/BindTransportException
 org/elasticsearch/transport/NoSeedNodeLeftException
 org/elasticsearch/transport/NoSuchRemoteClusterException
@@ -516,6 +535,7 @@ org/elasticsearch/xpack/core/security/action/user/AuthenticateResponse
 org/elasticsearch/xpack/core/security/action/user/ChangePasswordRequest
 org/elasticsearch/xpack/core/security/action/user/DeleteUserRequest
 org/elasticsearch/xpack/core/security/action/user/DeleteUserResponse
+org/elasticsearch/xpack/core/security/action/user/GetUserPrivilegesResponse$RemoteIndices
 org/elasticsearch/xpack/core/security/action/user/GetUsersRequest
 org/elasticsearch/xpack/core/security/action/user/GetUsersResponse
 org/elasticsearch/xpack/core/security/action/user/HasPrivilegesResponse
@@ -640,6 +660,7 @@ org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnap
 org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction$NodeRequest
 org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction$NodesCachesStatsResponse
 org/elasticsearch/xpack/searchablesnapshots/action/cache/TransportSearchableSnapshotsNodeCachesStatsAction$NodesRequest
+org/elasticsearch/xpack/security/action/role/TransportClearRolesCacheAction
 org/elasticsearch/xpack/shutdown/DeleteShutdownNodeAction$Request
 org/elasticsearch/xpack/shutdown/PutShutdownNodeAction$Request
 org/elasticsearch/xpack/spatial/common/CartesianBoundingBox
@@ -662,13 +683,3 @@ org/elasticsearch/xpack/sql/plugin/SqlStatsResponse
 org/elasticsearch/xpack/sql/plugin/SqlStatsResponse$NodeStatsResponse
 org/elasticsearch/xpack/sql/session/EmptyCursor
 org/elasticsearch/xpack/watcher/notification/NotificationService$1
-org/elasticsearch/index/query/functionscore/LinearDecayFunctionBuilder
-org/elasticsearch/action/search/SearchTransportService$SearchFreeContextRequest
-org/elasticsearch/snapshots/SnapshotMissingException
-org/elasticsearch/search/aggregations/metrics/PercentilesConfig$TDigest
-org/elasticsearch/repositories/RepositoryStatsSnapshot
-org/elasticsearch/repositories/RepositoryInfo
-org/elasticsearch/search/sort/MinAndMax
-org/elasticsearch/indices/breaker/CircuitBreakerStats
-org/elasticsearch/xpack/core/security/action/user/GetUserPrivilegesResponse$RemoteIndices
-org/elasticsearch/discovery/DiscoveryStats

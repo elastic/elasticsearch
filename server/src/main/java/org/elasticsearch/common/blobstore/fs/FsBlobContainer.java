@@ -240,14 +240,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         final Path file = path.resolve(blobName);
-        try {
-            writeToPath(inputStream, file, blobSize);
-        } catch (FileAlreadyExistsException faee) {
-            if (failIfAlreadyExists) {
-                throw faee;
+        while(true) {
+            try {
+                writeToPath(inputStream, file, blobSize);
+                break;
+            } catch (FileAlreadyExistsException faee) {
+                if (failIfAlreadyExists) {
+                    throw faee;
+                }
+                deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+                writeToPath(inputStream, file, blobSize);
             }
-            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-            writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);
     }
@@ -255,14 +258,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         final Path file = path.resolve(blobName);
-        try {
-            writeToPath(bytes, file);
-        } catch (FileAlreadyExistsException faee) {
-            if (failIfAlreadyExists) {
-                throw faee;
+        while (true) {
+            try {
+                writeToPath(bytes, file);
+                break;
+            } catch (FileAlreadyExistsException faee) {
+                if (failIfAlreadyExists) {
+                    throw faee;
+                }
+                deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
+                writeToPath(bytes, file);
             }
-            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-            writeToPath(bytes, file);
         }
         IOUtils.fsync(path, true);
     }

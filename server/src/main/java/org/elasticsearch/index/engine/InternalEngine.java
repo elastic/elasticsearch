@@ -3132,7 +3132,7 @@ public class InternalEngine extends Engine {
         this.flushListener.addOrNotify(location, listener);
     }
 
-    public LiveVersionMapArchive createLiveVersionMapArchive() {
+    protected LiveVersionMapArchive createLiveVersionMapArchive() {
         return LiveVersionMapArchive.NOOP_ARCHIVE;
     }
 

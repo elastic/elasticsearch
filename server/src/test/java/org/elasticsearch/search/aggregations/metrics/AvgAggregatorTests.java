@@ -274,7 +274,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
@@ -533,7 +533,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(terms);
@@ -596,7 +596,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value");
@@ -632,7 +632,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
         MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(multiReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value")

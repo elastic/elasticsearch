@@ -33,9 +33,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetTime;
+import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -781,6 +783,8 @@ public abstract class StreamInput extends InputStream {
             case 25 -> readCollection(StreamInput::readGenericValue, Sets::newHashSetWithExpectedSize, Collections.emptySet());
             case 26 -> readBigInteger();
             case 27 -> readOffsetTime();
+            case 28 -> readDuration();
+            case 29 -> readPeriod();
             default -> throw new IOException("Can't read unknown type [" + type + "]");
         };
     }
@@ -822,6 +826,19 @@ public abstract class StreamInput extends InputStream {
     private OffsetTime readOffsetTime() throws IOException {
         final String zoneOffsetId = readString();
         return OffsetTime.of(LocalTime.ofNanoOfDay(readLong()), ZoneOffset.of(zoneOffsetId));
+    }
+
+    private Duration readDuration() throws IOException {
+        final long seconds = readLong();
+        final long nanos = readLong();
+        return Duration.ofSeconds(seconds, nanos);
+    }
+
+    private Period readPeriod() throws IOException {
+        final int years = readInt();
+        final int months = readInt();
+        final int days = readInt();
+        return Period.of(years, months, days);
     }
 
     private static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];

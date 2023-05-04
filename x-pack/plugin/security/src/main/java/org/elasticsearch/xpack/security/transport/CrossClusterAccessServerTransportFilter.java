@@ -92,7 +92,6 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 RemoteClusterNodesAction.NAME,
                 SearchAction.NAME,
-                ClusterStateAction.NAME,
                 ClusterSearchShardsAction.NAME,
                 ResolveIndexAction.NAME,
                 FieldCapabilitiesAction.NAME,
@@ -101,6 +100,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 XPackInfoAction.NAME,
                 GetCheckpointAction.NAME,
                 // CCR actions
+                ClusterStateAction.NAME,
                 HasPrivilegesAction.NAME,
                 IndicesStatsAction.NAME,
                 RetentionLeaseActions.Add.ACTION_NAME,

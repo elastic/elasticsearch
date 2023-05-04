@@ -58,7 +58,7 @@ public class RemoteClusterSecurityMlIT extends AbstractRemoteClusterSecurityTest
                 API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessApiKey("""
                     {
                       "role": {
-                        "cluster": ["cross_cluster_access"],
+                        "cluster": ["cross_cluster_search"],
                         "index": [
                           {
                               "names": ["shared-airline-data"],

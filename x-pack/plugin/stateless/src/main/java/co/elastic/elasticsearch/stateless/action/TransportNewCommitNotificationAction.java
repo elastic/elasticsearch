@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.Engine;
@@ -47,10 +48,19 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     public TransportNewCommitNotificationAction(
         ClusterService clusterService,
         TransportService transportService,
+        ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         IndicesService indicesService
     ) {
-        super(NAME, clusterService, transportService, actionFilters, NewCommitNotificationRequest::new, ThreadPool.Names.SAME);
+        super(
+            NAME,
+            clusterService,
+            transportService,
+            shardStateAction,
+            actionFilters,
+            NewCommitNotificationRequest::new,
+            ThreadPool.Names.SAME
+        );
         this.indicesService = indicesService;
     }
 

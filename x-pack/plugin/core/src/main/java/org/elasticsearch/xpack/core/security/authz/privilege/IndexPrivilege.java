@@ -28,6 +28,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -106,6 +107,7 @@ public final class IndexPrivilege extends Privilege {
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
         ClusterSearchShardsAction.NAME,
+        SearchShardsAction.NAME,
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,

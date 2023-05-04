@@ -53,9 +53,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         failReadsAllDataNodes(repositoryName);
 
         logger.info("--> starting restore");
-        final ActionFuture<RestoreSnapshotResponse> future = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repositoryName, snapshotName)
+        final ActionFuture<RestoreSnapshotResponse> future = clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .execute();

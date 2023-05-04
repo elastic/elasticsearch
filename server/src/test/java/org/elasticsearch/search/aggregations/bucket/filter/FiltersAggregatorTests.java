@@ -106,7 +106,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         int numFilters = randomIntBetween(1, 10);
         QueryBuilder[] filters = new QueryBuilder[numFilters];
         for (int i = 0; i < filters.length; i++) {
@@ -198,7 +198,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         FiltersAggregator.KeyedFilter[] keys = new FiltersAggregator.KeyedFilter[6];
         keys[0] = new FiltersAggregator.KeyedFilter("foobar", QueryBuilders.termQuery("field", "foobar"));
@@ -246,7 +246,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
         try {
             int numFilters = randomIntBetween(1, 10);
             QueryBuilder[] filters = new QueryBuilder[numFilters];

@@ -230,6 +230,26 @@ setup:
       ml.stop_trained_model_deployment:
         model_id: test_model
   - match: { stopped: true }
+
+  - do:
+      ml.start_trained_model_deployment:
+        model_id: test_model
+        deployment_id: test_model_deployment
+        wait_for: started
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
+
+  - do:
+      # We update to the same value of 1 as if the test runs on a node with just 1 processor it would fail otherwise
+      ml.update_trained_model_deployment:
+        model_id: test_model_deployment
+        body: >
+          {
+            "number_of_allocations": 1
+          }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.number_of_allocations: 1 }
 ---
 "Test clear deployment cache":
   - skip:
@@ -238,6 +258,7 @@ setup:
   - do:
       ml.start_trained_model_deployment:
         model_id: test_model
+        deployment_id: test_model_deployment_cache_test
         cache_size: 10kb
         wait_for: started
   - match: {assignment.assignment_state: started}
@@ -290,7 +311,7 @@ setup:
 
   - do:
       ml.clear_trained_model_deployment_cache:
-        model_id: test_model
+        model_id: test_model_deployment_cache_test
   - match: { cleared: true }
 
   - do:
@@ -460,6 +481,14 @@ setup:
               { "input": "words" }
             ]
           }
+  - do:
+      ml.get_trained_models_stats:
+        model_id: test_model
+  - match: { count: 1 } # one model matched
+  - match: { trained_model_stats.0.model_id: test_model }
+  - match: { trained_model_stats.0.deployment_stats.deployment_id: test_model_for_ingest }
+  - match: { trained_model_stats.1.model_id: test_model }
+  - match: { trained_model_stats.1.deployment_stats.deployment_id: test_model_for_search }
 
   - do:
       ml.stop_trained_model_deployment:

@@ -67,7 +67,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ThreadPool.Names.REFRESH
         );
         // registers the unpromotable version of shard refresh action
-        new TransportUnpromotableShardRefreshAction(clusterService, transportService, actionFilters, indicesService);
+        new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
     }
 
     @Override
@@ -114,7 +114,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
             UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                 indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.generation()
+                replicaRequest.primaryRefreshResult.generation(),
+                false
             );
             transportService.sendRequest(
                 transportService.getLocalNode(),

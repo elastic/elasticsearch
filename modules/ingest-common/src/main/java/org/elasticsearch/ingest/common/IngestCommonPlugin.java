@@ -14,11 +14,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
@@ -36,22 +33,10 @@ import static java.util.Map.entry;
 
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    static final Setting<TimeValue> WATCHDOG_INTERVAL = Setting.timeSetting(
-        "ingest.grok.watchdog.interval",
-        TimeValue.timeValueSeconds(1),
-        Setting.Property.NodeScope
-    );
-    static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME = Setting.timeSetting(
-        "ingest.grok.watchdog.max_execution_time",
-        TimeValue.timeValueSeconds(1),
-        Setting.Property.NodeScope
-    );
-
     public IngestCommonPlugin() {}
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        var matcherWatchdog = createGrokThreadWatchdog(parameters);
         return Map.ofEntries(
             entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
             entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
@@ -66,7 +51,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(FailProcessor.TYPE, new FailProcessor.Factory(parameters.scriptService)),
             entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
             entry(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService)),
-            entry(GrokProcessor.TYPE, new GrokProcessor.Factory(matcherWatchdog)),
+            entry(GrokProcessor.TYPE, new GrokProcessor.Factory(parameters.matcherWatchdog)),
             entry(GsubProcessor.TYPE, new GsubProcessor.Factory()),
             entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
             entry(JoinProcessor.TYPE, new JoinProcessor.Factory()),
@@ -75,7 +60,6 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory()),
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
-            entry(RedactProcessor.TYPE, new RedactProcessor.Factory(matcherWatchdog)),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
             entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
             entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
@@ -107,22 +91,6 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new GrokProcessorGetAction.RestAction());
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return List.of(WATCHDOG_INTERVAL, WATCHDOG_MAX_EXECUTION_TIME);
-    }
-
-    private static MatcherWatchdog createGrokThreadWatchdog(Processor.Parameters parameters) {
-        long intervalMillis = WATCHDOG_INTERVAL.get(parameters.env.settings()).getMillis();
-        long maxExecutionTimeMillis = WATCHDOG_MAX_EXECUTION_TIME.get(parameters.env.settings()).getMillis();
-        return MatcherWatchdog.newInstance(
-            intervalMillis,
-            maxExecutionTimeMillis,
-            parameters.relativeTimeSupplier,
-            parameters.scheduler::apply
-        );
     }
 
 }

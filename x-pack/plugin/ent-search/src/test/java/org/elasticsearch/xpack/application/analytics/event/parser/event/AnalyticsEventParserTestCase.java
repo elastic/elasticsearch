@@ -26,6 +26,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.createAnalyticsContextMockFromEvent;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomInetAddress;
+import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEventTestUtils.randomUserAgent;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -128,6 +130,8 @@ public abstract class AnalyticsEventParserTestCase extends ESTestCase {
         when(context.eventType()).thenReturn(eventType);
         when(context.eventTime()).thenReturn(randomLong());
         when(context.eventCollectionName()).thenReturn(randomIdentifier());
+        when(context.userAgent()).thenReturn(randomUserAgent());
+        when(context.clientAddress()).thenReturn(randomInetAddress());
 
         return AnalyticsEvent.builder(context).with(payload).build();
     }

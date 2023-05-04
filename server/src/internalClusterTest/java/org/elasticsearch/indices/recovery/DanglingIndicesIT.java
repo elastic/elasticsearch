@@ -127,7 +127,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, true);
-        client().admin().cluster().importDanglingIndex(request).get();
+        clusterAdmin().importDanglingIndex(request).get();
 
         assertTrue("Expected dangling index " + INDEX_NAME + " to be recovered", indexExists(INDEX_NAME));
     }
@@ -143,7 +143,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().importDanglingIndex(request).actionGet()
+            () -> clusterAdmin().importDanglingIndex(request).actionGet()
         );
 
         assertThat(e.getMessage(), containsString("No dangling index found for UUID [NonExistentUUID]"));
@@ -160,7 +160,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         final ImportDanglingIndexRequest request = new ImportDanglingIndexRequest(danglingIndexUUID, false);
 
-        Exception e = expectThrows(Exception.class, () -> client().admin().cluster().importDanglingIndex(request).actionGet());
+        Exception e = expectThrows(Exception.class, () -> clusterAdmin().importDanglingIndex(request).actionGet());
 
         assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));
     }
@@ -183,7 +183,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true)).actionGet();
+        clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, true)).actionGet();
 
         // The dangling index that we deleted ought to have been removed from disk. Check by
         // creating and deleting another index, which creates a new tombstone entry, which should
@@ -260,7 +260,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             Exception.class,
-            () -> client().admin().cluster().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false)).actionGet()
+            () -> clusterAdmin().deleteDanglingIndex(new DeleteDanglingIndexRequest(danglingIndexUUID, false)).actionGet()
         );
 
         assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));
@@ -290,7 +290,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
                 while (isImporting.get()) {
                     try {
-                        client().admin().cluster().importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true)).get();
+                        clusterAdmin().importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true)).get();
                     } catch (Exception e) {
                         // failures are expected
                     }
@@ -328,7 +328,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             }
         }
 
-        final Metadata metadata = client().admin().cluster().prepareState().clear().setMetadata(true).get().getState().metadata();
+        final Metadata metadata = clusterAdmin().prepareState().clear().setMetadata(true).get().getState().metadata();
         assertTrue(metadata.indexGraveyard().toString(), metadata.indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID)));
         assertNull(Strings.toString(metadata, true, true), metadata.index(INDEX_NAME));
     }

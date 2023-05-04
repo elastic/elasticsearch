@@ -189,7 +189,7 @@ gradlePlugin {
     }
     newTransportVersion {
       id = 'elasticsearch.new-transport-version'
-      implementationClass = 'org.elasticsearch.gradle.internal.NewTransportVersionPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.transportversion.NewTransportVersionPlugin'
     }
   }
 }

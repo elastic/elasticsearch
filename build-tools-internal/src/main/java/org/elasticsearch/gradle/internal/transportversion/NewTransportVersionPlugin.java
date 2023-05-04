@@ -6,18 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle.internal.transportversion;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.tasks.JavaExec;
 
 public class NewTransportVersionPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        project.getTasks().register("newTransportVersion", JavaExec.class).configure(task -> {
-            task.getMainClass().set("org.elasticsearch.gradle.internal.BumpTransportVersion");
-        });
+        project.getTasks().register("newTransportVersion", BumpTransportVersionTask.class);
     }
 
 }

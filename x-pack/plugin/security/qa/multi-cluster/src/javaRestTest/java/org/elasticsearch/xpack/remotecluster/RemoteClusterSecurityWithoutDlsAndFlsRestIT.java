@@ -27,7 +27,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
     private static final String API_KEY_ROLE = """
         {
           "role": {
-            "cluster": ["cross_cluster_access"],
+            "cluster": ["cross_cluster_search"],
             "index": [
               {
                   "names": ["remote_index*"],

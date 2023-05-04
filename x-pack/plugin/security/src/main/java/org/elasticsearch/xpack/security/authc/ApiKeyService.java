@@ -324,6 +324,7 @@ public class ApiKeyService {
                             + "] or higher to support creating cross cluster API keys"
                     )
                 );
+                return;
             }
 
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemoteIndicesPrivileges(

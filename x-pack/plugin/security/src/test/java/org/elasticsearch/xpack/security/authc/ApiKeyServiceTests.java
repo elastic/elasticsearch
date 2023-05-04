@@ -37,7 +37,6 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -2132,10 +2131,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ClusterState clusterState = mock(ClusterState.class);
         when(clusterService.state()).thenReturn(clusterState);
-        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-        final Version minNodeVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(minNodeVersion);
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_9_0)
+        );
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
 
         final ApiKeyService service = new ApiKeyService(
             Settings.EMPTY,
@@ -2153,9 +2154,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         assertThat(
             e.getMessage(),
-            containsString("all nodes must have version [8.9.0] or higher to support creating cross cluster API keys")
+            containsString("all nodes must have transport version [8090099] or higher to support creating cross cluster API keys")
         );
-
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {

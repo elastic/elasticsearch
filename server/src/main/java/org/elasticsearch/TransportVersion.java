@@ -151,6 +151,8 @@ public final class TransportVersion implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_7_2 = new TransportVersion(8_07_02_99, "bd84976c-fb8a-4a4c-b017-9563f8d888d9");
     public static final TransportVersion V_8_8_0 = new TransportVersion(8_08_00_99, "f64fe576-0767-4ec3-984e-3e30b33b6c46");
     public static final TransportVersion V_8_9_0 = new TransportVersion(8_09_00_99, "13c1c2cb-d975-461f-ab98-309ebc1c01bc");
+    // NEXT_VERSION 8_500_000
+
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.

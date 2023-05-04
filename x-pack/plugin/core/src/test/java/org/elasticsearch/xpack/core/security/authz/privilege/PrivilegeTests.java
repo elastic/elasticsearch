@@ -153,7 +153,7 @@ public class PrivilegeTests extends ESTestCase {
                 "internal:transport/handshake",
                 "cluster:admin/xpack/security/*"
             );
-            ClusterPermission crossClusterAccessClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
+            ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
                 ClusterPermission.builder()
             ).build();
             assertTrue(allClusterPermission.implies(crossClusterAccessClusterPermission));

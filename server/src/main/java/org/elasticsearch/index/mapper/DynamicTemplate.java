@@ -237,22 +237,20 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     private static void addEntriesToPatternList(List<String> matchList, String propName, Map.Entry<String, Object> entry) {
-        if (entry.getValue() instanceof String s) {
-            matchList.add(s);
-        } else if (entry.getValue() instanceof List<?> ls) {
+        if (entry.getValue() instanceof List<?> ls) {
             for (Object o : ls) {
                 if (o instanceof String s) {
                     matchList.add(s);
                 } else {
+                    // for array-based matches, we enforce that only strings are allowed as un/match values in the array
                     throw new MapperParsingException(
                         Strings.format("[%s] values must either be a string or list of strings, but was [%s]", propName, entry.getValue())
                     );
                 }
             }
         } else {
-            throw new MapperParsingException(
-                Strings.format("[%s] values must either be a string or list of strings, but was [%s]", propName, entry.getValue())
-            );
+            // to preserve backwards compatability for single-valued matches, we convert whatever the user provided to a string
+            matchList.add(entry.getValue().toString());
         }
     }
 

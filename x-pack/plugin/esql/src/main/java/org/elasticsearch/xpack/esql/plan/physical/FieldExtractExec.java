@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.compute.ann.Experimental;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -29,15 +27,6 @@ public class FieldExtractExec extends UnaryExec {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
         this.sourceAttribute = extractSourceAttributesFrom(child);
-
-        // TODO: this can be moved into the physical verifier
-        if (sourceAttribute == null) {
-            throw new QlIllegalArgumentException(
-                "Need to add field extractor for [{}] but cannot detect source attributes from node [{}]",
-                Expressions.names(attributesToExtract),
-                child
-            );
-        }
     }
 
     public static Attribute extractSourceAttributesFrom(PhysicalPlan plan) {

@@ -26,6 +26,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.planner.VerificationException;
+import org.elasticsearch.xpack.esql.planner.Verifier;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
@@ -48,6 +51,7 @@ import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -68,12 +72,23 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
 
+    private final Verifier verifier;
+
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);
+        this.verifier = new Verifier();
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
-        return execute(plan);
+        return verify(execute(plan));
+    }
+
+    PhysicalPlan verify(PhysicalPlan plan) {
+        Collection<Failure> failures = verifier.verify(plan);
+        if (failures.isEmpty() == false) {
+            throw new VerificationException(failures);
+        }
+        return plan;
     }
 
     static Iterable<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {

@@ -259,7 +259,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 TestDiscoveryNode.create(
                     "dedicated-transform-node",
-                    buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
                     new HashSet<>(
                         Arrays.asList(
@@ -276,7 +275,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 TestDiscoveryNode.create(
                     "past-data-node-1",
-                    buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
                     new HashSet<>(
                         Arrays.asList(
@@ -295,7 +293,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 TestDiscoveryNode.create(
                     "current-data-node-with-2-tasks",
-                    buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
                     new HashSet<>(
                         Arrays.asList(
@@ -309,7 +306,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 .add(
                     TestDiscoveryNode.create(
                         "current-data-node-with-1-tasks",
-                        buildNewFakeTransportAddress(),
                         Collections.emptyMap(),
                         new HashSet<>(
                             Arrays.asList(
@@ -326,7 +322,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 TestDiscoveryNode.create(
                     "current-data-node-with-0-tasks-transform-remote-disabled",
-                    buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
                     new HashSet<>(
                         Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
@@ -339,7 +334,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             nodes.add(
                 TestDiscoveryNode.create(
                     "current-data-node-with-transform-disabled",
-                    buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
                     Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)
                 )

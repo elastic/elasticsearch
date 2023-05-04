@@ -104,7 +104,7 @@ public class XPackPluginTests extends ESTestCase {
                 attributes = Collections.emptyMap();
             }
 
-            discoveryNodes.add(TestDiscoveryNode.create("node_" + i, buildNewFakeTransportAddress(), attributes, Collections.emptySet()));
+            discoveryNodes.add(TestDiscoveryNode.create("node_" + i, attributes, Collections.emptySet()));
         }
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
 

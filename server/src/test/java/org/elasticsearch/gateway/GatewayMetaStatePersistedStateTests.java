@@ -74,12 +74,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
-        localNode = TestDiscoveryNode.create(
-            "node1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        localNode = TestDiscoveryNode.create("node1", Collections.emptyMap(), Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE));
         clusterName = new ClusterName(randomAlphaOfLength(10));
         final Settings.Builder settingsBuilder = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value());
         if (randomBoolean()) {
@@ -379,7 +374,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         try {
             DiscoveryNode localNode = TestDiscoveryNode.create(
                 "node1",
-                buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)
             );

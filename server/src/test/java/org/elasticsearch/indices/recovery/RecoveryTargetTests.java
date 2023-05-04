@@ -369,7 +369,7 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = TestDiscoveryNode.create("1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode discoveryNode = TestDiscoveryNode.create("1", emptyMap(), emptySet());
         final AssertionError error = expectThrows(AssertionError.class, () -> {
             Stage[] stages = Stage.values();
             int i = randomIntBetween(0, stages.length - 1);

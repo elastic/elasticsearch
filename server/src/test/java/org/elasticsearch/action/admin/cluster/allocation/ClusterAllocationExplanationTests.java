@@ -156,9 +156,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             true,
             assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED
         );
-        DiscoveryNode node = assignedShard
-            ? TestDiscoveryNode.create("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet())
-            : null;
+        DiscoveryNode node = assignedShard ? TestDiscoveryNode.create("node-0", emptyMap(), emptySet()) : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
             MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)

@@ -93,7 +93,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
         frozenNode = TestDiscoveryNode.create(
             "frozen-node",
             "frozen-node",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
         );
@@ -306,7 +305,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
             "master-node",
             "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
@@ -333,7 +331,6 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
             "master-node",
             "master-node-1",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );

@@ -110,12 +110,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     public void testStartWithStateNotRecoveredBlock() {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
-            TestDiscoveryNode.create(
-                "id1",
-                ESTestCase.buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.roles())
-            )
+            TestDiscoveryNode.create("id1", Collections.emptyMap(), new HashSet<>(DiscoveryNodeRole.roles()))
         ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
@@ -400,21 +395,18 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         DiscoveryNode node1 = TestDiscoveryNode.create(
             "node_1",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
         );
 
         DiscoveryNode node2 = TestDiscoveryNode.create(
             "node_2",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))
         );
 
         DiscoveryNode node3 = TestDiscoveryNode.create(
             "node_3",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))
         );
@@ -517,14 +509,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .nodes(
                 new DiscoveryNodes.Builder().masterNodeId("node_1")
                     .localNodeId("node_1")
-                    .add(
-                        TestDiscoveryNode.create(
-                            "node_1",
-                            ESTestCase.buildNewFakeTransportAddress(),
-                            Collections.emptyMap(),
-                            new HashSet<>(roles)
-                        )
-                    )
+                    .add(TestDiscoveryNode.create("node_1", Collections.emptyMap(), new HashSet<>(roles)))
             )
             .build();
 
@@ -645,6 +630,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return TestDiscoveryNode.create(nodeName, ESTestCase.buildNewFakeTransportAddress(), version);
+        return TestDiscoveryNode.create(nodeName, version);
     }
 }

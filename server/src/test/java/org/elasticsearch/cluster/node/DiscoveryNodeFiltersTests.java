@@ -50,10 +50,10 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx.name", "name1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(true));
 
-        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        node = TestDiscoveryNode.create("name2", "id2", emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -61,10 +61,10 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx._id", "id1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(true));
 
-        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        node = TestDiscoveryNode.create("name2", "id2", emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -89,24 +89,24 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Map<String, String> attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), attributes, emptySet());
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", attributes, emptySet());
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "B");
         attributes.put("name", "X");
-        node = TestDiscoveryNode.create("name2", "id2", buildNewFakeTransportAddress(), attributes, emptySet());
+        node = TestDiscoveryNode.create("name2", "id2", attributes, emptySet());
         assertThat(filters.match(node), equalTo(true));
 
         attributes = new HashMap<>();
         attributes.put("tag", "A");
         attributes.put("group", "F");
         attributes.put("name", "X");
-        node = TestDiscoveryNode.create("name3", "id3", buildNewFakeTransportAddress(), attributes, emptySet());
+        node = TestDiscoveryNode.create("name3", "id3", attributes, emptySet());
         assertThat(filters.match(node), equalTo(false));
 
-        node = TestDiscoveryNode.create("name4", "id4", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        node = TestDiscoveryNode.create("name4", "id4", emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -114,7 +114,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = Settings.builder().put("xxx.name", "*").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", emptyMap(), emptySet());
         assertThat(filters.match(node), equalTo(true));
     }
 

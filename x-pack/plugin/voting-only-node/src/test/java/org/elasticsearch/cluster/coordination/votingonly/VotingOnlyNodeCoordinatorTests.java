@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.cluster.coordination.votingonly;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,12 +55,8 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
     @Override
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
         final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
+        return TestDiscoveryNode.create(
             "node" + nodeIndex,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
             address,
             Collections.emptyMap(),
             masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY
@@ -71,8 +66,7 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
                     DiscoveryNodeRole.INGEST_ROLE,
                     DiscoveryNodeRole.MASTER_ROLE,
                     DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE
-                ),
-            Version.CURRENT
+                )
         );
     }
 

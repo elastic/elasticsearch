@@ -308,6 +308,6 @@ public class TransformNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {
-        return TestDiscoveryNode.create(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
+        return TestDiscoveryNode.create(id, emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
     }
 }

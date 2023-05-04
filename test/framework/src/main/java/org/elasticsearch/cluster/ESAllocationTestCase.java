@@ -196,11 +196,11 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, MASTER_DATA_ROLES);
+        return TestDiscoveryNode.create(nodeId, attributes, MASTER_DATA_ROLES);
     }
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles);
+        return TestDiscoveryNode.create(nodeId, emptyMap(), roles);
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
@@ -208,7 +208,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, version);
+        return TestDiscoveryNode.create(nodeId, emptyMap(), MASTER_DATA_ROLES, version);
     }
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {

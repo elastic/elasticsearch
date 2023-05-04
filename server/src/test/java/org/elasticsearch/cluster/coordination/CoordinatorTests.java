@@ -1929,15 +1929,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion
     ) {
         DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
-            .add(
-                TestDiscoveryNode.create(
-                    "resolvableNodeName",
-                    "resolvableNodeId",
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                )
-            )
+            .add(TestDiscoveryNode.create("resolvableNodeName", "resolvableNodeId", emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE)))
             .build();
 
         CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder(currentState.coordinationMetadata());

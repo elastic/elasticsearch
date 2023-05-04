@@ -76,11 +76,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node", VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         clusterService = createClusterService(threadPool, discoveryNode);
     }
 

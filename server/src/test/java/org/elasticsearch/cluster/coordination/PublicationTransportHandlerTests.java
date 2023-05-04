@@ -162,12 +162,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final boolean simulateFailures = randomBoolean();
             final Map<DiscoveryNode, TransportVersion> nodeTransports = new HashMap<>();
-            final DiscoveryNode localNode = TestDiscoveryNode.create(
-                "localNode",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE)
-            );
+            final DiscoveryNode localNode = TestDiscoveryNode.create("localNode", emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
             final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             final MockTransport mockTransport = new MockTransport() {
 
@@ -229,7 +224,6 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             while (allNodes.size() < 10) {
                 var node = TestDiscoveryNode.create(
                     "node-" + allNodes.size(),
-                    buildNewFakeTransportAddress(),
                     VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
                 );
                 allNodes.add(node);
@@ -360,11 +354,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var completed = new AtomicBoolean();
 
         final var localNode = TestDiscoveryNode.create("localNode");
-        final var otherNode = TestDiscoveryNode.create(
-            "otherNode",
-            buildNewFakeTransportAddress(),
-            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
-        );
+        final var otherNode = TestDiscoveryNode.create("otherNode", VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         for (final var discoveryNode : List.of(localNode, otherNode)) {
             final var transport = new MockTransport() {
                 @Override

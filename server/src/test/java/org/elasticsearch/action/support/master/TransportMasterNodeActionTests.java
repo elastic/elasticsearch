@@ -114,18 +114,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = TestDiscoveryNode.create(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)
-        );
-        remoteNode = TestDiscoveryNode.create(
-            "remote_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        localNode = TestDiscoveryNode.create("local_node", Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.MASTER_ROLE));
+        remoteNode = TestDiscoveryNode.create("remote_node", Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.MASTER_ROLE));
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
 

@@ -187,9 +187,9 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         );
 
         final var discoveryNodesBuilder = new DiscoveryNodes.Builder();
-        discoveryNodesBuilder.add(
-            TestDiscoveryNode.create("master", "master", buildNewFakeTransportAddress(), Map.of(), Set.of(MASTER_ROLE))
-        ).localNodeId("master").masterNodeId("master");
+        discoveryNodesBuilder.add(TestDiscoveryNode.create("master", "master", Map.of(), Set.of(MASTER_ROLE)))
+            .localNodeId("master")
+            .masterNodeId("master");
         for (var nodeIndex = 0; nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) + nodeCountByTier.get(DataTier.DATA_WARM)
             + nodeCountByTier.get(DataTier.DATA_COLD); nodeIndex++) {
             final var tierRole = nodeIndex < nodeCountByTier.get(DataTier.DATA_HOT) ? DATA_HOT_NODE_ROLE
@@ -197,15 +197,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 : DATA_COLD_NODE_ROLE;
 
             final var nodeId = Strings.format("node-%s-%03d", tierRole.roleNameAbbreviation(), nodeIndex);
-            discoveryNodesBuilder.add(
-                TestDiscoveryNode.create(
-                    nodeId,
-                    nodeId,
-                    buildNewFakeTransportAddress(),
-                    Map.of("fake_tier", tierRole.roleName()),
-                    Set.of(tierRole)
-                )
-            );
+            discoveryNodesBuilder.add(TestDiscoveryNode.create(nodeId, nodeId, Map.of("fake_tier", tierRole.roleName()), Set.of(tierRole)));
         }
 
         final var unassignedClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)

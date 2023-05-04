@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -201,7 +200,7 @@ public class JoinReasonServiceTests extends ESTestCase {
             transportAddress,
             Collections.emptyMap(),
             DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            null
         );
     }
 

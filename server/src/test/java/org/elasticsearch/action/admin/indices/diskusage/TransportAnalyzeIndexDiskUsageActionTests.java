@@ -271,7 +271,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
     private static DiscoveryNodes newNodes(int numNodes) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numNodes; i++) {
-            nodes.add(TestDiscoveryNode.create("node_" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet()));
+            nodes.add(TestDiscoveryNode.create("node_" + i, emptyMap(), emptySet()));
         }
         return nodes.localNodeId("node_0").build();
 
@@ -358,7 +358,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
                 new MockTransport(),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                addr -> TestDiscoveryNode.create("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+                addr -> TestDiscoveryNode.create("node_0", emptyMap(), emptySet()),
                 null,
                 Collections.emptySet()
             );

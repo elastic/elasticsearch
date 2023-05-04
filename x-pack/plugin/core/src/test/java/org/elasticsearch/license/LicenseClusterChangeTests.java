@@ -64,7 +64,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode master = TestDiscoveryNode.create("b", emptyMap(), emptySet());
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();

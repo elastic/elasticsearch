@@ -95,7 +95,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
         assertTrue(factories.containsKey("set"));
         assertEquals(1, factories.size());
 
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("_node_id", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("_node_id", emptyMap(), emptySet());
 
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,

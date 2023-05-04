@@ -169,12 +169,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version
     ) {
         this(
             nodeName,
@@ -185,7 +185,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             address,
             attributes,
             roles,
-            version
+            version,
+            null
         );
     }
 
@@ -198,22 +199,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * and updated.
      * </p>
      *
-     * @param nodeName         the nodes name
-     * @param nodeId           the nodes unique persistent id. An ephemeral id will be auto generated.
-     * @param externalId       the external id used to identify this node by external systems
-     * @param address          the nodes transport address
-     * @param attributes       node attributes
-     * @param roles            node roles
-     * @param version          the version of the node
+     * @param nodeName   the nodes name
+     * @param nodeId     the nodes unique persistent id. An ephemeral id will be auto generated.
+     * @param address    the nodes transport address
+     * @param attributes node attributes
+     * @param roles      node roles
+     * @param version    the version of the node
+     * @param externalId the external id used to identify this node by external systems
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
-        String externalId,
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version,
+        @Nullable String externalId
     ) {
         this(
             nodeName,
@@ -248,7 +249,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
         String hostName,
@@ -256,7 +257,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version
+        @Nullable Version version
     ) {
         this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version, null);
     }
@@ -281,7 +282,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param externalId       the external id used to identify this node by external systems
      */
     public DiscoveryNode(
-        String nodeName,
+        @Nullable String nodeName,
         String nodeId,
         String ephemeralId,
         String hostName,
@@ -289,8 +290,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         TransportAddress address,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
-        Version version,
-        String externalId
+        @Nullable Version version,
+        @Nullable String externalId
     ) {
         if (nodeName != null) {
             this.nodeName = nodeStringDeduplicator.deduplicate(nodeName);
@@ -330,11 +331,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return new DiscoveryNode(
             Node.NODE_NAME_SETTING.get(settings),
             nodeId,
-            Node.NODE_EXTERNAL_ID_SETTING.get(settings),
+            UUIDs.randomBase64UUID(),
+            publishAddress.address().getHostString(),
+            publishAddress.getAddress(),
             publishAddress,
             attributes,
             roles,
-            Version.CURRENT
+            null,
+            Node.NODE_EXTERNAL_ID_SETTING.get(settings)
         );
     }
 

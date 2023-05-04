@@ -30,8 +30,8 @@ public class RecoveryResponseTests extends ESTestCase {
     public void testChunkedToXContent() {
         final int failedShards = randomIntBetween(0, 50);
         final int successfulShards = randomIntBetween(0, 50);
-        DiscoveryNode sourceNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        DiscoveryNode targetNode = TestDiscoveryNode.create("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode sourceNode = TestDiscoveryNode.create("foo", emptyMap(), emptySet());
+        DiscoveryNode targetNode = TestDiscoveryNode.create("bar", emptyMap(), emptySet());
         final int shards = randomInt(50);
         AbstractChunkedSerializingTestCase.assertChunkCount(
             new RecoveryResponse(

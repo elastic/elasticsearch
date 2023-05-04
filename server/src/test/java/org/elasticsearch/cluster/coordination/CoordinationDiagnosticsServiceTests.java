@@ -1044,7 +1044,6 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         DiscoveryNode localNode = TestDiscoveryNode.create(
             "node4",
             randomNodeId(),
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.DATA_ROLE)
         );

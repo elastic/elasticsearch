@@ -99,7 +99,7 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(final Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create("node_" + UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Map.of(), roles);
+        return TestDiscoveryNode.create("node_" + UUIDs.randomBase64UUID(random()), Map.of(), roles);
     }
 
 }

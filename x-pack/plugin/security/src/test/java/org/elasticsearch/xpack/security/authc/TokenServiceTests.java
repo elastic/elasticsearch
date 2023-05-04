@@ -1079,7 +1079,6 @@ public class TokenServiceTests extends ESTestCase {
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
         final DiscoveryNode anotherDataNode = TestDiscoveryNode.create(
             "another_data_node#" + version,
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
             version

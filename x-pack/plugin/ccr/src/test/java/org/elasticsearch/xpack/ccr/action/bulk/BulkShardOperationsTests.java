@@ -146,7 +146,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         );
         primaryTerm = randomLongBetween(primaryTerm, primaryTerm + 10);
         final IndexShard newPrimary = reinitShard(oldPrimary);
-        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", emptyMap(), emptySet());
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newPrimary));
         IndexShardTestCase.updateRoutingEntry(

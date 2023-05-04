@@ -95,7 +95,6 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
                 i -> TestDiscoveryNode.create(
                     "node_" + i,
                     UUIDs.randomBase64UUID(),
-                    buildNewFakeTransportAddress(),
                     Map.of(),
                     randomSubsetOf(between(1, roles.size()), roles).stream()
                         .map(DiscoveryNodeRole::getRoleFromRoleName)

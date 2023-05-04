@@ -263,7 +263,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private DiscoveryNode buildNode(String id, ByteSizeValue machineMemory, int allocatedProcessors) {
         return TestDiscoveryNode.create(
             id,
-            buildNewFakeTransportAddress(),
             Map.of(
                 MachineLearning.MACHINE_MEMORY_NODE_ATTR,
                 String.valueOf(machineMemory.getBytes()),

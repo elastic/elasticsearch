@@ -204,7 +204,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .collect(Collectors.toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("nodeId", buildNewFakeTransportAddress(), Map.of(), roles)))
+            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("nodeId", Map.of(), roles)))
             .build();
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
             roleNames,
@@ -235,12 +235,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         for (int i = 0; i < randomIntBetween(1, 5); ++i) {
             String nodeId = "nodeId" + i;
             boolean useOtherRoles = randomBoolean();
-            DiscoveryNode node = TestDiscoveryNode.create(
-                nodeId,
-                buildNewFakeTransportAddress(),
-                Map.of(),
-                useOtherRoles ? otherRoles : roles
-            );
+            DiscoveryNode node = TestDiscoveryNode.create(nodeId, Map.of(), useOtherRoles ? otherRoles : roles);
             nodes.add(node);
 
             if (useOtherRoles == false) {

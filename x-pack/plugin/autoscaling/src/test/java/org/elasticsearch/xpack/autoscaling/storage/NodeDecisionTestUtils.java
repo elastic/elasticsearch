@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
@@ -25,7 +24,7 @@ class NodeDecisionTestUtils {
     }
 
     static DiscoveryNode randomDiscoveryNode() {
-        return TestDiscoveryNode.create(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        return TestDiscoveryNode.create(randomAlphaOfLength(6), emptyMap(), emptySet());
     }
 
     static Decision randomDecision() {

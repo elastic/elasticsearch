@@ -36,13 +36,11 @@ public class HealthInfoCacheTests extends ESTestCase {
     private final ClusterService clusterService = mock(ClusterService.class);
     private final DiscoveryNode node1 = TestDiscoveryNode.create(
         "node_1",
-        buildNewFakeTransportAddress(),
         Collections.emptyMap(),
         Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
     );
     private final DiscoveryNode node2 = TestDiscoveryNode.create(
         "node_2",
-        buildNewFakeTransportAddress(),
         Collections.emptyMap(),
         Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
     );

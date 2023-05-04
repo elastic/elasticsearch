@@ -212,7 +212,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     }
 
     private DiscoveryNode randomNode(String nodeId) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), randomVersion(random()));
+        return TestDiscoveryNode.create(nodeId, emptyMap(), emptySet(), randomVersion(random()));
     }
 
     /**

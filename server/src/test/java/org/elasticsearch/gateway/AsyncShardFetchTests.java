@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.sameInstance;
 public class AsyncShardFetchTests extends ESTestCase {
     private final DiscoveryNode node1 = TestDiscoveryNode.create(
         "node1",
-        buildNewFakeTransportAddress(),
         Collections.emptyMap(),
         Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
     );
@@ -46,7 +45,6 @@ public class AsyncShardFetchTests extends ESTestCase {
     private final Throwable failure1 = new Throwable("simulated failure 1");
     private final DiscoveryNode node2 = TestDiscoveryNode.create(
         "node2",
-        buildNewFakeTransportAddress(),
         Collections.emptyMap(),
         Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
     );

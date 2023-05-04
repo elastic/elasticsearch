@@ -84,12 +84,7 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
     }
 
     protected DiscoveryNode getLocalNode() {
-        return TestDiscoveryNode.create(
-            "b",
-            buildNewFakeTransportAddress(),
-            singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
-            emptySet()
-        );
+        return TestDiscoveryNode.create("b", singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"), emptySet());
     }
 
     @After

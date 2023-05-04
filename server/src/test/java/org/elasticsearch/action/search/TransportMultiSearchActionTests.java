@@ -224,31 +224,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int numDataNodes = randomIntBetween(1, 10);
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < numDataNodes; i++) {
-            builder.add(
-                TestDiscoveryNode.create(
-                    "_id" + i,
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
-                )
-            );
+            builder.add(TestDiscoveryNode.create("_id" + i, Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
         }
-        builder.add(
-            TestDiscoveryNode.create(
-                "master",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)
-            )
-        );
-        builder.add(
-            TestDiscoveryNode.create(
-                "ingest",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.INGEST_ROLE)
-            )
-        );
+        builder.add(TestDiscoveryNode.create("master", Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)));
+        builder.add(TestDiscoveryNode.create("ingest", Collections.emptyMap(), Collections.singleton(DiscoveryNodeRole.INGEST_ROLE)));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(builder).build();
         int result = TransportMultiSearchAction.defaultMaxConcurrentSearches(10, state);

@@ -52,7 +52,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -815,7 +814,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
         DiscoveryNode node2 = new DiscoveryNode(
             "node2",
@@ -825,8 +824,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             "test2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            Version.CURRENT
+            Set.copyOf(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
+            null
         );
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
@@ -885,7 +884,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
-            Version.CURRENT
+            null
         );
         DiscoveryNode node2 = new DiscoveryNode(
             "node2",
@@ -895,8 +894,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             "test2",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-            Version.CURRENT
+            Set.copyOf(randomSubsetOf(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
+            null
         );
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();

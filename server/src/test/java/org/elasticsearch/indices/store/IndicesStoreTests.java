@@ -39,7 +39,7 @@ public class IndicesStoreTests extends ESTestCase {
 
     @Before
     public void createLocalNode() {
-        localNode = TestDiscoveryNode.create("abc", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = TestDiscoveryNode.create("abc", emptyMap(), emptySet());
     }
 
     public void testShardCanBeDeletedNoShardStarted() {

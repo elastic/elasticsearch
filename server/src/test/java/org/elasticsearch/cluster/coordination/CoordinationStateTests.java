@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -81,17 +80,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public static DiscoveryNode createNode(String id) {
         final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            "",
-            id,
-            UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(),
-            address.getAddress(),
-            address,
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return TestDiscoveryNode.create(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles());
     }
 
     public void testSetInitialState() {
@@ -819,9 +808,7 @@ public class CoordinationStateTests extends ESTestCase {
         final CoordinationState.VoteCollection voteCollection = new CoordinationState.VoteCollection();
         assertTrue(voteCollection.isEmpty());
 
-        assertFalse(
-            voteCollection.addVote(TestDiscoveryNode.create("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
-        );
+        assertFalse(voteCollection.addVote(TestDiscoveryNode.create("master-ineligible", emptyMap(), emptySet())));
         assertTrue(voteCollection.isEmpty());
 
         voteCollection.addVote(node1);

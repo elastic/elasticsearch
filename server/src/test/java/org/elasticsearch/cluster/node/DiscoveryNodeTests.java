@@ -152,12 +152,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {
-        final DiscoveryNode node = TestDiscoveryNode.create(
-            "test-id",
-            buildNewFakeTransportAddress(),
-            Map.of("test-attr", "val"),
-            DiscoveryNodeRole.roles()
-        );
+        final DiscoveryNode node = TestDiscoveryNode.create("test-id", Map.of("test-attr", "val"), DiscoveryNodeRole.roles());
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
         final String descriptionWithoutAttributes = stringBuilder.toString();
@@ -178,7 +173,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             transportAddress,
             Map.of("test-attr", "val"),
             DiscoveryNodeRole.roles(),
-            Version.CURRENT,
+            null,
             withExternalId ? "test-external-id" : null
         );
 
@@ -214,12 +209,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeToString() {
-        var node = TestDiscoveryNode.create(
-            "test-id",
-            buildNewFakeTransportAddress(),
-            Map.of("test-attr", "val"),
-            DiscoveryNodeRole.roles()
-        );
+        var node = TestDiscoveryNode.create("test-id", Map.of("test-attr", "val"), DiscoveryNodeRole.roles());
         var toString = node.toString();
 
         assertThat(toString, containsString("{" + node.getId() + "}"));

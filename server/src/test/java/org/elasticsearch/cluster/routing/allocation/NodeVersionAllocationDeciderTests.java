@@ -315,17 +315,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
-        final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES);
+        final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", emptyMap(), MASTER_DATA_ROLES);
         final DiscoveryNode oldNode1 = TestDiscoveryNode.create(
             "oldNode1",
-            buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
         );
         final DiscoveryNode oldNode2 = TestDiscoveryNode.create(
             "oldNode2",
-            buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
@@ -426,17 +424,15 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
-        final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES);
+        final DiscoveryNode newNode = TestDiscoveryNode.create("newNode", emptyMap(), MASTER_DATA_ROLES);
         final DiscoveryNode oldNode1 = TestDiscoveryNode.create(
             "oldNode1",
-            buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
             VersionUtils.getPreviousVersion()
         );
         final DiscoveryNode oldNode2 = TestDiscoveryNode.create(
             "oldNode2",
-            buildNewFakeTransportAddress(),
             emptyMap(),
             MASTER_DATA_ROLES,
             VersionUtils.getPreviousVersion()

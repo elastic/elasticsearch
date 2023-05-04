@@ -584,7 +584,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         } else {
             roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
         }
-        return TestDiscoveryNode.create("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles);
+        return TestDiscoveryNode.create("node", attrs, roles);
     }
 
 }

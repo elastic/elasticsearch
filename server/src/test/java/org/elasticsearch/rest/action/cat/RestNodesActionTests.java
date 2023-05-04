@@ -38,7 +38,7 @@ public class RestNodesActionTests extends ESTestCase {
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {
         ClusterName clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(TestDiscoveryNode.create("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet()));
+        builder.add(TestDiscoveryNode.create("node-1", emptyMap(), emptySet()));
         DiscoveryNodes discoveryNodes = builder.build();
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);

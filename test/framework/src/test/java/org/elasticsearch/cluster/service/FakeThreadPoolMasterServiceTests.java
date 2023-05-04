@@ -44,12 +44,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
     public void testFakeMasterService() {
         List<Runnable> runnableTasks = new ArrayList<>();
         AtomicReference<ClusterState> lastClusterStateRef = new AtomicReference<>();
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles())
-        );
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node", Collections.emptyMap(), new HashSet<>(DiscoveryNodeRole.roles()));
         lastClusterStateRef.set(ClusterStateCreationUtils.state(discoveryNode, discoveryNode));
         long firstClusterStateVersion = lastClusterStateRef.get().version();
         AtomicReference<ActionListener<Void>> publishingCallback = new AtomicReference<>();

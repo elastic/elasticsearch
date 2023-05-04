@@ -171,6 +171,6 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
+        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), Map.of(), Set.of());
     }
 }

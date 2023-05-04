@@ -1360,7 +1360,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             .map(
                 n -> TestDiscoveryNode.create(
                     n,
-                    buildNewFakeTransportAddress(),
                     Map.of(
                         MACHINE_MEMORY_NODE_ATTR,
                         String.valueOf(TEST_NODE_SIZE),
@@ -1457,7 +1456,6 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         return NativeMemoryCalculator.allowedBytesForMl(
             TestDiscoveryNode.create(
                 "node",
-                ESTestCase.buildNewFakeTransportAddress(),
                 Map.of(MAX_JVM_SIZE_NODE_ATTR, jvmSize.toString(), MACHINE_MEMORY_NODE_ATTR, nodeSize.toString()),
                 Set.of(DiscoveryNodeRole.ML_ROLE)
             ),

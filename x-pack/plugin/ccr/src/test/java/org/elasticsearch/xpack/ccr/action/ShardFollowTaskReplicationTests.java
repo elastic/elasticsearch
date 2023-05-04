@@ -509,7 +509,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             @Override
             protected synchronized void recoverPrimary(IndexShard primaryShard) {
-                DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+                DiscoveryNode localNode = TestDiscoveryNode.create("foo", emptyMap(), emptySet());
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
                     primaryShard.routingEntry(),

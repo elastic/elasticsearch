@@ -277,7 +277,6 @@ public class ClusterStateUpdatersTests extends ESTestCase {
         final ClusterState initialState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         final DiscoveryNode localNode = TestDiscoveryNode.create(
             "node1",
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
         );
@@ -326,7 +325,6 @@ public class ClusterStateUpdatersTests extends ESTestCase {
             .build();
         final DiscoveryNode localNode = TestDiscoveryNode.create(
             "node1",
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
         );

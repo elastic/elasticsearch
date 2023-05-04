@@ -45,8 +45,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            TestDiscoveryNode.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            TestDiscoveryNode.create("a", emptyMap(), emptySet(), targetNodeVersion),
+            TestDiscoveryNode.create("b", emptyMap(), emptySet(), targetNodeVersion),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
@@ -75,7 +75,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
     }
 
     public void testDescription() {
-        final var node = TestDiscoveryNode.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final var node = TestDiscoveryNode.create("a", emptyMap(), emptySet());
         assertEquals(
             "recovery of [index][0] to "
                 + node.descriptionWithoutAttributes()

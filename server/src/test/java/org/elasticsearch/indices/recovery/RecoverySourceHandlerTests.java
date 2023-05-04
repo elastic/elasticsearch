@@ -237,8 +237,8 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         return new StartRecoveryRequest(
             shardId,
             null,
-            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
-            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+            TestDiscoveryNode.create("b", emptyMap(), emptySet()),
+            TestDiscoveryNode.create("b", emptyMap(), emptySet()),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

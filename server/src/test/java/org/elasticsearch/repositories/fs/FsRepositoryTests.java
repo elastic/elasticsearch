@@ -121,7 +121,7 @@ public class FsRepositoryTests extends ESTestCase {
             assertEquals(snapshot1StatusCopy.getTotalFileCount(), snapshot1StatusCopy.getIncrementalFileCount());
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
-            DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+            DiscoveryNode localNode = TestDiscoveryNode.create("foo", emptyMap(), emptySet());
             ShardRouting routing = ShardRouting.newUnassigned(
                 shardId,
                 true,

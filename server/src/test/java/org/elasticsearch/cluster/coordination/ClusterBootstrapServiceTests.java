@@ -89,13 +89,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newDiscoveryNode(String nodeName) {
-        return TestDiscoveryNode.create(
-            nodeName,
-            randomAlphaOfLength(10),
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        return TestDiscoveryNode.create(nodeName, randomAlphaOfLength(10), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     public void testBootstrapsAutomaticallyWithDefaultConfiguration() {
@@ -152,7 +146,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNothingByDefaultOnMasterIneligibleNodes() {
-        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), emptyMap(), emptySet());
         testDoesNothingWithSettings(Settings.builder());
     }
 
@@ -379,7 +373,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testDoesNotBootstrapsOnNonMasterNode() {
-        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = TestDiscoveryNode.create("local", randomAlphaOfLength(10), emptyMap(), emptySet());
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(
             Settings.builder()
                 .putList(INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName())
@@ -492,13 +486,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         discoveredNodes.set(
             Stream.of(
-                TestDiscoveryNode.create(
-                    otherNode1.getName(),
-                    randomAlphaOfLength(10),
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                ),
+                TestDiscoveryNode.create(otherNode1.getName(), randomAlphaOfLength(10), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE)),
                 TestDiscoveryNode.create(
                     "yet-another-node",
                     randomAlphaOfLength(10),

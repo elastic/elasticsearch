@@ -82,12 +82,12 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
         otherNode2 = makeDiscoveryNode("other2");
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
-        otherDataNode = TestDiscoveryNode.create("data", "data", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        otherDataNode = TestDiscoveryNode.create("data", "data", emptyMap(), emptySet());
         clusterService = createClusterService(threadPool, localNode);
     }
 
     private static DiscoveryNode makeDiscoveryNode(String name) {
-        return TestDiscoveryNode.create(name, name, buildNewFakeTransportAddress(), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        return TestDiscoveryNode.create(name, name, emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
     }
 
     @AfterClass

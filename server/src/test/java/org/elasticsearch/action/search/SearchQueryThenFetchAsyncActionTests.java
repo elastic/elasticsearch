@@ -260,8 +260,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int numConcurrent = randomIntBetween(1, 4);
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", newVersion);
+        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", oldVersion);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -360,8 +360,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", newVersion);
+        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", oldVersion);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -502,9 +502,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode newVersionNode2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node3", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode1 = TestDiscoveryNode.create("node1", newVersion);
+        DiscoveryNode newVersionNode2 = TestDiscoveryNode.create("node2", newVersion);
+        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node3", oldVersion);
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode1));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(newVersionNode2));
         lookup.put("node3", new SearchAsyncActionTests.MockConnection(oldVersionNode));

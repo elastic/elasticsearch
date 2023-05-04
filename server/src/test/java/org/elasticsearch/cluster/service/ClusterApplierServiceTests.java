@@ -85,7 +85,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     }
 
     private ClusterApplierService createClusterApplierService(boolean makeMaster) {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", emptyMap(), emptySet());
         final ClusterApplierService clusterApplierService = new ClusterApplierService(
             "test_node",
             Settings.builder().put("cluster.name", "ClusterApplierServiceTests").build(),

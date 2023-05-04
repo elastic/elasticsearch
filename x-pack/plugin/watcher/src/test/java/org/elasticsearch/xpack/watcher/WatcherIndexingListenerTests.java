@@ -475,21 +475,18 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         DiscoveryNode node1 = TestDiscoveryNode.create(
             "node_1",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             new HashSet<>(Collections.singletonList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
         );
 
         DiscoveryNode node2 = TestDiscoveryNode.create(
             "node_2",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE))
         );
 
         DiscoveryNode node3 = TestDiscoveryNode.create(
             "node_3",
-            ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             new HashSet<>(Collections.singletonList(DiscoveryNodeRole.DATA_ROLE))
         );

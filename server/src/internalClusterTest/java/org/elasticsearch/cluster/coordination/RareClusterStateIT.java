@@ -87,8 +87,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(
-                    DiscoveryNodes.builder(currentState.nodes())
-                        .add(TestDiscoveryNode.create("_non_existent", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
+                    DiscoveryNodes.builder(currentState.nodes()).add(TestDiscoveryNode.create("_non_existent", emptyMap(), emptySet()))
                 );
 
                 // open index

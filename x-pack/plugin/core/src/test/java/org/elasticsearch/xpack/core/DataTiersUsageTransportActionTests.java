@@ -701,7 +701,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return TestDiscoveryNode.create("node_" + nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(roles));
+        return TestDiscoveryNode.create("node_" + nodeId, Collections.emptyMap(), Set.of(roles));
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {

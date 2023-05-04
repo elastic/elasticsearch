@@ -1090,7 +1090,6 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         return TestDiscoveryNode.create(
             name,
             name,
-            buildNewFakeTransportAddress(),
             MapBuilder.<String, String>newMapBuilder()
                 .put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(nativeMemory))
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))

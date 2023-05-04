@@ -73,7 +73,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             );
         }
 
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local", emptyMap(), emptySet());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
             .build();
@@ -178,7 +178,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local", emptyMap(), emptySet());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
@@ -242,7 +242,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnUnhealthyNodes() {
-        final DiscoveryNode dataNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode dataNode = TestDiscoveryNode.create("local", emptyMap(), emptySet());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(dataNode).localNodeId(dataNode.getId()))
@@ -262,12 +262,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = TestDiscoveryNode.create(
-            "local",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        final DiscoveryNode masterNode = TestDiscoveryNode.create("local", emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE));
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()))
@@ -823,7 +818,6 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final DiscoveryNode otherMasterNode = makeDiscoveryNode("other-master");
         final DiscoveryNode otherNonMasterNode = TestDiscoveryNode.create(
             "other-non-master",
-            buildNewFakeTransportAddress(),
             emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
         );
@@ -1132,7 +1126,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         if (randomBoolean()) {
             attributes.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
+        return TestDiscoveryNode.create(nodeId, attributes, DiscoveryNodeRole.roles());
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

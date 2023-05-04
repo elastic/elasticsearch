@@ -72,7 +72,6 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         allNodes = new DiscoveryNode[totalNodes];
         localNode = TestDiscoveryNode.create(
             "local_node",
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );
@@ -80,7 +79,6 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         for (int i = 0; i < totalNodes - 1; i++) {
             DiscoveryNode remoteNode = TestDiscoveryNode.create(
                 "remote_node" + i,
-                buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
             );

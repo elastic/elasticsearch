@@ -121,6 +121,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles, Version version) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, version);
+        return TestDiscoveryNode.create(nodeId, emptyMap(), roles, version);
     }
 }

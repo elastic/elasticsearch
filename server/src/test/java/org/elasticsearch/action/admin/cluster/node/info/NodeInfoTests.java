@@ -38,13 +38,7 @@ public class NodeInfoTests extends ESTestCase {
             Version.CURRENT,
             TransportVersion.CURRENT,
             Build.CURRENT,
-            TestDiscoveryNode.create(
-                "test_node",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                emptySet(),
-                VersionUtils.randomVersion(random())
-            ),
+            TestDiscoveryNode.create("test_node", emptyMap(), emptySet(), VersionUtils.randomVersion(random())),
             null,
             null,
             null,

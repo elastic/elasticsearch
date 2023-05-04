@@ -102,9 +102,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState(3))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(
-                        TestDiscoveryNode.create("master", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNodeRole.MASTER_ROLE))
-                    )
+                    .add(TestDiscoveryNode.create("master", Map.of(), Set.of(DiscoveryNodeRole.MASTER_ROLE)))
                     .localNodeId("master")
                     .masterNodeId("master")
                     .build()
@@ -1150,7 +1148,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
                 TestDiscoveryNode.create(
                     "node-" + i,
                     "node-" + i,
-                    buildNewFakeTransportAddress(),
                     Map.of(),
                     Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
                 )

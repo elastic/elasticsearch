@@ -142,7 +142,7 @@ public class MasterServiceTests extends ESTestCase {
         ThreadPool threadPool,
         ExecutorService threadPoolExecutor
     ) {
-        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.create("node1", emptyMap(), emptySet());
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
@@ -1198,7 +1198,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
         ) {
-            final DiscoveryNode localNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+            final DiscoveryNode localNode = TestDiscoveryNode.create("node1", emptyMap(), emptySet());
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
                 .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
                 .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
@@ -1356,9 +1356,9 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     public void testAcking() throws InterruptedException {
-        final DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        final DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
-        final DiscoveryNode node3 = TestDiscoveryNode.create("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode node1 = TestDiscoveryNode.create("node1", emptyMap(), emptySet());
+        final DiscoveryNode node2 = TestDiscoveryNode.create("node2", emptyMap(), emptySet());
+        final DiscoveryNode node3 = TestDiscoveryNode.create("node3", emptyMap(), emptySet());
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")

@@ -69,7 +69,6 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         localNode = TestDiscoveryNode.create(
             "local_node",
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );

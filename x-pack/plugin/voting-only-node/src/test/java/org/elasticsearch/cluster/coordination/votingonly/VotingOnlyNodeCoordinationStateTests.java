@@ -24,7 +24,6 @@ public class VotingOnlyNodeCoordinationStateTests extends ESTestCase {
                 .mapToObj(
                     i -> TestDiscoveryNode.create(
                         "node_" + i,
-                        buildNewFakeTransportAddress(),
                         Map.of(),
                         randomBoolean()
                             ? DiscoveryNodeRole.roles()

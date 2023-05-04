@@ -86,7 +86,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 )
             )
         );
-        final DiscoveryNode localNode = TestDiscoveryNode.create("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode localNode = TestDiscoveryNode.create("test_node", emptyMap(), emptySet());
         clusterService = new ClusterService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             clusterSettings,

@@ -492,14 +492,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static ClusterState state() {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(
-                TestDiscoveryNode.create(
-                    "1",
-                    ESTestCase.buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles())
-                )
-            )
+            .add(TestDiscoveryNode.create("1", Collections.emptyMap(), new HashSet<>(DiscoveryNodeRole.roles())))
             .masterNodeId("1")
             .localNodeId("1")
             .build();

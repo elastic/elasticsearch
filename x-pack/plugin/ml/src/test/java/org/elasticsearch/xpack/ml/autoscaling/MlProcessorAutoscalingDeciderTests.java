@@ -540,7 +540,6 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
         return TestDiscoveryNode.create(
             name,
             name,
-            buildNewFakeTransportAddress(),
             MapBuilder.<String, String>newMapBuilder()
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
                 .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))

@@ -173,7 +173,7 @@ public class TransportClearRealmCacheActionTests extends ESTestCase {
 
     private ClusterService mockClusterService() {
         ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode localNode = TestDiscoveryNode.create("localnode", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode localNode = TestDiscoveryNode.create("localnode", Map.of(), Set.of());
         when(clusterService.localNode()).thenReturn(localNode);
         return clusterService;
     }

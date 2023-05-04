@@ -86,13 +86,11 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         localNode = TestDiscoveryNode.create(
             "local_node",
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );
         remoteNode = TestDiscoveryNode.create(
             "remote_node",
-            buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );

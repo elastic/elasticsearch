@@ -52,7 +52,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         action = new RestCatComponentTemplateAction();
         clusterName = new ClusterName("cluster-1");
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.add(TestDiscoveryNode.create("node-1", buildNewFakeTransportAddress(), emptyMap(), emptySet()));
+        builder.add(TestDiscoveryNode.create("node-1", emptyMap(), emptySet()));
         ComponentTemplate ct1 = new ComponentTemplate(
             new Template(Settings.builder().put("number_of_replicas", 2).put("index.blocks.write", true).build(), null, null),
             2L,

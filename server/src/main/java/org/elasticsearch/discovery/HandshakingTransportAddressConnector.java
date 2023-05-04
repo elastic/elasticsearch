@@ -77,7 +77,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
             logger.trace("[{}] opening probe connection", transportAddress);
             transportService.openConnection(
                 new DiscoveryNode(
-                    "",
+                    null,
                     transportAddress.toString(),
                     UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
                     transportAddress.address().getHostString(),

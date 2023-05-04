@@ -277,6 +277,6 @@ public class DataTierMigrationRoutedStepTests extends AbstractStepTestCase<DataT
     }
 
     private DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles);
+        return TestDiscoveryNode.create(nodeId, emptyMap(), roles);
     }
 }

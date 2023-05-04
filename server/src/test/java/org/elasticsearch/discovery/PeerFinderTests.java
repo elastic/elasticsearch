@@ -330,12 +330,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = TestDiscoveryNode.create(
-            "node-from-hosts-list",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet()
-        );
+        final DiscoveryNode nonMasterNode = TestDiscoveryNode.create("node-from-hosts-list", emptyMap(), emptySet());
 
         providedAddresses.add(nonMasterNode.getAddress());
         transportAddressConnector.addReachableNode(nonMasterNode);
@@ -418,7 +413,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
-        final DiscoveryNode sourceNode = TestDiscoveryNode.create("request-source", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode sourceNode = TestDiscoveryNode.create("request-source", emptyMap(), emptySet());
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.addReachableNode(otherKnownNode);

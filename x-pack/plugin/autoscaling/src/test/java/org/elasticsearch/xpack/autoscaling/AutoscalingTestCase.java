@@ -111,7 +111,6 @@ public abstract class AutoscalingTestCase extends ESTestCase {
             .mapToObj(
                 i -> TestDiscoveryNode.create(
                     prefix + i,
-                    buildNewFakeTransportAddress(),
                     Map.of(),
                     randomRoles().stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet())
                 )

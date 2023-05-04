@@ -251,7 +251,7 @@ public class NodeJoinTests extends ESTestCase {
             roles = Set.of();
         }
         final String prefix = master ? "master_" : "data_";
-        return TestDiscoveryNode.create(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles);
+        return TestDiscoveryNode.create(prefix + i, i + "", emptyMap(), roles);
     }
 
     private Future<Void> joinNodeAsync(final JoinRequest joinRequest) {
@@ -531,7 +531,6 @@ public class NodeJoinTests extends ESTestCase {
         DiscoveryNode knownJoiningNode = TestDiscoveryNode.create(
             "knownNodeName",
             "newNodeId",
-            buildNewFakeTransportAddress(),
             emptyMap(),
             Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );

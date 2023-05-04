@@ -284,7 +284,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         String node = "node_" + nodeId;
-        return TestDiscoveryNode.create(node, node, buildNewFakeTransportAddress(), attributes, roles);
+        return TestDiscoveryNode.create(node, node, attributes, roles);
     }
 
     private static class TestTransportNodesAction extends TransportNodesAction<

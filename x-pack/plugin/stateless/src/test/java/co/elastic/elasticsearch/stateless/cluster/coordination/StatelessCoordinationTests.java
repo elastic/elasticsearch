@@ -84,7 +84,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             Settings settings,
             ClusterSettings clusterSettings,
             CoordinationState.PersistedState persistedState,
-            BooleanSupplier isDisruptedSupplier
+            DisruptibleRegisterConnection disruptibleRegisterConnection
         ) {
             final var statelessElectionStrategy = new StatelessElectionStrategy(() -> new FilterBlobContainer(termLeaseContainer) {
                 @Override
@@ -94,29 +94,23 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
 
                 @Override
                 public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
-                    if (isDisruptedSupplier.getAsBoolean()) {
-                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
-                    } else {
-                        super.compareAndExchangeRegister(key, expected, updated, listener);
-                    }
+                    disruptibleRegisterConnection.runDisrupted(
+                        listener,
+                        l -> termLeaseContainer.compareAndExchangeRegister(key, expected, updated, l)
+                    );
                 }
 
                 @Override
                 public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
-                    if (isDisruptedSupplier.getAsBoolean()) {
-                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
-                    } else {
-                        super.compareAndSetRegister(key, expected, updated, listener);
-                    }
+                    disruptibleRegisterConnection.runDisrupted(
+                        listener,
+                        l -> termLeaseContainer.compareAndSetRegister(key, expected, updated, l)
+                    );
                 }
 
                 @Override
                 public void getRegister(String key, ActionListener<OptionalLong> listener) {
-                    if (isDisruptedSupplier.getAsBoolean()) {
-                        listener.onFailure(new IOException("simulating disrupted access to shared store"));
-                    } else {
-                        super.getRegister(key, listener);
-                    }
+                    disruptibleRegisterConnection.runDisrupted(listener, l -> termLeaseContainer.getRegister(key, l));
                 }
             }, threadPool) {
                 @Override
@@ -125,12 +119,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 }
             };
             final var heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);
-            final var storeHeartbeatService = new StoreHeartbeatService(new DisruptibleHeartbeatStore(heartBeatStore) {
-                @Override
-                protected boolean isDisrupted() {
-                    return isDisruptedSupplier.getAsBoolean();
-                }
-            },
+            final var storeHeartbeatService = new StoreHeartbeatService(
+                new DisruptibleHeartbeatStore(heartBeatStore, disruptibleRegisterConnection),
                 threadPool,
                 heartbeatFrequency,
                 TimeValue.timeValueMillis(heartbeatFrequency.millis() * MAX_MISSED_HEARTBEATS.get(settings)),

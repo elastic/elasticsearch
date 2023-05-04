@@ -6,7 +6,10 @@
  */
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.application.utils.ingest.PipelineRegistry;
@@ -14,6 +17,7 @@ import org.elasticsearch.xpack.application.utils.ingest.PipelineTemplateConfigur
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
 import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.ROOT_RESOURCE_PATH;
@@ -49,5 +53,25 @@ public class AnalyticsIngestPipelineRegistry extends PipelineRegistry {
     @Override
     protected List<PipelineTemplateConfiguration> getIngestPipelineConfigs() {
         return INGEST_PIPELINES;
+    }
+
+    @Override
+    protected boolean isClusterReady(ClusterChangedEvent event) {
+        return super.isClusterReady(event) && (isIngestPipelineInstalled(event.state()) || hasAnalyticsEventDataStream(event.state()));
+    }
+
+    @Override
+    protected Version getMinSupportedNodeVersion() {
+        return Version.V_8_8_0;
+    }
+
+    private boolean hasAnalyticsEventDataStream(ClusterState state) {
+        Set<String> dataStreamNames = state.metadata().dataStreams().keySet();
+
+        return dataStreamNames.stream().anyMatch(dataStreamName -> dataStreamName.startsWith(EVENT_DATA_STREAM_INDEX_PREFIX));
+    }
+
+    private boolean isIngestPipelineInstalled(ClusterState state) {
+        return ingestPipelineExists(state, EVENT_DATA_STREAM_INGEST_PIPELINE_NAME);
     }
 }

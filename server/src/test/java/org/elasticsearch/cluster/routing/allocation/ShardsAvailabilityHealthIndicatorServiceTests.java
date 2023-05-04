@@ -1044,12 +1044,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is in the hot tier
-        DiscoveryNode hotNode = new DiscoveryNode(
+        DiscoveryNode hotNode = TestDiscoveryNode.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
         );
 
         var clusterState = createClusterStateWith(
@@ -1103,12 +1102,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is in the hot tier
-        DiscoveryNode hotNode = new DiscoveryNode(
+        DiscoveryNode hotNode = TestDiscoveryNode.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
         );
 
         var clusterState = createClusterStateWith(
@@ -1169,12 +1167,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is a generic data node
-        DiscoveryNode dataNode = new DiscoveryNode(
+        DiscoveryNode dataNode = TestDiscoveryNode.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_ROLE)
         );
 
         var clusterState = createClusterStateWith(
@@ -1228,12 +1225,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Index index = indexMetadata.getIndex();
 
         // One node that is a generic data node
-        DiscoveryNode dataNode = new DiscoveryNode(
+        DiscoveryNode dataNode = TestDiscoveryNode.create(
             randomNodeId(),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_ROLE)
         );
 
         var clusterState = createClusterStateWith(
@@ -1406,12 +1402,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
                 new NodeAllocationResult(
-                    new DiscoveryNode(
+                    TestDiscoveryNode.create(
                         randomNodeId(),
                         buildNewFakeTransportAddress(),
                         Map.of(),
-                        Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
-                        Version.CURRENT
+                        Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
                     ),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
@@ -1446,13 +1441,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
                 new NodeAllocationResult(
-                    new DiscoveryNode(
-                        randomNodeId(),
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.DATA_ROLE),
-                        Version.CURRENT
-                    ),
+                    TestDiscoveryNode.create(randomNodeId(), buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNodeRole.DATA_ROLE)),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
                     1

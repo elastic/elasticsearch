@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -210,12 +211,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
             socket.setReuseAddress(true);
-            DiscoveryNode seedNode = new DiscoveryNode(
+            DiscoveryNode seedNode = TestDiscoveryNode.create(
                 "TEST",
                 new TransportAddress(socket.getInetAddress(), socket.getLocalPort()),
                 emptyMap(),
-                emptySet(),
-                Version.CURRENT
+                emptySet()
             );
             CountDownLatch acceptedLatch = new CountDownLatch(1);
             CountDownLatch closeRemote = new CountDownLatch(1);

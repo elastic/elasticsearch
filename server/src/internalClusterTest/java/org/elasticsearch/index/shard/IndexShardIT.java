@@ -10,7 +10,6 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -613,7 +613,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         recoverFromStore(newShard);
         IndexShardTestCase.updateRoutingEntry(

@@ -10,7 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -45,8 +45,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            TestDiscoveryNode.create("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

@@ -94,11 +94,8 @@ public class FollowingEngineTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testFollowingEngineRejectsNonFollowingIndex() throws IOException {
-        final Settings.Builder builder = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT);
+    public void testFollowingEngineRejectsNonFollowingIndex() {
+        final Settings.Builder builder = indexSettings(Version.CURRENT, 1, 0);
         if (randomBoolean()) {
             builder.put("index.xpack.ccr.following_index", false);
         }
@@ -126,12 +123,7 @@ public class FollowingEngineTests extends ESTestCase {
      * ensures that these semantics are maintained.
      */
     public void testOutOfOrderDocuments() throws IOException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
@@ -150,12 +142,7 @@ public class FollowingEngineTests extends ESTestCase {
         final Engine.Operation.Origin origin,
         final CheckedBiConsumer<FollowingEngine, Engine.Index, IOException> consumer
     ) throws IOException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
@@ -181,12 +168,7 @@ public class FollowingEngineTests extends ESTestCase {
         final Engine.Operation.Origin origin,
         final CheckedBiConsumer<FollowingEngine, Engine.Delete, IOException> consumer
     ) throws IOException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
@@ -212,12 +194,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     public void testDoNotFillSeqNoGaps() throws Exception {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
@@ -512,12 +489,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testConcurrentIndexOperationsWithDeletesCanAdvanceMaxSeqNoOfUpdates() throws Exception {
         // See #72527 for more details
-        Settings followerSettings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+        Settings followerSettings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
 
         IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
         IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, Settings.EMPTY);
@@ -624,11 +596,7 @@ public class FollowingEngineTests extends ESTestCase {
             }
         };
 
-        Settings leaderSettings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .build();
+        Settings leaderSettings = indexSettings(Version.CURRENT, 1, 0).build();
         IndexMetadata leaderIndexMetadata = IndexMetadata.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
@@ -644,12 +612,7 @@ public class FollowingEngineTests extends ESTestCase {
             );
             try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {
                 leaderEngine.skipTranslogRecovery();
-                Settings followerSettings = Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.version.created", Version.CURRENT)
-                    .put("index.xpack.ccr.following_index", true)
-                    .build();
+                Settings followerSettings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
                 IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
                 IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, leaderSettings);
                 try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
@@ -725,11 +688,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     public void testProcessOnceOnPrimary() throws Exception {
-        final Settings.Builder settingsBuilder = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true);
+        final Settings.Builder settingsBuilder = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true);
         switch (indexMode) {
             case STANDARD:
                 break;
@@ -859,12 +818,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     public void testMaxSeqNoInCommitUserData() throws Exception {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put("index.xpack.ccr.following_index", true).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {

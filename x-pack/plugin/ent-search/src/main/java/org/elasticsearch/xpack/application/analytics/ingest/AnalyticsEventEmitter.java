@@ -50,7 +50,7 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
     @Inject
     public AnalyticsEventEmitter(Client client, BulkProcessorFactory bulkProcessorFactory, AnalyticsCollectionResolver collectionResolver) {
-        this(client, bulkProcessorFactory.create(client), collectionResolver, AnalyticsEventFactory.INSTANCE);
+        this(client, bulkProcessorFactory.create(), collectionResolver, AnalyticsEventFactory.INSTANCE);
     }
 
     AnalyticsEventEmitter(

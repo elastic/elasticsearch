@@ -46,9 +46,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
         internalCluster().startNode(nonDataNode());
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("2")
                 .setLocal(true)
@@ -69,9 +67,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         // now, start a node data, and see that it gets with shards
         internalCluster().startNode(dataNode());
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("3")
                 .setLocal(true)
@@ -94,9 +90,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
                     .waitForActiveShards(ActiveShardCount.NONE)
             )
             .actionGet();
-        final ClusterHealthResponse healthResponse1 = client().admin()
-            .cluster()
-            .prepareHealth()
+        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
             .actionGet();
@@ -107,9 +101,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         internalCluster().startNode(dataNode());
 
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth()
+            clusterAdmin().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("2")
                 .setWaitForGreenStatus()
@@ -129,9 +121,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
                     .waitForActiveShards(ActiveShardCount.NONE)
             )
             .actionGet();
-        final ClusterHealthResponse healthResponse1 = client().admin()
-            .cluster()
-            .prepareHealth()
+        final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
             .actionGet();

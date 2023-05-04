@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -586,7 +587,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         } else {
             roles = Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE);
         }
-        return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles, Version.CURRENT);
+        return TestDiscoveryNode.create("node", ESTestCase.buildNewFakeTransportAddress(), attrs, roles);
     }
 
 }

@@ -11,9 +11,11 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -26,10 +28,13 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 
 public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutComposableIndexTemplateAction INSTANCE = new PutComposableIndexTemplateAction();
+    // Note: even though the prefix is `indices`, this is still treated as a cluster action. See
+    // `ClusterPrivilegeResolver::isClusterAction`.
     public static final String NAME = "indices:admin/index_template/put";
 
     private PutComposableIndexTemplateAction() {
@@ -39,7 +44,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
     /**
      * A request for putting a single index template into the cluster state
      */
-    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest {
+    public static class Request extends MasterNodeRequest<Request> implements AuthorizeDlmConfigurationRequest, IndicesRequest {
         private final String name;
         @Nullable
         private String cause;
@@ -185,6 +190,12 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
                 && Objects.equals(this.indexTemplate, other.indexTemplate)
                 && this.create == other.create;
         }
-    }
 
+        @Override
+        public String[] dataStreamPatterns(ClusterState state) {
+            boolean requiresDlmPrivilegesCheck = indexTemplate.hasDataLifecycle()
+                || resolveLifecycle(indexTemplate, state.metadata().componentTemplates()) != null;
+            return requiresDlmPrivilegesCheck ? indices() : null;
+        }
+    }
 }

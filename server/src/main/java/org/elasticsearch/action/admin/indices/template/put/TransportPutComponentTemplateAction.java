@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -32,34 +31,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
-    private final DataLifecyclePrivilegesCheck privilegesCheck;
-
-    public TransportPutComponentTemplateAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        MetadataIndexTemplateService indexTemplateService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
-    ) {
-        this(
-            transportService,
-            clusterService,
-            threadPool,
-            indexTemplateService,
-            actionFilters,
-            indexNameExpressionResolver,
-            indexScopedSettings,
-            null
-        );
-    }
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -69,8 +45,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings,
-        DataLifecyclePrivilegesCheck privilegesCheck
+        IndexScopedSettings indexScopedSettings
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -84,7 +59,6 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
-        this.privilegesCheck = privilegesCheck;
     }
 
     @Override
@@ -117,36 +91,14 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final ActionListener<AcknowledgedResponse> listener
     ) {
         ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
-        if (componentTemplate.hasDataLifecycle()) {
-            var composableTemplates = indexTemplateService.getTemplatesUsingComponent(state, request.name());
-            var indexPatterns = composableTemplates.values()
-                .stream()
-                .flatMap(it -> it.indexPatterns().stream())
-                .collect(Collectors.toUnmodifiableSet());
-            privilegesCheck.checkCanConfigure(
-                indexPatterns.toArray(new String[0]),
-                ActionListener.wrap(
-                    ignored -> indexTemplateService.putComponentTemplate(
-                        request.cause(),
-                        request.create(),
-                        request.name(),
-                        request.masterNodeTimeout(),
-                        componentTemplate,
-                        listener
-                    ),
-                    listener::onFailure
-                )
-            );
-        } else {
-            indexTemplateService.putComponentTemplate(
-                request.cause(),
-                request.create(),
-                request.name(),
-                request.masterNodeTimeout(),
-                componentTemplate,
-                listener
-            );
-        }
+        indexTemplateService.putComponentTemplate(
+            request.cause(),
+            request.create(),
+            request.name(),
+            request.masterNodeTimeout(),
+            componentTemplate,
+            listener
+        );
     }
 
     @Override

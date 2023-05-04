@@ -23,6 +23,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.dlm.DlmAuthorizationService;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -137,6 +139,7 @@ public class AuthorizationService {
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
+    private final DlmAuthorizationService dlmAuthorizationService;
 
     public AuthorizationService(
         Settings settings,
@@ -153,6 +156,42 @@ public class AuthorizationService {
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
         RestrictedIndices restrictedIndices
+    ) {
+        this(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            authcFailureHandler,
+            threadPool,
+            anonymousUser,
+            authorizationEngine,
+            requestInterceptors,
+            licenseState,
+            resolver,
+            operatorPrivilegesService,
+            restrictedIndices,
+            null
+        );
+    }
+
+    public AuthorizationService(
+        Settings settings,
+        CompositeRolesStore rolesStore,
+        FieldPermissionsCache fieldPermissionsCache,
+        ClusterService clusterService,
+        AuditTrailService auditTrailService,
+        AuthenticationFailureHandler authcFailureHandler,
+        ThreadPool threadPool,
+        AnonymousUser anonymousUser,
+        @Nullable AuthorizationEngine authorizationEngine,
+        Set<RequestInterceptor> requestInterceptors,
+        XPackLicenseState licenseState,
+        IndexNameExpressionResolver resolver,
+        OperatorPrivilegesService operatorPrivilegesService,
+        RestrictedIndices restrictedIndices,
+        DlmAuthorizationService dlmAuthorizationService
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -176,6 +215,7 @@ public class AuthorizationService {
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
+        this.dlmAuthorizationService = dlmAuthorizationService;
     }
 
     public void checkPrivileges(
@@ -451,9 +491,17 @@ public class AuthorizationService {
                         return;
                     }
                 }
+                if (result.isGranted() && request instanceof AuthorizeDlmConfigurationRequest dlmAuthzRequest) {
+                    dlmAuthorizationService.authorize(
+                        dlmAuthzRequest,
+                        ActionListener.wrap(ignored -> clusterAuthzListener.onResponse(result), listener::onFailure)
+                    );
+                    return;
+                }
                 clusterAuthzListener.onResponse(result);
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
+            assert false == (request instanceof AuthorizeDlmConfigurationRequest) : "request type only supported for cluster actions";
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);

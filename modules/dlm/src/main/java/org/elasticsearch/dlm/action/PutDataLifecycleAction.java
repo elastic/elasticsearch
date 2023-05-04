@@ -11,9 +11,11 @@ package org.elasticsearch.dlm.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +45,11 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
+    public static final class Request extends AcknowledgedRequest<Request>
+        implements
+            AuthorizeDlmConfigurationRequest,
+            IndicesRequest.Replaceable,
+            ToXContentObject {
 
         public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
@@ -149,6 +155,11 @@ public class PutDataLifecycleAction extends ActionType<AcknowledgedResponse> {
         public IndicesRequest indices(String... names) {
             this.names = names;
             return this;
+        }
+
+        @Override
+        public String[] dataStreamPatterns(ClusterState state) {
+            return indices();
         }
     }
 }

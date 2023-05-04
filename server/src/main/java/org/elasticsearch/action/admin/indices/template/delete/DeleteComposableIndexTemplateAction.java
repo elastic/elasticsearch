@@ -10,8 +10,10 @@ package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,13 +27,15 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteComposableIndexTemplateAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteComposableIndexTemplateAction INSTANCE = new DeleteComposableIndexTemplateAction();
+    // Note: even though the prefix is `indices`, this is still treated as a cluster action. See
+    // `ClusterPrivilegeResolver::isClusterAction`.
     public static final String NAME = "indices:admin/index_template/delete";
 
     private DeleteComposableIndexTemplateAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> implements AuthorizeDlmConfigurationRequest {
 
         private final String[] names;
 
@@ -84,6 +88,14 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
             }
             Request other = (Request) obj;
             return Arrays.equals(other.names, this.names);
+        }
+
+        @Override
+        public String[] dataStreamPatterns(ClusterState state) {
+            // TODO check if any templates have lifecycles and check `manage_dlm` cluster privilege accordingly
+            // it's impossible to delete a template if it's still in use by data streams, so we don't need to check index-level privileges
+            // for data streams
+            return null;
         }
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -64,7 +63,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -176,7 +174,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
-import org.elasticsearch.xpack.core.security.authz.dlm.DataLifecyclePrivilegesCheckWithSecurity;
+import org.elasticsearch.xpack.core.security.authz.dlm.DlmAuthorizationService;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
@@ -932,7 +930,8 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService,
-            restrictedIndices
+            restrictedIndices,
+            new DlmAuthorizationService(clusterService, securityContext.get(), client)
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -993,13 +992,6 @@ public class Security extends Plugin
         systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
 
         cacheInvalidatorRegistry.validate();
-
-        components.add(
-            new PluginComponentBinding<>(
-                DataLifecyclePrivilegesCheck.class,
-                new DataLifecyclePrivilegesCheckWithSecurity(securityContext.get(), client)
-            )
-        );
 
         return components;
     }

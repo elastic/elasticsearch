@@ -8,27 +8,34 @@
 package org.elasticsearch.xpack.core.security.authz.dlm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-public class DataLifecyclePrivilegesCheckWithSecurity implements DataLifecyclePrivilegesCheck {
+public class DlmAuthorizationService {
+    private final ClusterService clusterService;
     private final SecurityContext securityContext;
     private final Client client;
 
-    @Inject
-    public DataLifecyclePrivilegesCheckWithSecurity(SecurityContext securityContext, Client client) {
+    public DlmAuthorizationService(ClusterService clusterService, SecurityContext securityContext, Client client) {
+        this.clusterService = clusterService;
         this.securityContext = securityContext;
         this.client = client;
     }
 
-    @Override
-    public void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener) {
+    public void authorize(AuthorizeDlmConfigurationRequest request, ActionListener<Void> listener) {
+        String[] dataStreamPatterns = request.dataStreamPatterns(clusterService.state());
+        // TODO hack hack hack
+        if (dataStreamPatterns == null) {
+            listener.onResponse(null);
+            return;
+        }
+
         RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = dataStreamPatterns.length == 0
             ? new RoleDescriptor.IndicesPrivileges[0]
             : new RoleDescriptor.IndicesPrivileges[] {

@@ -11,9 +11,11 @@ package org.elasticsearch.dlm.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -33,7 +35,10 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
+    public static final class Request extends AcknowledgedRequest<Request>
+        implements
+            IndicesRequest.Replaceable,
+            AuthorizeDlmConfigurationRequest {
 
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
@@ -103,6 +108,11 @@ public class DeleteDataLifecycleAction extends ActionType<AcknowledgedResponse> 
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;
+        }
+
+        @Override
+        public String[] dataStreamPatterns(ClusterState state) {
+            return names;
         }
     }
 }

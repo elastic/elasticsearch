@@ -342,7 +342,7 @@ public class MetadataIndexTemplateService {
             .build();
     }
 
-    public Map<String, ComposableIndexTemplate> getTemplatesUsingComponent(ClusterState currentState, String name) {
+    public static Map<String, ComposableIndexTemplate> getTemplatesUsingComponent(ClusterState currentState, String name) {
         return currentState.metadata()
             .templatesV2()
             .entrySet()

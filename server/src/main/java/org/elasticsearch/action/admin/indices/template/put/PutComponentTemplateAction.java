@@ -10,15 +10,19 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.dlm.AuthorizeDlmConfigurationRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -37,7 +41,7 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
     /**
      * A request for putting a single component template into the cluster state
      */
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> implements AuthorizeDlmConfigurationRequest {
         private final String name;
         @Nullable
         private String cause;
@@ -135,6 +139,19 @@ public class PutComponentTemplateAction extends ActionType<AcknowledgedResponse>
             sb.append("]");
             return sb.toString();
         }
-    }
 
+        @Override
+        public String[] dataStreamPatterns(ClusterState state) {
+            if (false == componentTemplate.hasDataLifecycle()) {
+                // TODO hack hack hack
+                return null;
+            }
+            var composableTemplates = MetadataIndexTemplateService.getTemplatesUsingComponent(state, name());
+            var indexPatterns = composableTemplates.values()
+                .stream()
+                .flatMap(it -> it.indexPatterns().stream())
+                .collect(Collectors.toUnmodifiableSet());
+            return indexPatterns.toArray(new String[0]);
+        }
+    }
 }

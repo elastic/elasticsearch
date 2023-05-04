@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.ClusterFormationState;
@@ -74,7 +73,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             );
         }
 
-        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
             .build();
@@ -179,7 +178,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnMasterIneligibleNodes() {
-        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
@@ -243,7 +242,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
     }
 
     public void testDescriptionOnUnhealthyNodes() {
-        final DiscoveryNode dataNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode dataNode = TestDiscoveryNode.create("local", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
             .nodes(DiscoveryNodes.builder().add(dataNode).localNodeId(dataNode.getId()))
@@ -263,12 +262,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             is("this node is unhealthy: unhealthy-info")
         );
 
-        final DiscoveryNode masterNode = new DiscoveryNode(
+        final DiscoveryNode masterNode = TestDiscoveryNode.create(
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L)
@@ -823,12 +821,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         );
 
         final DiscoveryNode otherMasterNode = makeDiscoveryNode("other-master");
-        final DiscoveryNode otherNonMasterNode = new DiscoveryNode(
+        final DiscoveryNode otherNonMasterNode = TestDiscoveryNode.create(
             "other-non-master",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList()),
-            Version.CURRENT
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList())
         );
 
         String[] configNodeIds = new String[] { "n1", "n2" };
@@ -1135,7 +1132,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         if (randomBoolean()) {
             attributes.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles(), Version.CURRENT);
+        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), attributes, DiscoveryNodeRole.roles());
     }
 
     private static String noAttr(DiscoveryNode discoveryNode) {

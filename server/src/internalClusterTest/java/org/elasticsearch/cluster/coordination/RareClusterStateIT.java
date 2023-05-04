@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -25,8 +24,8 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -89,7 +88,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(
                     DiscoveryNodes.builder(currentState.nodes())
-                        .add(new DiscoveryNode("_non_existent", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT))
+                        .add(TestDiscoveryNode.create("_non_existent", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
                 );
 
                 // open index

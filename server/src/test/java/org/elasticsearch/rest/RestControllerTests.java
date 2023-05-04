@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
@@ -553,6 +555,26 @@ public class RestControllerTests extends ESTestCase {
         restController.dispatchBadRequest(channel, client.threadPool().getThreadContext(), null);
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("unknown cause"));
+    }
+
+    public void testDispatchBadRequestWithValidationException() {
+        final RestStatus status = randomFrom(RestStatus.values());
+        final Exception exception = new ElasticsearchStatusException("bad bad exception", status);
+        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+
+        // it's always a 400 bad request when dispatching "regular" {@code ElasticsearchException}
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.BAD_REQUEST);
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchBadRequest(channel, client.threadPool().getThreadContext(), exception);
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad bad exception"));
+
+        // but {@code HttpHeadersValidationException} do carry over the rest response code
+        channel = new AssertingChannel(fakeRestRequest, true, status);
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchBadRequest(channel, client.threadPool().getThreadContext(), new HttpHeadersValidationException(exception));
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("bad bad exception"));
     }
 
     public void testFavicon() {

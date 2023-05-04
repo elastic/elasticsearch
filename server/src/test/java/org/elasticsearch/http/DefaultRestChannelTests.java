@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -47,19 +48,24 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -302,6 +308,44 @@ public class DefaultRestChannelTests extends ESTestCase {
             verify(httpChannel, times(1)).close();
         } else {
             verify(httpChannel, times(0)).close();
+        }
+    }
+
+    public void testResponseHeadersFiltering() {
+        final HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
+        final RestRequest request = RestRequest.request(xContentRegistry(), httpRequest, httpChannel);
+        final AtomicReference<HttpResponse> responseReference = new AtomicReference<>();
+        final DefaultRestChannel channel = new DefaultRestChannel(
+            httpChannel,
+            httpRequest,
+            request,
+            bigArrays,
+            HttpHandlingSettings.fromSettings(Settings.EMPTY),
+            threadPool.getThreadContext(),
+            CorsHandler.fromSettings(Settings.EMPTY),
+            null
+        );
+        doAnswer(invocationOnMock -> {
+            ActionListener<?> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(null);
+            HttpResponse response = invocationOnMock.getArgument(0);
+            responseReference.set(response);
+            return null;
+        }).when(httpChannel).sendResponse(any(HttpResponse.class), anyActionListener());
+        for (RestResponse response : Arrays.asList(
+            new BytesRestResponse(RestStatus.UNAUTHORIZED, "whatever"),
+            new BytesRestResponse(RestStatus.FORBIDDEN, "whatever")
+        )) {
+            try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
+                threadPool.getThreadContext().addResponseHeader("X-elastic-product", "some product response header");
+                threadPool.getThreadContext().addResponseHeader("Warning", "some product response header");
+                String someRandomResponseHeader = "some-random-response-header-" + randomAlphaOfLength(8);
+                threadPool.getThreadContext().addResponseHeader(someRandomResponseHeader, "should transpire to http response");
+                channel.sendResponse(response);
+                assertThat(responseReference.get().containsHeader(someRandomResponseHeader), is(true));
+                assertThat(responseReference.get().containsHeader("X-elastic-product"), is(false));
+                assertThat(responseReference.get().containsHeader("Warning"), is(false));
+            }
         }
     }
 

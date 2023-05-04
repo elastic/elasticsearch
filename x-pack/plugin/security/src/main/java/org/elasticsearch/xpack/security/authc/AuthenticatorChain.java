@@ -82,6 +82,7 @@ class AuthenticatorChain {
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
         final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
             return authentication;
         });

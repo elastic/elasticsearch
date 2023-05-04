@@ -23,7 +23,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 
 import java.io.IOException;
@@ -34,7 +33,6 @@ public class SecurityRestFilter implements RestHandler {
     private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
-    private final AuthenticationService authenticationService;
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
@@ -43,14 +41,12 @@ public class SecurityRestFilter implements RestHandler {
     public SecurityRestFilter(
         XPackLicenseState licenseState,
         ThreadContext threadContext,
-        AuthenticationService authenticationService,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         RestHandler restHandler
     ) {
         this.licenseState = licenseState;
         this.threadContext = threadContext;
-        this.authenticationService = authenticationService;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
         this.restHandler = restHandler;
@@ -68,20 +64,13 @@ public class SecurityRestFilter implements RestHandler {
 
             final String requestUri = request.uri();
             final RestRequest wrappedRequest = maybeWrapRestRequest(request);
-            authenticationService.authenticate(wrappedRequest.getHttpRequest(), ActionListener.wrap(authentication -> {
-                if (authentication == null) {
-                    logger.trace("No authentication available for REST request [{}]", requestUri);
-                } else {
-                    logger.trace("Authenticated REST request [{}] as {}", requestUri, authentication);
+            auditTrailService.get().authenticationSuccess(wrappedRequest);
+            secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
+                if (secondaryAuthentication != null) {
+                    logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
                 }
-                auditTrailService.get().authenticationSuccess(wrappedRequest);
-                secondaryAuthenticator.authenticateAndAttachToContext(wrappedRequest, ActionListener.wrap(secondaryAuthentication -> {
-                    if (secondaryAuthentication != null) {
-                        logger.trace("Found secondary authentication {} in REST request [{}]", secondaryAuthentication, requestUri);
-                    }
-                    restHandler.handleRequest(request, channel, client);
-                }, e -> handleException("Secondary authentication", request, channel, e)));
-            }, e -> handleException("Authentication", request, channel, e)));
+                restHandler.handleRequest(request, channel, client);
+            }, e -> handleException("Secondary authentication", request, channel, e)));
         } else {
             if (request.method() != Method.OPTIONS) {
                 HeaderWarning.addWarning(

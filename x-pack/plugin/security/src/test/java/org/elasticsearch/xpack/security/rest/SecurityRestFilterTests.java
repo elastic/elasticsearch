@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.rest;
 import com.nimbusds.jose.util.StandardCharset;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
@@ -17,18 +16,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -38,29 +33,21 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -99,7 +86,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter = new SecurityRestFilter(
             licenseState,
             threadContext,
-            authcService,
             secondaryAuthenticator,
             new AuditTrailService(Arrays.asList(mock(AuditTrail.class)), licenseState),
             restHandler
@@ -184,99 +170,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         verifyNoMoreInteractions(channel, authcService);
     }
 
-    public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(
-            licenseState,
-            threadContext,
-            authcService,
-            secondaryAuthenticator,
-            mock(AuditTrailService.class),
-            restHandler
-        );
-        testProcessAuthenticationFailed(
-            randomBoolean()
-                ? authenticationError("failed authn")
-                : authenticationError("failed authn with " + "cause", new ElasticsearchException("cause")),
-            RestStatus.UNAUTHORIZED,
-            true,
-            true,
-            false
-        );
-        testProcessAuthenticationFailed(
-            randomBoolean()
-                ? authenticationError("failed authn")
-                : authenticationError("failed authn with " + "cause", new ElasticsearchException("cause")),
-            RestStatus.UNAUTHORIZED,
-            true,
-            false,
-            false
-        );
-        testProcessAuthenticationFailed(
-            randomBoolean()
-                ? authenticationError("failed authn")
-                : authenticationError("failed authn with " + "cause", new ElasticsearchException("cause")),
-            RestStatus.UNAUTHORIZED,
-            false,
-            true,
-            false
-        );
-        testProcessAuthenticationFailed(
-            randomBoolean()
-                ? authenticationError("failed authn")
-                : authenticationError("failed authn with " + "cause", new ElasticsearchException("cause")),
-            RestStatus.UNAUTHORIZED,
-            false,
-            false,
-            false
-        );
-        testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, false, false, false);
-        testProcessAuthenticationFailed(new IllegalArgumentException("dummy"), RestStatus.BAD_REQUEST, true, false, false);
-        testProcessAuthenticationFailed(new ElasticsearchException("dummy"), RestStatus.INTERNAL_SERVER_ERROR, false, true, false);
-        testProcessAuthenticationFailed(new IllegalArgumentException("dummy"), RestStatus.BAD_REQUEST, true, true, true);
-    }
-
-    private void testProcessAuthenticationFailed(
-        Exception authnException,
-        RestStatus expectedRestStatus,
-        boolean errorTrace,
-        boolean detailedErrorsEnabled,
-        boolean traceExists
-    ) throws Exception {
-        RestRequest request;
-        if (errorTrace != ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false || randomBoolean()) {
-            request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
-                Collections.unmodifiableMap(new HashMap<String, String>() {
-                    {
-                        put("error_trace", Boolean.toString(errorTrace));
-                    }
-                })
-            ).build();
-        } else {
-            // sometimes do not fill in the default value
-            request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
-        }
-        doAnswer((i) -> {
-            ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
-            callback.onFailure(authnException);
-            return Void.TYPE;
-        }).when(authcService).authenticate(eq(request.getHttpRequest()), anyActionListener());
-        RestChannel channel = mock(RestChannel.class);
-        when(channel.detailedErrorsEnabled()).thenReturn(detailedErrorsEnabled);
-        when(channel.request()).thenReturn(request);
-        when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
-        filter.handleRequest(request, channel, null);
-        ArgumentCaptor<BytesRestResponse> response = ArgumentCaptor.forClass(BytesRestResponse.class);
-        verify(channel).sendResponse(response.capture());
-        RestResponse restResponse = response.getValue();
-        assertThat(restResponse.status(), is(expectedRestStatus));
-        if (traceExists) {
-            assertThat(restResponse.content().utf8ToString(), containsString(ElasticsearchException.STACK_TRACE));
-        } else {
-            assertThat(restResponse.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
-        }
-        verifyNoMoreInteractions(restHandler);
-    }
-
     public void testProcessOptionsMethod() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
@@ -304,14 +197,6 @@ public class SecurityRestFilterTests extends ESTestCase {
                 return Collections.singleton("password");
             }
         };
-        SetOnce<HttpPreRequest> authcServiceRequest = new SetOnce<>();
-        doAnswer((i) -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
-            authcServiceRequest.set((HttpPreRequest) i.getArguments()[0]);
-            callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
-            return Void.TYPE;
-        }).when(authcService).authenticate(any(HttpRequest.class), anyActionListener());
         AuditTrail auditTrail = mock(AuditTrail.class);
         SetOnce<RestRequest> auditTrailRequest = new SetOnce<>();
         doAnswer((i) -> {
@@ -323,7 +208,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         filter = new SecurityRestFilter(
             licenseState,
             threadContext,
-            authcService,
             secondaryAuthenticator,
             new AuditTrailService(Arrays.asList(auditTrail), licenseState),
             restHandler
@@ -344,7 +228,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertEquals(SecuritySettingsSourceField.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
 
-        assertEquals(restRequest.getHttpRequest(), authcServiceRequest.get());
         assertNotEquals(restRequest, auditTrailRequest.get());
         assertNotEquals(restRequest.content(), auditTrailRequest.get().content());
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -269,7 +270,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 e = new ElasticsearchException(cause);
             }
-            channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
+            // unless it's a http headers validation error, we consider any exceptions encountered so far during request processing
+            // to be a problem of invalid/malformed request (hence the RestStatus#BAD_REQEST (400) HTTP response code)
+            if (e instanceof HttpHeadersValidationException) {
+                channel.sendResponse(new BytesRestResponse(channel, (Exception) e.getCause()));
+            } else {
+                channel.sendResponse(new BytesRestResponse(channel, BAD_REQUEST, e));
+            }
         } catch (final IOException e) {
             if (cause != null) {
                 e.addSuppressed(cause);

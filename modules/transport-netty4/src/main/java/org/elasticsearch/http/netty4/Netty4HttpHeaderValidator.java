@@ -9,7 +9,6 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
@@ -21,8 +20,8 @@ import io.netty.util.ReferenceCountUtil;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayDeque;
@@ -35,17 +34,12 @@ import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAIT
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    public static final TriConsumer<HttpRequest, Channel, ActionListener<Void>> NOOP_VALIDATOR = ((
-        httpRequest,
-        channel,
-        listener) -> listener.onResponse(null));
-
-    private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator;
+    private final HttpValidator validator;
     private final ThreadContext threadContext;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private State state = WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator, ThreadContext threadContext) {
+    public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
         this.validator = validator;
         this.threadContext = threadContext;
     }
@@ -129,7 +123,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             );
             // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
-                validator.apply(httpRequest, ctx.channel(), contextPreservingActionListener);
+                validator.validate(httpRequest, ctx.channel(), contextPreservingActionListener);
             }
         }
     }

@@ -725,7 +725,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static long smallShardSizeDeviation(long originalSize) {
-        var deviation = randomIntBetween(0, 10) - 5;
+        var deviation = randomIntBetween(-5, 5);
         return originalSize * (100 + deviation) / 100;
     }
 

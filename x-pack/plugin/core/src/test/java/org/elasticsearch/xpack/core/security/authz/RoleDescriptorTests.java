@@ -1081,6 +1081,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder(Set<String> excludedPrivileges) {
         final Set<String> candidatePrivilegesNames = Sets.difference(IndexPrivilege.names(), excludedPrivileges);
+        assert false == candidatePrivilegesNames.isEmpty() : "no candidate privilege names to random from";
         final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
             .privileges(randomSubsetOf(randomIntBetween(1, 4), candidatePrivilegesNames))
             .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))

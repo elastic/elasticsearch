@@ -156,7 +156,7 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPermission crossClusterReplicationClusterPermission = crossClusterReplicationClusterPrivilege.buildPermission(
                 ClusterPermission.builder()
             ).build();
-            assertTrue(allClusterPermission.implies(crossClusterAccessClusterPermission));
+            assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
         }
     }
 

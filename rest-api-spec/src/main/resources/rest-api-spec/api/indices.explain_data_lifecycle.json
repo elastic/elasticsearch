@@ -16,7 +16,7 @@
         {
           "path": "/{index}/_lifecycle/explain",
           "methods": [
-            "POST"
+            "GET"
           ],
           "parts": {
             "index": {

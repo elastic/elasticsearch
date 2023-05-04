@@ -26,6 +26,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.zip.CRC32;
 
 /**
@@ -168,17 +169,19 @@ final class TranslogHeader {
      * Writes this header with the latest format into the file channel
      */
     void write(final FileChannel channel) throws IOException {
-        final byte[] buffer = new byte[headerSizeInBytes];
-        System.arraycopy(TRANSLOG_HEADER, 0, buffer, 0, TRANSLOG_HEADER.length);
-        // Write uuid
-        ByteUtils.writeIntBE(headerSizeInBytes - TRANSLOG_HEADER.length - 4 - 8 - 4, buffer, TRANSLOG_HEADER.length);
-        UnicodeUtil.UTF16toUTF8(translogUUID, 0, translogUUID.length(), buffer, TRANSLOG_HEADER.length + 4);
+        final byte[] buffer = Arrays.copyOf(TRANSLOG_HEADER, headerSizeInBytes);
+        // Write uuid and leave 4 bytes for its length
+        final int uuidOffset = TRANSLOG_HEADER.length + Integer.BYTES;
+        int offset = UnicodeUtil.UTF16toUTF8(translogUUID, 0, translogUUID.length(), buffer, uuidOffset);
+        // write uuid length before uuid
+        ByteUtils.writeIntBE(offset - uuidOffset, buffer, TRANSLOG_HEADER.length);
         // Write primary term
-        ByteUtils.writeLongBE(primaryTerm, buffer, headerSizeInBytes - 8 - 4);
+        ByteUtils.writeLongBE(primaryTerm, buffer, offset);
+        offset += Long.BYTES;
         final CRC32 crc32 = new CRC32();
-        crc32.update(buffer, 0, headerSizeInBytes - 4);
+        crc32.update(buffer, 0, offset);
         // Checksum header
-        ByteUtils.writeIntBE((int) crc32.getValue(), buffer, headerSizeInBytes - 4);
+        ByteUtils.writeIntBE((int) crc32.getValue(), buffer, offset);
         Channels.writeToChannel(buffer, channel);
         channel.force(true);
         assert channel.position() == headerSizeInBytes

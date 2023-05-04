@@ -56,7 +56,6 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
             .collect(Collectors.toSet());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95360")
     public void testTrainedModelInference() throws Exception {
         assumeTrue("We should only test if old cluster is after trained models we GA", UPGRADE_FROM_VERSION.after(Version.V_7_13_0));
         switch (CLUSTER_TYPE) {
@@ -75,8 +74,19 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("timeout", "70s");
                 }));
                 List<String> modelIds = getTrainedModels();
-                // Test that stats are serializable and can be gathered
-                getTrainedModelStats();
+
+                // Workaround for an upgrade test failure where an ingest
+                // pipeline config cannot be parsed by older nodes:
+                // https://github.com/elastic/elasticsearch/issues/95766
+                //
+                // In version 8.3.1 ml stopped parsing the full ingest
+                // pipeline configuration so will avoid this problem.
+                // TODO remove this check once https://github.com/elastic/elasticsearch/issues/95766
+                // is resolved
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_1)) {
+                    // Test that stats are serializable and can be gathered
+                    getTrainedModelStats();
+                }
                 // Verify that the pipelines still work and inference is possible
                 testInfer(modelIds);
             }

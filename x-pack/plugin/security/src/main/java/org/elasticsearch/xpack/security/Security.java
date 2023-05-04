@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.security;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -49,11 +52,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -366,6 +369,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -1623,7 +1627,7 @@ public class Security extends Plugin
             final boolean ssl = HTTP_SSL_ENABLED.get(settings);
             final SSLService sslService = getSslService();
             final SslConfiguration sslConfiguration;
-            final BiConsumer<HttpChannel, ThreadContext> populateClientCertificate;
+            final BiConsumer<Channel, ThreadContext> populateClientCertificate;
             if (ssl) {
                 sslConfiguration = sslService.getHttpTransportSSLConfiguration();
                 if (SSLService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
@@ -1641,7 +1645,23 @@ public class Security extends Plugin
                 sslConfiguration = null;
                 populateClientCertificate = (channel, threadContext) -> {};
             }
-            return new Netty4HttpServerTransport(
+            final AuthenticationService authenticationService = this.authcService.get();
+            final ThreadContext threadContext = this.threadContext.get();
+            final HttpValidator httpValidator = (httpRequest, channel, listener) -> {
+                HttpPreRequest httpPreRequest = HttpHeadersAuthenticatorUtils.asHttpPreRequest(httpRequest);
+                // step 1: Populate the thread context with credentials and any other HTTP request header values (eg run-as) that the
+                // authentication process looks for while doing its duty.
+                perRequestThreadContext.accept(httpPreRequest, threadContext);
+                populateClientCertificate.accept(channel, threadContext);
+                RemoteHostHeader.process(channel, threadContext);
+                // step 2: Run authentication on the now properly prepared thread-context.
+                // This inspects and modifies the thread context.
+                authenticationService.authenticate(
+                    httpPreRequest,
+                    ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                );
+            };
+            return getHttpServerTransportWithHeadersValidator(
                 settings,
                 networkService,
                 threadPool,
@@ -1652,29 +1672,57 @@ public class Security extends Plugin
                 tracer,
                 new TLSConfig(sslConfiguration, sslService::createSSLEngine),
                 acceptPredicate,
-                Netty4HttpHeaderValidator.NOOP_VALIDATOR
-            ) {
-                @Override
-                protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    perRequestThreadContext.accept(restRequest.getHttpRequest(), threadContext);
-                    populateClientCertificate.accept(restRequest.getHttpChannel(), threadContext);
-                    RemoteHostHeader.process(restRequest, threadContext);
-                }
-            };
+                httpValidator
+            );
         });
         return httpTransports;
     }
 
+    // "public" so it can be used in tests
+    public static Netty4HttpServerTransport getHttpServerTransportWithHeadersValidator(
+        Settings settings,
+        NetworkService networkService,
+        ThreadPool threadPool,
+        NamedXContentRegistry xContentRegistry,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer,
+        TLSConfig tlsConfig,
+        @Nullable AcceptChannelHandler.AcceptPredicate acceptPredicate,
+        HttpValidator httpValidator
+    ) {
+        return new Netty4HttpServerTransport(
+            settings,
+            networkService,
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            sharedGroupFactory,
+            tracer,
+            tlsConfig,
+            acceptPredicate,
+            Objects.requireNonNull(httpValidator)
+        ) {
+            @Override
+            protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
+                ThreadContext.StoredContext authenticationThreadContext = HttpHeadersAuthenticatorUtils.extractAuthenticationContext(
+                    restRequest.getHttpRequest()
+                );
+                if (authenticationThreadContext != null) {
+                    authenticationThreadContext.restore();
+                } else {
+                    // this is an unexpected internal error condition where {@code Netty4HttpHeaderValidator} does not work correctly
+                    throw new ElasticsearchSecurityException("Request is not authenticated");
+                }
+            }
+        };
+    }
+
     @Override
     public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-        return handler -> new SecurityRestFilter(
-            enabled,
-            threadContext,
-            authcService.get(),
-            secondayAuthc.get(),
-            auditTrailService.get(),
-            handler
-        );
+        return handler -> new SecurityRestFilter(enabled, threadContext, secondayAuthc.get(), auditTrailService.get(), handler);
     }
 
     @Override

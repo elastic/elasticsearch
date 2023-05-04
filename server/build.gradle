@@ -81,12 +81,6 @@ dependencies {
 
 }
 
-spotless {
-  java {
-    targetExclude "src/main/java/org/elasticsearch/Version.java"
-  }
-}
-
 tasks.named("forbiddenPatterns").configure {
     exclude '**/*.json'
     exclude '**/*.jmx'

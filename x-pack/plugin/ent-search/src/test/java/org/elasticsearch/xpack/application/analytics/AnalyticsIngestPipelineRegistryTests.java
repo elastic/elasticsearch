@@ -181,8 +181,8 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
     }
 
     public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
-        DiscoveryNode updatedNode = TestDiscoveryNode.create("updatedNode");
-        DiscoveryNode outdatedNode = TestDiscoveryNode.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
+        DiscoveryNode updatedNode = new DiscoveryNode("updatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode outdatedNode = new DiscoveryNode("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .localNodeId("updatedNode")
             .masterNodeId("updatedNode")

@@ -106,8 +106,16 @@ public abstract class LongKeyedBucketOrds implements Releasable {
      */
     public abstract BucketOrdsEnum ordsEnum(long owningBucketOrd);
 
+    /**
+     * Return an iterator for all keys in the given owning bucket, ordered in natural sort order.
+     * This is suitable for aligning buckets across different instances of an aggregation.
+     *
+     * @param owningBucketOrd Only return keys that occured under this owning bucket
+     * @return a sorted iterator of long key values
+     */
     public Iterator<Long> keyOrderedIterator(long owningBucketOrd) {
         if (keySet == null) {
+            // TreeSet's contract includes a naturally ordered iterator
             keySet = new TreeSet<>();
             for (long ord = 0; ord < size(); ord++) {
                 keySet.add(this.get(ord));
@@ -144,6 +152,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         };
         toReturn.next(); // Prime the first actual value
         return toReturn;
+    }
+
+    public void close() {
+        keySet = null;
     }
 
     /**
@@ -268,6 +280,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
+            super.close();
             ords.close();
         }
     }
@@ -365,6 +378,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
+            super.close();
             ords.close();
         }
     }
@@ -500,6 +514,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
         @Override
         public void close() {
+            super.close();
             ords.close();
         }
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.utils.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -85,8 +86,20 @@ public abstract class PipelineRegistry implements ClusterStateListener {
             return false;
         }
 
+        Version minNodeVersion = event.state().nodes().getMinNodeVersion();
+        if (getMinSupportedNodeVersion().after(minNodeVersion)) {
+            return false;
+        }
+
         return true;
     }
+
+    /**
+     * Pipelines will not be installed until all nodes in the cluster are updated to at least the version returned by the method.
+     *
+     * @return {@link Version} minimum required version.
+     */
+    protected abstract Version getMinSupportedNodeVersion();
 
     private void addIngestPipelinesIfMissing(ClusterState state) {
         for (PipelineTemplateConfiguration pipelineTemplateConfig : getIngestPipelineConfigs()) {

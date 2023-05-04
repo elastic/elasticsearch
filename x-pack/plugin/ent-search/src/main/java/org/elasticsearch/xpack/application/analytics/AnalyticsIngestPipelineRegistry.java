@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,6 +58,11 @@ public class AnalyticsIngestPipelineRegistry extends PipelineRegistry {
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
         return super.isClusterReady(event) && (isIngestPipelineInstalled(event.state()) || hasAnalyticsEventDataStream(event.state()));
+    }
+
+    @Override
+    protected Version getMinSupportedNodeVersion() {
+        return Version.V_8_8_0;
     }
 
     private boolean hasAnalyticsEventDataStream(ClusterState state) {

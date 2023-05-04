@@ -337,16 +337,17 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeRemoteIndices) {
+        final Set<String> excludedPrivileges = Set.of("cross_cluster_replication", "cross_cluster_replication_internal");
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(Set.of("all", "monitor", "none")).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTests.randomIndicesPrivileges(0, 3, excludedPrivileges),
             RoleDescriptorTests.randomApplicationPrivileges(),
             null,
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(false),
             Map.of(),
-            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3) : null
+            includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null
         );
     }
 }

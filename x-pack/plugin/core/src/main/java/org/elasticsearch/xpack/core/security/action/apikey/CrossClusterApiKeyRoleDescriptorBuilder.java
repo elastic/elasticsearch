@@ -20,15 +20,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class CrossClusterApiKeyRoleDescriptorBuilder {
 
-    private static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_access" };
-    private static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_access", "cluster:monitor/state" };
-    private static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_access", "cluster:monitor/state" };
+    private static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search" };
+    private static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
+    private static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "cross_cluster_replication" };
     private static final String[] CCS_INDICES_PRIVILEGE_NAMES = { "read", "read_cross_cluster", "view_index_metadata" };
-    private static final String[] CCR_INDICES_PRIVILEGE_NAMES = {
-        "manage",
-        "read",
-        "indices:internal/admin/ccr/restore/*",
-        "internal:transport/proxy/indices:internal/admin/ccr/restore/*" };
+    private static final String[] CCR_INDICES_PRIVILEGE_NAMES = { "cross_cluster_replication", "cross_cluster_replication_internal" };
     private static final String ROLE_DESCRIPTOR_NAME = "cross_cluster";
 
     @SuppressWarnings("unchecked")

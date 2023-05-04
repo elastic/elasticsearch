@@ -418,7 +418,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     public void testCreateCrossClusterApiKey() throws IOException {
         final RoleDescriptor roleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_access" },
+            new String[] { "cross_cluster_search" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")

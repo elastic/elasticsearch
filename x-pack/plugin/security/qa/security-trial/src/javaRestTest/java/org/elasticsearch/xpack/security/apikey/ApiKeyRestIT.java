@@ -735,7 +735,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     XContentTestUtils.convertToMap(
                         new RoleDescriptor(
                             "cross_cluster",
-                            new String[] { "cross_cluster_access", "cluster:monitor/state" },
+                            new String[] { "cross_cluster_search", "cross_cluster_replication" },
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics")
@@ -744,12 +744,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                                     .build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("logs")
-                                    .privileges(
-                                        "manage",
-                                        "read",
-                                        "indices:internal/admin/ccr/restore/*",
-                                        "internal:transport/proxy/indices:internal/admin/ccr/restore/*"
-                                    )
+                                    .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
                                     .allowRestrictedIndices(true)
                                     .build() },
                             null

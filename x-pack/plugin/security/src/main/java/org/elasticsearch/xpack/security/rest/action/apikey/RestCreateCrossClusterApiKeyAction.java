@@ -75,7 +75,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final Payload payload = PARSER.parse(request.contentParser(), null);
 
-        final CreateApiKeyRequest createApiKeyRequest = payload.toCreateApiKeyRequest();
+        final CreateApiKeyRequest createApiKeyRequest = payload.toRequest();
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
             createApiKeyRequest,
@@ -89,7 +89,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         TimeValue expiration,
         Map<String, Object> metadata
     ) {
-        public CreateApiKeyRequest toCreateApiKeyRequest() {
+        public CreateApiKeyRequest toRequest() {
             final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest();
             createApiKeyRequest.setType(ApiKey.Type.CROSS_CLUSTER);
             createApiKeyRequest.setName(name);

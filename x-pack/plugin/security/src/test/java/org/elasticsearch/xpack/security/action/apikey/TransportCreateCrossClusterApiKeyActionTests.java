@@ -49,7 +49,7 @@ public class TransportCreateCrossClusterApiKeyActionTests extends ESTestCase {
             List.of(
                 new RoleDescriptor(
                     "cross_cluster",
-                    new String[] { "cross_cluster_access" },
+                    new String[] { "cross_cluster_search" },
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("idx")

@@ -39,7 +39,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_access" },
+            new String[] { "cross_cluster_search" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
@@ -62,16 +62,11 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_access", "cluster:monitor/state" },
+            new String[] { "cross_cluster_replication" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("archive")
-                    .privileges(
-                        "manage",
-                        "read",
-                        "indices:internal/admin/ccr/restore/*",
-                        "internal:transport/proxy/indices:internal/admin/ccr/restore/*"
-                    )
+                    .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
                     .build() }
         );
     }
@@ -104,7 +99,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_access", "cluster:monitor/state" },
+            new String[] { "cross_cluster_search", "cross_cluster_replication" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
@@ -119,12 +114,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("archive")
-                    .privileges(
-                        "manage",
-                        "read",
-                        "indices:internal/admin/ccr/restore/*",
-                        "internal:transport/proxy/indices:internal/admin/ccr/restore/*"
-                    )
+                    .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
                     .allowRestrictedIndices(true)
                     .build() }
         );

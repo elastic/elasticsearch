@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,12 +25,11 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
 public class CrossClusterAccessAuthenticationService {
-
-    public static final Version VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION = Version.V_8_8_0;
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
@@ -63,12 +62,13 @@ public class CrossClusterAccessAuthenticationService {
             return;
         }
 
-        if (getMinNodeVersion().before(VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION)) {
+        // This check is to ensure all nodes understand cross_cluster_access subject type
+        if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + VERSION_CROSS_CLUSTER_ACCESS_AUTHENTICATION
+                    "all nodes must have transport version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener
@@ -109,8 +109,8 @@ public class CrossClusterAccessAuthenticationService {
         return authenticationService;
     }
 
-    private Version getMinNodeVersion() {
-        return clusterService.state().nodes().getMinNodeVersion();
+    private TransportVersion getMinTransportVersion() {
+        return clusterService.state().getMinTransportVersion();
     }
 
     private static void withRequestProcessingFailure(

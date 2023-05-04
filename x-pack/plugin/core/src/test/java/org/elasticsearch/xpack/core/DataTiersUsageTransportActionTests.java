@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -700,13 +701,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode(
-            "node_" + nodeId,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(roles),
-            Version.CURRENT
-        );
+        return TestDiscoveryNode.create("node_" + nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(), Set.of(roles));
     }
 
     private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {

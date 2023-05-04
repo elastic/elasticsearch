@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -17,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -271,7 +271,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
     private static DiscoveryNodes newNodes(int numNodes) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numNodes; i++) {
-            nodes.add(new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
+            nodes.add(TestDiscoveryNode.create("node_" + i, buildNewFakeTransportAddress(), emptyMap(), emptySet()));
         }
         return nodes.localNodeId("node_0").build();
 
@@ -358,7 +358,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
                 new MockTransport(),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                addr -> new DiscoveryNode("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                addr -> TestDiscoveryNode.create("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 null,
                 Collections.emptySet()
             );

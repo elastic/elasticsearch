@@ -42,6 +42,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -140,7 +141,8 @@ public class InternalEngine extends Engine {
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final LiveVersionMap versionMap = new LiveVersionMap();
+    private final LiveVersionMap versionMap;
+    private final LiveVersionMapArchive liveVersionMapArchive;
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -215,6 +217,8 @@ public class InternalEngine extends Engine {
         this.maxDocs = maxDocs;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
+        this.liveVersionMapArchive = createLiveVersionMapArchive();
+        this.versionMap = new LiveVersionMap(liveVersionMapArchive);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -347,11 +351,11 @@ public class InternalEngine extends Engine {
     private CombinedDeletionPolicy.CommitsListener newCommitsListener() {
         final Engine.IndexCommitListener listener = engineConfig.getIndexCommitListener();
         if (listener != null) {
-            var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
             return new CombinedDeletionPolicy.CommitsListener() {
                 @Override
                 public void onNewAcquiredCommit(final IndexCommit commit, final Set<String> additionalFiles) {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
+                    var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
                     assert indexCommitRef.getIndexCommit() == commit;
                     listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
                 }
@@ -538,7 +542,7 @@ public class InternalEngine extends Engine {
         final int opsRecovered;
         final long localCheckpoint = getProcessedLocalCheckpoint();
         if (localCheckpoint < recoverUpToSeqNo) {
-            try (Translog.Snapshot snapshot = translog.newSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
+            try (Translog.Snapshot snapshot = newTranslogSnapshot(localCheckpoint + 1, recoverUpToSeqNo)) {
                 opsRecovered = translogRecoveryRunner.run(this, snapshot);
             } catch (Exception e) {
                 throw new EngineException(shardId, "failed to recover from translog", e);
@@ -557,8 +561,14 @@ public class InternalEngine extends Engine {
                 translog.currentFileGeneration()
             )
         );
-        flush(false, true);
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(false, true, future);
+        future.actionGet();
         translog.trimUnreferencedReaders();
+    }
+
+    protected Translog.Snapshot newTranslogSnapshot(long fromSeqNo, long toSeqNo) throws IOException {
+        return translog.newSnapshot(fromSeqNo, toSeqNo);
     }
 
     private Translog openTranslog(
@@ -1952,7 +1962,7 @@ public class InternalEngine extends Engine {
         );
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
         if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
-            flush(false, false);
+            flush(false, false, ActionListener.noop());
             return;
         }
 
@@ -2006,7 +2016,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2014,13 +2024,15 @@ public class InternalEngine extends Engine {
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
             );
         }
+        final long generation;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
                     logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
-                    return false;
+                    listener.onResponse(FlushResult.NO_FLUSH);
+                    return;
                 }
                 logger.trace("waiting for in-flight flush to finish");
                 flushLock.lock();
@@ -2028,6 +2040,7 @@ public class InternalEngine extends Engine {
             } else {
                 logger.trace("acquired flush lock immediately");
             }
+
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
@@ -2060,11 +2073,18 @@ public class InternalEngine extends Engine {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                     refreshLastCommittedSegmentInfos();
-                    flushListener.afterFlush(lastCommittedSegmentInfos.getGeneration(), commitLocation);
+                    generation = lastCommittedSegmentInfos.getGeneration();
+                    flushListener.afterFlush(generation, commitLocation);
+                } else {
+                    generation = lastCommittedSegmentInfos.getGeneration();
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
-                throw ex;
+                listener.onFailure(ex);
+                return;
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             } finally {
                 flushLock.unlock();
                 logger.trace("released flush lock");
@@ -2075,7 +2095,8 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return true;
+
+        waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2225,6 +2246,7 @@ public class InternalEngine extends Engine {
                     this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
+                    // TODO: Migrate to using async apic
                     flush(false, true);
 
                     // If any merges happened then we need to release the unmerged input segments so they can be deleted. A periodic refresh
@@ -2282,7 +2304,10 @@ public class InternalEngine extends Engine {
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
             logger.trace("start flush for snapshot");
-            flush(false, true);
+            // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
+            PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+            flush(false, true, future);
+            future.actionGet();
             logger.trace("finish flush for snapshot");
         }
         return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(false));
@@ -2667,20 +2692,6 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Defines extra user data to be stored in a commit file.
-     *
-     * Note that:
-     * <ul>
-     *  <li>Any conflicting keys used internally by the engine or the store will prevail.</li>
-     *  <li>The extra user data will not be present in an empty commit.</li>
-     *  <li>This function is temporary and may be removed in the future.</li>
-     * </ul>
-     */
-    protected Map<String, String> getCommitExtraUserData() {
-        return Map.of();
-    }
-
-    /**
      * Commits the specified index writer.
      *
      * @param writer   the index writer to commit
@@ -2700,9 +2711,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> extraCommitUserData = getCommitExtraUserData();
-                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
-                commitData.putAll(extraCommitUserData);
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
@@ -3138,6 +3147,43 @@ public class InternalEngine extends Engine {
 
     @Override
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
-        this.flushListener.addOrNotify(location, listener);
+        this.flushListener.addOrNotify(location, new ActionListener<>() {
+            @Override
+            public void onResponse(Long generation) {
+                waitForCommitDurability(generation, listener.map(v -> generation));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+        try {
+            ensureOpen();
+        } catch (AlreadyClosedException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (lastCommittedSegmentInfos.getGeneration() < generation) {
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    protected LiveVersionMapArchive createLiveVersionMapArchive() {
+        return LiveVersionMapArchive.NOOP_ARCHIVE;
+    }
+
+    protected LiveVersionMapArchive getLiveVersionMapArchive() {
+        return liveVersionMapArchive;
+    }
+
+    // Visible for testing purposes only
+    public LiveVersionMap getLiveVersionMap() {
+        return versionMap;
     }
 }

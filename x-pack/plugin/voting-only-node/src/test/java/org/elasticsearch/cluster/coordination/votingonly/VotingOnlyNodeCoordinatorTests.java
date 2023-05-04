@@ -38,7 +38,7 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
     }
 
     @Override
-    protected CoordinatorStrategy getCoordinatorStrategy() {
+    protected CoordinatorStrategy createCoordinatorStrategy() {
         return new DefaultCoordinatorStrategy(new VotingOnlyNodePlugin.VotingOnlyNodeElectionStrategy());
     }
 

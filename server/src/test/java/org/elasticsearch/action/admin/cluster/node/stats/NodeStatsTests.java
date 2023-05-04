@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -617,7 +618,13 @@ public class NodeStatsTests extends ESTestCase {
 
         final CommonStats indicesCommonStats = new CommonStats(CommonStatsFlags.ALL);
         indicesCommonStats.getDocs().add(new DocsStats(++iota, ++iota, ++iota));
-        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        Map<String, FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldOrdinalStats = new HashMap<>();
+        fieldOrdinalStats.put(
+            randomAlphaOfLength(4),
+            new FieldDataStats.GlobalOrdinalsStats.GlobalOrdinalFieldStats(randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        var ordinalStats = new FieldDataStats.GlobalOrdinalsStats(randomNonNegativeLong(), fieldOrdinalStats);
+        indicesCommonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, ordinalStats));
         indicesCommonStats.getStore().add(new StoreStats(++iota, ++iota, ++iota));
 
         final IndexingStats.Stats indexingStats = new IndexingStats.Stats(
@@ -703,7 +710,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode node = TestDiscoveryNode.create(
             "test_node",
             buildNewFakeTransportAddress(),
             emptyMap(),

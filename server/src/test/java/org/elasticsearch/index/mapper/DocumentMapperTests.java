@@ -325,7 +325,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         int max;
         Settings settings;
         if (randomBoolean()) {
-            max = 16; // By default no more than 16 dimensions per document are supported
+            max = 21; // By default no more than 21 dimensions per document are supported
             settings = getIndexSettings();
         } else {
             max = between(1, 10000);

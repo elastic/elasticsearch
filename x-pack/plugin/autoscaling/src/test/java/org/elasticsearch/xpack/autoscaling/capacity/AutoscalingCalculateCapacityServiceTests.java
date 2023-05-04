@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
@@ -203,9 +203,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         Set<DiscoveryNodeRole> otherRoles = mutateRoles(roleNames).stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(
-                DiscoveryNodes.builder().add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
-            )
+            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("nodeId", buildNewFakeTransportAddress(), Map.of(), roles)))
             .build();
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
             roleNames,
@@ -236,12 +234,11 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         for (int i = 0; i < randomIntBetween(1, 5); ++i) {
             String nodeId = "nodeId" + i;
             boolean useOtherRoles = randomBoolean();
-            DiscoveryNode node = new DiscoveryNode(
+            DiscoveryNode node = TestDiscoveryNode.create(
                 nodeId,
                 buildNewFakeTransportAddress(),
                 Map.of(),
-                useOtherRoles ? otherRoles : roles,
-                Version.CURRENT
+                useOtherRoles ? otherRoles : roles
             );
             nodes.add(node);
 

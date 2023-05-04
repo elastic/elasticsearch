@@ -27,7 +27,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.StopWatch;
@@ -237,12 +237,12 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         return new StartRecoveryRequest(
             shardId,
             null,
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
+            TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),
-            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
             true
         );
     }
@@ -712,11 +712,10 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
-                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
+                indexSettings(VersionUtils.randomVersion(random()), between(1, 5), between(0, 5)).put(
+                    IndexMetadata.SETTING_INDEX_UUID,
+                    UUIDs.randomBase64UUID(random())
+                )
             );
         if (randomBoolean()) {
             indexMetadata.state(IndexMetadata.State.CLOSE);
@@ -1144,13 +1143,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
             writer.close();
             when(shard.state()).thenReturn(IndexShardState.STARTED);
             final var indexMetadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                        .build()
-                )
+                .settings(indexSettings(Version.CURRENT, 1, 0))
                 .build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
             when(shard.indexSettings()).thenReturn(indexSettings);

@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.lang.reflect.Constructor;
@@ -23,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class MockPluginsService extends PluginsService {
@@ -128,5 +130,10 @@ public class MockPluginsService extends PluginsService {
             }
         }
         return extensions;
+    }
+
+    @Override
+    protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+        // tests don't run modular
     }
 }

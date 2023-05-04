@@ -236,7 +236,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, numericFieldType, textFieldType));
         assertNotNull(terms);

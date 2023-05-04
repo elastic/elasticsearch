@@ -8,11 +8,10 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,6 +19,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -45,7 +45,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         final var currentTermProvider = new AtomicLong(1);
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
-        final var leaderNode = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var leaderNode = TestDiscoveryNode.create("master");
 
         final var fakeClock = new AtomicLong();
         final var heartbeatStore = new InMemoryHeartbeatStore();
@@ -54,7 +54,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -80,7 +80,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         final var currentTermProvider = new AtomicLong(1);
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
-        final var leaderNode = new DiscoveryNode("master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var leaderNode = TestDiscoveryNode.create("master");
 
         final var fakeClock = new AtomicLong();
         final var heartbeatStore = new InMemoryHeartbeatStore();
@@ -89,7 +89,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         ) {
             @Override
             protected long absoluteTimeInMillis() {
@@ -124,7 +124,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             threadPool,
             heartbeatFrequency,
             maxTimeSinceLastHeartbeat,
-            currentTermProvider::get
+            listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
         var startElection = new AtomicBoolean();

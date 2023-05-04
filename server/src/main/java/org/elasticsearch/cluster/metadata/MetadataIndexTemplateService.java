@@ -383,7 +383,7 @@ public class MetadataIndexTemplateService {
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        validateNotInUse(state.metadata(), names);
+        validateCanBeRemoved(state.metadata(), names);
         taskQueue.submitTask("remove-component-template [" + String.join(",", names) + "]", new TemplateClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -394,7 +394,7 @@ public class MetadataIndexTemplateService {
 
     // Exposed for ReservedComponentTemplateAction
     public static ClusterState innerRemoveComponentTemplate(ClusterState currentState, String... names) {
-        validateNotInUse(currentState.metadata(), names);
+        validateCanBeRemoved(currentState.metadata(), names);
 
         final Set<String> templateNames = new HashSet<>();
         if (names.length > 1) {
@@ -439,10 +439,11 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Validates that the given component template is not used by any index
-     * templates, throwing an error if it is still in use
+     * Validates that the given component template can be removed, throwing an error if it cannot.
+     * A component template should not be removed if it is <b>required</b> by any index templates,
+     * that is- it is used AND NOT specified as {@code ignore_missing_component_templates}.
      */
-    static void validateNotInUse(Metadata metadata, String... templateNameOrWildcard) {
+    static void validateCanBeRemoved(Metadata metadata, String... templateNameOrWildcard) {
         final Predicate<String> predicate;
         if (templateNameOrWildcard.length > 1) {
             predicate = name -> Arrays.asList(templateNameOrWildcard).contains(name);
@@ -456,7 +457,10 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream().filter(e -> {
-            Set<String> intersecting = Sets.intersection(new HashSet<>(e.getValue().composedOf()), matchingComponentTemplates);
+            Set<String> intersecting = Sets.intersection(
+                new HashSet<>(e.getValue().getRequiredComponentTemplates()),
+                matchingComponentTemplates
+            );
             if (intersecting.size() > 0) {
                 componentsBeingUsed.addAll(intersecting);
                 return true;

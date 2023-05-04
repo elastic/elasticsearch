@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -64,12 +65,10 @@ import static org.hamcrest.Matchers.startsWith;
 public class LeaderCheckerTests extends ESTestCase {
 
     public void testFollowerBehaviour() {
-        final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode leader2 = randomBoolean()
-            ? leader1
-            : new DiscoveryNode("leader-2", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode leader1 = TestDiscoveryNode.create("leader-1");
+        final DiscoveryNode leader2 = randomBoolean() ? leader1 : TestDiscoveryNode.create("leader-2");
 
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
         Settings.Builder settingsBuilder = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId());
 
         final long leaderCheckIntervalMillis;
@@ -244,8 +243,8 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testFollowerFailsImmediatelyOnDisconnection() {
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
+        final DiscoveryNode leader = TestDiscoveryNode.create("leader");
 
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
@@ -380,8 +379,8 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testFollowerFailsImmediatelyOnHealthCheckFailure() {
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
+        final DiscoveryNode leader = TestDiscoveryNode.create("leader");
 
         final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
@@ -465,8 +464,8 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testLeaderBehaviour() {
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local-node");
+        final DiscoveryNode otherNode = TestDiscoveryNode.create("other-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final CapturingTransport capturingTransport = new CapturingTransport();
@@ -576,14 +575,12 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testLeaderCheckRequestEqualsHashcodeSerialization() {
-        LeaderCheckRequest request = new LeaderCheckRequest(
-            new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT)
-        );
+        LeaderCheckRequest request = new LeaderCheckRequest(TestDiscoveryNode.create(randomAlphaOfLength(10)));
         // noinspection RedundantCast since it is needed for some IDEs (specifically Eclipse 4.8.0) to infer the right type
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             request,
             (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
-            rq -> new LeaderCheckRequest(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT))
+            rq -> new LeaderCheckRequest(TestDiscoveryNode.create(randomAlphaOfLength(10)))
         );
     }
 }

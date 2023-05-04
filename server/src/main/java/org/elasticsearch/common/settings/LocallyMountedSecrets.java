@@ -171,7 +171,7 @@ public class LocallyMountedSecrets implements SecureSettings {
     }
 
     /**
-     * @return version number from the secrets file
+     * Returns version number from the secrets file
      */
     public long getVersion() {
         return secrets.get().metadata.version();

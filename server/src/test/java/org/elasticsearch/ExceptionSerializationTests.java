@@ -48,6 +48,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -827,6 +828,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(166, HealthNodeNotDiscoveredException.class);
         ids.put(167, UnsupportedAggregationOnDownsampledIndex.class);
         ids.put(168, DocumentParsingException.class);
+        ids.put(169, HttpHeadersValidationException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

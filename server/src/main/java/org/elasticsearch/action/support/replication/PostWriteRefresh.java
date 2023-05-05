@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
@@ -26,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
+    public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
 
@@ -119,7 +121,13 @@ public class PostWriteRefresh {
         engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
+                try (
+                    ThreadContext.StoredContext ignore = transportService.getThreadPool()
+                        .getThreadContext()
+                        .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
+                ) {
+                    sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
+                }
             }
 
             @Override

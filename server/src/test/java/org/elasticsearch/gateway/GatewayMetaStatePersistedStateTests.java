@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -73,12 +74,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
-        localNode = new DiscoveryNode(
+        localNode = TestDiscoveryNode.create(
             "node1",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
         );
         clusterName = new ClusterName(randomAlphaOfLength(10));
         final Settings.Builder settingsBuilder = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value());
@@ -377,12 +377,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final List<Closeable> cleanup = new ArrayList<>(2);
 
         try {
-            DiscoveryNode localNode = new DiscoveryNode(
+            DiscoveryNode localNode = TestDiscoveryNode.create(
                 "node1",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
+                Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)
             );
             Settings settings = Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())

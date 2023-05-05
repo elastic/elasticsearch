@@ -187,7 +187,7 @@ public class VersionTypeTests extends ESTestCase {
         NullPointerException npe = expectThrows(NullPointerException.class, () -> VersionType.toString(null));
         assertThat(
             npe.toString(),
-            containsString("Cannot invoke \"org.elasticsearch.index.VersionType.name()\" because \"versionType\" is null")
+            containsString("Cannot invoke \"org.elasticsearch.index.VersionType.ordinal()\" because \"versionType\" is null")
         );
     }
 }

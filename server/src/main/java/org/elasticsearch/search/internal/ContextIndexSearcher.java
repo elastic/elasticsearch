@@ -190,7 +190,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (liveDocsBitSet == null) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
-                //TODO restore this
+                // TODO restore this
                 /*if (cancellable.isEnabled()) {
                     bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
                 }*/

@@ -875,12 +875,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
     protected static IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
-         if (randomBoolean()) {
-         // this executes basic query checks and asserts that weights are normalized only once etc.
-         return new AssertingIndexSearcher(random(), indexReader);
-         } else {
-         return new IndexSearcher(indexReader);
-         }
+        if (randomBoolean()) {
+            // this executes basic query checks and asserts that weights are normalized only once etc.
+            return new AssertingIndexSearcher(random(), indexReader);
+        } else {
+            return new IndexSearcher(indexReader);
+        }
     }
 
     /**

@@ -123,7 +123,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected ClusterSettings clusterSettingsA;
 
     protected static final Version version1 = Version.fromId(version0.id + 1);
-    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id + 1);
+    protected static final TransportVersion transportVersion1 = TransportVersion.fromId(transportVersion0.id() + 1);
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
@@ -2201,7 +2201,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testHandshakeWithIncompatVersion() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        TransportVersion transportVersion = TransportVersion.fromId(TransportVersion.MINIMUM_COMPATIBLE.id - 1);
+        TransportVersion transportVersion = TransportVersion.fromId(TransportVersion.MINIMUM_COMPATIBLE.id() - 1);
         try (
             MockTransportService service = buildService(
                 "TS_C",

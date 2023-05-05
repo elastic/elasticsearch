@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -56,9 +57,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 // succeed when remote_indices are not provided
-                boolean includeRoles = randomBoolean();
-                Tuple<String, String> apiKey = createOrGrantApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
-                updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(false));
+                final boolean includeRoles = randomBoolean();
+                final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
+                final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
+                updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
                 authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
                 // fail if we include remote_indices
@@ -91,9 +93,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 try {
                     this.createClientsByVersion();
                     // succeed when remote_indices are not provided
-                    boolean includeRoles = randomBoolean();
-                    Tuple<String, String> apiKey = createOrGrantApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
-                    updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(false));
+                    final boolean includeRoles = randomBoolean();
+                    final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
+                    final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
+                    updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
                     authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
                     // fail when remote_indices are provided:
@@ -144,13 +147,18 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case UPGRADED -> {
                 // succeed either way
-                boolean includeRoles = randomBoolean();
-                Tuple<String, String> apiKey = createOrGrantApiKey(includeRoles ? randomRoleDescriptors(false) : "{}");
-                updateOrBulkUpdateApiKey(apiKey.v1(), randomRoleDescriptors(false));
+                final boolean includeRoles = randomBoolean();
+                final String initialApiKeyRole = includeRoles ? randomRoleDescriptors(false) : "{}";
+                final Tuple<String, String> apiKey = createOrGrantApiKey(initialApiKeyRole);
+                updateOrBulkUpdateApiKey(apiKey.v1(), randomValueOtherThan(initialApiKeyRole, () -> randomRoleDescriptors(false)));
                 authenticateWithApiKey(apiKey.v1(), apiKey.v2());
 
-                Tuple<String, String> apiKeyWithRemoteIndices = createOrGrantApiKey(randomRoleDescriptors(true));
-                updateOrBulkUpdateApiKey(apiKeyWithRemoteIndices.v1(), randomRoleDescriptors(true));
+                final String initialApiKeyRoleWithRemoteIndices = randomRoleDescriptors(true);
+                final Tuple<String, String> apiKeyWithRemoteIndices = createOrGrantApiKey(initialApiKeyRoleWithRemoteIndices);
+                updateOrBulkUpdateApiKey(
+                    apiKeyWithRemoteIndices.v1(),
+                    randomValueOtherThan(initialApiKeyRoleWithRemoteIndices, () -> randomRoleDescriptors(true))
+                );
                 authenticateWithApiKey(apiKeyWithRemoteIndices.v1(), apiKeyWithRemoteIndices.v2());
             }
         }
@@ -280,12 +288,13 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         return "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static String randomRoleDescriptors(boolean includeRemoteIndices) throws IOException {
-        String result = XContentTestUtils.convertToXContent(
-            Map.of("my_role", randomRoleDescriptor(includeRemoteIndices)),
-            XContentType.JSON
-        ).utf8ToString();
-        return result;
+    private static String randomRoleDescriptors(boolean includeRemoteIndices) {
+        try {
+            return XContentTestUtils.convertToXContent(Map.of("my_role", randomRoleDescriptor(includeRemoteIndices)), XContentType.JSON)
+                .utf8ToString();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void createClientsByVersion() throws IOException {

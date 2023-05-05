@@ -18,7 +18,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -72,10 +72,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -477,8 +474,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return;
         }
 
-        final BlockingQueue<ActionRunnable> queue = new LinkedBlockingQueue<>();
-        final Executor executor = prewarmExecutor();
+        var prewarmTaskRunner = new ThrottledTaskRunner(
+            "prewarm_task_runner" + shardId,
+            threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getMax(),
+            prewarmExecutor()
+        );
 
         try (var completionListener = new RefCountingListener(ActionListener.wrap(ignored -> {
             recoveryState.setPreWarmComplete();
@@ -506,58 +506,36 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     ) {
                         for (int p = 0; p < file.numberOfParts(); p++) {
                             final int part = p;
-                            queue.add(
-                                ActionRunnable.run(
-                                    ActionListener.runAfter(fileListener.acquire(), () -> prewarmNext(executor, queue)),
-                                    () -> {
-                                        ensureOpen();
-                                        var fileName = file.physicalName();
-                                        final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
-                                        if (persistentCacheLength == file.length()) {
-                                            recoveryState.markIndexFileAsReused(fileName);
-                                        } else {
-                                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(fileName, file.partBytes(part));
-                                        }
-                                        logger.trace(
-                                            () -> format(
-                                                "%s part [%s/%s] of [%s] warmed in [%s] ms",
-                                                shardId,
-                                                part + 1,
-                                                file.numberOfParts(),
-                                                fileName,
-                                                timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                            )
-                                        );
+                            prewarmTaskRunner.enqueueTask(fileListener.acquire().map(releasable -> {
+                                try (releasable) {
+                                    ensureOpen();
+                                    var fileName = file.physicalName();
+                                    final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                                    final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                                    if (persistentCacheLength == file.length()) {
+                                        recoveryState.markIndexFileAsReused(fileName);
+                                    } else {
+                                        recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(fileName, file.partBytes(part));
                                     }
-                                )
-                            );
+                                    logger.trace(
+                                        () -> format(
+                                            "%s part [%s/%s] of [%s] warmed in [%s] ms",
+                                            shardId,
+                                            part + 1,
+                                            file.numberOfParts(),
+                                            fileName,
+                                            timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                                        )
+                                    );
+                                    return null;
+                                }
+                            }));
                         }
                     }
                 } catch (Exception e) {
                     logger.warn(() -> format("%s unable to prewarm file [%s]", shardId, file.physicalName()), e);
                 }
             }
-        }
-
-        logger.debug("{} warming shard cache for [{}] files", shardId, queue.size());
-
-        // Start as many workers as fit into the prewarming pool at once at the most
-        final int workers = Math.min(threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getMax(), queue.size());
-        for (int i = 0; i < workers; ++i) {
-            prewarmNext(executor, queue);
-        }
-    }
-
-    private void prewarmNext(final Executor executor, final BlockingQueue<ActionRunnable> queue) {
-        try {
-            final Runnable next = queue.poll(0L, TimeUnit.MILLISECONDS);
-            if (next != null) {
-                executor.execute(next);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn(() -> format("%s prewarming worker has been interrupted", shardId), e);
         }
     }
 

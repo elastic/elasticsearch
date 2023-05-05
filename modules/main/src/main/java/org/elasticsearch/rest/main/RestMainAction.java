@@ -62,7 +62,6 @@ public class RestMainAction extends BaseRestHandler {
         }
         MainRestResponse mainRestResponse = new MainRestResponse(response);
         mainRestResponse.toXContent(builder, request);
-        // response.toXContent(builder, request);
         return new RestResponse(RestStatus.OK, builder);
     }
 

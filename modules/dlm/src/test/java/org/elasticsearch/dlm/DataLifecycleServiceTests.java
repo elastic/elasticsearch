@@ -65,7 +65,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
 import static org.elasticsearch.dlm.DataLifecycleService.DLM_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY;
-import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_ERROR_COUNT_METADATA_KEY;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,7 +89,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
-        builtInClusterSettings.add(DataLifecycleService.DLM_MAX_FORCEMERGE_ERRORS_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
         clusterService = createClusterService(threadPool, clusterSettings);
 
@@ -469,15 +467,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 assertThat(forceMergeFailedCount.get(), equalTo(2));
                 assertThat(
                     clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
-                    notNullValue()
-                );
-                assertThat(
-                    clusterService.state()
-                        .metadata()
-                        .index(dataStream.getIndices().get(0))
-                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
-                        .get(FORCE_MERGE_ERROR_COUNT_METADATA_KEY),
-                    equalTo(Integer.toString(1))
+                    nullValue()
                 );
             });
         }
@@ -531,109 +521,6 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertThat(forceMergeRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
             assertThat(forceMergeRequests.get(2).indices()[0], is(dataStream.getIndices().get(0).getName()));
             assertThat(forceMergeRequests.get(3).indices()[0], is(dataStream.getIndices().get(1).getName()));
-        }
-    }
-
-    public void testForceMergeRetriesStopAfterTooManyExceptions() throws Exception {
-        /*
-         * This test makes sure that the DLM_MAX_FORCEMERGE_ERRORS_SETTING works. We create a datastream. Then we'll update the dynamic
-         * max forcemerge errors setting to 2, meaning that it ought to fail after two errors. We'll trigger errors three times. After
-         * the 2nd time we don't expect forcemerge to be called any more.
-         */
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        int numBackingIndices = 2;
-        Metadata.Builder builder = Metadata.builder();
-        DataStream dataStream = createDataStream(
-            builder,
-            dataStreamName,
-            numBackingIndices,
-            settings(Version.CURRENT),
-            new DataLifecycle(TimeValue.MAX_VALUE),
-            now
-        );
-        builder.put(dataStream);
-        builder.persistentSettings(Settings.builder().put(DataLifecycleService.DLM_MAX_FORCEMERGE_ERRORS_SETTING.getKey(), "2").build());
-        String nodeId = "localNode";
-        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
-        // we are the master node
-        nodesBuilder.masterNodeId(nodeId);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
-        setState(clusterService, state);
-        {
-            /*
-             * Now we'll make sure that it fails twice with a failure
-             */
-            AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
-            clientDelegate = (action, request, listener) -> {
-                if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onFailure(new RuntimeException("Forcemerge failure"));
-                    forceMergeFailedCount.incrementAndGet();
-                }
-            };
-            for (int i = 0; i < 2; i++) {
-                dataLifecycleService.run(clusterService.state());
-                /*
-                 * We expect that these force merge failures will count against our error count
-                 */
-                final int loopCount = i;
-                assertBusy(() -> {
-                    assertThat(forceMergeFailedCount.get(), equalTo(loopCount + 1));
-                    assertThat(
-                        clusterService.state()
-                            .metadata()
-                            .index(dataStream.getIndices().get(0))
-                            .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
-                        notNullValue()
-                    );
-                    assertThat(
-                        clusterService.state()
-                            .metadata()
-                            .index(dataStream.getIndices().get(0))
-                            .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
-                            .get(FORCE_MERGE_ERROR_COUNT_METADATA_KEY),
-                        equalTo(Integer.toString(loopCount + 1))
-                    );
-                });
-            }
-        }
-        {
-            /*
-             * At this point we have had two  errors that caused force merging on the index to fail. So now when we
-             * run DLM again, we expect that force merge will not even be called. So the force merge action will not be called, the
-             * FORCE_MERGE_ERROR_COUNT_METADATA_KEY counter will remain at 2, and FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY will remain
-             * null.
-             */
-            clientDelegate = (action, request, listener) -> {
-                if (action.name().equals("indices:admin/forcemerge")) {
-                    fail("Force merge ought to not be called because it has already failed too many times!");
-                }
-            };
-            dataLifecycleService.run(clusterService.state());
-            /*
-             * We expect that DLM will try to pick it up again, but bail out before it actually calls a forcemerge
-             */
-            assertBusy(() -> {
-                assertThat(
-                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
-                    notNullValue()
-                );
-                assertThat(
-                    clusterService.state()
-                        .metadata()
-                        .index(dataStream.getIndices().get(0))
-                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
-                        .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
-                    nullValue()
-                );
-                assertThat(
-                    clusterService.state()
-                        .metadata()
-                        .index(dataStream.getIndices().get(0))
-                        .getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY)
-                        .get(FORCE_MERGE_ERROR_COUNT_METADATA_KEY),
-                    equalTo(Integer.toString(2))
-                );
-            });
         }
     }
 

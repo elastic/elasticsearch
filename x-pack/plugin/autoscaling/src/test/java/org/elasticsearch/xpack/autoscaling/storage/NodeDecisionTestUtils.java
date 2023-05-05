@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -25,7 +25,7 @@ class NodeDecisionTestUtils {
     }
 
     static DiscoveryNode randomDiscoveryNode() {
-        return new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        return TestDiscoveryNode.create(randomAlphaOfLength(6), buildNewFakeTransportAddress(), emptyMap(), emptySet());
     }
 
     static Decision randomDecision() {

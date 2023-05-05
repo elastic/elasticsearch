@@ -27,7 +27,7 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
     private static final String API_KEY_ROLE = """
         {
           "role1": {
-            "cluster": ["cross_cluster_access"],
+            "cluster": ["cross_cluster_search"],
             "index": [
               {
                   "names": ["remote_index2"],
@@ -37,7 +37,7 @@ public class RemoteClusterSecurityWithFlsRestIT extends AbstractRemoteClusterSec
             ]
           },
           "role2": {
-            "cluster": ["cross_cluster_access"],
+            "cluster": ["cross_cluster_search"],
             "index": [
               {
                   "names": ["remote_index2"],

@@ -14,6 +14,9 @@ archivesBaseName = 'x-pack-ent-search'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(':modules:lang-mustache')
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(project(':modules:lang-mustache'))
@@ -21,6 +24,10 @@ dependencies {
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson.*/, to: 'jackson'
 }
 
 addQaCheckDependencies(project)

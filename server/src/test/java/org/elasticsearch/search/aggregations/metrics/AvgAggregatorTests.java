@@ -579,15 +579,10 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        // Directory unmappedDirectory = newDirectory();
-        // RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        // unmappedIndexWriter.close();
-
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        // IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        // MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
@@ -599,10 +594,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertEquals("avg", avg.getName());
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
-        // multiReader.close();
         indexReader.close();
         directory.close();
-        // unmappedDirectory.close();
     }
 
     /**
@@ -618,13 +611,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        // Directory unmappedDirectory = newDirectory();
-        // RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        // unmappedIndexWriter.close();
-
         DirectoryReader indexReader = DirectoryReader.open(directory);
-        // IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        // MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
@@ -649,7 +636,6 @@ public class AvgAggregatorTests extends AggregatorTestCase {
 
         indexReader.close();
         directory.close();
-        // unmappedDirectory.close();
     }
 
     @Override

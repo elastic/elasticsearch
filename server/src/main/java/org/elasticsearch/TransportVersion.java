@@ -174,7 +174,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
-    public static final TransportVersion V_8_500_000 = new TransportVersion(8_500_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
+    public static final TransportVersion V_8_500_000 = registerTransportVersion(8_500_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
 
     static {
         // see comment on IDS field

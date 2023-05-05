@@ -8,6 +8,8 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import org.elasticsearch.geometry.Line;
+
 public class GeometrySimplifierCartesianTriangleAreaTests extends GeometrySimplifierTests {
     private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.CartesianTriangleAreaCalculator();
 
@@ -15,4 +17,10 @@ public class GeometrySimplifierCartesianTriangleAreaTests extends GeometrySimpli
     protected SimplificationErrorCalculator calculator() {
         return calculator;
     }
+
+    protected void assertLineWithNarrowSpikes(Line simplified, int spikeCount) {
+        // The cartesian triangle area destroys most spikes, saving only two
+        assertLineSpikes("Cartesian", simplified, 2);
+    }
+
 }

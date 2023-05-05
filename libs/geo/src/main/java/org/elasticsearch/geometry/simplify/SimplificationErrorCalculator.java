@@ -14,15 +14,16 @@ public interface SimplificationErrorCalculator {
     double calculateError(PointLike left, PointLike middle, PointLike right);
 
     interface PointLike {
-        double getX();
+        double x();
 
-        double getY();
+        double y();
     }
 
     static SimplificationErrorCalculator byName(String calculatorName) {
         return switch (calculatorName.toLowerCase(Locale.ROOT)) {
             case "cartesiantrianglearea" -> new CartesianTriangleAreaCalculator();
             case "trianglearea" -> new TriangleAreaCalculator();
+            case "triangleheight" -> new TriangleHeightCalculator();
             case "frecheterror" -> new FrechetErrorCalculator();
             default -> throw new IllegalArgumentException("Unknown geometry simplification error calculator: " + calculatorName);
         };
@@ -35,10 +36,10 @@ public interface SimplificationErrorCalculator {
 
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {
-            double xb = middle.getX() - left.getX();
-            double yb = middle.getY() - left.getY();
-            double xc = right.getX() - left.getX();
-            double yc = right.getY() - left.getY();
+            double xb = middle.x() - left.x();
+            double yb = middle.y() - left.y();
+            double xc = right.x() - left.x();
+            double yc = right.y() - left.y();
             return 0.5 * Math.abs(xb * yc - xc * yb);
         }
     }
@@ -70,7 +71,39 @@ public interface SimplificationErrorCalculator {
         }
 
         private double distance(PointLike a, PointLike b) {
-            return SloppyMath.haversinMeters(a.getY(), a.getX(), b.getY(), b.getX());
+            return SloppyMath.haversinMeters(a.y(), a.x(), b.y(), b.x());
+        }
+    }
+
+    /**
+     * Calculate the triangle area using geographic coordinates and Herons formula (side lengths)
+     * as described at https://en.wikipedia.org/wiki/Area_of_a_triangle, but scale the area down
+     * by the inverse of the length of the base (left-right), which estimates the height of the triangle.
+     */
+    class TriangleHeightCalculator implements SimplificationErrorCalculator {
+
+        @Override
+        public double calculateError(PointLike left, PointLike middle, PointLike right) {
+            // Calculate side lengths using approximate haversine
+            double a = distance(left, right);
+            double b = distance(right, middle);
+            double c = distance(middle, left);
+            // semi-perimeter
+            double s = 0.5 * (a + b + c);  // Semi-perimeter
+            double da = s - a;
+            double db = s - b;
+            double dc = s - c;
+            if (da >= 0 && db >= 0 && dc >= 0) {
+                // Herons formula, scaled by 1/a
+                return 2.0 * Math.sqrt(s * da * db * dc) / a;
+            } else {
+                // rounding errors can cause flat triangles to have negative values, leading to NaN areas
+                return 0.0;
+            }
+        }
+
+        private double distance(PointLike a, PointLike b) {
+            return SloppyMath.haversinMeters(a.y(), a.x(), b.y(), b.x());
         }
     }
 
@@ -79,15 +112,15 @@ public interface SimplificationErrorCalculator {
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {
             // Offset coordinates so left is at the origin
-            double rightX = right.getX() - left.getX();
-            double rightY = right.getY() - left.getY();
+            double rightX = right.x() - left.x();
+            double rightY = right.y() - left.y();
             if (Math.abs(rightX) > 1e-10 || Math.abs(rightY) > 1e-10) {
                 // Rotate coordinates so that left->right is horizontal
                 double len = Math.sqrt(rightX * rightX + rightY * rightY);
                 double cos = rightX / len;
                 double sin = rightY / len;
-                double middleX = middle.getX() - left.getX();
-                double middleY = middle.getY() - left.getY();
+                double middleX = middle.x() - left.x();
+                double middleY = middle.y() - left.y();
                 double middleXrotated = middleX * cos + middleY * sin;
                 double middleYrotated = middleY * cos - middleX * sin;
                 double rightXrotated = rightX * cos + rightY * sin;

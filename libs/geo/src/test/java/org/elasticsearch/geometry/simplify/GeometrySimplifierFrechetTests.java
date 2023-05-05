@@ -8,11 +8,18 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import org.elasticsearch.geometry.Line;
+
 public class GeometrySimplifierFrechetTests extends GeometrySimplifierTests {
     private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.FrechetErrorCalculator();
 
     @Override
     protected SimplificationErrorCalculator calculator() {
         return calculator;
+    }
+
+    protected void assertLineWithNarrowSpikes(Line simplified, int spikeCount) {
+        // The frechet distance can save all spikes
+        assertLineSpikes("Frechet", simplified, spikeCount);
     }
 }

@@ -67,46 +67,22 @@ public class SimplificationErrorCalculatorTests extends ESTestCase {
         }
     }
 
-    static class TestPoint implements SimplificationErrorCalculator.PointLike {
-        double x;
-        double y;
-
-        TestPoint(double x, double y) {
-            this.x = x;
-            this.y = y;
-        }
+    record TestPoint(double x, double y) implements SimplificationErrorCalculator.PointLike {
 
         private TestPoint rotated(double degrees, TestPoint origin) {
             TestPoint point = new TestPoint(x, y);
-            rotateCCW(degrees, origin, point);
-            return point;
-        }
-
-        @Override
-        public double getX() {
-            return x;
-        }
-
-        @Override
-        public double getY() {
-            return y;
-        }
-
-        @Override
-        public String toString() {
-            return "POINT( " + x + " " + y + " )";
+            return rotateCCW(degrees, origin, point);
         }
     }
 
     /** Note that this rotation is only accurate in cartesian coordinates, take that into account when testing */
-    private static void rotateCCW(double degrees, TestPoint origin, TestPoint point) {
+    private static TestPoint rotateCCW(double degrees, TestPoint origin, TestPoint point) {
         double radians = Math.toRadians(degrees);
         double cos = Math.cos(radians);
         double sin = Math.sin(radians);
         double x = (point.x - origin.x);
         double y = (point.y - origin.y);
-        point.x = origin.x + x * cos - y * sin;
-        point.y = origin.y + x * sin + y * cos;
+        return new TestPoint(origin.x + x * cos - y * sin, origin.y + x * sin + y * cos);
     }
 
     @SuppressWarnings("SameParameterValue")

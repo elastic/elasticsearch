@@ -10,8 +10,8 @@ package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.geometry.Line;
 
-public class GeometrySimplifierTriangleAreaTests extends GeometrySimplifierTests {
-    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.TriangleAreaCalculator();
+public class GeometrySimplifierTriangleHeightTests extends GeometrySimplifierTests {
+    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.TriangleHeightCalculator();
 
     @Override
     protected SimplificationErrorCalculator calculator() {
@@ -19,7 +19,7 @@ public class GeometrySimplifierTriangleAreaTests extends GeometrySimplifierTests
     }
 
     protected void assertLineWithNarrowSpikes(Line simplified, int spikeCount) {
-        // The cartesian triangle area destroys some spikes, saving only four
-        assertLineSpikes("Spherical", simplified, 4);
+        // The scaled triangle area (triangle heights) can save all spikes
+        assertLineSpikes("Triangle heights", simplified, spikeCount);
     }
 }

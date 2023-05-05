@@ -23,13 +23,17 @@ public abstract class GeometrySimplifier<T extends Geometry> {
     protected final int maxPoints;
     protected final SimplificationErrorCalculator calculator;
     protected final PointError[] points;
+    protected final Monitor monitor;
     protected int length;
+    protected String description;
 
     protected final PriorityQueue<PointError> queue = new PriorityQueue<>();
 
-    public GeometrySimplifier(int maxPoints, SimplificationErrorCalculator calculator) {
+    protected GeometrySimplifier(String description, int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+        this.description = description;
         this.maxPoints = maxPoints;
         this.calculator = calculator;
+        this.monitor = monitor;
         this.points = new PointError[maxPoints];
         this.length = 0;
     }
@@ -61,9 +65,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
             // Remove point with lowest error
             PointError toRemove = queue.remove();
             removeAndAdd(toRemove.index, pointError);
+            notifyMonitorPointRemoved(toRemove);
         } else {
             this.points[length] = pointError;
             length++;
+            notifyMonitorPointAdded();
         }
     }
 
@@ -134,14 +140,88 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         }
 
         @Override
-        public double getX() {
+        public double x() {
             return x;
         }
 
         @Override
-        public double getY() {
+        public double y() {
             return y;
         }
+    }
+
+    /**
+     * Implementation of this interface will receive calls with internal data at each step of the
+     * simplification algorithm. This is of use for debugging complex cases, as well as gaining insight
+     * into the way the algorithm works. Data provided in the callback includes:
+     * <ul>
+     *     <li>String description of current process</li>
+     *     <li>List of points in current simplification</li>
+     *     <li>Last point removed from the simplification</li>
+     * </ul>
+     * mode, list of points representing the current linked-list of internal nodes used for
+     * triangulation, and a list of triangles so far created by the algorithm.
+     */
+    public interface Monitor {
+        /** Every time a point is added to the collection, this method sends the resulting state */
+        void pointAdded(String status, List<SimplificationErrorCalculator.PointLike> points);
+
+        /** Every time a point is added and another is removed from the collection, this method sends the resulting state */
+        void pointRemoved(
+            String status,
+            List<SimplificationErrorCalculator.PointLike> points,
+            SimplificationErrorCalculator.PointLike removed,
+            double error,
+            SimplificationErrorCalculator.PointLike previous,
+            SimplificationErrorCalculator.PointLike next
+        );
+
+        /**
+         * When a new simplification or sub-simplification starts, this provides a description of the simplification,
+         * as well as the current maxPoints target for this simplification. For a single simplification, maxPoints
+         * will simply be the value passed to the constructor, but compound simplifications will calculate smaller
+         * numbers for sub-simplifications (eg. holes in polygons, or shells in multi-polygons).
+         */
+        void startSimplification(String description, int maxPoints);
+
+        /**
+         * When simplification or sub-simplification is completed, this is called.
+         */
+        void endSimplification(String description, List<SimplificationErrorCalculator.PointLike> points);
+    }
+
+    protected void notifyMonitorSimplificationStart() {
+        if (monitor != null) {
+            monitor.startSimplification(description, maxPoints);
+        }
+    }
+
+    protected void notifyMonitorSimplificationEnd() {
+        if (monitor != null) {
+            monitor.endSimplification(description, getCurrentPoints());
+        }
+    }
+
+    protected void notifyMonitorPointRemoved(PointError removed) {
+        if (monitor != null) {
+            PointError previous = points[removed.index - 1];
+            PointError next = points[removed.index];
+            monitor.pointRemoved(description + ".addAndRemovePoint()", getCurrentPoints(), removed, removed.error, previous, next);
+        }
+    }
+
+    protected void notifyMonitorPointAdded() {
+        if (monitor != null) {
+            monitor.pointAdded(description + ".addPoint()", getCurrentPoints());
+        }
+    }
+
+    private List<SimplificationErrorCalculator.PointLike> getCurrentPoints() {
+        ArrayList<SimplificationErrorCalculator.PointLike> simplification = new ArrayList<>();
+        for (int i = 0; i < length; i++) {
+            simplification.add(points[i]);
+        }
+        return simplification;
     }
 
     /**
@@ -149,7 +229,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      */
     public static class LineStrings extends GeometrySimplifier<Line> {
         public LineStrings(int maxPoints, SimplificationErrorCalculator calculator) {
-            super(maxPoints, calculator);
+            this(maxPoints, calculator, null);
+        }
+
+        public LineStrings(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("LineString", maxPoints, calculator, monitor);
         }
 
         @Override
@@ -158,9 +242,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 return line;
             }
             reset();
+            notifyMonitorSimplificationStart();
             for (int i = 0; i < line.length(); i++) {
                 consume(line.getX(i), line.getY(i));
             }
+            notifyMonitorSimplificationEnd();
             return produce();
         }
 
@@ -185,7 +271,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      */
     public static class LinearRings extends GeometrySimplifier<LinearRing> {
         public LinearRings(int maxPoints, SimplificationErrorCalculator calculator) {
-            super(maxPoints, calculator);
+            this(maxPoints, calculator, null);
+        }
+
+        public LinearRings(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("LinearRing", maxPoints, calculator, monitor);
             assert maxPoints >= 4;
         }
 
@@ -195,9 +285,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 return ring;
             }
             reset();
+            notifyMonitorSimplificationStart();
             for (int i = 0; i < ring.length(); i++) {
                 consume(ring.getX(i), ring.getY(i));
             }
+            notifyMonitorSimplificationEnd();
             return produce();
         }
 
@@ -221,7 +313,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         ArrayList<GeometrySimplifier<LinearRing>> holeSimplifiers = new ArrayList<>();
 
         public Polygons(int maxPoints, SimplificationErrorCalculator calculator) {
-            super(maxPoints, calculator);
+            this(maxPoints, calculator, null);
+        }
+
+        public Polygons(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("Polygon", maxPoints, calculator, monitor);
         }
 
         @Override
@@ -237,6 +333,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 return geometry;
             }
             reset();
+            notifyMonitorSimplificationStart();
             for (int i = 0; i < ring.length(); i++) {
                 consume(ring.getX(i), ring.getY(i));
             }
@@ -244,10 +341,12 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 LinearRing hole = geometry.getHole(i);
                 double simplificationFactor = (double) maxPoints / ring.length();
                 int maxHolePoints = Math.max(4, (int) (simplificationFactor * hole.length()));
-                LinearRings holeSimplifier = new LinearRings(maxHolePoints, calculator);
+                LinearRings holeSimplifier = new LinearRings(maxHolePoints, calculator, this.monitor);
+                holeSimplifier.description = "Polygon.Hole";
                 holeSimplifiers.add(holeSimplifier);
                 holeSimplifier.simplify(hole);
             }
+            notifyMonitorSimplificationEnd();
             return produce();
         }
 
@@ -267,7 +366,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      * It does not make use of its own simplifier capabilities.
      * The largest inner polygon is simplified to the specified maxPoints, while the rest are simplified
      * to a maxPoints value that is a fraction of their size compared to the largest size.
-     *
+     * <p>
      * Note that this simplifier cannot work in streaming mode.
      * Since a MultiPolygon can contain more than one polygon,
      * the <code>consume(Point)</code> method would not know which polygon to add to.
@@ -279,7 +378,11 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         ArrayList<Integer> indexes = new ArrayList<>();
 
         public MultiPolygons(int maxPoints, SimplificationErrorCalculator calculator) {
-            super(maxPoints, calculator);
+            this(maxPoints, calculator, null);
+        }
+
+        public MultiPolygons(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("MultiPolygon", maxPoints, calculator, monitor);
         }
 
         @Override
@@ -296,11 +399,13 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 Polygon polygon = geometry.get(i);
                 maxPolyLength = Math.max(maxPolyLength, polygon.getPolygon().length());
             }
+            notifyMonitorSimplificationStart();
             for (int i = 0; i < geometry.size(); i++) {
                 Polygon polygon = geometry.get(i);
                 double simplificationFactor = (double) maxPoints / maxPolyLength;
                 int maxPolyPoints = Math.max(4, (int) (simplificationFactor * polygon.getPolygon().length()));
-                Polygons simplifier = new Polygons(maxPolyPoints, calculator);
+                Polygons simplifier = new Polygons(maxPolyPoints, calculator, monitor);
+                simplifier.description = "MultiPolygon.Polygon[" + i + "]";
                 simplifier.simplify(polygon);
                 if (simplifier.length > 0) {
                     // Invalid polygons (all points co-located) will not be simplified
@@ -308,6 +413,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                     indexes.add(i);
                 }
             }
+            notifyMonitorSimplificationEnd();
             return produce();
         }
 

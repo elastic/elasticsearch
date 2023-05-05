@@ -477,7 +477,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return;
         }
 
-        final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
+        final BlockingQueue<ActionRunnable> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
         try (var completionListener = new RefCountingListener(ActionListener.wrap(ignored -> {
@@ -507,7 +507,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                         for (int p = 0; p < file.numberOfParts(); p++) {
                             final int part = p;
                             queue.add(
-                                ActionRunnable.supply(
+                                ActionRunnable.run(
                                     ActionListener.runAfter(fileListener.acquire(), () -> prewarmNext(executor, queue)),
                                     () -> {
                                         ensureOpen();
@@ -529,7 +529,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                                                 timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
                                             )
                                         );
-                                        return null;
                                     }
                                 )
                             );
@@ -550,7 +549,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    private void prewarmNext(final Executor executor, final BlockingQueue<Runnable> queue) {
+    private void prewarmNext(final Executor executor, final BlockingQueue<ActionRunnable> queue) {
         try {
             final Runnable next = queue.poll(0L, TimeUnit.MILLISECONDS);
             if (next != null) {

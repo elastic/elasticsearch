@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import io.netty.channel.Channel;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -1552,10 +1554,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
             randomIntBetween(9200, 9300)
         );
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address);
-        final String expectedMessage = tuple.v1().expectedMessage();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address);
         final RestRequest request = tuple.v2();
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.anonymousAccessDenied(requestId, request.getHttpRequest());
@@ -1651,11 +1652,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
             randomIntBetween(9200, 9300)
         );
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
-        final String expectedMessage = tuple.v1().expectedMessage();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = createAuthenticationToken();
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, authToken, request.getHttpRequest());
@@ -1697,10 +1697,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
             randomIntBetween(9200, 9300)
         );
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
-        final String expectedMessage = tuple.v1().expectedMessage();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final RestRequest request = tuple.v2();
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
 
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, request.getHttpRequest());
@@ -1768,12 +1767,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
             forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
             randomIntBetween(9200, 9300)
         );
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
-        final String expectedMessage = tuple.v1().expectedMessage();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final RestRequest request = tuple.v2();
         final AuthenticationToken authToken = mockToken();
         final String realm = randomAlphaOfLengthBetween(1, 6);
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
         final String requestId = randomRequestId();
         auditTrail.authenticationFailed(requestId, realm, authToken, request.getHttpRequest());
         assertEmptyLog(logger);
@@ -2164,10 +2162,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
             forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
             randomIntBetween(9200, 9300)
         );
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
-        final String expectedMessage = tuple.v1().expectedMessage();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final RestRequest request = tuple.v2();
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
         final String requestId = randomRequestId();
         auditTrail.tamperedRequest(requestId, request.getHttpRequest());
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
@@ -2442,14 +2439,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
             forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1"),
             randomIntBetween(9200, 9300)
         );
-        final Tuple<RestContent, RestRequest> tuple = prepareRestContent("_uri", address, params);
-        final String expectedMessage = tuple.v1().expectedMessage();
+        final Tuple<Channel, RestRequest> tuple = prepareRestContent("_uri", address, params);
         final RestRequest request = tuple.v2();
         String requestId = AuditUtil.generateRequestId(threadContext);
         MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
         Authentication authentication = createAuthentication();
         authentication.writeToContext(threadContext);
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
 
         // event by default disabled
         auditTrail.authenticationSuccess(request);
@@ -2467,8 +2463,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
+        if (includeRequestBody && Strings.hasLength(request.content())) {
+            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar&evac=true");
@@ -2486,7 +2482,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         authentication = createApiKeyAuthenticationAndMaybeWithRunAs(authentication);
         authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
         auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -2496,8 +2492,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
+        if (includeRequestBody && Strings.hasLength(request.content())) {
+            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.getHttpRequest().content().utf8ToString());
         }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar&evac=true");
@@ -2515,7 +2511,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         authentication = AuthenticationTestHelper.builder().realm().build(false).runAs(new User(randomAlphaOfLengthBetween(3, 8)), null);
         authentication.writeToContext(threadContext);
         checkedFields = new MapBuilder<>(commonFields);
-        RemoteHostHeader.process(request, threadContext);
+        RemoteHostHeader.process(tuple.v1(), threadContext);
         auditTrail.authenticationSuccess(request);
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_success")
@@ -2525,8 +2521,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.REQUEST_METHOD_FIELD_NAME, request.method().toString())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId)
             .put(LoggingAuditTrail.URL_PATH_FIELD_NAME, "_uri");
-        if (includeRequestBody && Strings.hasLength(expectedMessage)) {
-            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, expectedMessage);
+        if (includeRequestBody && Strings.hasLength(request.content().utf8ToString())) {
+            checkedFields.put(LoggingAuditTrail.REQUEST_BODY_FIELD_NAME, request.content().utf8ToString());
         }
         if (params.isEmpty() == false) {
             checkedFields.put(LoggingAuditTrail.URL_QUERY_FIELD_NAME, "foo=bar&evac=true");
@@ -2828,11 +2824,11 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat("Logger is not empty", CapturingLogger.isEmpty(logger.getName()), is(true));
     }
 
-    protected Tuple<RestContent, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress) {
+    protected Tuple<Channel, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress) {
         return prepareRestContent(uri, remoteAddress, Collections.emptyMap());
     }
 
-    private Tuple<RestContent, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress, Map<String, String> params) {
+    private Tuple<Channel, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress, Map<String, String> params) {
         final RestContent content = randomFrom(RestContent.values());
         final FakeRestRequest.Builder builder = new Builder(NamedXContentRegistry.EMPTY);
         if (content.hasContent()) {
@@ -2853,7 +2849,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         builder.withRemoteAddress(remoteAddress);
         builder.withParams(params);
         builder.withMethod(randomFrom(RestRequest.Method.values()));
-        return new Tuple<>(content, builder.build());
+        Channel channel = mock(Channel.class);
+        when(channel.remoteAddress()).thenReturn(remoteAddress);
+        return new Tuple<>(channel, builder.build());
     }
 
     /** creates address without any lookups. hostname can be null, for missing */
@@ -2923,7 +2921,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 }
             }
             if (randomBoolean()) {
-                RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                Channel mockChannel = mock(Channel.class);
+                when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                RemoteHostHeader.process(mockChannel, threadContext);
             }
         }
 
@@ -2942,7 +2942,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 remoteAddress(buildNewFakeTransportAddress().address());
             }
             if (randomBoolean()) {
-                RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                Channel mockChannel = mock(Channel.class);
+                when(mockChannel.remoteAddress()).thenReturn(new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
+                RemoteHostHeader.process(mockChannel, threadContext);
             }
         }
 

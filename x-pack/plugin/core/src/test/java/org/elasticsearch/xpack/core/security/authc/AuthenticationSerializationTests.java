@@ -86,7 +86,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersion.V_7_17_0,
-            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
+            TransportVersionUtils.getPreviousVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)
         );
         out.setTransportVersion(version);
 
@@ -96,7 +96,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
                         + "] can't handle cross cluster access authentication and attempted to send to ["
                         + out.getTransportVersion()
                         + "]"

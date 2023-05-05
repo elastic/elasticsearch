@@ -1,0 +1,6 @@
+pr: 95752
+summary: Use `LongSupplier` in `AllocationService` for nano time
+area: Distributed
+type: enhancement
+issues:
+ - 89382

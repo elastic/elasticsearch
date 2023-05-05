@@ -41,8 +41,8 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String searchAppName = restRequest.param("name");
         Request request;
-        if (restRequest.hasContent()) {
-            request = Request.fromXContent(searchAppName, restRequest.contentParser());
+        if (restRequest.hasContentOrSourceParam()) {
+            request = Request.fromXContent(searchAppName, restRequest.contentOrSourceParamParser());
         } else {
             request = new Request(searchAppName);
         }

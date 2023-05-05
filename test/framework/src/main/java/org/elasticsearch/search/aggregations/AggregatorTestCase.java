@@ -36,6 +36,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -874,19 +875,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
     protected static IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
-        return new ContextIndexSearcher(
-            indexReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            randomBoolean()
-        );
-        // if (randomBoolean()) {
-        // // this executes basic query checks and asserts that weights are normalized only once etc.
-        // return new AssertingIndexSearcher(random(), indexReader);
-        // } else {
-        // return new IndexSearcher(indexReader);
-        // }
+         if (randomBoolean()) {
+         // this executes basic query checks and asserts that weights are normalized only once etc.
+         return new AssertingIndexSearcher(random(), indexReader);
+         } else {
+         return new IndexSearcher(indexReader);
+         }
     }
 
     /**

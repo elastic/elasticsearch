@@ -42,7 +42,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     private static final Logger logger = LogManager.getLogger(ProfilingIndexManager.class);
-    private static final Map<String, String> INDICES_AND_ALIASES;
+    // For testing
+    public static final Map<String, String> INDICES_AND_ALIASES;
 
     static {
         String versionSuffix = "-v" + ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
@@ -59,8 +60,8 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
         // TODO: Update these to the new K/V strategy after all readers have been adjusted
         String[] kvIndices = new String[] { "profiling-executables", "profiling-stackframes", "profiling-stacktraces" };
         for (String idx : kvIndices) {
-            indicesAndAliases.put(idx + "-000001", idx);
-            indicesAndAliases.put(idx + "-000002", idx + "-next");
+            indicesAndAliases.put(idx + versionSuffix + "-000001", idx);
+            indicesAndAliases.put(idx + versionSuffix + "-000002", idx + "-next");
         }
         INDICES_AND_ALIASES = Collections.unmodifiableMap(indicesAndAliases);
     }
@@ -103,12 +104,16 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
         }
 
         // ensure that index templates are present
-        if (ProfilingIndexTemplateRegistry.isAllTemplatesCreated(event.state()) == false) {
+        if (isAllTemplatesCreated(event) == false) {
             logger.trace("Skipping index creation; not all templates are present yet");
             return;
         }
 
         addIndicesIfMissing(event.state());
+    }
+
+    protected boolean isAllTemplatesCreated(ClusterChangedEvent event) {
+        return ProfilingIndexTemplateRegistry.isAllTemplatesCreated(event.state());
     }
 
     private void addIndicesIfMissing(ClusterState state) {

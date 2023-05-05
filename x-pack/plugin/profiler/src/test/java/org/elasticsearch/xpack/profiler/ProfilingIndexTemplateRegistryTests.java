@@ -26,11 +26,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -236,40 +234,6 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             policyMap.put(policies.get(0).getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
-        }
-    }
-
-    /**
-     * A client that delegates to a verifying function for action/request/listener
-     */
-    public static class VerifyingClient extends NoOpClient {
-
-        private TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier = (a, r, l) -> {
-            fail("verifier not set");
-            return null;
-        };
-
-        VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            try {
-                listener.onResponse((Response) verifier.apply(action, request, listener));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        }
-
-        public VerifyingClient setVerifier(TriFunction<ActionType<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier) {
-            this.verifier = verifier;
-            return this;
         }
     }
 

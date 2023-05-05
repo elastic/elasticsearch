@@ -468,22 +468,19 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     private void prewarmCache(ActionListener<Void> listener) {
-        if (prewarmCache == false) {
+        try (var completionListener = new RefCountingListener(listener.map(v -> {
             recoveryState.setPreWarmComplete();
-            listener.onResponse(null);
-            return;
-        }
+            return v;
+        }))) {
+            if (prewarmCache == false) {
+                return;
+            }
+            var prewarmTaskRunner = new ThrottledTaskRunner(
+                "prewarm_task_runner" + shardId,
+                threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getMax(),
+                prewarmExecutor()
+            );
 
-        var prewarmTaskRunner = new ThrottledTaskRunner(
-            "prewarm_task_runner" + shardId,
-            threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getMax(),
-            prewarmExecutor()
-        );
-
-        try (var completionListener = new RefCountingListener(ActionListener.wrap(ignored -> {
-            recoveryState.setPreWarmComplete();
-            listener.onResponse(null);
-        }, listener::onFailure))) {
             for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
                 boolean hashEqualsContents = file.metadata().hashEqualsContents();
                 if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {

@@ -125,7 +125,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
               "name": "cross_cluster_access_key",
               "role_descriptors": {
                 "role": {
-                  "cluster": ["cross_cluster_access"],
+                  "cluster": ["cross_cluster_search"],
                   "index": [
                     {
                       "names": ["*"],

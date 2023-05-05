@@ -103,13 +103,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
-                            "master",
-                            buildNewFakeTransportAddress(),
-                            Map.of(),
-                            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                            Version.CURRENT
-                        )
+                        TestDiscoveryNode.create("master", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNodeRole.MASTER_ROLE))
                     )
                     .localNodeId("master")
                     .masterNodeId("master")

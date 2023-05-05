@@ -46,7 +46,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -180,8 +179,6 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
-
-    private final SetOnce<ReplicationTracker.Factory> replicationTrackerFactory = new SetOnce<>();
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -392,11 +389,6 @@ public final class IndexModule {
         this.indexCommitListener.set(Objects.requireNonNull(listener));
     }
 
-    public void setReplicationTrackerFactory(ReplicationTracker.Factory factory) {
-        ensureNotFrozen();
-        this.replicationTrackerFactory.set(factory);
-    }
-
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -545,8 +537,7 @@ public final class IndexModule {
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
-                indexCommitListener.get(),
-                Objects.requireNonNullElse(replicationTrackerFactory.get(), ReplicationTracker.DEFAULT_FACTORY)
+                indexCommitListener.get()
             );
             success = true;
             return indexService;

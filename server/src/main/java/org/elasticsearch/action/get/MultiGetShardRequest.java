@@ -26,8 +26,8 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     private boolean realtime;
     private boolean refresh;
 
-    List<Integer> locations;
-    List<MultiGetRequest.Item> items;
+    public List<Integer> locations;
+    public List<MultiGetRequest.Item> items;
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
@@ -37,7 +37,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
      */
     private final boolean forceSyntheticSource;
 
-    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
+    public MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
         super(index);
         this.shardId = shardId;
         locations = new ArrayList<>();
@@ -142,7 +142,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         return forceSyntheticSource;
     }
 
-    void add(int location, MultiGetRequest.Item item) {
+    public void add(int location, MultiGetRequest.Item item) {
         this.locations.add(location);
         this.items.add(item);
     }

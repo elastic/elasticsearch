@@ -9,8 +9,14 @@ package org.elasticsearch.xpack.profiler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.MultiGetShardRequest;
+import org.elasticsearch.action.get.MultiGetShardResponse;
+import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,8 +30,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
@@ -37,6 +45,7 @@ import org.elasticsearch.xcontent.ObjectPath;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -138,7 +147,11 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
             indices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, pattern);
         } else {
             pattern = index;
-            indices = new Index[] { new Index(index, "<empty>") };
+            // There should be only one index
+            indices = resolver.concreteIndices(clusterState, IndicesOptions.STRICT_EXPAND_OPEN, pattern);
+            if (indices.length != 1) {
+                throw new IllegalArgumentException("[" + pattern + "] resolves to [" + indices.length + "] indices instead of 1.");
+            }
         }
         log.info(
             "resolving aliases of ["
@@ -222,14 +235,119 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         );
         for (Index index : indices) {
             for (List<String> slice : slicedEventIds) {
-                client.prepareMultiGet()
-                    .setRealtime(realtime)
-                    .addIds(index.getName(), slice)
-                    .execute(
-                        new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
-                    );
+                executeMget(
+                    responseBuilder,
+                    client,
+                    clusterState,
+                    index,
+                    slice,
+                    new ThreadedActionListener<>(responseExecutor, ActionListener.wrap(handler::onResponse, submitListener::onFailure))
+                );
             }
         }
+    }
+
+    private void executeMget(
+        GetProfilingResponseBuilder responseBuilder,
+        Client client,
+        ClusterState clusterState,
+        Index index,
+        List<String> slice,
+        ActionListener<MultiGetResponse> listener
+    ) {
+        if (responseBuilder.isResolveAliases()) {
+            executeMgetInternal(clusterState, index, slice, listener);
+        } else {
+            client.prepareMultiGet().setRealtime(realtime).addIds(index.getName(), slice).execute(listener);
+        }
+    }
+
+    private void executeMgetInternal(
+        ClusterState clusterState,
+        Index index,
+        List<String> slice,
+        ActionListener<MultiGetResponse> listener
+    ) {
+        final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<>(slice.size());
+        final Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<>();
+        // empty request to pass to shard request
+        final MultiGetRequest request = new MultiGetRequest();
+        int i = 0;
+        for (String id : slice) {
+            ShardId shardId;
+            MultiGetRequest.Item item = new MultiGetRequest.Item(index.getName(), id);
+            request.add(item);
+            try {
+                item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
+                shardId = clusterService.operationRouting()
+                    .getShards(clusterState, index.getName(), item.id(), item.routing(), null)
+                    .shardId();
+            } catch (RoutingMissingException e) {
+                // order does not matter
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
+            } catch (Exception e) {
+                responses.set(i, newItemFailure(item.index(), item.id(), e));
+                continue;
+            }
+
+            MultiGetShardRequest shardRequest = shardRequests.get(shardId);
+            if (shardRequest == null) {
+                shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.getId());
+                shardRequests.put(shardId, shardRequest);
+            }
+            shardRequest.add(i, item);
+            i++;
+        }
+
+        if (shardRequests.isEmpty()) {
+            // only failures..
+            listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+        }
+        executeShardAction(listener, responses, shardRequests);
+    }
+
+    protected void executeShardAction(
+        ActionListener<MultiGetResponse> listener,
+        AtomicArray<MultiGetItemResponse> responses,
+        Map<ShardId, MultiGetShardRequest> shardRequests
+    ) {
+        final AtomicInteger counter = new AtomicInteger(shardRequests.size());
+
+        for (final MultiGetShardRequest shardRequest : shardRequests.values()) {
+            this.nodeClient.executeLocally(TransportShardMultiGetAction.TYPE, shardRequest, new DelegatingActionListener<>(listener) {
+                @Override
+                public void onResponse(MultiGetShardResponse response) {
+                    for (int i = 0; i < response.locations.size(); i++) {
+                        MultiGetItemResponse itemResponse = new MultiGetItemResponse(response.responses.get(i), response.failures.get(i));
+                        responses.set(response.locations.get(i), itemResponse);
+                    }
+                    if (counter.decrementAndGet() == 0) {
+                        finishHim();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // create failures for all relevant requests
+                    for (int i = 0; i < shardRequest.locations.size(); i++) {
+                        MultiGetRequest.Item item = shardRequest.items.get(i);
+                        responses.set(shardRequest.locations.get(i), newItemFailure(shardRequest.index(), item.id(), e));
+                    }
+                    if (counter.decrementAndGet() == 0) {
+                        finishHim();
+                    }
+                }
+
+                private void finishHim() {
+                    delegate.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
+                }
+            });
+        }
+    }
+
+    private static MultiGetItemResponse newItemFailure(String index, String id, Exception exception) {
+        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, id, exception));
     }
 
     // package private for testing
@@ -292,6 +410,8 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                             executableIds.addAll(stacktrace.fileIds);
                         }
                     }
+                } else if (trace.isFailed()) {
+                    log.error("retrieving stack trace failed", trace.getFailure().getFailure());
                 }
             }
             if (this.remainingSlices.decrementAndGet() == 0) {
@@ -339,15 +459,17 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         } else {
             for (Index stackFrameIndex : stackFrameIndices) {
                 for (List<String> slice : slicedStackFrameIds) {
-                    client.prepareMultiGet()
-                        .addIds(stackFrameIndex.getName(), slice)
-                        .setRealtime(realtime)
-                        .execute(
-                            new ThreadedActionListener<>(
-                                responseExecutor,
-                                ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure)
-                            )
-                        );
+                    executeMget(
+                        responseBuilder,
+                        client,
+                        clusterState,
+                        stackFrameIndex,
+                        slice,
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onStackFramesResponse, submitListener::onFailure)
+                        )
+                    );
                 }
             }
         }
@@ -357,15 +479,17 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
         } else {
             for (Index executableIndex : executableIndices) {
                 for (List<String> slice : slicedExecutableIds) {
-                    client.prepareMultiGet()
-                        .addIds(executableIndex.getName(), slice)
-                        .setRealtime(realtime)
-                        .execute(
-                            new ThreadedActionListener<>(
-                                responseExecutor,
-                                ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure)
-                            )
-                        );
+                    executeMget(
+                        responseBuilder,
+                        client,
+                        clusterState,
+                        executableIndex,
+                        slice,
+                        new ThreadedActionListener<>(
+                            responseExecutor,
+                            ActionListener.wrap(handler::onExecutableDetailsResponse, submitListener::onFailure)
+                        )
+                    );
                 }
             }
         }

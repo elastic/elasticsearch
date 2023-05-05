@@ -18,9 +18,9 @@ import java.util.List;
 
 public class MultiGetShardResponse extends ActionResponse {
 
-    final List<Integer> locations;
-    final List<GetResponse> responses;
-    final List<MultiGetResponse.Failure> failures;
+    public final List<Integer> locations;
+    public final List<GetResponse> responses;
+    public final List<MultiGetResponse.Failure> failures;
 
     MultiGetShardResponse() {
         locations = new ArrayList<>();

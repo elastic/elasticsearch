@@ -15,7 +15,9 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,10 +55,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -302,9 +302,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
 
             @Override
-            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+            public BytesReference onCompareAndExchange(
+                AtomicReference<BytesReference> register,
+                BytesReference expected,
+                BytesReference updated
+            ) {
                 if (registerWasCorrupted.compareAndSet(false, true)) {
-                    register.incrementAndGet();
+                    register.updateAndGet(bytes -> RegisterAnalyzeAction.bytesFromLong(RegisterAnalyzeAction.longFromBytes(bytes) + 1));
                 }
                 return register.compareAndExchange(expected, updated);
             }
@@ -319,19 +323,24 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
         blobStore.setDisruption(new Disruption() {
             @Override
-            public long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+            public BytesReference onCompareAndExchange(
+                AtomicReference<BytesReference> register,
+                BytesReference expected,
+                BytesReference updated
+            ) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
-                    if (register.get() == expectedMax) {
-                        return randomFrom(
-                            randomLongBetween(0L, expectedMax - 1),
-                            randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
-                            randomLongBetween(Long.MIN_VALUE, -1)
+                    final var currentValue = RegisterAnalyzeAction.longFromBytes(register.get());
+                    if (currentValue == expectedMax) {
+                        return RegisterAnalyzeAction.bytesFromLong(
+                            randomFrom(
+                                randomLongBetween(0L, expectedMax - 1),
+                                randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
+                                randomLongBetween(Long.MIN_VALUE, -1)
+                            )
                         );
                     } else {
-                        return randomFrom(
-                            expectedMax,
-                            randomLongBetween(expectedMax, Long.MAX_VALUE),
-                            randomLongBetween(Long.MIN_VALUE, -1)
+                        return RegisterAnalyzeAction.bytesFromLong(
+                            randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1))
                         );
                     }
                 }
@@ -454,7 +463,11 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default long onCompareAndExchange(AtomicLong register, long expected, long updated) {
+        default BytesReference onCompareAndExchange(
+            AtomicReference<BytesReference> register,
+            BytesReference expected,
+            BytesReference updated
+        ) {
             return register.compareAndExchange(expected, updated);
         }
     }
@@ -465,7 +478,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final Consumer<DisruptableBlobContainer> deleteContainer;
         private final Disruption disruption;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
-        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, AtomicReference<BytesReference>> registers = ConcurrentCollections.newConcurrentMap();
 
         DisruptableBlobContainer(BlobPath path, Consumer<DisruptableBlobContainer> deleteContainer, Disruption disruption) {
             this.path = path;
@@ -598,9 +611,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
-            final var register = registers.computeIfAbsent(key, ignored -> new AtomicLong());
-            listener.onResponse(OptionalLong.of(disruption.onCompareAndExchange(register, expected, updated)));
+        public void compareAndExchangeRegister(
+            String key,
+            BytesReference expected,
+            BytesReference updated,
+            ActionListener<OptionalBytesReference> listener
+        ) {
+            final var register = registers.computeIfAbsent(key, ignored -> new AtomicReference<>(BytesArray.EMPTY));
+            listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
         }
     }
 

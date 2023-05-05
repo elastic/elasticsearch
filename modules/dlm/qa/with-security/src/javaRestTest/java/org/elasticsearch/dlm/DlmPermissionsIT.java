@@ -56,7 +56,7 @@ public class DlmPermissionsIT extends ESRestTestCase {
         final List<Map<String, Object>> nodes = ObjectPath.createFromResponse(dataStreamResponse).evaluate("data_streams");
         String index = (String) ((List<Map<String, Object>>) nodes.get(0).get("indices")).get(0).get("index_name");
 
-        Request explainLifecycleRequest = new Request("POST", "/" + index + "/_lifecycle/explain");
+        Request explainLifecycleRequest = new Request("GET", "/" + index + "/_lifecycle/explain");
         Request getLifecycleRequest = new Request("GET", "_data_stream/" + dataStreamName + "/_lifecycle");
         Request deleteLifecycleRequest = new Request("DELETE", "_data_stream/" + dataStreamName + "/_lifecycle");
         Request putLifecycleRequest = new Request("PUT", "_data_stream/" + dataStreamName + "/_lifecycle");

@@ -727,3 +727,4 @@ org/elasticsearch/xpack/sql/plugin/SqlStatsResponse
 org/elasticsearch/xpack/sql/plugin/SqlStatsResponse$NodeStatsResponse
 org/elasticsearch/xpack/sql/session/EmptyCursor
 org/elasticsearch/xpack/watcher/notification/NotificationService$1
+org/elasticsearch/http/HttpStats

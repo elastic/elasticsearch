@@ -35,6 +35,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.dlm.dataperiods.DataPeriod;
+import org.elasticsearch.dlm.dataperiods.DefaultDataPeriods;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -79,6 +81,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
     private volatile RolloverConfiguration rolloverConfiguration;
+    private volatile DefaultDataPeriods defaultDataPeriods;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
 
@@ -101,6 +104,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
+        this.defaultDataPeriods = clusterService.getClusterSettings().get(DefaultDataPeriods.DLM_DEFAULT_DATA_PERIOD_SETTING);
     }
 
     /**
@@ -111,6 +115,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DLM_POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING, this::updateRolloverConfiguration);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DefaultDataPeriods.DLM_DEFAULT_DATA_PERIOD_SETTING, newValue -> defaultDataPeriods = newValue);
     }
 
     @Override
@@ -228,7 +234,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     private void maybeExecuteRetention(ClusterState state, DataStream dataStream) {
-        TimeValue retention = getRetentionConfiguration(dataStream);
+        TimeValue retention = getRetentionConfiguration(dataStream, defaultDataPeriods);
         if (retention != null) {
             Metadata metadata = state.metadata();
             List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
@@ -331,10 +337,20 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         });
     }
 
+    /**
+     * The retention period is retrieved either by the lifecycle of the data stream or by the default configuration.
+     */
     @Nullable
-    static TimeValue getRetentionConfiguration(DataStream dataStream) {
+    static TimeValue getRetentionConfiguration(DataStream dataStream, DefaultDataPeriods defaultDataPeriods) {
         if (dataStream.getLifecycle() == null) {
             return null;
+        }
+        if (dataStream.getLifecycle().getDataRetention() == null) {
+            for (DataPeriod dataPeriod : defaultDataPeriods.getDataPeriods()) {
+                if (dataPeriod.match(dataStream.getName())) {
+                    return dataPeriod.retention();
+                }
+            }
         }
         return dataStream.getLifecycle().getDataRetention();
     }

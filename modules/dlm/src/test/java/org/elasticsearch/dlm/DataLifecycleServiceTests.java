@@ -34,6 +34,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.dlm.dataperiods.DataPeriod;
+import org.elasticsearch.dlm.dataperiods.DefaultDataPeriods;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -77,6 +79,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.add(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+        builtInClusterSettings.add(DefaultDataPeriods.DLM_DEFAULT_DATA_PERIOD_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, builtInClusterSettings);
         clusterService = createClusterService(threadPool, clusterSettings);
 
@@ -352,6 +355,44 @@ public class DataLifecycleServiceTests extends ESTestCase {
                 TimeValue.timeValueDays(1)
             );
             assertThat(rolloverRequestWithRetention.getConditions(), equalTo(randomConcreteRolloverConditions));
+        }
+    }
+
+    public void testDefaultRetention() {
+        {
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(
+                builder,
+                "has-retention",
+                1,
+                settings(Version.CURRENT),
+                new DataLifecycle(TimeValue.timeValueDays(10)),
+                now
+            );
+            TimeValue retentionPeriod = DataLifecycleService.getRetentionConfiguration(
+                dataStream,
+                new DefaultDataPeriods(List.of(new DataPeriod("has-retention*", null, TimeValue.timeValueDays(1), 1)))
+            );
+            assertThat(retentionPeriod, equalTo(TimeValue.timeValueDays(10)));
+        }
+
+        {
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(builder, "has-no-retention", 1, settings(Version.CURRENT), new DataLifecycle(), now);
+            TimeValue retentionPeriod = DataLifecycleService.getRetentionConfiguration(
+                dataStream,
+                new DefaultDataPeriods(List.of(new DataPeriod("has-retention*", null, TimeValue.timeValueDays(1), 1)))
+            );
+            assertThat(retentionPeriod, nullValue());
+        }
+        {
+            Metadata.Builder builder = Metadata.builder();
+            DataStream dataStream = createDataStream(builder, "has-no-retention", 1, settings(Version.CURRENT), new DataLifecycle(), now);
+            TimeValue retentionPeriod = DataLifecycleService.getRetentionConfiguration(
+                dataStream,
+                new DefaultDataPeriods(List.of(new DataPeriod("*", null, TimeValue.timeValueDays(1), 1)))
+            );
+            assertThat(retentionPeriod, equalTo(TimeValue.timeValueDays(1)));
         }
     }
 

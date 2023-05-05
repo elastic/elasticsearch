@@ -474,41 +474,31 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof SnapshotInProgressException) {
-                    logger.info(
-                        "DLM was unable to force merge index [{}] because it's currently being snapshotted. "
-                            + "Retrying on the next DLM run",
-                        targetIndex
+                int failuresNotCountingThisOne = getCurrentNumberOfForceMergeFailures(clusterService.state().metadata().index(targetIndex));
+                int failures = failuresNotCountingThisOne + 1;
+                if (failures >= maxForcemergeErrors) {
+                    logger.error(
+                        () -> Strings.format(
+                            "DLM encountered an error trying to force merge index [%s]. There have now been %d failures "
+                                + "trying to force merge this index. DLM will not attempt to force merge the index again.",
+                            targetIndex,
+                            failures
+                        ),
+                        e
                     );
-                } else {
-                    int failuresNotCountingThisOne = getCurrentNumberOfForceMergeFailures(
-                        clusterService.state().metadata().index(targetIndex)
-                    );
-                    int failures = failuresNotCountingThisOne + 1;
-                    if (failures >= maxForcemergeErrors) {
-                        logger.error(
-                            () -> Strings.format(
-                                "DLM encountered an error trying to force merge index [%s]. There have now been %d failures "
-                                    + "trying to force merge this index. DLM will not attempt to force merge the index again.",
-                                targetIndex,
-                                failures
-                            ),
-                            e
-                        );
 
-                    } else {
-                        logger.warn(
-                            () -> Strings.format(
-                                "DLM encountered an error trying to force merge index [%s]. There have now been %d failures "
-                                    + "trying to force merge this index. DLM will attempt to force merge the index on its next run.",
-                                targetIndex,
-                                failures
-                            ),
-                            e
-                        );
-                    }
-                    recordForceMergeFailure(targetIndex);
+                } else {
+                    logger.warn(
+                        () -> Strings.format(
+                            "DLM encountered an error trying to force merge index [%s]. There have now been %d failures "
+                                + "trying to force merge this index. DLM will attempt to force merge the index on its next run.",
+                            targetIndex,
+                            failures
+                        ),
+                        e
+                    );
                 }
+                recordForceMergeFailure(targetIndex);
                 listener.onFailure(e);
             }
         });

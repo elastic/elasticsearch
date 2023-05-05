@@ -19,8 +19,7 @@ import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.StepListener;
-import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -483,74 +482,58 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final CountDownActionListener completionListener = new CountDownActionListener(
-            snapshot().totalFileCount(),
-            ActionListener.wrap(ignored -> {
-                recoveryState.setPreWarmComplete();
-                listener.onResponse(null);
-            }, listener::onFailure)
-        );
-
-        for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
-            boolean hashEqualsContents = file.metadata().hashEqualsContents();
-            if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {
-                if (hashEqualsContents) {
-                    recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), true);
-                } else {
-                    recoveryState.ignoreFile(file.physicalName());
+        try (var completionListener = new RefCountingListener(ActionListener.wrap(ignored -> {
+            recoveryState.setPreWarmComplete();
+            listener.onResponse(null);
+        }, listener::onFailure))) {
+            for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
+                boolean hashEqualsContents = file.metadata().hashEqualsContents();
+                if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {
+                    if (hashEqualsContents) {
+                        recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), true);
+                    } else {
+                        recoveryState.ignoreFile(file.physicalName());
+                    }
+                    continue;
                 }
-                completionListener.onResponse(null);
-                continue;
-            }
-            recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
-            boolean submitted = false;
-            try {
-                final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
-                assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
+                recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
+                try {
+                    final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
+                    assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
 
-                final int numberOfParts = file.numberOfParts();
-                final StepListener<Void> fileCompletionListener = new StepListener<>();
-                fileCompletionListener.addListener(completionListener);
-                fileCompletionListener.whenComplete(ignored -> {
-                    logger.debug("{} file [{}] prewarmed", shardId, file.physicalName());
-                    input.close();
-                }, e -> {
-                    logger.warn(() -> format("%s prewarming failed for file [%s]", shardId, file.physicalName()), e);
-                    IOUtils.closeWhileHandlingException(input);
-                });
+                    try (
+                        var fileListener = new RefCountingListener(
+                            ActionListener.runBefore(completionListener.acquire(), () -> IOUtils.closeWhileHandlingException(input))
+                        )
+                    ) {
+                        for (int p = 0; p < file.numberOfParts(); p++) {
+                            final int part = p;
+                            queue.add(Tuple.tuple(fileListener.acquire(), () -> {
+                                ensureOpen();
 
-                final CountDownActionListener partsListener = new CountDownActionListener(numberOfParts, fileCompletionListener);
-                submitted = true;
-                for (int p = 0; p < numberOfParts; p++) {
-                    final int part = p;
-                    queue.add(Tuple.tuple(partsListener, () -> {
-                        ensureOpen();
+                                final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                                final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                                if (persistentCacheLength == file.length()) {
+                                    recoveryState.markIndexFileAsReused(file.physicalName());
+                                } else {
+                                    recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.partBytes(part));
+                                }
 
-                        logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
-                        final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
-                        if (persistentCacheLength == file.length()) {
-                            recoveryState.markIndexFileAsReused(file.physicalName());
-                        } else {
-                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.partBytes(part));
+                                logger.trace(
+                                    () -> format(
+                                        "%s part [%s/%s] of [%s] warmed in [%s] ms",
+                                        shardId,
+                                        part + 1,
+                                        file.numberOfParts(),
+                                        file.physicalName(),
+                                        timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                                    )
+                                );
+                            }));
                         }
-
-                        logger.trace(
-                            () -> format(
-                                "%s part [%s/%s] of [%s] warmed in [%s] ms",
-                                shardId,
-                                part + 1,
-                                numberOfParts,
-                                file.physicalName(),
-                                timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                            )
-                        );
-                    }));
-                }
-            } catch (Exception e) {
-                logger.warn(() -> format("%s unable to prewarm file [%s]", shardId, file.physicalName()), e);
-                if (submitted == false) {
-                    completionListener.onFailure(e);
+                    }
+                } catch (Exception e) {
+                    logger.warn(() -> format("%s unable to prewarm file [%s]", shardId, file.physicalName()), e);
                 }
             }
         }

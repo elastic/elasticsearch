@@ -266,7 +266,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 indicesToExclude.add(currentWriteIndex);
                 indicesToExclude.add(originalWriteIndex); // Could be the same as currentWriteIndex, but that's fine
                 indicesToExclude.addAll(indicesBeingRemoved);
-                maybeExecuteForceMerge(state, dataStream, indicesToExclude);
+                List<Index> potentialForceMergeIndices = dataStream.getIndices()
+                    .stream()
+                    .filter(index -> indicesToExclude.contains(index) == false)
+                    .toList();
+                maybeExecuteForceMerge(state, dataStream, potentialForceMergeIndices);
             } catch (Exception e) {
                 logger.error(
                     () -> String.format(Locale.ROOT, "DLM failed to execute force merge for data stream [%s]", dataStream.getName()),
@@ -344,14 +348,13 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /*
-     * This method force merges any indices in the datastream that are not in the indicesToExclude set and that have not be force merged
-     * previously. Before force merging, it writes custom metadata as a marker in the cluster state so that we know a force merge is in
+     * This method force merges the given indices in the datastream that that have not been force merged previously. Before force
+     * merging, it writes custom metadata as a marker in the cluster state so that we know a force merge is in
      * process. And it writes another marker in the cluster state upon completion of the force merge.
      */
-    private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, Set<Index> indicesToExclude) {
-        List<Index> readOnlyIndices = dataStream.getIndices().stream().filter(index -> indicesToExclude.contains(index) == false).toList();
+    private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
         Metadata metadata = state.metadata();
-        for (Index index : readOnlyIndices) {
+        for (Index index : indices) {
             if (dataStream.isIndexManagedByDLM(index, state.metadata()::index)) {
                 IndexMetadata backingIndex = metadata.index(index);
                 assert backingIndex != null : "the data stream backing indices must exist";
@@ -359,20 +362,20 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 boolean alreadyForceMerged = isForceMergeComplete(backingIndex);
                 if (alreadyForceMerged) {
                     logger.trace("Already force merged {}", indexName);
+                    continue;
                 }
                 boolean maxErrorsExceeded = getCurrentNumberOfForceMergeFailures(backingIndex) >= maxForcemergeErrors;
                 if (maxErrorsExceeded) {
                     logger.trace("Already failed force merging {} too many times", indexName);
+                    continue;
                 }
-                if (alreadyForceMerged == false && maxErrorsExceeded == false) {
-                    ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
-                    // time to force merge the index
-                    transportActionsDeduplicator.executeOnce(
-                        new ForceMergeRequestWrapper(forceMergeRequest),
-                        new ErrorRecordingActionListener(indexName, errorStore),
-                        (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
-                    );
-                }
+                ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+                // time to force merge the index
+                transportActionsDeduplicator.executeOnce(
+                    new ForceMergeRequestWrapper(forceMergeRequest),
+                    new ErrorRecordingActionListener(indexName, errorStore),
+                    (req, reqListener) -> forceMergeIndex(forceMergeRequest, reqListener)
+                );
             }
         }
     }

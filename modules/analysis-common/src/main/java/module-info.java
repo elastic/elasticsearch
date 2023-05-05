@@ -12,7 +12,6 @@ module org.elasticsearch.analysis.common {
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.base;
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;

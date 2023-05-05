@@ -337,6 +337,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
             for (int i = 0; i < ring.length(); i++) {
                 consume(ring.getX(i), ring.getY(i));
             }
+            notifyMonitorSimplificationEnd();
             for (int i = 0; i < geometry.getNumberOfHoles(); i++) {
                 LinearRing hole = geometry.getHole(i);
                 double simplificationFactor = (double) maxPoints / ring.length();
@@ -346,7 +347,6 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 holeSimplifiers.add(holeSimplifier);
                 holeSimplifier.simplify(hole);
             }
-            notifyMonitorSimplificationEnd();
             return produce();
         }
 

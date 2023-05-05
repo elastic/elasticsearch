@@ -8,6 +8,9 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 
 public interface SimplificationErrorCalculator {
@@ -19,14 +22,41 @@ public interface SimplificationErrorCalculator {
         double y();
     }
 
+    class Registry {
+        static ArrayList<String> names = new ArrayList<>();
+        static HashMap<String, SimplificationErrorCalculator> map = new HashMap<>();
+
+        static {
+            add("cartesiantrianglearea", new CartesianTriangleAreaCalculator());
+            add("trianglearea", new TriangleAreaCalculator());
+            add("triangleheight", new TriangleHeightCalculator());
+            add("frecheterror", new FrechetErrorCalculator());
+        }
+
+        static void add(String name, SimplificationErrorCalculator calculator) {
+            String key = name.toLowerCase(Locale.ROOT);
+            if (map.containsKey(key)) {
+                throw new IllegalArgumentException("Duplicate calculator name key: " + key);
+            }
+            map.put(key, calculator);
+            names.add(key);
+        }
+
+        static SimplificationErrorCalculator get(String calculatorName) {
+            SimplificationErrorCalculator calculator = map.get(calculatorName.toLowerCase(Locale.ROOT));
+            if (calculator == null) {
+                throw new IllegalArgumentException("Unknown geometry simplification error calculator: " + calculatorName);
+            }
+            return calculator;
+        }
+    }
+
+    static List<String> names() {
+        return Registry.names;
+    }
+
     static SimplificationErrorCalculator byName(String calculatorName) {
-        return switch (calculatorName.toLowerCase(Locale.ROOT)) {
-            case "cartesiantrianglearea" -> new CartesianTriangleAreaCalculator();
-            case "trianglearea" -> new TriangleAreaCalculator();
-            case "triangleheight" -> new TriangleHeightCalculator();
-            case "frecheterror" -> new FrechetErrorCalculator();
-            default -> throw new IllegalArgumentException("Unknown geometry simplification error calculator: " + calculatorName);
-        };
+        return Registry.get(calculatorName);
     }
 
     /**

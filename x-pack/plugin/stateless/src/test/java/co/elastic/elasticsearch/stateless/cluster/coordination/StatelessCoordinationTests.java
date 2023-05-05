@@ -94,23 +94,17 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
 
                 @Override
                 public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
-                    disruptibleRegisterConnection.runDisrupted(
-                        listener,
-                        l -> termLeaseContainer.compareAndExchangeRegister(key, expected, updated, l)
-                    );
+                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.compareAndExchangeRegister(key, expected, updated, l));
                 }
 
                 @Override
                 public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
-                    disruptibleRegisterConnection.runDisrupted(
-                        listener,
-                        l -> termLeaseContainer.compareAndSetRegister(key, expected, updated, l)
-                    );
+                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.compareAndSetRegister(key, expected, updated, l));
                 }
 
                 @Override
                 public void getRegister(String key, ActionListener<OptionalLong> listener) {
-                    disruptibleRegisterConnection.runDisrupted(listener, l -> termLeaseContainer.getRegister(key, l));
+                    disruptibleRegisterConnection.runDisrupted(listener, l -> super.getRegister(key, l));
                 }
             }, threadPool) {
                 @Override

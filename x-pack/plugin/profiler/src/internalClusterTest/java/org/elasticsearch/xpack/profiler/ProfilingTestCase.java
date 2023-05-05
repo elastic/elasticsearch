@@ -91,7 +91,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             // simple check whether at least one of the indices is present
             assertTrue(
                 "Timed out waiting for the indices to be created",
-                state.metadata().indices().containsKey("profiling-stackframes-000002")
+                state.metadata().indices().keySet().containsAll(ProfilingIndexManager.INDICES_AND_ALIASES.keySet())
             );
         });
     }

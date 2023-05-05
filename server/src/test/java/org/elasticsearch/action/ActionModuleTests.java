@@ -133,11 +133,11 @@ public class ActionModuleTests extends ESTestCase {
 
                 @Override
                 public List<Route> routes() {
-                    return List.of(new Route(GET, "/"));
+                    return List.of(new Route(GET, "/_nodes"));
                 }
             })
         );
-        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
@@ -183,7 +183,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
-            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
             threadPool.shutdown();
         }

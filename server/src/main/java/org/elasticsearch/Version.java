@@ -334,7 +334,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @Deprecated(forRemoval = true)
     public org.apache.lucene.util.Version luceneVersion() {
-        return indexVersion.luceneVersion;
+        return indexVersion.luceneVersion();
     }
 
     /*

@@ -24,7 +24,7 @@ public class HumanReadableIndexSettingsTests extends ESTestCase {
         IndexVersion versionCreated = randomVersion(random()).indexVersion;
         long created = System.currentTimeMillis();
         Settings testSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, versionCreated.id())
             .put(IndexMetadata.SETTING_CREATION_DATE, created)
             .build();
 

@@ -340,7 +340,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final Setting<IndexVersion> SETTING_INDEX_VERSION_CREATED = new Setting<>(
         SETTING_VERSION_CREATED,
-        Integer.toString(IndexVersion.ZERO.id),
+        Integer.toString(IndexVersion.ZERO.id()),
         s -> IndexVersion.fromId(Integer.parseInt(s)),
         Property.IndexScope,
         Property.PrivateIndex

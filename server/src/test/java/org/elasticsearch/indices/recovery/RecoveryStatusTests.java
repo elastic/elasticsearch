@@ -22,7 +22,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
-    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion;
+    private static final org.apache.lucene.util.Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");

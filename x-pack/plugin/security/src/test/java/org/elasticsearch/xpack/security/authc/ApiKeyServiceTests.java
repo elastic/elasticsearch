@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
@@ -2122,8 +2123,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testCreateCrossClusterApiKeyMinVersionConstraint() {
         final Authentication authentication = AuthenticationTestHelper.builder().build();
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
-        createApiKeyRequest.setType(ApiKey.Type.CROSS_CLUSTER);
+        final AbstractCreateApiKeyRequest request = mock(AbstractCreateApiKeyRequest.class);
+        when(request.getType()).thenReturn(ApiKey.Type.CROSS_CLUSTER);
 
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
@@ -2149,7 +2150,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
-        service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
+        service.createApiKey(authentication, request, Set.of(), future);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
 
         assertThat(

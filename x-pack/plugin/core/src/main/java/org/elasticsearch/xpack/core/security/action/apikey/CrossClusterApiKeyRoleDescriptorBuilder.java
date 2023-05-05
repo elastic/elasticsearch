@@ -59,6 +59,8 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
     ) {
         this.search = search == null ? List.of() : search;
         this.replication = replication == null ? List.of() : replication;
+        assert this.search.stream().allMatch(p -> Arrays.equals(p.getPrivileges(), CCS_INDICES_PRIVILEGE_NAMES));
+        assert this.replication.stream().allMatch(p -> Arrays.equals(p.getPrivileges(), CCR_INDICES_PRIVILEGE_NAMES));
     }
 
     public RoleDescriptor build() {

@@ -57,7 +57,7 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
             }""", args);
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
-        final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
+        final CreateApiKeyRequest request = new CreateRestApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
         final List<RoleDescriptor> actualRoleDescriptors = request.getRoleDescriptors();
         assertThat(request.getName(), equalTo("my-api-key"));
         assertThat(actualRoleDescriptors.size(), is(2));
@@ -90,7 +90,7 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
             + "}";
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
-        final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
+        final CreateApiKeyRequest request = new CreateRestApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
         final List<RoleDescriptor> actualRoleDescriptors = request.getRoleDescriptors();
         assertThat(request.getName(), equalTo("my-api-key"));
         assertThat(actualRoleDescriptors.size(), is(0));

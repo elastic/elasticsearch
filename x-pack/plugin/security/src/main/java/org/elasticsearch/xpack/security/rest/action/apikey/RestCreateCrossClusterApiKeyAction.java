@@ -15,9 +15,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 
 import java.io.IOException;
@@ -34,10 +33,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
-        "cross_cluster_api_key_request_payload",
+    static final ConstructingObjectParser<CreateCrossClusterApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "cross_cluster_api_key_request",
         false,
-        (args, v) -> new Payload(
+        (args, v) -> new CreateCrossClusterApiKeyRequest(
             (String) args[0],
             (CrossClusterApiKeyRoleDescriptorBuilder) args[1],
             TimeValue.parseTimeValue((String) args[2], null, "expiration"),
@@ -73,30 +72,11 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final Payload payload = PARSER.parse(request.contentParser(), null);
-
-        final CreateApiKeyRequest createApiKeyRequest = payload.toRequest();
+        final CreateCrossClusterApiKeyRequest createCrossClusterApiKeyRequest = PARSER.parse(request.contentParser(), null);
         return channel -> client.execute(
             CreateCrossClusterApiKeyAction.INSTANCE,
-            createApiKeyRequest,
+            createCrossClusterApiKeyRequest,
             new RestToXContentListener<>(channel)
         );
-    }
-
-    record Payload(
-        String name,
-        CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
-        TimeValue expiration,
-        Map<String, Object> metadata
-    ) {
-        public CreateApiKeyRequest toRequest() {
-            final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest();
-            createApiKeyRequest.setType(ApiKey.Type.CROSS_CLUSTER);
-            createApiKeyRequest.setName(name);
-            createApiKeyRequest.setExpiration(expiration);
-            createApiKeyRequest.setMetadata(metadata);
-            createApiKeyRequest.setRoleDescriptors(List.of(roleDescriptorBuilder.build()));
-            return createApiKeyRequest;
-        }
     }
 }

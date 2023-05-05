@@ -30,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Request builder for populating a {@link CreateApiKeyRequest}
  */
-public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
+public final class CreateRestApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -56,36 +56,36 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
     }
 
-    public CreateApiKeyRequestBuilder(ElasticsearchClient client) {
+    public CreateRestApiKeyRequestBuilder(ElasticsearchClient client) {
         super(client, CreateApiKeyAction.INSTANCE, new CreateApiKeyRequest());
     }
 
-    public CreateApiKeyRequestBuilder setName(String name) {
+    public CreateRestApiKeyRequestBuilder setName(String name) {
         request.setName(name);
         return this;
     }
 
-    public CreateApiKeyRequestBuilder setExpiration(TimeValue expiration) {
+    public CreateRestApiKeyRequestBuilder setExpiration(TimeValue expiration) {
         request.setExpiration(expiration);
         return this;
     }
 
-    public CreateApiKeyRequestBuilder setRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
+    public CreateRestApiKeyRequestBuilder setRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
         request.setRoleDescriptors(roleDescriptors);
         return this;
     }
 
-    public CreateApiKeyRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+    public CreateRestApiKeyRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         request.setRefreshPolicy(refreshPolicy);
         return this;
     }
 
-    public CreateApiKeyRequestBuilder setMetadata(Map<String, Object> metadata) {
+    public CreateRestApiKeyRequestBuilder setMetadata(Map<String, Object> metadata) {
         request.setMetadata(metadata);
         return this;
     }
 
-    public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
+    public CreateRestApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (
             InputStream stream = source.streamInput();
@@ -96,7 +96,6 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
             setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
             setExpiration(createApiKeyRequest.getExpiration());
             setMetadata(createApiKeyRequest.getMetadata());
-
         }
         return this;
     }

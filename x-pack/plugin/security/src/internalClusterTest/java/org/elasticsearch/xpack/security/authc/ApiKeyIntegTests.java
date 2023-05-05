@@ -59,8 +59,8 @@ import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateRestApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -260,7 +260,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("test key")
+        final CreateApiKeyResponse response = new CreateRestApiKeyRequestBuilder(client).setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
             .setRoleDescriptors(Collections.singletonList(descriptor))
             .setMetadata(ApiKeyTests.randomMetadata())
@@ -277,7 +277,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(getApiKeyDocument(response.getId()).get("type"), equalTo("rest"));
 
         // create simple api key
-        final CreateApiKeyResponse simple = new CreateApiKeyRequestBuilder(client).setName("simple").get();
+        final CreateApiKeyResponse simple = new CreateRestApiKeyRequestBuilder(client).setName("simple").get();
         assertEquals("simple", simple.getName());
         assertNotNull(simple.getId());
         assertNotNull(simple.getKey());
@@ -315,7 +315,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Client client = client().filterWithHeader(
                 Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
             );
-            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName)
+            final CreateApiKeyResponse response = new CreateRestApiKeyRequestBuilder(client).setName(keyName)
                 .setExpiration(null)
                 .setRoleDescriptors(Collections.singletonList(descriptor))
                 .setMetadata(ApiKeyTests.randomMetadata())
@@ -337,7 +337,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> new CreateApiKeyRequestBuilder(client).get()
+            () -> new CreateRestApiKeyRequestBuilder(client).get()
         );
         assertThat(e.getMessage(), containsString("api key name is required"));
     }
@@ -1593,7 +1593,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("key-1")
+        final CreateApiKeyResponse response = new CreateRestApiKeyRequestBuilder(client).setName("key-1")
             .setRoleDescriptors(
                 Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_api_key", "manage_token" }, null, null))
             )
@@ -1623,19 +1623,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-2").setMetadata(ApiKeyTests.randomMetadata()).get()
+            () -> new CreateRestApiKeyRequestBuilder(clientKey1).setName("key-2").setMetadata(ApiKeyTests.randomMetadata()).get()
         );
         assertThat(e1.getMessage(), containsString(expectedMessage));
 
         final IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-3").setRoleDescriptors(Collections.emptyList()).get()
+            () -> new CreateRestApiKeyRequestBuilder(clientKey1).setName("key-3").setRoleDescriptors(Collections.emptyList()).get()
         );
         assertThat(e2.getMessage(), containsString(expectedMessage));
 
         final IllegalArgumentException e3 = expectThrows(
             IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-4")
+            () -> new CreateRestApiKeyRequestBuilder(clientKey1).setName("key-4")
                 .setMetadata(ApiKeyTests.randomMetadata())
                 .setRoleDescriptors(
                     Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null))
@@ -1652,14 +1652,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final IllegalArgumentException e4 = expectThrows(
             IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-5")
+            () -> new CreateRestApiKeyRequestBuilder(clientKey1).setName("key-5")
                 .setMetadata(ApiKeyTests.randomMetadata())
                 .setRoleDescriptors(roleDescriptors)
                 .get()
         );
         assertThat(e4.getMessage(), containsString(expectedMessage));
 
-        final CreateApiKeyResponse key100Response = new CreateApiKeyRequestBuilder(clientKey1).setName("key-100")
+        final CreateApiKeyResponse key100Response = new CreateRestApiKeyRequestBuilder(clientKey1).setName("key-100")
             .setMetadata(ApiKeyTests.randomMetadata())
             .setRoleDescriptors(Collections.singletonList(new RoleDescriptor("role", null, null, null)))
             .get();
@@ -1692,7 +1692,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Client client = client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
-        final CreateApiKeyResponse response1 = new CreateApiKeyRequestBuilder(client).setName("run-as-key")
+        final CreateApiKeyResponse response1 = new CreateRestApiKeyRequestBuilder(client).setName("run-as-key")
             .setRoleDescriptors(List.of(descriptor))
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
@@ -1700,7 +1700,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((response1.getId() + ":" + response1.getKey()).getBytes(StandardCharsets.UTF_8));
 
-        final CreateApiKeyResponse response2 = new CreateApiKeyRequestBuilder(
+        final CreateApiKeyResponse response2 = new CreateRestApiKeyRequestBuilder(
             client().filterWithHeader(
                 Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER)
             )
@@ -1728,7 +1728,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
-        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client).setName("auth only key")
+        final CreateApiKeyResponse createApiKeyResponse = new CreateRestApiKeyRequestBuilder(client).setName("auth only key")
             .setRoleDescriptors(Collections.singletonList(descriptor))
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
@@ -2845,7 +2845,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
         );
 
-        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client).setName("test key")
+        final CreateApiKeyResponse createApiKeyResponse = new CreateRestApiKeyRequestBuilder(client).setName("test key")
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
         final String docId = createApiKeyResponse.getId();
@@ -3082,7 +3082,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Client client = client().filterWithHeader(headers);
             final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
             metadatas.add(metadata);
-            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(
+            final CreateApiKeyResponse response = new CreateRestApiKeyRequestBuilder(client).setName(
                 namePrefix + randomAlphaOfLengthBetween(5, 9) + i
             )
                 .setExpiration(expiration)

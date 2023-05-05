@@ -17,8 +17,8 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.mockito.ArgumentCaptor;
 
@@ -53,14 +53,16 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
         final NodeClient client = mock(NodeClient.class);
         action.handleRequest(restRequest, mock(RestChannel.class), client);
 
-        final ArgumentCaptor<CreateApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(CreateApiKeyRequest.class);
+        final ArgumentCaptor<CreateCrossClusterApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(
+            CreateCrossClusterApiKeyRequest.class
+        );
         verify(client).execute(eq(CreateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
 
-        final CreateApiKeyRequest createApiKeyRequest = requestCaptor.getValue();
-        assertThat(createApiKeyRequest.getType(), is(ApiKey.Type.CROSS_CLUSTER));
-        assertThat(createApiKeyRequest.getName(), equalTo("my-key"));
+        final CreateCrossClusterApiKeyRequest request = requestCaptor.getValue();
+        assertThat(request.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(request.getName(), equalTo("my-key"));
         assertThat(
-            createApiKeyRequest.getRoleDescriptors(),
+            request.getRoleDescriptors(),
             equalTo(
                 List.of(
                     new RoleDescriptor(
@@ -76,6 +78,6 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
                 )
             )
         );
-        assertThat(createApiKeyRequest.getMetadata(), nullValue());
+        assertThat(request.getMetadata(), nullValue());
     }
 }

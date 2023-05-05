@@ -14,10 +14,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
@@ -26,7 +25,9 @@ import java.util.Set;
 /**
  * Implementation of the action needed to create an API key
  */
-public final class TransportCreateCrossClusterApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
+public final class TransportCreateCrossClusterApiKeyAction extends HandledTransportAction<
+    CreateCrossClusterApiKeyRequest,
+    CreateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
@@ -38,14 +39,13 @@ public final class TransportCreateCrossClusterApiKeyAction extends HandledTransp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(CreateCrossClusterApiKeyAction.NAME, transportService, actionFilters, CreateApiKeyRequest::new);
+        super(CreateCrossClusterApiKeyAction.NAME, transportService, actionFilters, CreateCrossClusterApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }
 
     @Override
-    protected void doExecute(Task task, CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
-        assert request.getType() == ApiKey.Type.CROSS_CLUSTER;
+    protected void doExecute(Task task, CreateCrossClusterApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));

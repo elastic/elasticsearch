@@ -661,6 +661,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         final boolean allowRemoteClusters,
         final String[] predefinedPrivileges
     ) throws IOException {
+        assert predefinedPrivileges == null || predefinedPrivileges.length != 0;
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException(

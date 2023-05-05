@@ -23,8 +23,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateRestApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
@@ -485,7 +485,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(username, password))
         );
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("test key")
+        final CreateApiKeyResponse response = new CreateRestApiKeyRequestBuilder(client).setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
             .get();
         assertNotNull(response);

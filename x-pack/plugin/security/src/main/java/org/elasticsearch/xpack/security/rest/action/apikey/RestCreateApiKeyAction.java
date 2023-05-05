@@ -16,7 +16,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateRestApiKeyRequestBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +52,7 @@ public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String refresh = request.param("refresh");
-        CreateApiKeyRequestBuilder builder = new CreateApiKeyRequestBuilder(client).source(
+        CreateRestApiKeyRequestBuilder builder = new CreateRestApiKeyRequestBuilder(client).source(
             request.requiredContent(),
             request.getXContentType()
         )

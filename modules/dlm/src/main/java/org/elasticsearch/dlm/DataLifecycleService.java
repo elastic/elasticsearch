@@ -458,15 +458,19 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(
-                    () -> Strings.format(
-                        "DLM encountered an error trying to force merge index [%s]. DLM will attempt to force merge the index on its "
-                            + "next run.",
-                        targetIndex
-                    ),
-                    e
-                );
+                String previousError = errorStore.getError(targetIndex);
                 listener.onFailure(e);
+                // To avoid spamming our logs, we only want to log the error once.
+                if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
+                    logger.error(
+                        () -> Strings.format(
+                            "DLM encountered an error trying to force merge index [%s]. DLM will attempt to force merge the index on its "
+                                + "next run.",
+                            targetIndex
+                        ),
+                        e
+                    );
+                }
             }
         });
     }

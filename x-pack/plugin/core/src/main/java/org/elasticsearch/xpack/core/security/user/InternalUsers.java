@@ -35,20 +35,12 @@ public class InternalUsers {
         INTERNAL_USERS.put(user.principal(), user);
     }
 
-    public static boolean isInternal(User user) {
-        return user != null && INTERNAL_USERS.get(user.principal()) == user;
-    }
-
     public static InternalUser getUser(String username) {
         final var instance = INTERNAL_USERS.get(username);
         if (instance == null) {
             throw new IllegalStateException("user [" + username + "] is not internal");
         }
         return instance;
-    }
-
-    public static String getInternalUserName(User user) {
-        return findInternalUser(user).principal();
     }
 
     public static RoleDescriptor getRoleDescriptor(User user) {

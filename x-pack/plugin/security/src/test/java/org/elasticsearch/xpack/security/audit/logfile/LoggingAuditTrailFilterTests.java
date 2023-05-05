@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
-import org.elasticsearch.xpack.core.security.user.InternalUsers;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -2871,7 +2871,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     private static Authentication createAuthentication(User effectiveUser, @Nullable User authenticatingUser, String effectiveRealmName) {
-        assert false == InternalUsers.isInternal(effectiveUser);
+        assert false == effectiveUser instanceof InternalUser;
         if (authenticatingUser != null) {
             return AuthenticationTestHelper.builder()
                 .user(authenticatingUser)

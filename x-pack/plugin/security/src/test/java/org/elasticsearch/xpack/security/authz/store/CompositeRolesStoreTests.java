@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -1742,7 +1743,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().privileges(), empty());
         assertThat(role.indices(), is(IndicesPermission.NONE));
 
-        final User internalUser = InternalUsers.getUser(roleName);
+        final InternalUser internalUser = InternalUsers.getUser(roleName);
         assertThat(internalUser, notNullValue());
         if (InternalUsers.getRoleDescriptors().containsKey(internalUser.principal())) {
             Role internalRole = compositeRolesStore.getInternalUserRole(internalUser);

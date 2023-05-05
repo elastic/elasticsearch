@@ -149,6 +149,7 @@ public class User implements ToXContentObject {
 
     /** Write the given {@link User} */
     public static void writeUser(User user, StreamOutput output) throws IOException {
+        // TODO : reject `InternalUser`
         output.writeBoolean(false); // not a system user
         output.writeString(user.username);
         output.writeStringArray(user.roles);

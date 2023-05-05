@@ -69,7 +69,6 @@ public class LocalClusterSpec implements ClusterSpec {
     public static class LocalNodeSpec {
         private final LocalClusterSpec cluster;
         private final String name;
-        private final Version version;
         private final List<SettingsProvider> settingsProviders;
         private final Map<String, String> settings;
         private final List<EnvironmentProvider> environmentProviders;
@@ -78,10 +77,13 @@ public class LocalClusterSpec implements ClusterSpec {
         private final Set<String> plugins;
         private final DistributionType distributionType;
         private final Set<FeatureFlag> features;
+        private final List<SettingsProvider> keystoreProviders;
         private final Map<String, String> keystoreSettings;
+        private final Map<String, Resource> keystoreFiles;
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
         private final Map<String, String> systemProperties;
+        private Version version;
 
         public LocalNodeSpec(
             LocalClusterSpec cluster,
@@ -95,7 +97,9 @@ public class LocalClusterSpec implements ClusterSpec {
             Set<String> plugins,
             DistributionType distributionType,
             Set<FeatureFlag> features,
+            List<SettingsProvider> keystoreProviders,
             Map<String, String> keystoreSettings,
+            Map<String, Resource> keystoreFiles,
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
             Map<String, String> systemProperties
@@ -111,10 +115,16 @@ public class LocalClusterSpec implements ClusterSpec {
             this.plugins = plugins;
             this.distributionType = distributionType;
             this.features = features;
+            this.keystoreProviders = keystoreProviders;
             this.keystoreSettings = keystoreSettings;
+            this.keystoreFiles = keystoreFiles;
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
             this.systemProperties = systemProperties;
+        }
+
+        void setVersion(Version version) {
+            this.version = version;
         }
 
         public LocalClusterSpec getCluster() {
@@ -153,8 +163,8 @@ public class LocalClusterSpec implements ClusterSpec {
             return features;
         }
 
-        public Map<String, String> getKeystoreSettings() {
-            return keystoreSettings;
+        public Map<String, Resource> getKeystoreFiles() {
+            return keystoreFiles;
         }
 
         public String getKeystorePassword() {
@@ -188,7 +198,7 @@ public class LocalClusterSpec implements ClusterSpec {
         public String getSetting(String setting, String defaultValue) {
             Map<String, String> allSettings = new HashMap<>();
             allSettings.putAll(resolveSettings());
-            allSettings.putAll(keystoreSettings);
+            allSettings.putAll(resolveKeystore());
 
             return allSettings.getOrDefault(setting, defaultValue);
         }
@@ -206,9 +216,27 @@ public class LocalClusterSpec implements ClusterSpec {
          */
         public Map<String, String> resolveSettings() {
             Map<String, String> resolvedSettings = new HashMap<>();
-            settingsProviders.forEach(p -> resolvedSettings.putAll(p.get(getFilteredSpec(p))));
+            settingsProviders.forEach(p -> resolvedSettings.putAll(p.get(getFilteredSpec(p, null))));
             resolvedSettings.putAll(settings);
             return resolvedSettings;
+        }
+
+        /**
+         * Resolve secure keystore settings. Order of precedence is as follows:
+         * <ol>
+         *     <li>Keystore from cluster configured {@link SettingsProvider}</li>
+         *     <li>Keystore from node configured {@link SettingsProvider}</li>
+         *     <li>Explicit cluster secure settings</li>
+         *     <li>Explicit node secure settings</li>
+         * </ol>
+         *
+         * @return resolved settings for node
+         */
+        public Map<String, String> resolveKeystore() {
+            Map<String, String> resolvedKeystore = new HashMap<>();
+            keystoreProviders.forEach(p -> resolvedKeystore.putAll(p.get(getFilteredSpec(null, p))));
+            resolvedKeystore.putAll(keystoreSettings);
+            return resolvedKeystore;
         }
 
         /**
@@ -230,13 +258,14 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         /**
-         * Returns a new {@link LocalNodeSpec} without the given {@link SettingsProvider}. This is needed when resolving settings from a
+         * Returns a new {@link LocalNodeSpec} without the given {@link SettingsProvider}s. This is needed when resolving settings from a
          * settings provider to avoid infinite recursion.
          *
          * @param filteredProvider the provider to omit from the new node spec
+         * @param filteredKeystoreProvider the keystore provider to omit from the new node spec
          * @return a new local node spec
          */
-        private LocalNodeSpec getFilteredSpec(SettingsProvider filteredProvider) {
+        private LocalNodeSpec getFilteredSpec(SettingsProvider filteredProvider, SettingsProvider filteredKeystoreProvider) {
             LocalClusterSpec newCluster = new LocalClusterSpec(cluster.name, cluster.users, cluster.roleFiles);
 
             List<LocalNodeSpec> nodeSpecs = cluster.nodes.stream()
@@ -253,7 +282,9 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.plugins,
                         n.distributionType,
                         n.features,
+                        n.keystoreProviders.stream().filter(s -> s != filteredKeystoreProvider).toList(),
                         n.keystoreSettings,
+                        n.keystoreFiles,
                         n.keystorePassword,
                         n.extraConfigFiles,
                         n.systemProperties

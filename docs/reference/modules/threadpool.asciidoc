@@ -43,8 +43,10 @@ There are several thread pools, but the important ones include:
 
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
-    keep-alive of `5m` and a max of `min(5, (`<<node.processors,
-    `# of allocated processors`>>`) / 2)`.
+    keep-alive of `5m`. On nodes with at least 750MB of heap the maximum size
+    of this pool is `10` by default. On nodes with less than 750MB of heap the
+    maximum size of this pool is `min(5, (`<<node.processors,
+    `# of allocated processors`>>`) / 2)` by default.
 
 `snapshot_meta`::
     For snapshot repository metadata read operations. Thread pool type is `scaling` with a

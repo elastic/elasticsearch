@@ -150,7 +150,13 @@ public class InferenceProcessor extends AbstractProcessor {
             fields.put(INGEST_KEY, ingestDocument.getIngestMetadata());
         }
         LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-        return new InferModelAction.Request(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+        return new InferModelAction.Request(
+            modelId,
+            List.of(fields),
+            inferenceConfig,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST,
+            previouslyLicensed
+        );
     }
 
     void auditWarningAboutLicenseIfNecessary() {

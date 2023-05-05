@@ -14,7 +14,7 @@ import org.elasticsearch.test.cluster.ClusterHandle;
 import org.elasticsearch.test.cluster.local.LocalClusterFactory.Node;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.ExceptionUtils;
-import org.elasticsearch.test.cluster.util.Retry;
+import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -66,7 +65,7 @@ public class LocalClusterHandle implements ClusterHandle {
     public void start() {
         if (started.getAndSet(true) == false) {
             LOGGER.info("Starting Elasticsearch test cluster '{}'", name);
-            execute(() -> nodes.parallelStream().forEach(Node::start));
+            execute(() -> nodes.parallelStream().forEach(n -> n.start(null)));
         }
         waitUntilReady();
     }
@@ -75,11 +74,10 @@ public class LocalClusterHandle implements ClusterHandle {
     public void stop(boolean forcibly) {
         if (started.getAndSet(false)) {
             LOGGER.info("Stopping Elasticsearch test cluster '{}', forcibly: {}", name, forcibly);
-            execute(() -> nodes.forEach(n -> n.stop(forcibly)));
-            deletePortFiles();
+            execute(() -> nodes.parallelStream().forEach(n -> n.stop(forcibly)));
         } else {
             // Make sure the process is stopped, otherwise wait
-            execute(() -> nodes.forEach(n -> n.waitForExit()));
+            execute(() -> nodes.parallelStream().forEach(Node::waitForExit));
         }
     }
 
@@ -128,16 +126,31 @@ public class LocalClusterHandle implements ClusterHandle {
         return getTransportEndpoints().split(",")[index];
     }
 
+    @Override
+    public void upgradeNodeToVersion(int index, Version version) {
+        Node node = nodes.get(index);
+        node.stop(false);
+        LOGGER.info("Upgrading node '{}' to version {}", node.getSpec().getName(), version);
+        node.start(version);
+        waitUntilReady();
+    }
+
+    @Override
+    public void upgradeToVersion(Version version) {
+        stop(false);
+        if (started.getAndSet(true) == false) {
+            LOGGER.info("Upgrading Elasticsearch test cluster '{}' to version {}", name, version);
+            execute(() -> nodes.parallelStream().forEach(n -> n.start(version)));
+        }
+        waitUntilReady();
+    }
+
     private void waitUntilReady() {
         writeUnicastHostsFile();
         try {
-            Retry.retryUntilTrue(CLUSTER_UP_TIMEOUT, Duration.ZERO, () -> {
-                WaitForHttpResource wait = configureWaitForReady();
-                return wait.wait(500);
-            });
-        } catch (TimeoutException e) {
-            throw new RuntimeException("Timed out after " + CLUSTER_UP_TIMEOUT + " waiting for cluster '" + name + "' status to be yellow");
-        } catch (ExecutionException e) {
+            WaitForHttpResource wait = configureWaitForReady();
+            wait.waitFor(CLUSTER_UP_TIMEOUT.toMillis());
+        } catch (Exception e) {
             throw new RuntimeException("An error occurred while checking cluster '" + name + "' status.", e);
         }
     }
@@ -191,7 +204,7 @@ public class LocalClusterHandle implements ClusterHandle {
 
     private void writeUnicastHostsFile() {
         String transportUris = execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining("\n")));
-        nodes.forEach(node -> {
+        execute(() -> nodes.parallelStream().forEach(node -> {
             try {
                 Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
                 if (Files.notExists(hostsFile)) {
@@ -200,23 +213,7 @@ public class LocalClusterHandle implements ClusterHandle {
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
             }
-        });
-    }
-
-    private void deletePortFiles() {
-        nodes.forEach(node -> {
-            try {
-                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
-                Path httpPortsFile = node.getWorkingDir().resolve("logs").resolve("http.ports");
-                Path tranportPortsFile = node.getWorkingDir().resolve("logs").resolve("transport.ports");
-
-                Files.deleteIfExists(hostsFile);
-                Files.deleteIfExists(httpPortsFile);
-                Files.deleteIfExists(tranportPortsFile);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to write unicast_hosts for: " + node, e);
-            }
-        });
+        }));
     }
 
     private <T> T execute(Callable<T> task) {

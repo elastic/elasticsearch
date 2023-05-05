@@ -93,6 +93,7 @@ POST _aliases
 You can use the aliases API to perform multiple actions in a single atomic
 operation.
 
+// tag::alias-multiple-actions-example[]
 For example, the `logs` alias points to a single data stream. The following
 request swaps the stream for the alias. During this swap, the `logs` alias has
 no downtime and never points to both streams at the same time.
@@ -118,6 +119,7 @@ POST _aliases
 }
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT _data_stream\/logs-my_app-default\n/]
+// end::alias-multiple-actions-example[]
 
 [discrete]
 [[add-alias-at-creation]]

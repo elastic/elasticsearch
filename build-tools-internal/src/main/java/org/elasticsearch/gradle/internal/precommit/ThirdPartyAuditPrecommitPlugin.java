@@ -17,6 +17,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.io.File;
 import java.nio.file.Path;
 
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
@@ -61,7 +62,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
             }));
             t.dependsOn(resourcesTask);
             if (BuildParams.getIsRuntimeJavaHomeSet()) {
-                t.setJavaHome(BuildParams.getRuntimeJavaHome().getPath());
+                t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
             }
             t.getTargetCompatibility().set(project.provider(BuildParams::getRuntimeJavaVersion));
             t.setSignatureFile(resourcesDir.resolve("forbidden/third-party-audit.txt").toFile());

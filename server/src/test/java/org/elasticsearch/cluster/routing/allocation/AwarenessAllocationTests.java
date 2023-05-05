@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -932,15 +934,24 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         // Cancel all initializing shards and move started primary to another node.
         AllocationCommands commands = new AllocationCommands();
-        String primaryNode = null;
+        final var unusedNodes = clusterState.nodes().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
+        // Cancel all initializing shards
         for (ShardRouting routing : clusterState.routingTable().allShards()) {
-            if (routing.primary()) {
-                primaryNode = routing.currentNodeId();
-            } else if (routing.initializing()) {
+            unusedNodes.remove(routing.currentNodeId());
+            if (routing.initializing()) {
                 commands.add(new CancelAllocationCommand(routing.shardId().getIndexName(), routing.id(), routing.currentNodeId(), false));
             }
         }
-        commands.add(new MoveAllocationCommand("test", 0, primaryNode, "A-4"));
+        // Move started primary to another node.
+        for (ShardRouting routing : clusterState.routingTable().allShards()) {
+            if (routing.primary()) {
+                var currentNodeId = routing.currentNodeId();
+                unusedNodes.remove(currentNodeId);
+                var otherNodeId = randomFrom(unusedNodes);
+                commands.add(new MoveAllocationCommand("test", 0, currentNodeId, otherNodeId));
+                break;
+            }
+        }
 
         clusterState = strategy.reroute(clusterState, commands, false, false, false, ActionListener.noop()).clusterState();
 

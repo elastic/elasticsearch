@@ -75,7 +75,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return builder;
         }
 
-        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.MAX_VALUE;
 
         private final String modelId;
         private final List<Map<String, Object>> objectsToInfer;
@@ -89,7 +90,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             InferenceConfigUpdate inferenceConfigUpdate,
             boolean previouslyLicensed
         ) {
-            this(modelId, objectsToInfer, inferenceConfigUpdate, DEFAULT_TIMEOUT, previouslyLicensed);
+            this(modelId, objectsToInfer, inferenceConfigUpdate, DEFAULT_TIMEOUT_FOR_API, previouslyLicensed);
         }
 
         public Request(
@@ -103,7 +104,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, DOCS.getPreferredName()));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfigUpdate, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
-            this.timeout = timeout;
+            this.timeout = timeout == null ? DEFAULT_TIMEOUT_FOR_INGEST : timeout;
         }
 
         public Request(StreamInput in) throws IOException {

@@ -1876,3 +1876,8 @@ This example has been removed, as the Meetup.com streaming API has been
 discontinued.
 
 Refer to <<example-watches>> for other Watcher examples.
+
+[role="exclude",id="disk-usage-exceeded"]
+=== Fix watermark errors
+
+Refer to <<fix-watermark-errors>>.

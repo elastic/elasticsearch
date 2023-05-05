@@ -68,10 +68,11 @@ public class DlmPermissionsIT extends ESRestTestCase {
         makeRequest(client(), putLifecycleRequest, true);
 
         makeRequest(client(), requestWithBody("PUT", "_data_stream/no-access-dlm-test/_lifecycle", "{}"), false);
+        makeRequest(client(), new Request("DELETE", "_data_stream/no-access-dlm-test/_lifecycle"), false);
 
         try (RestClient nonDlmManagerClient = buildClient(restUnprivilegedClientSettings(), getClusterHosts().toArray(new HttpHost[0]))) {
             makeRequest(nonDlmManagerClient, explainLifecycleRequest, true);
-            makeRequest(nonDlmManagerClient, getLifecycleRequest, false);
+            makeRequest(nonDlmManagerClient, getLifecycleRequest, true);
             makeRequest(nonDlmManagerClient, deleteLifecycleRequest, false);
             makeRequest(nonDlmManagerClient, putLifecycleRequest, false);
         }

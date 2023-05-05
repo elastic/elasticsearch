@@ -778,6 +778,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                 assert this.nodeLeftGeneration == null || this.nodeLeftGeneration == 0L;
                 newNodeLeftGeneration = 0L;
             } else if (this.nodeLeftGeneration != null) {
+                // only happens during deserialization
                 assert removedNode == false;
                 newNodeLeftGeneration = nodeLeftGeneration;
             } else if (removedNode) {

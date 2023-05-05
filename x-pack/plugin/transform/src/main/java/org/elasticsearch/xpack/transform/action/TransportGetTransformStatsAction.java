@@ -365,8 +365,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             )
                         );
                     } else {
-                        final boolean transformPersistentTaskIsStillRunning =
-                            TransformTask.getTransformTask(stat.getId(), clusterState) != null;
+                        final boolean transformPersistentTaskIsStillRunning = TransformTask.getTransformTask(
+                            stat.getId(),
+                            clusterState
+                        ) != null;
                         allStateAndStats.add(
                             new TransformStats(
                                 stat.getId(),

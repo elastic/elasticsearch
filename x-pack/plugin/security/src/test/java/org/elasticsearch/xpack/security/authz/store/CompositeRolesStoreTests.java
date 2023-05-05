@@ -143,11 +143,13 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -1745,18 +1747,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final InternalUser internalUser = InternalUsers.getUser(roleName);
         assertThat(internalUser, notNullValue());
-        if (InternalUsers.getRoleDescriptors().containsKey(internalUser.principal())) {
+        if (internalUser.getLocalClusterRole().isPresent()) {
             Role internalRole = compositeRolesStore.getInternalUserRole(internalUser);
             assertThat(internalRole, notNullValue());
             assertThat(role, not(internalRole));
         }
 
-        final Role[] internalRoles = InternalUsers.getRoleDescriptors()
-            .keySet()
+        final Role[] internalRoles = InternalUsers.get()
             .stream()
-            .map(InternalUsers::getUser)
+            .filter(u -> u.getLocalClusterRole().isPresent())
             .map(compositeRolesStore::getInternalUserRole)
             .toArray(Role[]::new);
+        // Check that we're actually testing something here...
+        assertThat(internalRoles, arrayWithSize(greaterThan(1)));
         assertThat(role, not(is(oneOf(internalRoles))));
     }
 

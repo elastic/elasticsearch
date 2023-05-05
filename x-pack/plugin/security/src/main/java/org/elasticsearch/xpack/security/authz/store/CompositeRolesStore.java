@@ -152,13 +152,13 @@ public class CompositeRolesStore {
             fieldPermissionsCache,
             this.restrictedIndices
         );
-        this.internalUserRoles = InternalUsers.getRoleDescriptors()
-            .entrySet()
+        this.internalUserRoles = InternalUsers.get()
             .stream()
+            .filter(u -> u.getLocalClusterRole().isPresent())
             .collect(
                 Collectors.toMap(
-                    Map.Entry::getKey,
-                    e -> Role.buildFromRoleDescriptor(e.getValue(), fieldPermissionsCache, this.restrictedIndices)
+                    u -> u.principal(),
+                    u -> Role.buildFromRoleDescriptor(u.getLocalClusterRole().get(), fieldPermissionsCache, this.restrictedIndices)
                 )
             );
         this.roleReferenceResolver = new RoleDescriptorStore(
@@ -357,8 +357,14 @@ public class CompositeRolesStore {
 
     // Package private for testing
     static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
-        if (subject.getUser() instanceof InternalUser) {
-            return Optional.of(InternalUsers.getRoleDescriptor(subject.getUser()));
+        if (subject.getUser() instanceof InternalUser internalUser) {
+            final Optional<RoleDescriptor> roleDescriptor = internalUser.getLocalClusterRole();
+            if (roleDescriptor.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "should never try to get the roles for internal user [" + internalUser.principal() + "]"
+                );
+            }
+            return roleDescriptor;
         } else {
             return Optional.empty();
         }

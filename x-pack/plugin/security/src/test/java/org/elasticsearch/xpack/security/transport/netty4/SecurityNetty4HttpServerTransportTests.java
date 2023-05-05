@@ -6,19 +6,22 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.HttpConstants;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.ssl.SslHandler;
-
+import io.netty.util.AsciiString;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
@@ -46,13 +49,12 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.Before;
 
+import javax.net.ssl.SSLEngine;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.net.ssl.SSLEngine;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static org.elasticsearch.transport.Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX;
@@ -321,6 +323,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.pipeline().remove(pipelineHandlerName);
                 }
             }
+            // STEP 0: send a "wrapped" request
             var writeFuture = testThreadPool.generic().submit(() -> {
                 ch.writeInbound(
                     HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
@@ -429,6 +432,54 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
             assertThat(responseContentString, containsString("\"type\":\"exception\",\"reason\":\"Boom\""));
+        } finally {
+            testThreadPool.shutdownNow();
+        }
+    }
+
+    public void testMalformedRequestDispatchedNoAuthn() throws Exception {
+        final Settings settings = Settings.builder().put(env.settings()).build();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected dispatched request [" + FakeRestRequest.requestToString(channel.request()) + "]");
+                throw new AssertionError("Unexpected dispatched request");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                assertThat(cause, notNullValue());
+                assertThat(cause.toString(), containsString("NOT A VALID HTTP LINE"));
+            }
+        };
+        final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
+        try (
+                Netty4HttpServerTransport transport = Security.getHttpServerTransportWithHeadersValidator(
+                        settings,
+                        new NetworkService(List.of()),
+                        testThreadPool,
+                        xContentRegistry(),
+                        dispatcher,
+                        randomClusterSettings(),
+                        new SharedGroupFactory(settings),
+                        Tracer.NOOP,
+                        TLSConfig.noTLS(),
+                        null,
+                        (httpPreRequest, channel, listener) -> {
+                            throw new AssertionError("Malformed requests shouldn't be authenticated");
+                        }
+                )
+        ) {
+            final ChannelHandler handler = transport.configureServerChannelHandler();
+            final EmbeddedChannel ch = new EmbeddedChannel(handler);
+            ByteBuf buf = ch.alloc().buffer();
+            ByteBufUtil.copy(AsciiString.of("This is not a valid HTTP line"), buf);
+            ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+            var writeFuture = testThreadPool.generic().submit(() -> {
+                ch.writeInbound(buf);
+                ch.flushInbound();
+            });
+            writeFuture.get();
         } finally {
             testThreadPool.shutdownNow();
         }

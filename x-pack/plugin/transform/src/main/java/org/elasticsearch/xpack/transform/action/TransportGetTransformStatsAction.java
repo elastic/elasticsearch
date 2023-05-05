@@ -365,11 +365,12 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             )
                         );
                     } else {
-                        final boolean transformTaskIsStillRunning = TransformTask.getTransformTask(stat.getId(), clusterState) != null;
+                        final boolean transformPersistentTaskIsStillRunning =
+                            TransformTask.getTransformTask(stat.getId(), clusterState) != null;
                         allStateAndStats.add(
                             new TransformStats(
                                 stat.getId(),
-                                transformTaskIsStillRunning ? TransformStats.State.STOPPING : TransformStats.State.STOPPED,
+                                transformPersistentTaskIsStillRunning ? TransformStats.State.STOPPING : TransformStats.State.STOPPED,
                                 null,
                                 null,
                                 stat.getTransformStats(),

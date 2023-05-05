@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.ql.common.Failure;
 
 import java.util.Collection;
 
-public class VerificationException extends EsqlClientException {
+public class PhysicalVerificationException extends EsqlClientException {
 
-    public VerificationException(Collection<Failure> sources) {
+    public PhysicalVerificationException(Collection<Failure> sources) {
         super(Failure.failMessage(sources));
     }
 

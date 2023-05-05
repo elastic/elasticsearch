@@ -220,16 +220,19 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
         InternalEngine engine = (InternalEngine) primary.getEngineOrNull();
+
         // Initially there hasn't been any switches from unsafe to safe maps in the live version map
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), -1);
         var map = engine.getLiveVersionMap();
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
         // Make the map unsafe by indexing a doc that will be indexed in the append-only mode
-        indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        var indexResult = indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertTrue(LiveVersionMapTestUtils.isUnsafe(map));
-        // Issue a get that would require switching to safe mode again
+
+        // Issue a get that would enforce safe access mode and switches the maps from unsafe to safe
         var getResult = primary.getService()
             .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertNull(getResult);
@@ -237,13 +240,32 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertThat(lastUnsafeGeneration, greaterThan(0L));
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
         // A flush shouldn't change the recorded last unsafe generation for gets
         PlainActionFuture<Engine.FlushResult> flushFuture = PlainActionFuture.newFuture();
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
         assertTrue(flushResult.flushPerformed());
         assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration));
+        // No longer in translog
+        getResult = primary.getService()
+            .getFromTranslog(
+                indexResult.getId(),
+                new String[] { "foo" },
+                true,
+                1,
+                VersionType.INTERNAL,
+                FetchSourceContext.FETCH_SOURCE,
+                false
+            );
+        assertNull(getResult);
+        // But normal get would still work!
+        getResult = primary.getService()
+            .get(indexResult.getId(), new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
+        assertNotNull(getResult);
+        assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
+
         // As long as in safe mode, last unsafe generation stays the same
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
@@ -257,6 +279,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .getFromTranslog("2", new String[] { "foo" }, true, 1, VersionType.INTERNAL, FetchSourceContext.FETCH_SOURCE, false);
         assertNull(getResult);
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
+
         // After two refreshes (one for tracking translog locations, i.e., source="realtime_get") and the following)
         // with no safe access needed, it should switch to append-only. (see https://github.com/elastic/elasticsearch/pull/27752)
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
@@ -265,6 +288,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         engine.refresh("test");
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
         // Redo the same: make the map unsafe and see that the recorded last unsafe generation gets updated, upon a get.
         indexDoc(primary, null, "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         assertFalse(LiveVersionMapTestUtils.isSafeAccessRequired(map));
@@ -276,6 +300,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertTrue(lastUnsafeGeneration2 > lastUnsafeGeneration);
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
+
         closeShards(primary);
     }
 }

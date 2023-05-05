@@ -66,9 +66,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ClusterStateTests extends ESTestCase {
 
     public void testSupersedes() {
-        final Version version = Version.CURRENT;
-        final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
-        final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), version);
+        final DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        final DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();

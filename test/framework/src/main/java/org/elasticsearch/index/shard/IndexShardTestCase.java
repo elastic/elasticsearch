@@ -504,8 +504,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
-                null,
-                ReplicationTracker.DEFAULT_FACTORY
+                null
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

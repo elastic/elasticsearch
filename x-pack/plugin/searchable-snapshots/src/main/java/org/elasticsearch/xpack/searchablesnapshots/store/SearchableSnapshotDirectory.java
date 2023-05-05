@@ -32,10 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -479,7 +477,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             return;
         }
 
-        final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
+        final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
         try (var completionListener = new RefCountingListener(ActionListener.wrap(ignored -> {
@@ -508,28 +506,33 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     ) {
                         for (int p = 0; p < file.numberOfParts(); p++) {
                             final int part = p;
-                            queue.add(Tuple.tuple(fileListener.acquire(), () -> {
-                                ensureOpen();
-
-                                final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
-                                if (persistentCacheLength == file.length()) {
-                                    recoveryState.markIndexFileAsReused(file.physicalName());
-                                } else {
-                                    recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.partBytes(part));
-                                }
-
-                                logger.trace(
-                                    () -> format(
-                                        "%s part [%s/%s] of [%s] warmed in [%s] ms",
-                                        shardId,
-                                        part + 1,
-                                        file.numberOfParts(),
-                                        file.physicalName(),
-                                        timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                    )
-                                );
-                            }));
+                            queue.add(
+                                ActionRunnable.supply(
+                                    ActionListener.runAfter(fileListener.acquire(), () -> prewarmNext(executor, queue)),
+                                    () -> {
+                                        ensureOpen();
+                                        var fileName = file.physicalName();
+                                        final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
+                                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                                        if (persistentCacheLength == file.length()) {
+                                            recoveryState.markIndexFileAsReused(fileName);
+                                        } else {
+                                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(fileName, file.partBytes(part));
+                                        }
+                                        logger.trace(
+                                            () -> format(
+                                                "%s part [%s/%s] of [%s] warmed in [%s] ms",
+                                                shardId,
+                                                part + 1,
+                                                file.numberOfParts(),
+                                                fileName,
+                                                timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
+                                            )
+                                        );
+                                        return null;
+                                    }
+                                )
+                            );
                         }
                     }
                 } catch (Exception e) {
@@ -547,13 +550,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    private void prewarmNext(final Executor executor, final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue) {
+    private void prewarmNext(final Executor executor, final BlockingQueue<Runnable> queue) {
         try {
-            final Tuple<ActionListener<Void>, CheckedRunnable<Exception>> next = queue.poll(0L, TimeUnit.MILLISECONDS);
-            if (next == null) {
-                return;
+            final Runnable next = queue.poll(0L, TimeUnit.MILLISECONDS);
+            if (next != null) {
+                executor.execute(next);
             }
-            executor.execute(ActionRunnable.run(ActionListener.runAfter(next.v1(), () -> prewarmNext(executor, queue)), next.v2()));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(() -> format("%s prewarming worker has been interrupted", shardId), e);

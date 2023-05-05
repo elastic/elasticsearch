@@ -1278,7 +1278,7 @@ public class Setting<T> implements ToXContentObject {
         Validator<Version> validator,
         Property... properties
     ) {
-        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
+        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), validator, properties);
     }
 
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {

@@ -104,7 +104,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     }
 
     public Collection<DiscoveryNode> getAllNodes() {
-        return Collections.unmodifiableCollection(nodes.values());
+        return nodes.values();
     }
 
     public int size() {

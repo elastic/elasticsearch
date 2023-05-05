@@ -34,6 +34,7 @@ import org.elasticsearch.dlm.action.TransportDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportExplainDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportGetDataLifecycleAction;
 import org.elasticsearch.dlm.action.TransportPutDataLifecycleAction;
+import org.elasticsearch.dlm.dataperiods.DefaultDataPeriods;
 import org.elasticsearch.dlm.rest.RestDeleteDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestExplainDataLifecycleAction;
 import org.elasticsearch.dlm.rest.RestGetDataLifecycleAction;
@@ -125,7 +126,7 @@ public class DataLifecyclePlugin extends Plugin implements ActionPlugin {
             return List.of();
         }
 
-        return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING);
+        return List.of(DataLifecycleService.DLM_POLL_INTERVAL_SETTING, DefaultDataPeriods.DLM_DEFAULT_DATA_PERIOD_SETTING);
     }
 
     @Override

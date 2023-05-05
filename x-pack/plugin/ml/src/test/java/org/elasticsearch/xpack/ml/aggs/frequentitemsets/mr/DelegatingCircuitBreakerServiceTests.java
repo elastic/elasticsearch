@@ -21,6 +21,10 @@ import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.U
 
 public class DelegatingCircuitBreakerServiceTests extends ESTestCase {
 
+    /**
+     * the purpose of the test is not hitting the `IllegalStateException("already closed")` in
+     * PreallocatedCircuitBreaker#addEstimateBytesAndMaybeBreak in {@link PreallocatedCircuitBreakerService}
+     */
     public void testThreadedExecution() {
 
         try (

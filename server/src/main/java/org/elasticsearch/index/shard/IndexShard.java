@@ -1222,6 +1222,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().refresh(source);
     }
 
+    public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+        verifyNotClosed();
+        getEngine().externalRefresh(source, listener);
+    }
+
     /**
      * Returns how many bytes we are currently moving from heap to disk
      */

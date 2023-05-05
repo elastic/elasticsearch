@@ -1017,6 +1017,13 @@ public abstract class Engine implements Closeable {
     @Nullable
     public abstract RefreshResult refresh(String source) throws EngineException;
 
+    public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            logger.trace("external refresh with source [{}]", source);
+            return refresh(source);
+        });
+    }
+
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.

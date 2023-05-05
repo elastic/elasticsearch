@@ -121,7 +121,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     timeProvider,
                     (SearchTask) task,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.map(shardIts -> new SearchShardsResponse(toGroups(shardIts), clusterState.nodes(), aliasFilters))
+                    listener.map(shardIts -> new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters))
                 );
                 canMatchPhase.start();
             }, listener::onFailure)

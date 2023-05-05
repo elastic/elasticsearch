@@ -243,7 +243,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);
-        DiscoveryNode[] nodes = initialClusterState.nodes().toArray(DiscoveryNode[]::new);
+        DiscoveryNode[] nodes = initialClusterState.nodes().getAllNodes().toArray(DiscoveryNode[]::new);
         boolean useReplica = randomBoolean();
         if (useReplica || randomBoolean()) {
             startShard(allocation, primaryShard, nodes[0].getId());

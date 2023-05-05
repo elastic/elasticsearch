@@ -58,6 +58,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
+        // register the internal TransportGetFromTranslogAction
+        new TransportGetFromTranslogAction(transportService, indicesService, actionFilters);
     }
 
     @Override

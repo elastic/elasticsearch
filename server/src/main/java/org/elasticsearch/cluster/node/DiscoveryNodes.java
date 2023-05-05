@@ -21,8 +21,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.AbstractCollection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,7 +40,7 @@ import java.util.stream.Stream;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements SimpleDiffable<DiscoveryNodes> {
+public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<DiscoveryNodes> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
@@ -99,7 +99,14 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return nodes.values().iterator();
     }
 
-    @Override
+    public Stream<DiscoveryNode> stream() {
+        return nodes.values().stream();
+    }
+
+    public Collection<DiscoveryNode> getAllNodes() {
+        return Collections.unmodifiableCollection(nodes.values());
+    }
+
     public int size() {
         return nodes.size();
     }

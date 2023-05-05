@@ -14,11 +14,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class MainRequest extends ActionRequest {
+public class MainTransportRequest extends ActionRequest {
 
-    public MainRequest() {}
+    public MainTransportRequest() {}
 
-    MainRequest(StreamInput in) throws IOException {
+    MainTransportRequest(StreamInput in) throws IOException {
         super(in);
     }
 

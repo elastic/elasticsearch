@@ -299,7 +299,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
-import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
@@ -798,7 +797,6 @@ public class ActionModule extends AbstractModule {
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
-        registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());

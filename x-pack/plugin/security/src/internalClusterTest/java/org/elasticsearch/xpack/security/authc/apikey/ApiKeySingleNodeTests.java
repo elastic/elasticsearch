@@ -19,7 +19,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.main.MainTransportRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -166,7 +166,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final ElasticsearchSecurityException e1 = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
-                .execute(MainAction.INSTANCE, new MainRequest())
+                .execute(MainAction.INSTANCE, new MainTransportRequest())
                 .actionGet()
         );
         assertThat(e1.status().getStatus(), equalTo(403));

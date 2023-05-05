@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.main.MainRestResponse;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.XContentType;
@@ -69,7 +69,7 @@ public class VersionParityTests extends WebServerTestCase {
     }
 
     void prepareResponse(Version version) throws IOException {
-        MainResponse response = version == null ? createCurrentVersionMainResponse() : createMainResponse(version);
+        MainRestResponse response = version == null ? createCurrentVersionMainResponse() : createMainResponse(version);
         webServer().enqueue(
             new MockResponse().setResponseCode(200)
                 .addHeader("Content-Type", "application/json")

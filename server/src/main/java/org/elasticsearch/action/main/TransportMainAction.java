@@ -21,7 +21,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
+public class TransportMainAction extends HandledTransportAction<MainTransportRequest, MainTransportResponse> {
 
     private final String nodeName;
     private final ClusterService clusterService;
@@ -33,16 +33,22 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         ActionFilters actionFilters,
         ClusterService clusterService
     ) {
-        super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
+        super(MainAction.NAME, transportService, actionFilters, MainTransportRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, MainRequest request, ActionListener<MainResponse> listener) {
+    protected void doExecute(Task task, MainTransportRequest request, ActionListener<MainTransportResponse> listener) {
         ClusterState clusterState = clusterService.state();
         listener.onResponse(
-            new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(), clusterState.metadata().clusterUUID(), Build.CURRENT)
+            new MainTransportResponse(
+                nodeName,
+                Version.CURRENT,
+                clusterState.getClusterName(),
+                clusterState.metadata().clusterUUID(),
+                Build.CURRENT
+            )
         );
     }
 }

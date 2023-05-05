@@ -30,7 +30,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestMainAction;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -152,7 +152,7 @@ public class ActionModuleTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<DiscoveryNodes> nodesInCluster
             ) {
-                return singletonList(new RestMainAction() {
+                return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
 
                     @Override
                     public String getName() {

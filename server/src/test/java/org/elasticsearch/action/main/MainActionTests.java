@@ -85,10 +85,10 @@ public class MainActionTests extends ESTestCase {
             Collections.emptySet()
         );
         TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
-        AtomicReference<MainResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
+        AtomicReference<MainTransportResponse> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), new MainTransportRequest(), new ActionListener<MainTransportResponse>() {
             @Override
-            public void onResponse(MainResponse mainResponse) {
+            public void onResponse(MainTransportResponse mainResponse) {
                 responseRef.set(mainResponse);
             }
 

@@ -1017,6 +1017,9 @@ public abstract class Engine implements Closeable {
     @Nullable
     public abstract RefreshResult refresh(String source) throws EngineException;
 
+    /**
+     * An async variant of {@link Engine#refresh(String)} that may apply some rate-limiting.
+     */
     public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
         ActionListener.completeWith(listener, () -> {
             logger.trace("external refresh with source [{}]", source);

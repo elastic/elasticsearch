@@ -705,18 +705,20 @@ public class IndexNameExpressionResolver {
                 return null;
             }
             Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();
-            Stream<DataStreamAlias> stream;
+            List<DataStreamAlias> aliasesForDataStream;
             if (iterateIndexAliases(dataStreamAliases.size(), resolvedExpressions.size())) {
-                stream = dataStreamAliases.values()
+                aliasesForDataStream = dataStreamAliases.values()
                     .stream()
-                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()));
+                    .filter(dataStreamAlias -> resolvedExpressions.contains(dataStreamAlias.getName()))
+                    .filter(dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName()))
+                    .toList();
             } else {
-                stream = resolvedExpressions.stream().map(dataStreamAliases::get).filter(Objects::nonNull);
+                aliasesForDataStream = resolvedExpressions.stream()
+                    .map(dataStreamAliases::get)
+                    .filter(dataStreamAlias -> dataStreamAlias != null && dataStreamAlias.getDataStreams().contains(dataStream.getName()))
+                    .toList();
             }
 
-            List<DataStreamAlias> aliasesForDataStream = stream.filter(
-                dataStreamAlias -> dataStreamAlias.getDataStreams().contains(dataStream.getName())
-            ).toList();
             List<String> requiredAliases = null;
             for (DataStreamAlias dataStreamAlias : aliasesForDataStream) {
                 if (requiredDataStreamAlias.test(dataStreamAlias)) {

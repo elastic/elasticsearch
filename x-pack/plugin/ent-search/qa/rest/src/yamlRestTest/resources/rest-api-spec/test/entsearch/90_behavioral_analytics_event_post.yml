@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: "all"
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/95686"
-
   - do:
       search_application.put_behavioral_analytics:
         name: my-test-analytics-collection
@@ -12,7 +8,6 @@ teardown:
   - do:
       search_application.delete_behavioral_analytics:
         name: my-test-analytics-collection
-        ignore: 404
 
 
 # Page view event tests #########################################

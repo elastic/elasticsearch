@@ -31,6 +31,10 @@ CRUD::
 Cluster Coordination::
 * Read register current term asynchronously in `StoreHeartbeatService` {es-pull}95351[#95351]
 
+DLM::
+* Remove rollover cluster setting validator {es-pull}94447[#94447]
+* [DLM] Fix the new endpoint rest-api specification {es-pull}95665[#95665]
+
 Data streams::
 * Allow deletion of component templates that are specified in the `ignore_missing_component_templates` array {es-pull}95527[#95527]
 
@@ -118,6 +122,9 @@ Authorization::
 
 Cluster Coordination::
 * Improve master service batching queues {es-pull}92021[#92021] (issue: {es-issue}81626[#81626])
+
+DLM::
+* Adding origination date to DLM {es-pull}95113[#95113]
 
 Engine::
 * Increase the merge factor to 32 for time-based data {es-pull}94134[#94134]
@@ -229,6 +236,15 @@ Authentication::
 
 CRUD::
 * New `TransportBroadcastUnpromotableAction` action {es-pull}93600[#93600]
+
+DLM::
+* Add new endpoints to configure data lifecycle on a data stream level {es-pull}94590[#94590]
+* Dlm add auto rollover condition max age {es-pull}94950[#94950]
+* Initial implementation for `DataLifecycleService` {es-pull}94012[#94012]
+* Introduce a _lifecycle/explain API for data stream backing indices {es-pull}94621[#94621]
+* Introduce the `index.lifecycle.prefer_ilm` setting {es-pull}95423[#95423]
+* [DLM] Extend the template to simulate api to support include defaults {es-pull}94861[#94861]
+* [DLM] Introduce default rollover cluster setting & expose it via APIs {es-pull}94240[#94240]
 
 Health::
 * Add new `ShardsCapacity` Health Indicator Service {es-pull}94552[#94552]

@@ -178,4 +178,16 @@ public class VersionTypeTests extends ESTestCase {
         exception = expectThrows(IllegalArgumentException.class, () -> VersionType.fromString(null));
         assertThat(exception.toString(), containsString("No version type match [null]"));
     }
+
+    public void testStaticToString() {
+        assertThat(VersionType.toString(VersionType.INTERNAL), equalTo("internal"));
+        assertThat(VersionType.toString(VersionType.EXTERNAL), equalTo("external"));
+        assertThat(VersionType.toString(VersionType.EXTERNAL_GTE), equalTo("external_gte"));
+
+        NullPointerException npe = expectThrows(NullPointerException.class, () -> VersionType.toString(null));
+        assertThat(
+            npe.toString(),
+            containsString("Cannot invoke \"org.elasticsearch.index.VersionType.name()\" because \"versionType\" is null")
+        );
+    }
 }

@@ -11,6 +11,8 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -189,5 +191,10 @@ public class VersionTypeTests extends ESTestCase {
             npe.toString(),
             containsString("Cannot invoke \"org.elasticsearch.index.VersionType.ordinal()\" because \"versionType\" is null")
         );
+
+        // compare the current implementation with the previous implementation
+        for (VersionType type : VersionType.values()) {
+            assertThat(VersionType.toString(type), equalTo(type.name().toLowerCase(Locale.ROOT)));
+        }
     }
 }

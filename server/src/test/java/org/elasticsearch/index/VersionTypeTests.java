@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VersionTypeTests extends ESTestCase {
@@ -162,5 +163,19 @@ public class VersionTypeTests extends ESTestCase {
         // } else { // external version type
         // updatedVersion = expectedVersion;
         // }
+    }
+
+    public void testStaticFromString() {
+        assertThat(VersionType.fromString("internal"), equalTo(VersionType.INTERNAL));
+        assertThat(VersionType.fromString("external"), equalTo(VersionType.EXTERNAL));
+        assertThat(VersionType.fromString("external_gt"), equalTo(VersionType.EXTERNAL));
+        assertThat(VersionType.fromString("external_gte"), equalTo(VersionType.EXTERNAL_GTE));
+
+        IllegalArgumentException exception;
+        exception = expectThrows(IllegalArgumentException.class, () -> VersionType.fromString("other"));
+        assertThat(exception.toString(), containsString("No version type match [other]"));
+
+        exception = expectThrows(IllegalArgumentException.class, () -> VersionType.fromString(null));
+        assertThat(exception.toString(), containsString("No version type match [null]"));
     }
 }

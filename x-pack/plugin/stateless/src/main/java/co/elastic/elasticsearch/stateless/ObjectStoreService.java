@@ -17,21 +17,14 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
-import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
-import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,13 +40,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -64,9 +53,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -75,7 +61,6 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -177,7 +162,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
     private final Settings settings;
-    private final StatelessCommitService commitService;
     private final Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final ThreadPool threadPool;
     private final PrioritizedThrottledTaskRunner<TranslogFileUploadTask> uploadTranslogTaskRunner;
@@ -187,23 +171,18 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private BlobStoreRepository objectStore;
 
     private final ClusterService clusterService;
-    private final Client client;
 
     @Inject
     public ObjectStoreService(
         Settings settings,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
-        ClusterService clusterService,
-        StatelessCommitService commitService,
-        Client client
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.commitService = commitService;
-        this.client = client;
         this.uploadTranslogTaskRunner = new PrioritizedThrottledTaskRunner<>(
             getClass().getSimpleName() + "#upload-translog-file-task-runner",
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
@@ -322,20 +301,68 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
     }
 
-    void onCommitCreation(StatelessCommitRef commit) {
-        logger.debug("{} commit created [{}][{}]", commit.getShardId(), commit.getSegmentsFileName(), commit.getGeneration());
-        ensureRunning();
-        if (permits.tryAcquire()) {
-            uploadTaskRunner.enqueueTask(new CommitUploadTask(commit, threadPool.relativeTimeInNanos(), permits::release));
-        }
-    }
-
     public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
         logger.debug("starting translog file upload [{}]", fileName);
         ensureRunning();
         if (permits.tryAcquire()) {
             uploadTranslogTaskRunner.enqueueTask(
-                new TranslogFileUploadTask(fileName, reference, ActionListener.runAfter(listener, permits::release))
+                new TranslogFileUploadTask(fileName, reference, ActionListener.runBefore(listener, permits::release))
+            );
+        }
+    }
+
+    public void uploadStatelessCommitFile(
+        ShardId shardId,
+        long primaryTerm,
+        long generation,
+        Directory directory,
+        String commitFileName,
+        long commitStartNanos,
+        StatelessCompoundCommit.Writer pendingCommit,
+        ActionListener<StatelessCompoundCommit> listener
+    ) {
+        ensureRunning();
+        if (permits.tryAcquire()) {
+            final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm);
+
+            uploadTaskRunner.enqueueTask(
+                new CommitFileUploadTask(
+                    shardId,
+                    generation,
+                    commitStartNanos,
+                    commitFileName,
+                    directory,
+                    pendingCommit,
+                    blobContainer,
+                    ActionListener.runBefore(listener, permits::release)
+                )
+            );
+        }
+    }
+
+    public void uploadCommitFile(
+        ShardId shardId,
+        long primaryTerm,
+        long generation,
+        Directory directory,
+        String file,
+        long commitStartNanos,
+        ActionListener<BlobLocation> listener
+    ) {
+        ensureRunning();
+        if (permits.tryAcquire()) {
+            final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm);
+            uploadTaskRunner.enqueueTask(
+                new FileUploadTask(
+                    shardId,
+                    primaryTerm,
+                    generation,
+                    commitStartNanos,
+                    file,
+                    directory,
+                    blobContainer,
+                    ActionListener.runBefore(listener, permits::release)
+                )
             );
         }
     }
@@ -382,7 +409,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             if (shardId.equals(other.shardId)) {
                 return Long.compare(generation, other.generation);
             }
-            return Long.compare(timeInNanos, other.timeInNanos);
+
+            // Nano time requires relative comparisons
+            long diff = timeInNanos - other.timeInNanos;
+            if (diff == 0) {
+                return 0;
+            } else if (diff > 0) {
+                return 1;
+            } else {
+                return -1;
+            }
         }
     }
 
@@ -437,165 +473,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     /**
-     * {@link CommitUploadTask} expands a commit into one or more file upload tasks.
-     */
-    private class CommitUploadTask extends ObjectStoreTask {
-
-        protected final StatelessCommitRef reference;
-        private final Releasable releasable;
-
-        CommitUploadTask(StatelessCommitRef reference, long timeInNanos, Releasable releasable) {
-            super(reference.getShardId(), reference.getGeneration(), timeInNanos);
-            this.reference = Objects.requireNonNull(reference);
-            this.releasable = releasable;
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            IOUtils.closeWhileHandlingException(reference, releasable);
-            logFailure(e);
-        }
-
-        @Override
-        protected void doRun() {
-            boolean success = false;
-            try {
-                final Collection<String> additionalFiles = reference.getAdditionalFiles();
-                logger.trace("{} uploading commit [{}] with [{}] additional files", shardId, generation, additionalFiles.size());
-                assert additionalFiles.stream().filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).count() == 1L : additionalFiles;
-
-                final Map<String, Long> commitFilesToLength;
-                final Collection<String> commitFileNames = reference.getCommitFiles();
-                Map<String, Long> mutableCommitFiles = new HashMap<>(commitFileNames.size());
-                for (String fileName : commitFileNames) {
-                    mutableCommitFiles.put(fileName, reference.getDirectory().fileLength(fileName));
-                }
-                commitFilesToLength = Collections.unmodifiableMap(mutableCommitFiles);
-
-                // this listener releases the reference on the index commit and a permit once all commit files are uploaded
-                final AtomicLong successCount = new AtomicLong();
-                final AtomicLong successSize = new AtomicLong();
-                final ActionListener<StatelessCompoundCommit> releaseCommitListener = ActionListener.runBefore(
-                    ActionListener.wrap(compoundCommit -> {
-                        assert compoundCommit != null;
-                        commitService.markCommitUploaded(shardId, compoundCommit);
-                        final long end = threadPool.relativeTimeInNanos();
-                        logger.debug(
-                            () -> format(
-                                "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
-                                shardId,
-                                generation,
-                                TimeValue.nsecToMSec(end - timeInNanos),
-                                successCount.get(),
-                                successSize.get()
-                            )
-                        );
-
-                        NewCommitNotificationRequest request = new NewCommitNotificationRequest(
-                            clusterService.state().routingTable().shardRoutingTable(shardId),
-                            compoundCommit
-                        );
-                        client.execute(TransportNewCommitNotificationAction.TYPE, request);
-                    }, e -> logger.error(() -> format("%s failed to upload files of commit [%s] to object store", shardId, generation), e)),
-                    () -> IOUtils.close(reference, releasable)
-                );
-
-                final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(reference.getDirectory())
-                    .getBlobContainer(reference.getPrimaryTerm());
-                final Consumer<FileUploadTask.Result> addResult = r -> {
-                    successCount.incrementAndGet();
-                    successSize.addAndGet(r.length());
-                };
-
-                final ActionListener<Void> allCommitFilesListener = ActionListener.wrap(releaseCommitListener.delegateFailure((l, v) -> {
-                    // Note that the stateless commit file is uploaded last after all other files of the commit have been successfully
-                    // uploaded, and only if none of the other files failed to upload, so that a process listing the content of the
-                    // bucket in the object store will be able to access a consistent set of commit files (assuming read after write
-                    // consistency).
-                    String commitFileName = StatelessCompoundCommit.NAME + generation;
-                    StatelessCompoundCommit.Writer commitWriter = commitService.returnPendingCompoundCommit(
-                        shardId,
-                        generation,
-                        reference.getPrimaryTerm(),
-                        commitFilesToLength
-                    );
-
-                    uploadTaskRunner.enqueueTask(
-                        new CommitFileUploadTask(
-                            shardId,
-                            generation,
-                            timeInNanos,
-                            commitFileName,
-                            reference.getDirectory(),
-                            commitWriter,
-                            blobContainer,
-                            l.map(r -> {
-                                addResult.accept(r.v2());
-                                return r.v1();
-                            })
-                        )
-                    );
-                }));
-
-                final ActionListener<Void> additionalFilesListener = ActionListener.wrap(allCommitFilesListener.delegateFailure((l, v) -> {
-                    List<String> missingFiles = commitService.resolveMissingFiles(shardId, reference.getCommitFiles());
-                    if (missingFiles.isEmpty()) {
-                        l.onResponse(null);
-                    } else {
-                        enqueueFileUploads(missingFiles, blobContainer, addResult, l);
-                    }
-
-                }));
-
-                enqueueFileUploads(additionalFiles, blobContainer, addResult, additionalFilesListener);
-
-                success = true;
-            } catch (Exception e) {
-                logFailure(e);
-                assert false : e;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(reference, releasable);
-                }
-            }
-        }
-
-        private void enqueueFileUploads(
-            Collection<String> additionalFiles,
-            BlobContainer blobContainer,
-            Consumer<FileUploadTask.Result> addResult,
-            ActionListener<Void> listener
-        ) {
-            try (var listeners = new RefCountingListener(listener)) {
-                // Use a basic upload strategy where every file is always uploaded in a dedicated FileTask. Here we could split large
-                // files into multiple FileChunkTask of similar sizes and/or combine multiple small files into one single FileTask. We
-                // could also prioritize FileTask depending on the index.
-                additionalFiles.stream()
-                    .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
-                    .forEach(
-                        file -> uploadTaskRunner.enqueueTask(
-                            new FileUploadTask(
-                                shardId,
-                                reference.getPrimaryTerm(),
-                                generation,
-                                timeInNanos,
-                                file,
-                                reference.getDirectory(),
-                                blobContainer,
-                                false,
-                                listeners.acquire(addResult)
-                            )
-                        )
-                    );
-            }
-        }
-
-        private void logFailure(Exception e) {
-            logger.error(() -> format("%s failed to upload commit [%s] to object store", shardId, generation), e);
-        }
-    }
-
-    /**
      * {@link FileUploadTask} uploads a blob to the object store
      */
     private class FileUploadTask extends ObjectStoreTask {
@@ -604,8 +481,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         private final String name;
         private final Directory directory;
         private final BlobContainer blobContainer;
-        private final boolean isSegmentFile;
-        private final ActionListener<Result> listener;
+        private final ActionListener<BlobLocation> listener;
 
         FileUploadTask(
             ShardId shardId,
@@ -615,15 +491,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             String name,
             Directory directory,
             BlobContainer blobContainer,
-            boolean isSegmentFile,
-            ActionListener<Result> listener
+            ActionListener<BlobLocation> listener
         ) {
             super(shardId, generation, timeInNanos);
             this.primaryTerm = primaryTerm;
             this.name = Objects.requireNonNull(name);
             this.directory = Objects.requireNonNull(directory);
             this.blobContainer = Objects.requireNonNull(blobContainer);
-            this.isSegmentFile = isSegmentFile;
             this.listener = Objects.requireNonNull(listener);
         }
 
@@ -634,21 +508,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() throws Exception {
-            // TODO Retry
             // TODO Rate limit or some type of throttling?
-            // TODO Are there situations where we need to abort an upload?
-
-            Result result = null;
+            BlobLocation blobLocation = null;
             try (IndexInput input = directory.openInput(name, IOContext.READONCE)) {
                 final long length = input.length();
                 var before = threadPool.relativeTimeInMillis();
                 final InputStream inputStream = new InputStreamIndexInput(input, length);
-                if (isSegmentFile) {
-                    blobContainer.writeMetadataBlob(name, false, true, out -> Streams.copy(inputStream, out, false));
-                } else {
-                    blobContainer.writeBlob(name, inputStream, length, false);
-                    commitService.markFileUploaded(shardId, name, new BlobLocation(primaryTerm, name, 0, length));
-                }
+                blobContainer.writeBlob(name, inputStream, length, false);
                 var after = threadPool.relativeTimeInMillis();
                 logger.debug(
                     () -> format(
@@ -660,19 +526,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                result = new Result(name, length, after - before);
+                blobLocation = new BlobLocation(primaryTerm, name, 0, length);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
-                if (result != null) {
-                    listener.onResponse(result);
+                if (blobLocation != null) {
+                    listener.onResponse(blobLocation);
                 }
             }
-
         }
-
-        record Result(String name, long length, long elapsedInMillis) {}
     }
 
     /**
@@ -684,7 +547,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         private final Directory directory;
         private final StatelessCompoundCommit.Writer pendingCommit;
         private final BlobContainer blobContainer;
-        private final ActionListener<Tuple<StatelessCompoundCommit, FileUploadTask.Result>> listener;
+        private final ActionListener<StatelessCompoundCommit> listener;
 
         CommitFileUploadTask(
             ShardId shardId,
@@ -694,7 +557,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             Directory directory,
             StatelessCompoundCommit.Writer pendingCommit,
             BlobContainer blobContainer,
-            ActionListener<Tuple<StatelessCompoundCommit, FileUploadTask.Result>> listener
+            ActionListener<StatelessCompoundCommit> listener
         ) {
             super(shardId, generation, timeInNanos);
             this.commitFileName = Objects.requireNonNull(commitFileName);
@@ -711,7 +574,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() {
-            FileUploadTask.Result result = null;
+            StatelessCompoundCommit compoundCommit = null;
             try {
                 var before = threadPool.relativeTimeInMillis();
                 AtomicLong bytesWritten = new AtomicLong();
@@ -733,17 +596,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                         TimeValue.timeValueNanos(after - before).millis()
                     )
                 );
-                result = new FileUploadTask.Result(commitFileName, bytesWritten.get(), after - before);
+                compoundCommit = pendingCommit.finish(commitFileName);
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
-                if (result != null) {
-                    StatelessCompoundCommit compoundCommit = pendingCommit.finish(commitFileName);
-                    for (String internalFile : pendingCommit.getInternalFiles()) {
-                        commitService.markFileUploaded(shardId, internalFile, compoundCommit.commitFiles().get(internalFile));
-                    }
-                    listener.onResponse(new Tuple<>(compoundCommit, result));
+                if (compoundCommit != null) {
+                    listener.onResponse(compoundCommit);
                 }
             }
         }

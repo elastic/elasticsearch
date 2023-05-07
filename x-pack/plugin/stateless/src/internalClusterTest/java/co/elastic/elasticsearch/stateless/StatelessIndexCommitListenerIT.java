@@ -22,10 +22,11 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -48,7 +49,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.LongStream;
 
 import static java.util.stream.Collectors.toCollection;
@@ -80,10 +80,11 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
         @Override
         protected StatelessCommitService createStatelessCommitService(
-            Supplier<String> nodeEphemeralIdSupplier,
-            ThreadContext threadContext
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client
         ) {
-            StatelessCommitService commitService = spy(super.createStatelessCommitService(nodeEphemeralIdSupplier, threadContext));
+            StatelessCommitService commitService = spy(super.createStatelessCommitService(objectStoreService, clusterService, client));
             doAnswer(invocation -> {
                 ActionListener<Void> argument = invocation.getArgument(2);
                 argument.onResponse(null);

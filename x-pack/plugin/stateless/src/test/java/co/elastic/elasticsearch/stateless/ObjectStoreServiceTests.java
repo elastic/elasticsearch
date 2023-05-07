@@ -26,33 +26,27 @@ import co.elastic.elasticsearch.stateless.utils.TransferableCloseables;
 
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 import static co.elastic.elasticsearch.stateless.ObjectStoreService.BUCKET_SETTING;
@@ -123,96 +117,6 @@ public class ObjectStoreServiceTests extends ESTestCase {
         assertThat(settings.get("base_path"), equalTo(basePath));
     }
 
-    public void testBlobUploadFailureBlocksSegmentsUpload() throws IOException {
-        final var indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-        final var permits = new Semaphore(0);
-        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
-            @Override
-            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
-
-                class WrappedBlobContainer extends FilterBlobContainer {
-                    WrappedBlobContainer(BlobContainer delegate) {
-                        super(delegate);
-                    }
-
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return new WrappedBlobContainer(child);
-                    }
-
-                    @Override
-                    public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                        throws IOException {
-                        assertFalse(blobName, blobName.startsWith(IndexFileNames.SEGMENTS));
-                        if (permits.tryAcquire()) {
-                            super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
-                        } else {
-                            throw new IOException("simulated upload failure");
-                        }
-                    }
-
-                    @Override
-                    public void writeMetadataBlob(
-                        String blobName,
-                        boolean failIfAlreadyExists,
-                        boolean atomic,
-                        CheckedConsumer<OutputStream, IOException> writer
-                    ) {
-                        throw new AssertionError("should not be called");
-                    }
-
-                    @Override
-                    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
-                        throw new AssertionError("should not be called");
-                    }
-                }
-
-                return new WrappedBlobContainer(innerContainer);
-            }
-        }; var indexWriter = new IndexWriter(testHarness.indexingStore.directory(), indexWriterConfig)) {
-
-            var commits = between(1, 3);
-            for (int i = 0; i < commits; i++) {
-                indexWriter.addDocument(List.of());
-                indexWriter.commit();
-            }
-
-            var primaryTerm = 1;
-
-            try (var indexReader = DirectoryReader.open(indexWriter)) {
-
-                final var indexCommit = indexReader.getIndexCommit();
-                final var commitFiles = testHarness.indexingStore.getMetadata(indexCommit).fileMetadataMap().keySet();
-
-                final var permittedBlobs = between(0, commitFiles.size() - 2);
-                permits.release(permittedBlobs);
-
-                PlainActionFuture.<Void, IOException>get(
-                    future -> testHarness.objectStoreService.onCommitCreation(
-                        new StatelessCommitRef(
-                            testHarness.shardId,
-                            new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),
-                            commitFiles,
-                            commitFiles,
-                            primaryTerm
-                        )
-                    ),
-                    10,
-                    TimeUnit.SECONDS
-                );
-
-                final var blobs = new HashSet<>(
-                    testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm).listBlobs().keySet()
-                );
-                blobs.removeIf(ExtrasFS::isExtra);
-                assertEquals(permittedBlobs + " vs " + blobs, permittedBlobs, blobs.size());
-                for (String blobName : blobs) {
-                    assertFalse(blobName, blobName.startsWith(IndexFileNames.SEGMENTS));
-                }
-            }
-        }
-    }
-
     public void testStartingShardRetrievesSegmentsFromOneCommit() throws IOException {
         final var mergesEnabled = randomBoolean();
         final var indexWriterConfig = mergesEnabled
@@ -277,10 +181,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     permittedFiles.clear();
                     permittedFiles.addAll(indexCommit.getFileNames());
 
-                    testHarness.commitService.markNewCommit(testHarness.shardId, commitFiles, additionalFiles);
-
                     PlainActionFuture.<Void, IOException>get(
-                        future -> testHarness.objectStoreService.onCommitCreation(
+                        future -> testHarness.commitService.onCommitCreation(
                             new StatelessCommitRef(
                                 testHarness.shardId,
                                 new Engine.IndexCommitRef(indexCommit, () -> future.onResponse(null)),

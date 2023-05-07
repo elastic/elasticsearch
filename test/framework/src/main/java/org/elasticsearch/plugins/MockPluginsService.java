@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -89,8 +90,21 @@ public class MockPluginsService extends PluginsService {
         // all plugins in MockNode, because all plugins are loaded by the same class loader.
         Set<T> result = new HashSet<>();
 
+        Collection<Class<? extends T>> spiClasses = null;
+
         for (LoadedPlugin pluginTuple : plugins()) {
-            result.addAll(createExtensions(service, pluginTuple.instance()));
+            var plugin = pluginTuple.instance();
+            var classLoader = plugin.getClass().getClassLoader();
+            if (classLoader == ClassLoader.getSystemClassLoader()) {
+                // only determine the spi classes handled by the system classloader that loads most plugins in tests once to save test time
+                if (spiClasses == null) {
+                    spiClasses = new ArrayList<>();
+                    SPIClassIterator.get(service, classLoader).forEachRemaining(spiClasses::add);
+                }
+                result.addAll(createExtensions(service, plugin, spiClasses.iterator()));
+            } else {
+                result.addAll(createExtensions(service, plugin));
+            }
         }
 
         return List.copyOf(result);
@@ -104,7 +118,11 @@ public class MockPluginsService extends PluginsService {
      * the type and returns an empty list if the plugin class type is incompatible.
      */
     static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
-        SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+        Iterator<Class<? extends T>> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
+        return createExtensions(extensionPointType, plugin, classIterator);
+    }
+
+    private static <T> List<T> createExtensions(Class<T> extensionPointType, Plugin plugin, Iterator<Class<? extends T>> classIterator) {
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
             Class<? extends T> extensionClass = classIterator.next();

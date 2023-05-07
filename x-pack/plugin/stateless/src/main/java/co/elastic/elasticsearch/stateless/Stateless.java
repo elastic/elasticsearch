@@ -69,7 +69,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -211,14 +210,11 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
     ) {
         // use the settings that include additional settings.
         Settings settings = environment.settings();
-        var commitService = setAndGet(
-            this.commitService,
-            createStatelessCommitService(() -> clusterService.localNode().getEphemeralId(), threadPool.getThreadContext())
-        );
         var objectStoreService = setAndGet(
             this.objectStoreService,
-            new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService, commitService, client)
+            new ObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService)
         );
+        setAndGet(this.commitService, createStatelessCommitService(objectStoreService, clusterService, client));
         var sharedBlobCache = setAndGet(this.sharedBlobCacheService, new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool));
         var translogReplicator = setAndGet(this.translogReplicator, new TranslogReplicator(threadPool, settings, objectStoreService));
         var statelessElectionStrategy = setAndGet(
@@ -237,8 +233,12 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
         return List.of(objectStoreService, translogReplicator, sharedBlobCache);
     }
 
-    protected StatelessCommitService createStatelessCommitService(Supplier<String> nodeEphemeralIdSupplier, ThreadContext threadContext) {
-        return new StatelessCommitService(nodeEphemeralIdSupplier, threadContext);
+    protected StatelessCommitService createStatelessCommitService(
+        ObjectStoreService objectStoreService,
+        ClusterService clusterService,
+        Client client
+    ) {
+        return new StatelessCommitService(objectStoreService, clusterService, client);
     }
 
     private static <T> T setAndGet(SetOnce<T> ref, T service) {
@@ -474,8 +474,9 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                     store.decRef();
                 }
 
-                statelessCommitService.markNewCommit(shardId, commitFiles, additionalFiles);
-                service.onCommitCreation(new StatelessCommitRef(shardId, indexCommitRef, commitFiles, additionalFiles, primaryTerm));
+                statelessCommitService.onCommitCreation(
+                    new StatelessCommitRef(shardId, indexCommitRef, commitFiles, additionalFiles, primaryTerm)
+                );
             }
 
             @Override

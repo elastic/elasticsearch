@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -63,6 +64,8 @@ import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FakeStatelessNode implements Closeable {
     public final DiscoveryNode node;
@@ -189,10 +192,18 @@ public class FakeStatelessNode implements Closeable {
             transportService.acceptIncomingRequests();
             localCloseables.add(transportService::stop);
 
-            commitService = new StatelessCommitService(() -> clusterService.localNode().getEphemeralId(), threadPool.getThreadContext());
-            commitService.register(shardId);
-            objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService, commitService, client);
+            objectStoreService = new ObjectStoreService(nodeSettings, () -> repoService, threadPool, clusterService);
             objectStoreService.start();
+            IndexShardRoutingTable routingTable = mock(IndexShardRoutingTable.class);
+            when(routingTable.shardId()).thenReturn(shardId);
+            commitService = new StatelessCommitService(
+                objectStoreService,
+                () -> clusterService.localNode().getEphemeralId(),
+                sId -> routingTable,
+                clusterService.threadPool(),
+                client
+            );
+            commitService.register(shardId);
             indexingDirectory.getSearchDirectory()
                 .setBlobContainer(primaryTerm -> objectStoreService.getBlobContainer(shardId, primaryTerm));
 

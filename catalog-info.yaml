@@ -3,11 +3,11 @@
 apiVersion: backstage.io/v1alpha1
 kind: Resource
 metadata:
-  name: buildkite-pipeline-elasticsearch-promote-serverless
-  description: Promote to elasticsearch-serverless
+  name: buildkite-pipeline-elasticsearch-update-serverless-submodule
+  description: Update elasticsearch submodule in elasticsearch-serverless
   links:
     - title: Pipeline
-      url: https://buildkite.com/elastic/elasticsearch-promote-serverless
+      url: https://buildkite.com/elastic/elasticsearch-update-serverless-submodule
 spec:
   type: buildkite-pipeline
   system: buildkite
@@ -16,11 +16,11 @@ spec:
     apiVersion: buildkite.elastic.dev/v1
     kind: Pipeline
     metadata:
-      description: ':elasticsearch: Promote to elasticsearch-serverless'
-      name: elasticsearch / promote serverless
+      description: ':elasticsearch: Update elasticsearch submodule in elasticsearch-serverless'
+      name: elasticsearch / update serverless submodule
     spec:
       repository: elastic/elasticsearch
-      pipeline_file: .buildkite/promote-es-serverless.yml
+      pipeline_file: .buildkite/update-es-serverless.yml
       teams:
         elasticsearch-team: {}
         everyone:

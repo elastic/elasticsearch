@@ -52,22 +52,16 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public static class CorrectFakeVersion {
-        public static final TransportVersion V_0_00_01 = new TransportVersion(199, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3, "3");
-        public static final TransportVersion V_0_000_004 = new TransportVersion(4, "4");
+        public static final TransportVersion V_0_00_01 = new TransportVersion(199);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(3);
+        public static final TransportVersion V_0_000_004 = new TransportVersion(4);
     }
 
     public static class DuplicatedIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(2, "3");
-    }
-
-    public static class DuplicatedStringIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(1, "1");
-        public static final TransportVersion V_0_000_002 = new TransportVersion(2, "2");
-        public static final TransportVersion V_0_000_003 = new TransportVersion(3, "2");
+        public static final TransportVersion V_0_000_001 = new TransportVersion(1);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(2);
     }
 
     public void testStaticTransportVersionChecks() {
@@ -88,8 +82,6 @@ public class TransportVersionTests extends ESTestCase {
         );
         AssertionError e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
-        e = expectThrows(AssertionError.class, () -> TransportVersion.getAllVersionIds(DuplicatedStringIdFakeVersion.class));
-        assertThat(e.getMessage(), containsString("have the same unique id"));
     }
 
     private static String padNumber(String number) {
@@ -146,7 +138,7 @@ public class TransportVersionTests extends ESTestCase {
         );
         TransportVersion version = TransportVersionUtils.randomVersion();
         TransportVersion version1 = TransportVersionUtils.randomVersion();
-        if (version.id <= version1.id) {
+        if (version.id() <= version1.id()) {
             assertEquals(version, TransportVersion.min(version1, version));
         } else {
             assertEquals(version1, TransportVersion.min(version1, version));
@@ -158,7 +150,7 @@ public class TransportVersionTests extends ESTestCase {
         assertEquals(TransportVersion.CURRENT, TransportVersion.max(TransportVersion.fromId(1_01_01_99), TransportVersion.CURRENT));
         TransportVersion version = TransportVersionUtils.randomVersion();
         TransportVersion version1 = TransportVersionUtils.randomVersion();
-        if (version.id >= version1.id) {
+        if (version.id() >= version1.id()) {
             assertEquals(version, TransportVersion.max(version1, version));
         } else {
             assertEquals(version1, TransportVersion.max(version1, version));
@@ -167,12 +159,12 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testVersionConstantPresent() {
         Set<TransportVersion> ignore = Set.of(TransportVersion.ZERO, TransportVersion.CURRENT, TransportVersion.MINIMUM_COMPATIBLE);
-        assertThat(TransportVersion.CURRENT, sameInstance(TransportVersion.fromId(TransportVersion.CURRENT.id)));
+        assertThat(TransportVersion.CURRENT, sameInstance(TransportVersion.fromId(TransportVersion.CURRENT.id())));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             TransportVersion version = TransportVersionUtils.randomVersion(ignore);
 
-            assertThat(version, sameInstance(TransportVersion.fromId(version.id)));
+            assertThat(version, sameInstance(TransportVersion.fromId(version.id())));
         }
     }
 

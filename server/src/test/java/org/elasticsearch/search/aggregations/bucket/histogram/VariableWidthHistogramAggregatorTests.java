@@ -610,7 +610,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                final IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 final VariableWidthHistogramAggregationBuilder aggregationBuilder = new VariableWidthHistogramAggregationBuilder("_name");
                 if (configure != null) {

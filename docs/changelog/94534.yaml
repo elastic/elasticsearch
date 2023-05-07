@@ -1,0 +1,5 @@
+pr: 94534
+summary: Add search shards endpoint
+area: Search
+type: enhancement
+issues: []

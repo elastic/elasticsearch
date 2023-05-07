@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -71,6 +72,19 @@ public class TransportService extends AbstractLifecycleComponent
         TransportConnectionListener {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
+
+    /**
+     * A feature flag enabling transport upgrades for serverless.
+     */
+    private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
+    private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG;
+    static {
+        final boolean serverlessFlag = Booleans.parseBoolean(System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY), false);
+        if (serverlessFlag && Build.CURRENT.isSnapshot() == false) {
+            throw new IllegalArgumentException("Enabling serverless transport is only supported in snapshot builds");
+        }
+        SERVERLESS_TRANSPORT_FEATURE_FLAG = serverlessFlag;
+    }
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -644,7 +658,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         private void maybeThrowOnIncompatibleBuild(@Nullable DiscoveryNode node, @Nullable Exception e) {
-            if (DiscoveryNode.isServerless() == false && isIncompatibleBuild(version, buildHash)) {
+            if (SERVERLESS_TRANSPORT_FEATURE_FLAG == false && isIncompatibleBuild(version, buildHash)) {
                 throwOnIncompatibleBuild(node, e);
             }
         }

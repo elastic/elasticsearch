@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -220,10 +221,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).build())
-            .nodes(
-                new DiscoveryNodes.Builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT))
-                    .localNodeId("_id1")
-            )
+            .nodes(new DiscoveryNodes.Builder().add(TestDiscoveryNode.create("_id1")).localNodeId("_id1"))
             .build();
 
         databaseNodeService.checkDatabases(state);
@@ -387,9 +385,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         }
         return ClusterState.builder(new ClusterName("name"))
             .metadata(Metadata.builder().putCustom(TYPE, tasksCustomMetadata).put(idxMeta))
-            .nodes(
-                DiscoveryNodes.builder().add(new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT)).localNodeId("_id1")
-            )
+            .nodes(DiscoveryNodes.builder().add(TestDiscoveryNode.create("_id1")).localNodeId("_id1"))
             .routingTable(
                 RoutingTable.builder()
                     .add(

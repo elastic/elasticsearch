@@ -66,7 +66,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), childrenToParent -> {
+        testCase(new MatchAllDocsQuery(), newIndexSearcher(indexReader), childrenToParent -> {
             assertEquals(0, childrenToParent.getDocCount());
             Aggregation parentAggregation = childrenToParent.getAggregations().get("in_parent");
             assertEquals(0, childrenToParent.getDocCount());
@@ -89,8 +89,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         // verify with all documents
         testCase(new MatchAllDocsQuery(), indexSearcher, parent -> {
@@ -157,8 +156,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         // verify a terms-aggregation inside the parent-aggregation
         testCaseTerms(new MatchAllDocsQuery(), indexSearcher, parent -> {
@@ -201,8 +199,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         // verify a terms-aggregation inside the parent-aggregation which itself is inside a
         // terms-aggregation on the child-documents

@@ -52,8 +52,6 @@ import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-
 /**
  * This class is responsible for tracking the replication group with its progress and safety markers (local and global checkpoints).
  *
@@ -66,28 +64,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
 public class ReplicationTracker extends AbstractIndexShardComponent implements LongSupplier {
-
-    public static final ReplicationTracker.Factory DEFAULT_FACTORY = (
-        shardId,
-        allocationId,
-        indexSettings,
-        operationPrimaryTerm,
-        onGlobalCheckpointUpdated,
-        currentTimeMillisSupplier,
-        onSyncRetentionLeases,
-        safeCommitInfoSupplier,
-        onReplicationGroupUpdated) -> new ReplicationTracker(
-            shardId,
-            allocationId,
-            indexSettings,
-            operationPrimaryTerm,
-            UNASSIGNED_SEQ_NO,
-            onGlobalCheckpointUpdated,
-            currentTimeMillisSupplier,
-            onSyncRetentionLeases,
-            safeCommitInfoSupplier,
-            onReplicationGroupUpdated
-        );
 
     /**
      * The allocation ID for the shard to which this tracker is a component of.
@@ -289,7 +265,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final Collection<RetentionLease> expiredLeases = partitionByExpiration.get(true);
         if (expiredLeases == null) {
             // early out as no retention leases have expired
-            logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
+            logger.trace("no retention leases are expired from current retention leases [{}]", retentionLeases);
             return retentionLeases;
         }
         final List<RetentionLease> nonExpiredLeases = partitionByExpiration.get(false) != null
@@ -1663,23 +1639,5 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             result = 31 * result + routingTable.hashCode();
             return result;
         }
-    }
-
-    /**
-     * Factory interface used by {@link org.elasticsearch.index.IndexModule#setReplicationTrackerFactory(Factory)} to enable custom
-     * overrides of this class.
-     */
-    public interface Factory {
-        ReplicationTracker create(
-            ShardId shardId,
-            String allocationId,
-            IndexSettings indexSettings,
-            long operationPrimaryTerm,
-            LongConsumer onGlobalCheckpointUpdated,
-            LongSupplier currentTimeMillisSupplier,
-            BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-            Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-            Consumer<ReplicationGroup> onReplicationGroupUpdated
-        );
     }
 }

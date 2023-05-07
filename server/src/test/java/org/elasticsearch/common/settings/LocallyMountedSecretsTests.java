@@ -64,6 +64,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
+        assertThat(secrets.getVersion(), equalTo(1L));
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());

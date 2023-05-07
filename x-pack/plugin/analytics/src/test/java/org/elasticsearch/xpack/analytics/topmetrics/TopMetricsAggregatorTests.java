@@ -371,7 +371,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 try (
                     AggregationContext context = createAggregationContext(
@@ -576,7 +576,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 InternalAggregation agg = searchAndReduce(
                     indexSearcher,
                     new AggTestConfig(builder, fields).withShouldBeCached(shouldBeCached).withQuery(query)

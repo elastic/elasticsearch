@@ -161,7 +161,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
-                    if (args.length != 1 && args[0] instanceof Version == false) {
+                    if (args.length != 1 || args[0] instanceof Version == false) {
                         throw new IllegalArgumentException("Expected exactly one argument of type org.elasticsearch.gradle.Version");
                     }
 
@@ -178,7 +178,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
+                    if (version.getMajor() > 0 && version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
                         this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
                     }

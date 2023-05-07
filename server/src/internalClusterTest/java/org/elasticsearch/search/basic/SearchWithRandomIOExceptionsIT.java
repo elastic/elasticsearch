@@ -100,8 +100,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             logger.info("creating index: [test] using settings: [{}]", settings.build());
             client().admin().indices().prepareCreate("test").setSettings(settings).setMapping(mapping).get();
         }
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
+        ClusterHealthResponse clusterHealthResponse = clusterAdmin()
             // it's OK to timeout here
             .health(new ClusterHealthRequest(new String[] {}).waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5)))
             .get();

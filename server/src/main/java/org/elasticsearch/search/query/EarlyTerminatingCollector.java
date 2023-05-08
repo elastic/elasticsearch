@@ -23,7 +23,7 @@ import java.io.IOException;
  */
 class EarlyTerminatingCollector extends FilterCollector {
     static final class EarlyTerminationException extends RuntimeException {
-        EarlyTerminationException(String msg) {
+        private EarlyTerminationException(String msg) {
             super(msg);
         }
 

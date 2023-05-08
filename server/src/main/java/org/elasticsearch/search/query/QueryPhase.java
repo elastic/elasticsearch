@@ -259,7 +259,7 @@ public class QueryPhase {
                 );
             }
 
-            final Runnable timeoutRunnable = getTimeOutCheck(searchContext);
+            final Runnable timeoutRunnable = getTimeoutCheck(searchContext);
             if (timeoutRunnable != null) {
                 searcher.addQueryCancellation(timeoutRunnable);
             }
@@ -350,7 +350,7 @@ public class QueryPhase {
         return true;
     }
 
-    public static Runnable getTimeOutCheck(SearchContext searchContext) {
+    public static Runnable getTimeoutCheck(SearchContext searchContext) {
         boolean timeoutSet = searchContext.scrollContext() == null
             && searchContext.timeout() != null
             && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;

@@ -74,7 +74,7 @@ public class AggregationPhase {
             });
         }
 
-        final Runnable timeoutRunnable = QueryPhase.getTimeOutCheck(context);
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
         if (timeoutRunnable != null) {
             cancellationChecks.add(timeoutRunnable);
         }

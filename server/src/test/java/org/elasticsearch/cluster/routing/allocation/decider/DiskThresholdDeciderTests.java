@@ -1271,7 +1271,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
             snapshotShardSizeInfoService,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
     }
 

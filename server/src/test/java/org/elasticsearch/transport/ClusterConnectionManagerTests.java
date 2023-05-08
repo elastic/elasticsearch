@@ -146,12 +146,11 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         value = "org.elasticsearch.transport.ClusterConnectionManager:TRACE"
     )
     public void testDisconnectLogging() {
-        final Supplier<DiscoveryNode> nodeFactory = () -> new DiscoveryNode(
+        final Supplier<DiscoveryNode> nodeFactory = () -> TestDiscoveryNode.create(
             randomAlphaOfLength(10),
             new TransportAddress(InetAddress.getLoopbackAddress(), 0),
             Collections.singletonMap("attr", "val"),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            DiscoveryNodeRole.roles()
         );
         final DiscoveryNode remoteClose = nodeFactory.get();
         final DiscoveryNode localClose = nodeFactory.get();

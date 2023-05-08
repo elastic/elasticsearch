@@ -146,7 +146,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }, "reconnection thread");
         reconnectionThread.start();
 
-        final var node = new DiscoveryNode("node", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        final var node = TestDiscoveryNode.create("node", buildNewFakeTransportAddress(), Map.of(), Set.of());
         final var nodes = discoveryNodesFromList(List.of(node));
 
         final Thread disruptionThread = new Thread(() -> {

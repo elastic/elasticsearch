@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -349,7 +350,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         assertEquals("Ingest info is empty", e.getMessage());
 
-        DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of());
         IngestInfo ingestInfo = new IngestInfo(List.of(new ProcessorInfo("set")));
         ingestService.validatePipeline(Map.of(discoveryNode, ingestInfo), putRequest.getId(), pipelineConfig);
     }
@@ -909,8 +910,8 @@ public class IngestServiceTests extends ESTestCase {
             }"""), XContentType.JSON);
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
-        DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        DiscoveryNode node1 = TestDiscoveryNode.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode node2 = TestDiscoveryNode.create("_node_id2", buildNewFakeTransportAddress(), Map.of(), Set.of());
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"))));

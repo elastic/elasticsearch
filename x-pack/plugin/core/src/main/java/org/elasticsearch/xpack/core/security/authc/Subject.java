@@ -298,8 +298,9 @@ public class Subject {
     }
 
     private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {
-        assert ApiKey.Type.CROSS_CLUSTER.value().equals(metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
-            : "cross cluster access must use cross-cluster API keys";
+        // TODO: enable following assertion when cross cluster access uses the right type of API keys
+        // assert ApiKey.Type.CROSS_CLUSTER.value().equals(metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
+        // : "cross cluster access must use cross-cluster API keys";
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
         final var crossClusterAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(

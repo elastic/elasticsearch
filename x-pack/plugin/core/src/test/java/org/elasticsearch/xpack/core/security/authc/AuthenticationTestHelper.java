@@ -455,7 +455,7 @@ public class AuthenticationTestHelper {
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot use cross cluster access authentication as run-as target");
             }
-            apiKey(crossClusterAccessApiKeyId);
+            crossClusterApiKey(crossClusterAccessApiKeyId);
             this.crossClusterAccessSubjectInfo = Objects.requireNonNull(crossClusterAccessSubjectInfo);
             return this;
         }

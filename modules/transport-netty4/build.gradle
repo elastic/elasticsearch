@@ -165,6 +165,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
 
+
     'com.google.protobuf.ExtensionRegistryLite',
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',

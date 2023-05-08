@@ -22,7 +22,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
@@ -435,8 +434,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Global global = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
@@ -464,16 +463,11 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
@@ -484,9 +478,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
@@ -679,8 +672,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         // Do not add any documents
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Global global = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(global);
@@ -716,8 +709,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(terms);
@@ -758,8 +751,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MaxAggregationBuilder maxAggregationBuilder = new MaxAggregationBuilder("max").field("values");
         ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count").field("values");
@@ -804,8 +797,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try (
             AggregationContext context = createAggregationContext(
@@ -869,16 +862,11 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
@@ -889,9 +877,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 
     /**
@@ -905,16 +892,11 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value")
@@ -935,8 +917,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertEquals("max", max.getName());
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 }

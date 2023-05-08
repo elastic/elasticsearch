@@ -59,6 +59,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -461,4 +462,18 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             return Collections.emptyList();
         }
     }
+
+    public void testNodeLeftGeneration() throws IOException {
+        final var clusterService = internalCluster().getInstance(ClusterService.class);
+        final var initialGeneration = clusterService.state().nodes().getNodeLeftGeneration();
+        assertThat(clusterService.state().toString(), containsString("node-left generation: " + initialGeneration));
+
+        final var newNode = internalCluster().startNode();
+        assertEquals(initialGeneration, clusterService.state().nodes().getNodeLeftGeneration());
+        internalCluster().stopNode(newNode);
+        assertEquals(initialGeneration + 1, clusterService.state().nodes().getNodeLeftGeneration());
+
+        assertThat(clusterService.state().toString(), containsString("node-left generation: " + (initialGeneration + 1)));
+    }
+
 }

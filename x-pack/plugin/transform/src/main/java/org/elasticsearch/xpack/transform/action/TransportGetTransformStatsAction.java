@@ -335,7 +335,6 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ClusterState clusterState,
         ActionListener<Void> listener
     ) {
-
         if (statsForTransformsWithoutTasks.isEmpty()) {
             // No work to do, but we must respond to the listener
             listener.onResponse(null);
@@ -366,10 +365,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                             )
                         );
                     } else {
+                        final boolean transformPersistentTaskIsStillRunning = TransformTask.getTransformTask(
+                            stat.getId(),
+                            clusterState
+                        ) != null;
                         allStateAndStats.add(
                             new TransformStats(
                                 stat.getId(),
-                                TransformStats.State.STOPPED,
+                                transformPersistentTaskIsStillRunning ? TransformStats.State.STOPPING : TransformStats.State.STOPPED,
                                 null,
                                 null,
                                 stat.getTransformStats(),

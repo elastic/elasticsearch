@@ -24,10 +24,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,18 +60,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
-import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
-import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -115,16 +109,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.LongConsumer;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -460,7 +448,6 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setDirectoryWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setIndexCommitListener(null)).getMessage());
-        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReplicationTrackerFactory(null)).getMessage());
     }
 
     public void testSetupUnknownSimilarity() {
@@ -752,80 +739,6 @@ public class IndexModuleTests extends ESTestCase {
         } finally {
             IOUtils.close(closeables);
         }
-    }
-
-    public void testCustomReplicationTrackerFactory() throws IOException {
-        IndexModule module = new IndexModule(
-            indexSettings,
-            emptyAnalysisRegistry,
-            InternalEngine::new,
-            Collections.emptyMap(),
-            () -> true,
-            indexNameExpressionResolver,
-            Collections.emptyMap()
-        );
-
-        class CustomReplicationTracker extends ReplicationTracker {
-            CustomReplicationTracker(
-                ShardId shardId,
-                String allocationId,
-                IndexSettings indexSettings,
-                long operationPrimaryTerm,
-                long globalCheckpoint,
-                LongConsumer onGlobalCheckpointUpdated,
-                LongSupplier currentTimeMillisSupplier,
-                BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
-                Supplier<SafeCommitInfo> safeCommitInfoSupplier,
-                Consumer<ReplicationGroup> onReplicationGroupUpdated
-            ) {
-                super(
-                    shardId,
-                    allocationId,
-                    indexSettings,
-                    operationPrimaryTerm,
-                    globalCheckpoint,
-                    onGlobalCheckpointUpdated,
-                    currentTimeMillisSupplier,
-                    onSyncRetentionLeases,
-                    safeCommitInfoSupplier,
-                    onReplicationGroupUpdated
-                );
-            }
-        }
-        module.setReplicationTrackerFactory(
-            (
-                shardId,
-                allocationId,
-                indexSettings,
-                operationPrimaryTerm,
-                onGlobalCheckpointUpdated,
-                currentTimeMillisSupplier,
-                onSyncRetentionLeases,
-                safeCommitInfoSupplier,
-                onReplicationGroupUpdated) -> new CustomReplicationTracker(
-                    shardId,
-                    allocationId,
-                    indexSettings,
-                    operationPrimaryTerm,
-                    UNASSIGNED_SEQ_NO,
-                    onGlobalCheckpointUpdated,
-                    currentTimeMillisSupplier,
-                    onSyncRetentionLeases,
-                    safeCommitInfoSupplier,
-                    onReplicationGroupUpdated
-                )
-        );
-        final IndexService indexService = newIndexService(module);
-        ShardId shardId = new ShardId("index", UUIDs.randomBase64UUID(random()), 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(
-            shardId,
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
-            ShardRouting.Role.DEFAULT
-        ).initialize("_node_id", null, -1);
-        IndexShard indexShard = indexService.createShard(shardRouting, s -> {}, RetentionLeaseSyncer.EMPTY);
-        assertThat(indexShard.getReplicationTracker(), instanceOf(CustomReplicationTracker.class));
     }
 
     private ShardRouting createInitializedShardRouting() {

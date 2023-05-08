@@ -609,18 +609,18 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
         final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final AggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
 
-        multiIndexTestCase(aggregationBuilder, new MatchAllDocsQuery(), List.of((unmappedIndexWriter) -> {}, (indexWriter) -> {
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
-                indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }), (internalAggregation) -> {
-            InternalCardinality cardinality = (InternalCardinality) internalAggregation;
-            assertEquals(10.0, cardinality.getValue(), 0);
-            assertEquals("cardinality", cardinality.getName());
-            assertTrue(AggregationInspectionHelper.hasValue(cardinality));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
+        }, card -> {
+            assertEquals(10.0, card.getValue(), 0);
+            assertEquals("cardinality", card.getName());
+            assertTrue(AggregationInspectionHelper.hasValue(card));
         }, fieldType);
     }
 

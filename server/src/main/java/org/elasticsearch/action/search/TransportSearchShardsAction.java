@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,6 +25,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -46,6 +46,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportSearchShardsAction(
@@ -64,6 +65,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
@@ -115,7 +117,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     (clusterAlias, node) -> searchTransportService.getConnection(clusterAlias, clusterState.nodes().get(node)),
                     aliasFilters,
                     Map.of(),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                     searchRequest,
                     GroupShardsIterator.sortAndCreate(shardIterators),
                     timeProvider,

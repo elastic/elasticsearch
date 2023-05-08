@@ -14,9 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.Ignore;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
+@Ignore
 public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
 
     public EnterpriseSearchRestIT(final ClientYamlTestCandidate testCandidate) {

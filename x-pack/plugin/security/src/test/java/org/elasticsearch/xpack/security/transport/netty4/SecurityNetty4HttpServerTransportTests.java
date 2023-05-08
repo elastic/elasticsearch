@@ -292,6 +292,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                request.getHttpRequest().release();
                 // STEP 2: store the dispatched request, which should be wrapping the context
                 dispatchedHttpRequestReference.set(request.getHttpRequest());
             }

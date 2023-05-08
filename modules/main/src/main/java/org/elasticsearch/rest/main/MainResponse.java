@@ -10,8 +10,10 @@ package org.elasticsearch.rest.main;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainTransportResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,7 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class MainRestResponse implements ToXContentObject {
+public class MainResponse extends ActionResponse implements ToXContentObject {
 
     private String nodeName;
     private Version version;
@@ -29,24 +31,52 @@ public class MainRestResponse implements ToXContentObject {
     private String clusterUuid;
     private Build build;
 
-    public MainRestResponse() {}
+    MainResponse() {}
 
-    public MainRestResponse(MainTransportResponse transportResponse) {
-        this(
-            transportResponse.getNodeName(),
-            transportResponse.getVersion(),
-            transportResponse.getClusterName(),
-            transportResponse.getClusterUuid(),
-            transportResponse.getBuild()
-        );
+    MainResponse(StreamInput in) throws IOException {
+        super(in);
+        nodeName = in.readString();
+        version = Version.readVersion(in);
+        clusterName = new ClusterName(in);
+        clusterUuid = in.readString();
+        build = Build.readBuild(in);
     }
 
-    public MainRestResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
+    public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
         this.nodeName = nodeName;
         this.version = version;
         this.clusterName = clusterName;
         this.clusterUuid = clusterUuid;
         this.build = build;
+    }
+
+    public String getNodeName() {
+        return nodeName;
+    }
+
+    public Version getVersion() {
+        return version;
+    }
+
+    public ClusterName getClusterName() {
+        return clusterName;
+    }
+
+    public String getClusterUuid() {
+        return clusterUuid;
+    }
+
+    public Build getBuild() {
+        return build;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
+        Version.writeVersion(version, out);
+        clusterName.writeTo(out);
+        out.writeString(clusterUuid);
+        Build.writeBuild(build, out);
     }
 
     @Override
@@ -71,10 +101,10 @@ public class MainRestResponse implements ToXContentObject {
         return builder;
     }
 
-    private static final ObjectParser<MainRestResponse, Void> PARSER = new ObjectParser<>(
-        MainRestResponse.class.getName(),
+    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(
+        MainResponse.class.getName(),
         true,
-        MainRestResponse::new
+        MainResponse::new
     );
 
     static {
@@ -101,7 +131,7 @@ public class MainRestResponse implements ToXContentObject {
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }
 
-    public static MainRestResponse fromXContent(XContentParser parser) {
+    public static MainResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -113,7 +143,7 @@ public class MainRestResponse implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        MainRestResponse other = (MainRestResponse) o;
+        MainResponse other = (MainResponse) o;
         return Objects.equals(nodeName, other.nodeName)
             && Objects.equals(version, other.version)
             && Objects.equals(clusterUuid, other.clusterUuid)
@@ -142,25 +172,5 @@ public class MainRestResponse implements ToXContentObject {
             + ", build="
             + build
             + '}';
-    }
-
-    public String getNodeName() {
-        return nodeName;
-    }
-
-    public Version getVersion() {
-        return version;
-    }
-
-    public ClusterName getClusterName() {
-        return clusterName;
-    }
-
-    public String getClusterUuid() {
-        return clusterUuid;
-    }
-
-    public Build getBuild() {
-        return build;
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.rest.main;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainTransportResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -35,7 +34,7 @@ public class RestMainActionTests extends ESTestCase {
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
 
-        final MainTransportResponse mainResponse = new MainTransportResponse(nodeName, version, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -60,7 +59,7 @@ public class RestMainActionTests extends ESTestCase {
         final Build build = Build.CURRENT;
         final boolean prettyPrint = randomBoolean();
 
-        final MainTransportResponse mainResponse = new MainTransportResponse(nodeName, version, clusterName, clusterUUID, build);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.main;
+package org.elasticsearch.rest.main;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -14,11 +14,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class MainTransportRequest extends ActionRequest {
+public class MainRequest extends ActionRequest {
 
-    public MainTransportRequest() {}
+    public MainRequest() {}
 
-    MainTransportRequest(StreamInput in) throws IOException {
+    MainRequest(StreamInput in) throws IOException {
         super(in);
     }
 

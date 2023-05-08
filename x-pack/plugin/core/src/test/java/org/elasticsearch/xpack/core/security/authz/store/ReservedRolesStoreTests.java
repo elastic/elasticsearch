@@ -52,7 +52,6 @@ import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -1403,7 +1402,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 )
             )
         );
-        assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
+        assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(RemoteInfoAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));

@@ -6,16 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.main;
+package org.elasticsearch.rest.main;
 
 import org.elasticsearch.action.ActionType;
 
-public class MainAction extends ActionType<MainTransportResponse> {
+public class MainAction extends ActionType<MainResponse> {
 
     public static final String NAME = "cluster:monitor/main";
     public static final MainAction INSTANCE = new MainAction();
 
     public MainAction() {
-        super(NAME, MainTransportResponse::new);
+        super(NAME, MainResponse::new);
     }
 }

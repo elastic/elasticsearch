@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.main;
+package org.elasticsearch.rest.main;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -21,7 +21,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportMainAction extends HandledTransportAction<MainTransportRequest, MainTransportResponse> {
+public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
 
     private final String nodeName;
     private final ClusterService clusterService;
@@ -33,22 +33,16 @@ public class TransportMainAction extends HandledTransportAction<MainTransportReq
         ActionFilters actionFilters,
         ClusterService clusterService
     ) {
-        super(MainAction.NAME, transportService, actionFilters, MainTransportRequest::new);
+        super(MainAction.NAME, transportService, actionFilters, MainRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, MainTransportRequest request, ActionListener<MainTransportResponse> listener) {
+    protected void doExecute(Task task, MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
         listener.onResponse(
-            new MainTransportResponse(
-                nodeName,
-                Version.CURRENT,
-                clusterState.getClusterName(),
-                clusterState.metadata().clusterUUID(),
-                Build.CURRENT
-            )
+            new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(), clusterState.metadata().clusterUUID(), Build.CURRENT)
         );
     }
 }

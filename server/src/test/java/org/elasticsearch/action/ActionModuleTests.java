@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.TransportMainAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -56,7 +56,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class))
+            hasEntry(NodesInfoAction.INSTANCE.name(), new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class))
         );
     }
 
@@ -64,11 +64,11 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
+                return singletonList(new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
-        assertEquals("action for name [" + MainAction.NAME + "] already registered", e.getMessage());
+        assertEquals("action for name [" + NodesInfoAction.NAME + "] already registered", e.getMessage());
     }
 
     public void testPluginCanRegisterAction() {

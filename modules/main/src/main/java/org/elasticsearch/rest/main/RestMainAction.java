@@ -8,9 +8,6 @@
 
 package org.elasticsearch.rest.main;
 
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.MainTransportRequest;
-import org.elasticsearch.action.main.MainTransportResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -42,26 +39,20 @@ public class RestMainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        return channel -> client.execute(
-            MainAction.INSTANCE,
-            new MainTransportRequest(),
-            new RestBuilderListener<MainTransportResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(MainTransportResponse mainResponse, XContentBuilder builder) throws Exception {
-                    return convertMainResponse(mainResponse, request, builder);
-                }
+        return channel -> client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(MainResponse mainResponse, XContentBuilder builder) throws Exception {
+                return convertMainResponse(mainResponse, request, builder);
             }
-        );
+        });
     }
 
-    static RestResponse convertMainResponse(MainTransportResponse response, RestRequest request, XContentBuilder builder)
-        throws IOException {
+    static RestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
         // Default to pretty printing, but allow ?pretty=false to disable
         if (request.hasParam("pretty") == false) {
             builder.prettyPrint().lfAtEnd();
         }
-        MainRestResponse mainRestResponse = new MainRestResponse(response);
-        mainRestResponse.toXContent(builder, request);
+        response.toXContent(builder, request);
         return new RestResponse(RestStatus.OK, builder);
     }
 

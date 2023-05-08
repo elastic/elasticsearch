@@ -22,9 +22,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -160,12 +158,8 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    public RefreshResult refresh(String source) throws EngineException {
-        if (source.equals(TransportShardRefreshAction.SOURCE_API) || source.equals(PostWriteRefresh.FORCED_REFRESH_AFTER_INDEX)) {
-            // TODO: Eventually the Refresh API will also need to transition (maybe) to an async API here.
-            flush(true, true, ActionListener.noop());
-        }
-        return super.refresh(source);
+    public void externalRefresh(String source, ActionListener<RefreshResult> listener) {
+        flush(true, true, listener.delegateFailure((l, flushResult) -> super.externalRefresh(source, l)));
     }
 
     @Override

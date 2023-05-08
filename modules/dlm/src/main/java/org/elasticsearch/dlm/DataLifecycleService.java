@@ -102,18 +102,17 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
-    private final MasterServiceTaskQueue<DataLifecycleClusterStateUpdateTask> clusterStateUpdateTaskQueue;
+    private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> clusterStateUpdateTaskQueue;
 
-    private static final SimpleBatchedExecutor<DataLifecycleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+    private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
             @Override
-            public Tuple<ClusterState, Void> executeTask(DataLifecycleClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
+            public Tuple<ClusterState, Void> executeTask(UpdateForceMergeCompleteTask task, ClusterState clusterState) throws Exception {
                 return Tuple.tuple(task.execute(clusterState), null);
             }
 
             @Override
-            public void taskSucceeded(DataLifecycleClusterStateUpdateTask task, Void unused) {
+            public void taskSucceeded(UpdateForceMergeCompleteTask task, Void unused) {
                 logger.trace("Updated cluster state for force merge");
                 task.listener.onResponse(null);
             }
@@ -507,25 +506,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private void setForceMergeCompletedTimestamp(String targetIndex, ActionListener<Void> listener) {
         clusterStateUpdateTaskQueue.submitTask(
             Strings.format("Adding force merge complete marker to cluster state for [%s]", targetIndex),
-            new DataLifecycleClusterStateUpdateTask(listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    logger.trace("Updating cluster state with force merge complete marker for {}", targetIndex);
-                    IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
-                    Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
-                    Map<String, String> newCustomMetadata = new HashMap<>();
-                    if (customMetadata != null) {
-                        newCustomMetadata.putAll(customMetadata);
-                    }
-                    newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
-                    IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
-                        DLM_CUSTOM_INDEX_METADATA_KEY,
-                        newCustomMetadata
-                    ).build();
-                    Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
-                    return ClusterState.builder(currentState).metadata(metadata).build();
-                }
-            },
+            new UpdateForceMergeCompleteTask(listener, targetIndex, threadPool),
             null
         );
     }
@@ -629,16 +610,36 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /**
-     * This is an abstract class meant to be extended by classes that update the cluster state, run in STATE_UPDATE_TASK_EXECUTOR.
+     * This is a ClusterStateTaskListener that writes the force_merge_completed_timestamp into the cluster state. It is meant to run in
+     * STATE_UPDATE_TASK_EXECUTOR.
      */
-    private abstract static class DataLifecycleClusterStateUpdateTask implements ClusterStateTaskListener {
-        final ActionListener<Void> listener;
+    static class UpdateForceMergeCompleteTask implements ClusterStateTaskListener {
+        private final ActionListener<Void> listener;
+        private final String targetIndex;
+        private final ThreadPool threadPool;
 
-        DataLifecycleClusterStateUpdateTask(ActionListener<Void> listener) {
+        UpdateForceMergeCompleteTask(ActionListener<Void> listener, String targetIndex, ThreadPool threadPool) {
             this.listener = listener;
+            this.targetIndex = targetIndex;
+            this.threadPool = threadPool;
         }
 
-        public abstract ClusterState execute(ClusterState currentState) throws Exception;
+        ClusterState execute(ClusterState currentState) throws Exception {
+            logger.trace("Updating cluster state with force merge complete marker for {}", targetIndex);
+            IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
+            Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> newCustomMetadata = new HashMap<>();
+            if (customMetadata != null) {
+                newCustomMetadata.putAll(customMetadata);
+            }
+            newCustomMetadata.put(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(threadPool.absoluteTimeInMillis()));
+            IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
+                DLM_CUSTOM_INDEX_METADATA_KEY,
+                newCustomMetadata
+            ).build();
+            Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
+            return ClusterState.builder(currentState).metadata(metadata).build();
+        }
 
         @Override
         public void onFailure(Exception e) {

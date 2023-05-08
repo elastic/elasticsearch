@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -56,13 +57,16 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.dlm.DLMFixtures.createDataStream;
 import static org.elasticsearch.dlm.DataLifecycleService.DLM_CUSTOM_INDEX_METADATA_KEY;
@@ -70,6 +74,7 @@ import static org.elasticsearch.dlm.DataLifecycleService.FORCE_MERGE_COMPLETED_T
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -623,6 +628,96 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertThat(dataLifecycleService.transportActionsDeduplicator.size(), lessThanOrEqualTo(1));
         }
         assertBusy(() -> assertThat(dataLifecycleService.transportActionsDeduplicator.size(), equalTo(0)));
+    }
+
+    public void testUpdateForceMergeCompleteTask() throws Exception {
+        AtomicInteger onResponseCount = new AtomicInteger(0);
+        AtomicInteger failureCount = new AtomicInteger(0);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<Void> listener = new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                onResponseCount.incrementAndGet();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failureCount.incrementAndGet();
+                failure.set(e);
+            }
+        };
+        String targetIndex = randomAlphaOfLength(20);
+        DataLifecycleService.UpdateForceMergeCompleteTask task = new DataLifecycleService.UpdateForceMergeCompleteTask(
+            listener,
+            targetIndex,
+            threadPool
+        );
+        {
+            Exception exception = new RuntimeException("task failed");
+            task.onFailure(exception);
+            assertThat(failureCount.get(), equalTo(1));
+            assertThat(onResponseCount.get(), equalTo(0));
+            assertThat(failure.get(), equalTo(exception));
+            ClusterState clusterState = createClusterState(targetIndex, null);
+            ClusterState newClusterState = task.execute(clusterState);
+            IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
+            assertThat(indexMetadata, notNullValue());
+            Map<String, String> dlmMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            assertThat(dlmMetadata, notNullValue());
+            assertThat(dlmMetadata.size(), equalTo(1));
+            String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+            assertThat(forceMergeCompleteTimestampString, notNullValue());
+            long forceMergeCopmleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
+            assertThat(forceMergeCopmleteTimestamp, greaterThanOrEqualTo(threadPool.absoluteTimeInMillis()));
+            // The listener's onResponse should not be called by execute():
+            assertThat(onResponseCount.get(), equalTo(0));
+        }
+        {
+            /*
+             * This is the same as the previous block, except that this time we'll have previously-existing DLM custom metadata in the
+             * index's metadata, and make sure that it doesn't get blown away when we set the timestamp.
+             */
+            String preExistingDlmCustomMetadataKey = randomAlphaOfLength(10);
+            String preExistingDlmCustomMetadataValue = randomAlphaOfLength(20);
+            Map<String, String> preExistingDlmCustomMetadata = Map.of(preExistingDlmCustomMetadataKey, preExistingDlmCustomMetadataValue);
+            ClusterState clusterState = createClusterState(targetIndex, preExistingDlmCustomMetadata);
+            ClusterState newClusterState = task.execute(clusterState);
+            IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
+            Map<String, String> dlmMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
+            assertThat(dlmMetadata, notNullValue());
+            assertThat(dlmMetadata.size(), equalTo(2));
+            assertThat(dlmMetadata.get(preExistingDlmCustomMetadataKey), equalTo(preExistingDlmCustomMetadataValue));
+            String forceMergeCompleteTimestampString = dlmMetadata.get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY);
+            assertThat(forceMergeCompleteTimestampString, notNullValue());
+            long forceMergeCopmleteTimestamp = Long.parseLong(forceMergeCompleteTimestampString);
+            assertThat(forceMergeCopmleteTimestamp, greaterThanOrEqualTo(threadPool.absoluteTimeInMillis()));
+            // The listener's onResponse should not be called by execute():
+            assertThat(onResponseCount.get(), equalTo(0));
+        }
+    }
+
+    /*
+     * Creates a test cluster state with the given indexName. If customDlmMetadata is not null, it is added as the value of the index's
+     * custom metadata named "dlm".
+     */
+    private ClusterState createClusterState(String indexName, Map<String, String> customDlmMetadata) {
+        var routingTableBuilder = RoutingTable.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        Map<String, IndexMetadata> indices = new HashMap<>();
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 10))
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .build();
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).version(randomLong()).settings(indexSettings);
+        if (customDlmMetadata != null) {
+            indexMetadataBuilder.putCustom(DLM_CUSTOM_INDEX_METADATA_KEY, customDlmMetadata);
+        }
+        indices.put(indexName, indexMetadataBuilder.build());
+        return ClusterState.builder(new ClusterName("test-cluster"))
+            .routingTable(routingTableBuilder.build())
+            .metadata(metadataBuilder.indices(indices).build())
+            .build();
     }
 
     public void testDefaultRolloverRequest() {

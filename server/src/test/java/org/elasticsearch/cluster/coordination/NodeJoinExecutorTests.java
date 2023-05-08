@@ -189,9 +189,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public static Settings.Builder randomCompatibleVersionSettings() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            builder.put(IndexMetadata.SETTING_VERSION_CREATED, getRandomCompatibleVersion());
+            Version createdVersion = getRandomCompatibleVersion();
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
             if (randomBoolean()) {
-                builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, getRandomCompatibleVersion());
+                builder.put(
+                    IndexMetadata.SETTING_VERSION_COMPATIBILITY,
+                    VersionUtils.randomVersionBetween(random(), createdVersion, Version.CURRENT)
+                );
             }
         } else {
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, randomFrom(Version.fromString("5.0.0"), Version.fromString("6.0.0")));

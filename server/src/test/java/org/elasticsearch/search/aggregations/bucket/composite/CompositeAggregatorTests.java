@@ -163,7 +163,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         if (false == objectMappers().isEmpty()) {
             return wrapInMockESDirectoryReader(reader);
         }
@@ -3103,7 +3103,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 try (
                     AggregationContext context = createAggregationContext(

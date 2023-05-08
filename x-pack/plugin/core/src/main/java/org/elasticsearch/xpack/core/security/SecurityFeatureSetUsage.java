@@ -75,7 +75,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             userProfileUsage = in.readMap();
         }
-        if (in.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        if (in.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
             remoteClusterServerUsage = in.readMap();
         }
     }
@@ -145,7 +145,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeGenericMap(userProfileUsage);
         }
-        if (out.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+        if (out.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
             out.writeGenericMap(remoteClusterServerUsage);
         }
     }

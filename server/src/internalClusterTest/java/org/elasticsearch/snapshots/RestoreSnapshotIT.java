@@ -297,14 +297,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete the index and recreate it with foo field");
         cluster().wipeIndices("test-idx");
         assertAcked(
-            prepareCreate(
-                "test-idx",
-                2,
-                Settings.builder()
-                    .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries)
-                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                    .put("refresh_interval", 5, TimeUnit.SECONDS)
-            )
+            prepareCreate("test-idx", 2, indexSettings(numShards.numPrimaries, between(0, 1)).put("refresh_interval", 5, TimeUnit.SECONDS))
         );
         assertAcked(client().admin().indices().preparePutMapping("test-idx").setSource("foo", "type=text"));
         ensureGreen();
@@ -923,7 +916,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
         final SnapshotRestoreException snapshotRestoreException = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin().cluster().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet()
+            () -> clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet()
         );
         assertThat(
             snapshotRestoreException.getMessage(),

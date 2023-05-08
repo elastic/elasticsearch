@@ -713,11 +713,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         int numberOfShards = numberOfShards();
         if (numberOfShards > 0) {
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
         }
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
         }
         // 30% of the time
         if (randomInt(9) < 3) {
@@ -776,7 +776,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * creates an index with the given shard and replica counts
      */
     public final void createIndex(String name, int shards, int replicas) {
-        createIndex(name, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shards).put(SETTING_NUMBER_OF_REPLICAS, replicas).build());
+        createIndex(name, indexSettings(shards, replicas).build());
     }
 
     /**

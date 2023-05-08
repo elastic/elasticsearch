@@ -141,7 +141,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        NodesStatsResponse nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
             nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
                 .get(1)
@@ -163,7 +163,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
         client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
 
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
             nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
                 .get(1)
@@ -180,9 +180,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
 
         // now check the per field stats
-        nodesStats = client().admin()
-            .cluster()
-            .prepareNodesStats("data:true")
+        nodesStats = clusterAdmin().prepareNodesStats("data:true")
             .setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.FieldData, true).fieldDataFields("*"))
             .execute()
             .actionGet();
@@ -235,7 +233,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         );
 
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
             nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
                 .get(1)
@@ -259,12 +257,12 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .get()
         );
         ensureGreen();
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client().prepareIndex("test").setId("1").setSource("field", "value1").execute().actionGet();
         client().prepareIndex("test").setId("2").setSource("field", "value2").execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        NodesStatsResponse nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        NodesStatsResponse nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
             nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
                 .get(1)
@@ -305,7 +303,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
             nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
                 .get(1)
@@ -329,7 +327,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         client().admin().indices().prepareClearCache().execute().actionGet();
         Thread.sleep(100); // Make sure the filter cache entries have been removed...
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
+        nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
             nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
                 .get(1)
@@ -563,7 +561,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
         refresh();
         stats = client().admin().indices().prepareStats().execute().actionGet();
-        // nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+        // nodesStats = clusterAdmin().prepareNodesStats().setIndices(true).get();
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis(), equalTo(0L));
@@ -602,7 +600,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             }
             refresh();
             stats = client().admin().indices().prepareStats().execute().actionGet();
-            // nodesStats = client().admin().cluster().prepareNodesStats().setIndices(true).get();
+            // nodesStats = clusterAdmin().prepareNodesStats().setIndices(true).get();
             done = stats.getPrimaries().getIndexing().getTotal().getThrottleTime().millis() > 0;
             if (System.currentTimeMillis() - start > 300 * 1000) { // Wait 5 minutes for throttling to kick in
                 fail("index throttling didn't kick in after 5 minutes of intense merging");

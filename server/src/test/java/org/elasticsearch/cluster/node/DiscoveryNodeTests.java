@@ -160,12 +160,11 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {
-        final DiscoveryNode node = new DiscoveryNode(
+        final DiscoveryNode node = TestDiscoveryNode.create(
             "test-id",
             buildNewFakeTransportAddress(),
             Map.of("test-attr", "val"),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            DiscoveryNodeRole.roles()
         );
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
@@ -223,12 +222,11 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeToString() {
-        var node = new DiscoveryNode(
+        var node = TestDiscoveryNode.create(
             "test-id",
             buildNewFakeTransportAddress(),
             Map.of("test-attr", "val"),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            DiscoveryNodeRole.roles()
         );
         var toString = node.toString();
 

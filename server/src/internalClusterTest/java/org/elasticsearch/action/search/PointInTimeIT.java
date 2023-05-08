@@ -284,10 +284,10 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     public void testCanMatch() throws Exception {
-        final Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(5, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 100)));
+        final Settings.Builder settings = indexSettings(randomIntBetween(5, 10), 0).put(
+            IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(),
+            TimeValue.timeValueMillis(randomIntBetween(50, 100))
+        );
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
@@ -426,7 +426,7 @@ public class PointInTimeIT extends ESIntegTestCase {
 
     public void testCloseInvalidPointInTime() {
         expectThrows(Exception.class, () -> client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest("")).actionGet());
-        List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
+        List<TaskInfo> tasks = clusterAdmin().prepareListTasks().setActions(ClosePointInTimeAction.NAME).get().getTasks();
         assertThat(tasks, empty());
     }
 

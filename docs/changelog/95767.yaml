@@ -1,0 +1,6 @@
+pr: 95767
+summary: Strip disallowed chars from generated snapshot name
+area: ILM+SLM
+type: bug
+issues:
+ - 95593

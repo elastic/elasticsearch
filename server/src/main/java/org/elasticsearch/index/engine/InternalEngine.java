@@ -42,6 +42,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -140,7 +141,12 @@ public class InternalEngine extends Engine {
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final LiveVersionMap versionMap = new LiveVersionMap();
+    private final LiveVersionMap versionMap;
+    private final LiveVersionMapArchive liveVersionMapArchive;
+    // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
+    // generation it is safe to rely on the LiveVersionMap for a real-time get.
+    // TODO: can we move this entirely into the stateless plugin?
+    private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -215,6 +221,8 @@ public class InternalEngine extends Engine {
         this.maxDocs = maxDocs;
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
+        this.liveVersionMapArchive = createLiveVersionMapArchive();
+        this.versionMap = new LiveVersionMap(liveVersionMapArchive);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -557,7 +565,9 @@ public class InternalEngine extends Engine {
                 translog.currentFileGeneration()
             )
         );
-        flush(false, true);
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(false, true, future);
+        future.actionGet();
         translog.trimUnreferencedReaders();
     }
 
@@ -747,63 +757,101 @@ public class InternalEngine extends Engine {
         DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        assert assertGetUsesIdField(get);
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
-                final VersionValue versionValue;
-                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
-                    // we need to lock here to access the version map to do this truly in RT
-                    versionValue = getVersionFromMap(get.uid().bytes());
-                }
-                if (versionValue != null) {
-                    if (versionValue.isDelete()) {
-                        return GetResult.NOT_EXISTS;
-                    }
-                    if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
-                        throw new VersionConflictEngineException(
-                            shardId,
-                            "[" + get.id() + "]",
-                            get.versionType().explainConflictForReads(versionValue.version, get.version())
-                        );
-                    }
-                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                        && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
-                        throw new VersionConflictEngineException(
-                            shardId,
-                            get.id(),
-                            get.getIfSeqNo(),
-                            get.getIfPrimaryTerm(),
-                            versionValue.seqNo,
-                            versionValue.term
-                        );
-                    }
-                    if (get.isReadFromTranslog()) {
-                        // this is only used for updates - API _GET calls will always read form a reader for consistency
-                        // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
-                        if (versionValue.getLocation() != null) {
-                            try {
-                                final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
-                                if (operation != null) {
-                                    return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
-                                }
-                            } catch (IOException e) {
-                                maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
-                                throw new EngineException(shardId, "failed to read operation from translog", e);
-                            }
-                        } else {
-                            trackTranslogLocation.set(true);
-                        }
-                    }
-                    assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded("realtime_get", versionValue.seqNo);
-                }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
+                assert result != null : "real-time get result must not be null";
+                return result;
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
                 return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
             }
         }
+    }
+
+    @Override
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        assert assertGetUsesIdField(get);
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
+        }
+    }
+
+    /**
+     * @param getFromSearcher indicates whether we also try the internal searcher if not found in translog. In the case where
+     * we just started tracking locations in the translog, we always use the internal searcher.
+     */
+    protected GetResult realtimeGetUnderLock(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
+        boolean getFromSearcher
+    ) {
+        assert readLock.isHeldByCurrentThread();
+        assert get.realtime();
+        final VersionValue versionValue;
+        try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+            // we need to lock here to access the version map to do this truly in RT
+            versionValue = getVersionFromMap(get.uid().bytes());
+        }
+        boolean getFromSearcherIfNotInTranslog = getFromSearcher;
+        if (versionValue != null) {
+            if (versionValue.isDelete()) {
+                return GetResult.NOT_EXISTS;
+            }
+            if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
+                throw new VersionConflictEngineException(
+                    shardId,
+                    "[" + get.id() + "]",
+                    get.versionType().explainConflictForReads(versionValue.version, get.version())
+                );
+            }
+            if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
+                throw new VersionConflictEngineException(
+                    shardId,
+                    get.id(),
+                    get.getIfSeqNo(),
+                    get.getIfPrimaryTerm(),
+                    versionValue.seqNo,
+                    versionValue.term
+                );
+            }
+            if (get.isReadFromTranslog()) {
+                if (versionValue.getLocation() != null) {
+                    try {
+                        final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                        if (operation != null) {
+                            return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
+                        }
+                    } catch (IOException e) {
+                        maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
+                        throw new EngineException(shardId, "failed to read operation from translog", e);
+                    }
+                } else {
+                    trackTranslogLocation.set(true);
+                    // We need to start tracking translog locations in the live version map. Refresh and
+                    // serve all the real-time gets with a missing translog location from the internal searcher
+                    // (until a flush happens) even if we're supposed to only get from translog.
+                    getFromSearcherIfNotInTranslog = true;
+                }
+            }
+            assert versionValue.seqNo >= 0 : versionValue;
+            refreshIfNeeded("realtime_get", versionValue.seqNo);
+        }
+        if (getFromSearcherIfNotInTranslog) {
+            return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+        }
+        return null;
     }
 
     /**
@@ -909,6 +957,7 @@ public class InternalEngine extends Engine {
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
+                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration() + 1);
                     refresh("unsafe_version_map", SearcherScope.INTERNAL, true);
                 }
                 versionMap.enforceSafeAccess();
@@ -1956,7 +2005,7 @@ public class InternalEngine extends Engine {
         );
         final long flushThresholdAgeInNanos = config().getIndexSettings().getFlushThresholdAge().getNanos() / 2;
         if (shouldPeriodicallyFlush(flushThresholdSizeInBytes, flushThresholdAgeInNanos)) {
-            flush(false, false);
+            flush(false, false, ActionListener.noop());
             return;
         }
 
@@ -2010,7 +2059,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
+    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         ensureOpen();
         if (force && waitIfOngoing == false) {
             assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2018,13 +2067,15 @@ public class InternalEngine extends Engine {
                 "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing
             );
         }
+        final long generation;
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing == false) {
                     logger.trace("detected an in-flight flush, not blocking to wait for it's completion");
-                    return false;
+                    listener.onResponse(FlushResult.NO_FLUSH);
+                    return;
                 }
                 logger.trace("waiting for in-flight flush to finish");
                 flushLock.lock();
@@ -2032,6 +2083,7 @@ public class InternalEngine extends Engine {
             } else {
                 logger.trace("acquired flush lock immediately");
             }
+
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog),
@@ -2064,11 +2116,18 @@ public class InternalEngine extends Engine {
                         throw new FlushFailedEngineException(shardId, e);
                     }
                     refreshLastCommittedSegmentInfos();
-                    flushListener.afterFlush(lastCommittedSegmentInfos.getGeneration(), commitLocation);
+                    generation = lastCommittedSegmentInfos.getGeneration();
+                    flushListener.afterFlush(generation, commitLocation);
+                } else {
+                    generation = lastCommittedSegmentInfos.getGeneration();
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
-                throw ex;
+                listener.onFailure(ex);
+                return;
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             } finally {
                 flushLock.unlock();
                 logger.trace("released flush lock");
@@ -2079,7 +2138,8 @@ public class InternalEngine extends Engine {
         if (engineConfig.isEnableGcDeletes()) {
             pruneDeletedTombstones();
         }
-        return true;
+
+        waitForCommitDurability(generation, listener.map(v -> new FlushResult(true, generation)));
     }
 
     private void refreshLastCommittedSegmentInfos() {
@@ -2229,6 +2289,7 @@ public class InternalEngine extends Engine {
                     this.forceMergeUUID = forceMergeUUID;
                 }
                 if (flush) {
+                    // TODO: Migrate to using async apic
                     flush(false, true);
 
                     // If any merges happened then we need to release the unmerged input segments so they can be deleted. A periodic refresh
@@ -2286,7 +2347,10 @@ public class InternalEngine extends Engine {
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
             logger.trace("start flush for snapshot");
-            flush(false, true);
+            // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
+            PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+            flush(false, true, future);
+            future.actionGet();
             logger.trace("finish flush for snapshot");
         }
         return acquireIndexCommitRef(() -> combinedDeletionPolicy.acquireIndexCommit(false));
@@ -3126,6 +3190,52 @@ public class InternalEngine extends Engine {
 
     @Override
     public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
-        this.flushListener.addOrNotify(location, listener);
+        this.flushListener.addOrNotify(location, new ActionListener<>() {
+            @Override
+            public void onResponse(Long generation) {
+                waitForCommitDurability(generation, listener.map(v -> generation));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+        try {
+            ensureOpen();
+        } catch (AlreadyClosedException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (lastCommittedSegmentInfos.getGeneration() < generation) {
+            listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    public long getLastUnsafeSegmentGenerationForGets() {
+        return lastUnsafeSegmentGenerationForGets.get();
+    }
+
+    protected LiveVersionMapArchive createLiveVersionMapArchive() {
+        return LiveVersionMapArchive.NOOP_ARCHIVE;
+    }
+
+    protected LiveVersionMapArchive getLiveVersionMapArchive() {
+        return liveVersionMapArchive;
+    }
+
+    // Visible for testing purposes only
+    public LiveVersionMap getLiveVersionMap() {
+        return versionMap;
+    }
+
+    private static boolean assertGetUsesIdField(Get get) {
+        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        return true;
     }
 }

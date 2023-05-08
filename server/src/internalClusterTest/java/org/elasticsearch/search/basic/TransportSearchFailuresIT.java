@@ -69,20 +69,17 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
 
         allowNodes("test", 2);
         assertThat(
-            client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").get().isTimedOut(),
+            clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").get().isTimedOut(),
             equalTo(false)
         );
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin()
-            .cluster()
-            .health(
-                new ClusterHealthRequest("test").waitForYellowStatus()
-                    .waitForNoRelocatingShards(true)
-                    .waitForEvents(Priority.LANGUID)
-                    .waitForActiveShards(test.totalNumShards)
-            )
-            .actionGet();
+        ClusterHealthResponse clusterHealth = clusterAdmin().health(
+            new ClusterHealthRequest("test").waitForYellowStatus()
+                .waitForNoRelocatingShards(true)
+                .waitForEvents(Priority.LANGUID)
+                .waitForActiveShards(test.totalNumShards)
+        ).actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));

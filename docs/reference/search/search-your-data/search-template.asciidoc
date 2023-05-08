@@ -20,13 +20,11 @@ stored script API>>.
 
 The request's `source` supports the same parameters as the
 <<search-search-api-request-body,search API>>'s request body. `source` also
-supports https://mustache.github.io/[Mustache] variables and has a https://github.com/elastic/elasticsearch/blob/main/modules/lang-mustache/build.gradle/[dependency] on the open source project https://github.com/spullara/mustache.java[mustache.java]. 
+supports https://mustache.github.io/[Mustache] variables and has a https://github.com/elastic/elasticsearch/blob/main/modules/lang-mustache/build.gradle/[dependency] on the open source project https://github.com/spullara/mustache.java[mustache.java].
 
 Typically https://mustache.github.io/[Mustache] variables are enclosed in
 double curly brackets: `{{my-var}}`. When you run a templated search, {es}
-replaces these variables with values from `params`. To learn more about mustache syntax - see http://mustache.github.io/mustache.5.html[Mustache.js manual]
-
-Search templates must use a `lang` of `mustache`.
+replaces these variables with values from `params`. To learn more about mustache syntax - see http://mustache.github.io/mustache.5.html[Mustache.js manual] Search templates must use a `lang` of `mustache`.
 
 The following request creates a search template with an `id` of
 `my-search-template`.
@@ -633,3 +631,453 @@ POST _render/template
   }
 }
 ----
+[[search-template-with-mustache-examples]]
+=== Search template examples with Mustache
+Mustache template help with running your search template with different variables. You can set your value to variable through `params` in template.
+
+This document illustrates more examples of mustache tags with search templates.
+
+[discrete]
+[[search-template-mustache-variable]]
+=== Mustache Variable
+Mustache tags are typically enclosed in double curly brackets, A mustache variable : `{{my-variable}}` is a type of mustache tag which checks for a matching `my-variable` key in your search template `params` and replaces template with the value set for `my-variable`
+
+For example, following search template replaces `{{query_string}}` in `message` with `My query string` value passed in `params`
+
+[source,console]
+
+----
+
+PUT _scripts/my-search-template
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "message": "{{query_string}}"
+        }
+      },
+      "from": "{{from}}",
+      "size": "{{size}}"
+    },
+    "params": {
+      "query_string": "My query string"
+    }
+  }
+}
+
+----
+
+Testing `my-search-template` with different `params`
+
+[source,console]
+
+----
+
+
+POST _render/template
+{
+  "id": "my-search-template",
+  "params": {
+    "query_string": "hello world",
+    "from": 20,
+    "size": 10
+  }
+}
+
+
+----
+
+When rendered, the template outputs as:
+[source,console-result]
+
+----
+
+{
+  "template_output": {
+    "query": {
+      "match": {
+        "message": "hello world"
+      }
+    },
+    "from": "20",
+    "size": "10"
+  }
+}
+
+----
+
+If your search template doesn't pass a value to your `query_string` the message would be replaced with a empty string.
+
+[source,console]
+
+----
+
+POST _render/template
+{
+  "id": "my-search-template",
+  "params": {
+    "from": 20,
+    "size": 10
+  }
+}
+
+----
+
+When rendered, template outputs as:
+[source,console-result]
+
+----
+
+{
+  "template_output": {
+    "query": {
+      "match": {
+        "message": ""
+      }
+    },
+    "from": "20",
+    "size": "10"
+  }
+}
+
+----
+
+[discrete]
+[[search-template-sections]]
+==== Sections
+
+Sections are also a type of Mustache tags and are useful when you have to loop through nested keys. A sections begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`
+
+The following search template shows an example using sections in a template.
+
+[source,console]
+
+----
+
+
+POST /_render/template?pretty
+{
+  "source":
+  """
+  {
+    "query": {
+      "match": {
+        {{#query_message}}
+        "message": "Hello {{query_string}}"
+        {{/query_message}}
+      }
+    }
+  }
+  """,
+  "params": {
+    "query_message": {
+      "query_string": "Kimchy"
+    }
+  }
+}
+
+
+----
+
+The template renders as:
+
+[source,console-result]
+----
+{
+  "template_output": {
+    "query": {
+      "match": {
+        "message": "Hello Kimchy"
+      }
+    }
+  }
+}
+
+
+----
+
+
+[discrete]
+[[search-template-inverted-section]]
+==== Inverted sections
+Inverted sections are useful when you want to set value once.
+
+To use Inverted sections use following syntax:
+
+[source,mustache]
+----
+
+{{^my-variable}} content {{/my-variable}}
+
+----
+
+For example, in the following search template if `name_exists` is false message is set with `Hello World`, else sets to empty string.
+
+[source,console]
+
+----
+
+POST /_render/template?pretty
+{
+  "source": {
+    "query": {
+      "match": {
+        "message": "{{^name_exists}}Hello World{{/name_exists}}"
+      }
+    }
+  },
+  "params": {
+     "name_exists": false
+  }
+}
+
+----
+
+
+They can also be combined with  <<search-template-use-conditions,conditions>> and <<search-template-set-default-values,default values>>.
+
+For example, in the following search template, if `name_exists` is true, value of `{{query_string}}` is replaced else is set to default value `World`.
+
+[source,console]
+
+----
+
+POST /_render/template?pretty
+{
+  "source": {
+    "query": {
+      "match": {
+        "message": "Hello {{#name_exists}}{{query_string}}{{/name_exists}}{{^name_exists}}World{{/name_exists}}"
+      }
+    }
+  },
+  "params": {
+    "query_string": "Kimchy",
+     "name_exists": true
+  }
+}
+
+----
+
+When rendered, template output:
+
+[source,console-result]
+
+----
+
+{
+  "template_output": {
+    "query": {
+      "match": {
+        "message": "Hello Kimchy"
+      }
+    }
+  }
+}
+
+----
+
+[discrete]
+[[search-template-lists]]
+==== Lists
+You can pass list of objects and loop over each item in your search template
+
+For example, following search template combines <<search-template-sections,sections>> and matches all the usernames.
+
+[source,console]
+
+
+----
+
+
+PUT /_scripts/my-search-template?pretty
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query":{
+        "multi-match":{
+          "query": "{{query_string}}",
+          "fields": """[{{#text_fields}}{{user_name}},{{/text_fields}}]"""
+        }
+      },
+      "params":{
+        "query_string": "My query string",
+        "text_fields": [ { "user_name": "John" }, {"user_name": "kimchy"}]
+      }
+    }
+  }
+}
+
+----
+
+When rendered, template outputs:
+
+[source,console]
+
+
+----
+{
+  "template_output": {
+    "query": {
+      "multi-match": {
+        "query": "My string",
+        "fields": "[John,kimchy,]"
+      }
+    },
+    "params": {
+      "query_string": "My query string",
+      "text_fields": [
+        {
+          "user_name": "John"
+        },
+        {
+          "user_name": "kimchy"
+        }
+      ]
+    }
+  }
+}
+
+----
+
+NOTE: The above will cause trailing comma issue, which cause invalid json. A workaround would be including <<search-template-inverted-section,inverted section>> and add a variable to make sure it's last item in array.
+
+For example
+
+[source,console]
+
+----
+
+PUT /_scripts/my-search-template?pretty
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query":{
+        "multi-match":{
+          "query": "{{query_string}}",
+          "fields": """[{{#text_fields}}{{user_name}}{{^last}},{{/last}}{{/text_fields}}]"""
+        }
+      },
+      "params":{
+        "query_string": "My query string",
+        "text_fields": [
+          {
+            "user_name": "John",
+            "last": false
+          },
+          {
+            "user_name": "kimchy",
+            "last": true
+
+          }
+        ]
+      }
+    }
+  }
+}
+
+----
+
+
+When rendered the template outputs:
+
+[source,console]
+
+----
+
+
+{
+  "template_output": {
+    "query": {
+      "multi-match": {
+        "query": "My string",
+        "fields": "[welcome,kimchy]"
+      }
+    },
+    "params": {
+      "query_string": "My query string",
+      "text_fields": [
+        {
+          "user_name": "John",
+          "last": false
+        },
+        {
+          "user_name": "kimchy",
+          "last": true
+        }
+      ]
+    }
+  }
+}
+
+----
+
+[discrete]
+[[search-template-set-delimiter]]
+==== Set delimiter
+You can change the default demiliter: double curly brackets `{{my-variable}}` to any custom delimiter in your search template
+
+For example, following search template changes the default demiliter to single round bracket `(my-variable)`
+
+[source,console]
+
+
+----
+
+
+PUT /_scripts/my-search-template?pretty
+{
+  "script": {
+    "lang": "mustache",
+    "source":
+    """
+    {
+      "query": {
+        "match": {
+           {{=( )=}}
+          "message": "(query_string)"
+          (={{ }}=)
+        }
+      }
+    }
+    """,
+    "params": {
+      "query_string": "Hello"
+    }
+  }
+}
+
+----
+
+When rendered, template outputs:
+
+[source,console]
+
+
+----
+
+{
+  "template_output": {
+    "query": {
+      "match": {
+        "message": "Hello world"
+      }
+    }
+  }
+}
+----
+[discrete]
+[[search-template-lambdas]]
+==== Lambdas
+Elasticsearch has pre-built custom functions to support converting the text into a specific format.
+
+To Learn more about usage of mustache lambdas, checkout examples in <<search-template-url-encode-strings,Url encode strings>> <<search-template-concatenate-values,Concatenate values>> and <<search-template-convert-json, Convert to json>>
+
+[discrete]
+[[search-template-unsupported-features]]
+==== Unsupported features
+* Elasticsearch doesn't support Partials.

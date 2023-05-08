@@ -535,7 +535,7 @@ public class TasksIT extends ESIntegTestCase {
         assertBusy(
             () -> assertEquals(
                 0,
-                client().clusterAdmin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
             )
         );
     }

@@ -702,6 +702,7 @@ public class IndexNameExpressionResolver {
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             if (skipIdentity == false && resolvedExpressions.contains(dataStream.getName())) {
+                // skip the filters when the request targets the data stream name
                 return null;
             }
             Map<String, DataStreamAlias> dataStreamAliases = state.metadata().dataStreamAliases();

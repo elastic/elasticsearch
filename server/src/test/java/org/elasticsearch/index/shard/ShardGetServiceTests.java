@@ -247,6 +247,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         var flushResult = flushFuture.actionGet();
         assertTrue(flushResult.flushPerformed());
         assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration));
+        assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
         // No longer in translog
         getResult = primary.getService()
             .getFromTranslog(

@@ -145,6 +145,7 @@ public class InternalEngine extends Engine {
     private final LiveVersionMapArchive liveVersionMapArchive;
     // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
     // generation it is safe to rely on the LiveVersionMap for a real-time get.
+    // TODO: can we move this entirely into the stateless plugin?
     private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
 
     private volatile SegmentInfos lastCommittedSegmentInfos;

@@ -26,6 +26,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -57,7 +58,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         SearchTransportService searchTransportService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(SearchShardsAction.NAME, transportService, actionFilters, SearchShardsRequest::new);
+        super(SearchShardsAction.NAME, transportService, actionFilters, SearchShardsRequest::new, ThreadPool.Names.SEARCH_COORDINATION);
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();

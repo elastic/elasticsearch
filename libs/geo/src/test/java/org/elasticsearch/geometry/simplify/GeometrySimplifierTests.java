@@ -17,6 +17,8 @@ import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -29,6 +31,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -111,36 +114,44 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             simplifications.computeIfPresent(description, (k, v) -> v.asCompleted());
         }
 
-        public void assertCompleted(int simplificationCount, int minAdded, int minRemoved) {
+        public void assertCompleted(int simplificationCount, int shouldHaveAdded, int shouldHaveRemoved) {
+            assertCompleted(simplificationCount, shouldHaveAdded, shouldHaveRemoved, Matchers::equalTo);
+        }
+
+        public void assertCompleted(
+            int simplificationCount,
+            int shouldHaveAdded,
+            int shouldHaveRemoved,
+            Function<Integer, Matcher<Integer>> matcher
+        ) {
             int totalCount = simplifications.values().stream().mapToInt(v -> v.count).sum();
-            assertThat(
-                "Expected at least " + simplificationCount + " simplifications",
-                totalCount,
-                greaterThanOrEqualTo(simplificationCount)
-            );
+            assertThat("Expected " + simplificationCount + " simplifications", totalCount, matcher.apply(simplificationCount));
             for (TestSimplificationState state : simplifications.values()) {
                 assertTrue("Simplification should be completed: " + state.description, state.completed);
             }
             assertThat(
-                "Expected at least " + minAdded + " points added when maxPoints was " + maxPoints,
+                "Expected " + shouldHaveAdded + " points added when maxPoints was " + maxPoints,
                 added,
-                greaterThanOrEqualTo(minAdded)
+                matcher.apply(shouldHaveAdded)
             );
             assertThat(
-                "Expected at least " + minRemoved + " points removed when maxPoints was " + maxPoints,
+                "Expected " + shouldHaveRemoved + " points removed when maxPoints was " + maxPoints,
                 removed,
-                greaterThanOrEqualTo(minRemoved)
+                matcher.apply(shouldHaveRemoved)
             );
         }
     }
 
     public void testShortLine() {
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(10, calculator());
+        int maxPoints = 10;
+        var monitor = new TestMonitor("ShortLine", maxPoints);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
         Line line = new Line(new double[] { -1, 0, 1 }, new double[] { -1, 0, 1 });
 
         // Test full geometry simplification
         Line simplified = simplifier.simplify(line);
         assertThat("Same line", simplified, equalTo(line));
+        monitor.assertCompleted(0, 0, 0); // simplification never actually used
 
         // Test streaming simplification
         simplifier.reset();
@@ -149,11 +160,14 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
         Line streamSimplified = simplifier.produce();
         assertThat("Same line", streamSimplified, equalTo(simplified));
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(line.length()));
+        monitor.assertCompleted(0, 3, 0);  // stream used for less than maxPoints
     }
 
     public void testStraightLine() {
         int maxPoints = 10;
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator());
+        var monitor = new TestMonitor("StraightLine", maxPoints);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
         double[] x = new double[100];
         double[] y = new double[100];
         for (int i = 0; i < 100; i++) {
@@ -165,6 +179,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         // Test full geometry simplification
         Line simplified = simplifier.simplify(line);
         assertLineEnds(maxPoints, simplified, line);
+        monitor.assertCompleted(1, line.length(), line.length() - maxPoints);
 
         // Test streaming simplification
         simplifier.reset();
@@ -180,13 +195,16 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             assertTrue(onLine, pointExistsOnLine(px, py, simplified));
             assertTrue(onLine, pointExistsOnLine(px, py, streamSimplified));
         }
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        monitor.assertCompleted(1, 2 * line.length(), 2 * (line.length() - maxPoints));
     }
 
     public void testZigZagLine() {
         int maxPoints = 10;
         int zigSize = 2;
         int lineLength = (maxPoints - 1) * zigSize + 1; // chosen to get rid of all y-crossings during simplification
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator());
+        var monitor = new TestMonitor("ZigZagLine", maxPoints);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
         double[] x = new double[lineLength];
         double[] y = new double[lineLength];
         for (int i = 0; i < lineLength; i++) {
@@ -202,6 +220,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Line simplified = simplifier.simplify(line);
         assertLineEnds(maxPoints, simplified, line);
         assertLinePointNeverHave(simplified, 0.0);
+        monitor.assertCompleted(1, line.length(), line.length() - maxPoints);
 
         // Test streaming simplification
         simplifier.reset();
@@ -219,6 +238,8 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             assertTrue(onLine, pointExistsOnLine(px, py, streamSimplified));
         }
         assertThat("Same line", streamSimplified, equalTo(simplified));
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        monitor.assertCompleted(1, 2 * line.length(), 2 * (line.length() - maxPoints));
     }
 
     public void testCircularLine() {
@@ -238,14 +259,19 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
 
         // Test streaming simplification
         simplifier.reset();
+        simplifier.notifyMonitorSimplificationStart();
         for (int i = 0; i < line.length(); i++) {
             simplifier.consume(line.getX(i), line.getY(i));
         }
+        simplifier.notifyMonitorSimplificationEnd();
         Line streamSimplified = simplifier.produce();
         assertLineEnds(maxPoints, streamSimplified, line);
         assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
         assertThat("Same line", streamSimplified, equalTo(simplified));
-        monitor.assertCompleted(1, maxPoints * countFactor, maxPoints * (countFactor - 1));
+        int shouldHaveAdded = 2 * maxPoints * countFactor;
+        int shouldHaveRemoved = shouldHaveAdded - maxPoints * 2;
+        monitor.assertCompleted(2, shouldHaveAdded, shouldHaveRemoved);
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
     }
 
     public void testCircularPolygon() {
@@ -275,7 +301,10 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
         assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
         assertThat("Same line", streamSimplified, equalTo(simplified));
-        monitor.assertCompleted(2, maxPoints * countFactor, maxPoints * (countFactor - 1));
+        int shouldHaveAdded = 2 * maxPoints * countFactor + 2;
+        int shouldHaveRemoved = shouldHaveAdded - maxPoints * 2;
+        monitor.assertCompleted(2, shouldHaveAdded, shouldHaveRemoved);
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
     }
 
     public void testLineWithBackPaths() {
@@ -288,6 +317,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Line simplified = simplifier.simplify(line);
         assertLineEnds(maxPoints, simplified, line);
         monitor.assertCompleted(1, x.length, x.length - maxPoints);
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
     }
 
     public void testLineWithBackPaths2() throws IOException, ParseException {
@@ -297,13 +327,16 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             -0.16 -0.1, -0.17 -0.13, -0.16 -0.16, -0.1 -0.175, 0.008 -0.175, 0.1 -0.15, 0.2 -0.05, 0.3 0.05, 0.4 0.12, 0.5 0.15,
             0.67 0.1, 0.8 0.0, 0.7 -0.07, 0.6 -0.12, 0.7 -0.185, 0.85 -0.18, 0.96 -0.09, 1.0 0.0))""";
         Line line = (Line) WellKnownText.fromWKT(GeometryValidator.NOOP, true, lineString);
-        int maxPoints = 15;
-        var monitor = new TestMonitor("LineWithBackPaths2", maxPoints);
-        GeometrySimplifier.LineStrings simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
-        simplifier.simplify(line);
-        simplifier = new GeometrySimplifier.LineStrings(7, calculator(), monitor);
-        simplifier.simplify(line);
-        monitor.assertCompleted(2, 2 * line.length(), 2 * (line.length() - maxPoints));
+        int[] maxPointsArray = new int[] { 15, 7 };
+        var monitor = new TestMonitor("LineWithBackPaths2", maxPointsArray[0]);
+        for (int maxPoints : maxPointsArray) {
+            var simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
+            simplifier.simplify(line);
+            assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        }
+        int shouldHaveAdded = maxPointsArray.length * line.length();
+        int shouldHaveRemoved = shouldHaveAdded - Arrays.stream(maxPointsArray).sum();
+        monitor.assertCompleted(2, shouldHaveAdded, shouldHaveRemoved);
     }
 
     public void testLineWithNarrowSpikes() {
@@ -328,6 +361,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Line simplified = simplifier.simplify(line);
         assertLineWithNarrowSpikes(simplified, count);
         monitor.assertCompleted(1, x.length, x.length - maxPoints);
+        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
     }
 
     protected abstract void assertLineWithNarrowSpikes(Line simplified, int spikeCount);
@@ -355,6 +389,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             Polygon simplified = simplifier.simplify(polygon);
             assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
             monitor.assertCompleted(1, polygon.getPolygon().length(), polygon.getPolygon().length() - maxPoints);
+            assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
         }
     }
 
@@ -370,6 +405,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
                 Polygon simplified = simplifier.simplify(polygon);
                 assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
                 monitor.assertCompleted(1, length, length - maxPoints);
+                assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
             }
         }
     }
@@ -391,7 +427,12 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
                 int maxPolyPoints = Math.max(4, (int) (simplificationFactor * polygon.getPolygon().length()));
                 assertPolygonEnds("Polygon[" + i + "]", maxPolyPoints, simplified, polygon);
             }
-            monitor.assertCompleted(simplifiedMultiPolygon.size(), maxPolyLength, maxPolyLength - maxPoints);
+            monitor.assertCompleted(
+                simplifiedMultiPolygon.size(),
+                maxPolyLength,
+                maxPolyLength - maxPoints,
+                Matchers::greaterThanOrEqualTo
+            );
         }
     }
 

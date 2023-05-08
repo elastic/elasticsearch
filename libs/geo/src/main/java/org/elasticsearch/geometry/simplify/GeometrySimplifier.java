@@ -23,8 +23,10 @@ public abstract class GeometrySimplifier<T extends Geometry> {
     protected final int maxPoints;
     protected final SimplificationErrorCalculator calculator;
     protected final PointError[] points;
+    protected PointError lastRemoved;
     protected final Monitor monitor;
     protected int length;
+    protected int objCount = 0;
     protected String description;
 
     protected final PriorityQueue<PointError> queue = new PriorityQueue<>();
@@ -55,7 +57,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      * Consume a single point on the stream of points to be simplified
      */
     public void consume(double x, double y) {
-        PointError pointError = new PointError(length, x, y);
+        PointError pointError = makePointErrorFor(length, x, y);
         if (length > 1) {
             // we need at least three points to calculate the error of the middle point
             points[length - 1].error = calculator.calculateError(points[length - 2], points[length - 1], pointError);
@@ -78,8 +80,27 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      */
     public abstract T produce();
 
+    private PointError makePointErrorFor(int index, double x, double y) {
+        if (index == maxPoints) {
+            if (lastRemoved == null) {
+                this.objCount++;
+                return new PointError(index, x, y);
+            } else {
+                return lastRemoved.reset(index, x, y);
+            }
+        } else {
+            if (points[index] == null) {
+                this.objCount++;
+                return new PointError(index, x, y);
+            } else {
+                return points[index].reset(index, x, y);
+            }
+        }
+    }
+
     private void removeAndAdd(int toRemove, PointError pointError) {
         assert toRemove > 0;  // priority queue can never include first point as that always has zero error by definition
+        this.lastRemoved = this.points[toRemove];
         // Shift all points to the right of the removed point over it in the array
         System.arraycopy(this.points, toRemove + 1, this.points, toRemove, maxPoints - toRemove - 1);
         // Add the new point to the end of the array
@@ -119,8 +140,8 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      */
     public static class PointError implements SimplificationErrorCalculator.PointLike, Comparable<PointError> {
         private int index;
-        final double x;
-        final double y;
+        private double x;
+        private double y;
         double error = 0;
 
         PointError(int index, double x, double y) {
@@ -147,6 +168,13 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         @Override
         public double y() {
             return y;
+        }
+
+        public PointError reset(int index, double x, double y) {
+            this.index = index;
+            this.x = x;
+            this.y = y;
+            return this;
         }
     }
 

@@ -74,6 +74,7 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         registry = new ProfilingIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry.setTemplatesEnabled(true);
     }
 
     @After

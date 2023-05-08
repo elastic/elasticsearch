@@ -28,6 +28,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
         .nodes(2)
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.profiling.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .rolesFile(Resource.fromClasspath("roles.yml"))

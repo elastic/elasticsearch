@@ -37,6 +37,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.profiling.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.autoconfiguration.enabled", "false")

@@ -21,6 +21,7 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
         testDistribution = 'DEFAULT'
         setting 'xpack.security.enabled', 'false'
         setting 'xpack.watcher.enabled', 'false'
+        setting 'xpack.profiling.enabled', 'false'
         setting 'xpack.ml.enabled', 'false'
         setting 'xpack.eql.enabled', 'true'
         setting 'xpack.license.self_generated.type', 'trial'

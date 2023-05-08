@@ -39,6 +39,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
+    private volatile boolean templatesEnabled;
+
     public ProfilingIndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -47,6 +49,10 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+    }
+
+    public void setTemplatesEnabled(boolean templatesEnabled) {
+        this.templatesEnabled = templatesEnabled;
     }
 
     public void close() {
@@ -71,7 +77,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getPolicyConfigs() {
-        return LIFECYCLE_POLICIES;
+        return templatesEnabled ? LIFECYCLE_POLICIES : Collections.emptyList();
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
@@ -130,7 +136,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATE_CONFIGS;
+        return templatesEnabled ? COMPONENT_TEMPLATE_CONFIGS : Collections.emptyMap();
     }
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
@@ -199,7 +205,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return templatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Collections.emptyMap();
     }
 
     public static boolean isAllTemplatesCreated(ClusterState state) {

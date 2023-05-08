@@ -362,9 +362,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final Scope currentClusterScope = getCurrentClusterScope();
         Callable<Void> setup = () -> {
             cluster().beforeTest(random());
-            if (wipeCluster()) {
-                cluster().wipe(excludeTemplates());
-            }
+            cluster().wipe(excludeTemplates());
             randomIndexTemplate();
             return null;
         };
@@ -580,9 +578,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterStateCanBeReadByNodeTool();
                     ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
-                    if (wipeCluster()) {
-                        cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
-                    }
+                    cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
                     }
@@ -608,13 +604,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected Set<String> excludeTemplates() {
         return Collections.emptySet();
-    }
-
-    /**
-     * @return <code>true</code> if the cluster should be wiped before each test. By default, the cluster is wiped.
-     */
-    protected boolean wipeCluster() {
-        return true;
     }
 
     protected void beforeIndexDeletion() throws Exception {

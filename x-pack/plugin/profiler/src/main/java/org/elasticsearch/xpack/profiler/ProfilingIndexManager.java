@@ -70,6 +70,7 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     private final Client client;
     private final ClusterService clusterService;
     private final ConcurrentMap<String, AtomicBoolean> indexCreationInProgress = new ConcurrentHashMap<>();
+    private volatile boolean templatesEnabled;
 
     public ProfilingIndexManager(ThreadPool threadPool, Client client, ClusterService clusterService) {
         this.threadPool = threadPool;
@@ -86,8 +87,15 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
         clusterService.removeListener(this);
     }
 
+    public void setTemplatesEnabled(boolean templatesEnabled) {
+        this.templatesEnabled = templatesEnabled;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (templatesEnabled == false) {
+            return;
+        }
         // wait for the cluster state to be recovered
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;

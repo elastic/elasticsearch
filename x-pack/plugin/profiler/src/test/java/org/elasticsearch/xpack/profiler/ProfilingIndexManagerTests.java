@@ -66,6 +66,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
                 return templatesCreated.get();
             }
         };
+        indexManager.setTemplatesEnabled(true);
     }
 
     @After

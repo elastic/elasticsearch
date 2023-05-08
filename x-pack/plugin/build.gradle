@@ -187,6 +187,7 @@ testClusters.configureEach {
   setting 'xpack.ml.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'

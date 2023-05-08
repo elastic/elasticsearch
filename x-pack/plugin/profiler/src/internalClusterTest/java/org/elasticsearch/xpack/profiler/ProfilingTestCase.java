@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.profiler;
 
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -47,6 +50,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .put(ProfilingPlugin.PROFILING_ENABLED.getKey(), true)
+            .put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), false)
             // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // Disable ILM history index so that the tests don't have to clean it up
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
@@ -61,12 +65,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     @Override
     protected boolean ignoreExternalCluster() {
         return true;
-    }
-
-    @Override
-    protected boolean wipeCluster() {
-        // we're managing our own indices and the cluster should not be wiped.
-        return false;
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {
@@ -96,8 +94,17 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         });
     }
 
+    protected void updateProfilingTemplatesEnabled(boolean newValue) {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(Settings.builder().put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), newValue).build());
+        ClusterUpdateSettingsResponse response = client().admin().cluster().updateSettings(request).actionGet();
+        assertTrue("Update of profiling templates enabled setting is not acknowledged", response.isAcknowledged());
+    }
+
     @Before
     public void setupData() throws Exception {
+        // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
+        updateProfilingTemplatesEnabled(true);
         Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();
         waitForIndices();
         // indices have replicas
@@ -125,5 +132,10 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
 
         refresh();
+    }
+
+    @After
+    public void disable() {
+        updateProfilingTemplatesEnabled(false);
     }
 }

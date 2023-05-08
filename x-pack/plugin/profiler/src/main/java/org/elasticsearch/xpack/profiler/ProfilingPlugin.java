@@ -50,8 +50,16 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
     public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
         "xpack.profiling.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
+        "xpack.profiling.templates.enabled",
+        // Enable by default iff the profiling plugin is enabled
+        (settings) -> String.valueOf(PROFILING_ENABLED.get(settings)),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
     public static final String PROFILING_THREAD_POOL_NAME = "profiling";
     private final Settings settings;
@@ -85,6 +93,9 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));
         indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService));
+        // set initial value
+        updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
         if (enabled) {
             registry.get().initialize();
             indexManager.get().initialize();
@@ -92,6 +103,14 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    public void updateTemplatesEnabled(boolean newValue) {
+        if (newValue == false) {
+            logger.info("profiling index templates will not be installed or reinstalled");
+        }
+        registry.get().setTemplatesEnabled(newValue);
+        indexManager.get().setTemplatesEnabled(newValue);
     }
 
     @Override
@@ -115,6 +134,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     public List<Setting<?>> getSettings() {
         return List.of(
             PROFILING_ENABLED,
+            PROFILING_TEMPLATES_ENABLED,
             TransportGetProfilingAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
             TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES,
             TransportGetProfilingAction.PROFILING_QUERY_REALTIME

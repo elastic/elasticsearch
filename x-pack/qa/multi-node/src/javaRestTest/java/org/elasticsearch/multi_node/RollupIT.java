@@ -43,6 +43,7 @@ public class RollupIT extends ESRestTestCase {
         .module("x-pack-rollup")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.profiling.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .user("super-user", "x-pack-super-password")

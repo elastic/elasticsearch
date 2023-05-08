@@ -22,6 +22,7 @@ def integTestClusterReg = testClusters.register('javaRestTest')  {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'cluster.remote.my_remote_cluster.seeds', {
     remoteClusterReg.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }

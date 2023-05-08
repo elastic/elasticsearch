@@ -1202,6 +1202,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
+        return innerGet(get, false);
+    }
+
+    public Engine.GetResult getFromTranslog(Engine.Get get) {
+        assert get.realtime();
+        return innerGet(get, true);
+    }
+
+    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (mappingLookup.hasMappings() == false) {
@@ -1209,6 +1218,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
             throw new IllegalStateException("get operations not allowed on a legacy index");
+        }
+        if (translogOnly) {
+            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
         }
         return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }

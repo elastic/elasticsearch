@@ -190,10 +190,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (liveDocsBitSet == null) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
-                // TODO restore this
-                /*if (cancellable.isEnabled()) {
+                if (cancellable.isEnabled()) {
                     bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
-                }*/
+                }
                 try {
                     bulkScorer.score(leafCollector, liveDocs);
                 } catch (CollectionTerminatedException e) {

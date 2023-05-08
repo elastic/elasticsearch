@@ -354,29 +354,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(globalBuilder, fieldType));
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
-
-        try (Directory directory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-            indexWriter.close();
-
-            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-                Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-                assertEquals(2.0, min.value(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-            }
-        }
-    }
-
     public void testSingleValuedFieldPartiallyUnmappedWithMissing() throws IOException {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);

@@ -11,6 +11,7 @@ package org.elasticsearch.dlm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -45,6 +46,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -452,8 +454,31 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {
-                logger.info("DLM successfully force merged index [{}]", targetIndex);
-                setForceMergeCompletedTimestamp(targetIndex, listener);
+                if (RestStatus.OK.equals(forceMergeResponse.getStatus())) {
+                    if (forceMergeResponse.getFailedShards() > 0) {
+                        String message = Strings.format(
+                            "Force merge request resulted in %d failed shards",
+                            forceMergeResponse.getFailedShards()
+                        );
+                        listener.onFailure(new ElasticsearchException(message));
+                        logger.warn(message);
+                    } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
+                        String message = Strings.format(
+                            "Force merge request only had %d successful shards out of a total of %d",
+                            forceMergeResponse.getSuccessfulShards(),
+                            forceMergeResponse.getTotalShards()
+                        );
+                        listener.onFailure(new ElasticsearchException(message));
+                        logger.warn(message);
+                    } else {
+                        logger.info("DLM successfully force merged index [{}]", targetIndex);
+                        setForceMergeCompletedTimestamp(targetIndex, listener);
+                    }
+                } else {
+                    String message = Strings.format("Force merge request returned a %s response code", forceMergeResponse.getStatus());
+                    listener.onFailure(new ElasticsearchException(message));
+                    logger.warn(message);
+                }
             }
 
             @Override
@@ -462,7 +487,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                 listener.onFailure(e);
                 // To avoid spamming our logs, we only want to log the error once.
                 if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
-                    logger.error(
+                    logger.warn(
                         () -> Strings.format(
                             "DLM encountered an error trying to force merge index [%s]. DLM will attempt to force merge the index on its "
                                 + "next run.",

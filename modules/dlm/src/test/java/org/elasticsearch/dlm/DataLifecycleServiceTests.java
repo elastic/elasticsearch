@@ -8,6 +8,7 @@
 
 package org.elasticsearch.dlm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -322,7 +324,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         // We want this test method to get fake force merge responses, because this is what triggers a cluster state update
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
-                listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
+                listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
             }
         };
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -473,10 +475,60 @@ public class DataLifecycleServiceTests extends ESTestCase {
         }
 
         {
-            // For the 2nd DLM run, we let forcemerge run normally
+            /*
+             * For the next DLM run we're intentionally making forcemerge fail by reporting failed shards:
+             */
+            AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
             clientDelegate = (action, request, listener) -> {
                 if (action.name().equals("indices:admin/forcemerge")) {
-                    listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
+                    listener.onResponse(
+                        new ForceMergeResponse(
+                            5,
+                            5,
+                            1,
+                            List.of(new DefaultShardOperationFailedException(new ElasticsearchException("failure")))
+                        )
+                    );
+                    forceMergeFailedCount.incrementAndGet();
+                }
+            };
+            dataLifecycleService.run(clusterService.state());
+            assertBusy(() -> {
+                assertThat(forceMergeFailedCount.get(), equalTo(2));
+                assertThat(
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    nullValue()
+                );
+            });
+        }
+
+        {
+            /*
+             * For the next DLM run we're intentionally making forcemerge fail on the same indices by having the successful shards not equal
+             *  to the total:
+             */
+            AtomicInteger forceMergeFailedCount = new AtomicInteger(0);
+            clientDelegate = (action, request, listener) -> {
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onResponse(new ForceMergeResponse(5, 4, 0, List.of()));
+                    forceMergeFailedCount.incrementAndGet();
+                }
+            };
+            dataLifecycleService.run(clusterService.state());
+            assertBusy(() -> {
+                assertThat(forceMergeFailedCount.get(), equalTo(2));
+                assertThat(
+                    clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY),
+                    nullValue()
+                );
+            });
+        }
+
+        {
+            // For the final DLM run, we let forcemerge run normally
+            clientDelegate = (action, request, listener) -> {
+                if (action.name().equals("indices:admin/forcemerge")) {
+                    listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
                 }
             };
             dataLifecycleService.run(clusterService.state());
@@ -509,11 +561,11 @@ public class DataLifecycleServiceTests extends ESTestCase {
                     notNullValue()
                 );
             });
-            assertBusy(() -> { assertThat(clientSeenRequests.size(), is(5)); });
+            assertBusy(() -> { assertThat(clientSeenRequests.size(), is(9)); });
             assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
             assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
-            // There will be two more forcemerge requests total now: the two failed ones from before, and now the two successful ones
-            List<ForceMergeRequest> forceMergeRequests = clientSeenRequests.subList(1, 5)
+            // There will be two more forcemerge requests total now: the six failed ones from before, and now the two successful ones
+            List<ForceMergeRequest> forceMergeRequests = clientSeenRequests.subList(1, 9)
                 .stream()
                 .map(transportRequest -> (ForceMergeRequest) transportRequest)
                 .toList();
@@ -521,6 +573,10 @@ public class DataLifecycleServiceTests extends ESTestCase {
             assertThat(forceMergeRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
             assertThat(forceMergeRequests.get(2).indices()[0], is(dataStream.getIndices().get(0).getName()));
             assertThat(forceMergeRequests.get(3).indices()[0], is(dataStream.getIndices().get(1).getName()));
+            assertThat(forceMergeRequests.get(4).indices()[0], is(dataStream.getIndices().get(0).getName()));
+            assertThat(forceMergeRequests.get(5).indices()[0], is(dataStream.getIndices().get(1).getName()));
+            assertThat(forceMergeRequests.get(6).indices()[0], is(dataStream.getIndices().get(0).getName()));
+            assertThat(forceMergeRequests.get(7).indices()[0], is(dataStream.getIndices().get(1).getName()));
         }
     }
 
@@ -559,7 +615,7 @@ public class DataLifecycleServiceTests extends ESTestCase {
         setState(clusterService, state);
         clientDelegate = (action, request, listener) -> {
             if (action.name().equals("indices:admin/forcemerge")) {
-                listener.onResponse(new ForceMergeResponse(5, 1, 0, List.of()));
+                listener.onResponse(new ForceMergeResponse(5, 5, 0, List.of()));
             }
         };
         for (int i = 0; i < 100; i++) {

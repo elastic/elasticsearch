@@ -46,6 +46,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
         {
             put("xpack.ml.enabled", "false");
+            put("xpack.profiling.enabled", "false");
             put("xpack.security.enabled", "false");
             put("xpack.license.self_generated.type", "basic");
         }

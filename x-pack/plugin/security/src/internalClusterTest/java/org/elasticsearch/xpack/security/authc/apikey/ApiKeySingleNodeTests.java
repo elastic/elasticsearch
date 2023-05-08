@@ -20,6 +20,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;

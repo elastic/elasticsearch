@@ -53,7 +53,7 @@ public final class HttpHeadersAuthenticatorUtils {
             } else {
                 // cannot authenticate the request because it's not wrapped correctly, see {@link #wrapAsMessageWithAuthenticationContext}
                 assert false;
-                //listener.onFailure(new IllegalStateException("Cannot authenticate unwrapped requests"));
+                // listener.onFailure(new IllegalStateException("Cannot authenticate unwrapped requests"));
             }
         }, threadContext);
     }

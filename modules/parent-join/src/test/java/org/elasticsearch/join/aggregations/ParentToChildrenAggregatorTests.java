@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -70,7 +69,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         // intentionally not writing any docs
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
         testCase(new MatchAllDocsQuery(), newIndexSearcher(indexReader), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
@@ -87,7 +86,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+        DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
@@ -128,7 +127,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (
-                IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+                DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
                     DirectoryReader.open(directory),
                     new ShardId(new Index("foo", "_na_"), 1)
                 )

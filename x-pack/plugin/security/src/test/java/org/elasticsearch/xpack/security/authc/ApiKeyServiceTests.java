@@ -36,6 +36,8 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -80,6 +82,8 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
@@ -723,6 +727,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Instant.now(),
             Instant.now().plus(expiry),
             keyRoles,
+            randomFrom(ApiKey.Type.values()),
             Version.CURRENT,
             metadata
         );
@@ -1856,6 +1861,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                         Instant.now(),
                         randomBoolean() ? null : Instant.now(),
                         oldKeyRoles,
+                        randomFrom(ApiKey.Type.values()),
                         oldVersion,
                         oldMetadata
                     )
@@ -2115,6 +2121,44 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("limit must be positive number"));
     }
 
+    public void testCreateCrossClusterApiKeyMinVersionConstraint() {
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final AbstractCreateApiKeyRequest request = mock(AbstractCreateApiKeyRequest.class);
+        when(request.getType()).thenReturn(ApiKey.Type.CROSS_CLUSTER);
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(ApiKeyService.DELETE_RETENTION_PERIOD))
+        );
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_9_0)
+        );
+        when(clusterState.getMinTransportVersion()).thenReturn(minTransportVersion);
+
+        final ApiKeyService service = new ApiKeyService(
+            Settings.EMPTY,
+            clock,
+            client,
+            securityIndex,
+            clusterService,
+            cacheInvalidatorRegistry,
+            threadPool
+        );
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, request, Set.of(), future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+
+        assertThat(
+            e.getMessage(),
+            containsString("all nodes must have transport version [8090099] or higher to support creating cross cluster API keys")
+        );
+    }
+
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
@@ -2148,6 +2192,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Instant.now(),
                 Instant.now().plus(Duration.ofSeconds(3600)),
                 keyRoles,
+                randomFrom(ApiKey.Type.values()),
                 Version.CURRENT,
                 randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
             );

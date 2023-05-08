@@ -108,8 +108,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         updateProfilingTemplatesEnabled(true);
         Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();
         waitForIndices();
-        // indices have replicas
-        ensureYellow();
+        ensureGreen();
 
         // ensure that we have this in every index, so we find an event
         for (String idx : eventsIndices) {

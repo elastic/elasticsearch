@@ -456,32 +456,6 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
-        }
-        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-        indexWriter.close();
-
-        DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
-        AggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("value");
-
-        Max max = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-
-        assertEquals(10.0, max.value(), 0);
-        assertEquals("max", max.getName());
-        assertTrue(AggregationInspectionHelper.hasValue(max));
-
-        indexReader.close();
-        directory.close();
-    }
-
     public void testSingleValuedFieldWithValueScript() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 

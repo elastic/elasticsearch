@@ -198,7 +198,9 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             }
         }
 
-        when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
+        when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(
+            new DesiredBalance(randomInt(1024), randomNonNegativeLong(), shardAssignments)
+        );
         DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
             randomInt(Integer.MAX_VALUE),
             randomBoolean(),

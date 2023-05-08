@@ -448,8 +448,17 @@ public class AllocationService {
         String reason,
         Consumer<RoutingAllocation> routingAllocationConsumer
     ) {
+        return executeWithRoutingAllocation(clusterState, reason, currentNanoTime(), routingAllocationConsumer);
+    }
+
+    public ClusterState executeWithRoutingAllocation(
+        ClusterState clusterState,
+        String reason,
+        long currentNanoTime,
+        Consumer<RoutingAllocation> routingAllocationConsumer
+    ) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
-        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
+        RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime);
         reroute(allocation, routingAllocationConsumer);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
@@ -520,10 +529,8 @@ public class AllocationService {
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
-
         removeDelayMarkers(allocation);
-
-        allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
+        allocateExistingUnassignedShards(allocation);
         routingAllocationConsumer.accept(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }

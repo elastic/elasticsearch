@@ -177,8 +177,13 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    private ClusterState reconcile(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationConsumer) {
-        return allocationService.executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationConsumer);
+    private ClusterState reconcile(ClusterState clusterState, long currentTimeNano, Consumer<RoutingAllocation> routingAllocationConsumer) {
+        return allocationService.executeWithRoutingAllocation(
+            clusterState,
+            "reconcile-desired-balance",
+            currentTimeNano,
+            routingAllocationConsumer
+        );
     }
 
     public static List<Entry> getNamedWriteables() {

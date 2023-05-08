@@ -143,8 +143,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+            public ClusterState apply(
+                ClusterState clusterState,
+                long currentTimeNano,
+                Consumer<RoutingAllocation> routingAllocationAction
+            ) {
+                return allocationServiceRef.get()
+                    .executeWithRoutingAllocation(clusterState, "reconcile", currentTimeNano, routingAllocationAction);
             }
         };
 
@@ -246,9 +251,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var reconciledStateRef = new AtomicReference<ClusterState>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
+            public ClusterState apply(
+                ClusterState clusterState,
+                long currentTimeNano,
+                Consumer<RoutingAllocation> routingAllocationAction
+            ) {
                 ClusterState reconciled = allocationServiceRef.get()
-                    .executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+                    .executeWithRoutingAllocation(clusterState, "reconcile", currentTimeNano, routingAllocationAction);
                 reconciledStateRef.set(reconciled);
                 return reconciled;
             }
@@ -322,9 +331,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
+            public ClusterState apply(
+                ClusterState clusterState,
+                long currentTimeNano,
+                Consumer<RoutingAllocation> routingAllocationAction
+            ) {
                 reconciliations.incrementAndGet();
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+                return allocationServiceRef.get()
+                    .executeWithRoutingAllocation(clusterState, "reconcile", currentTimeNano, routingAllocationAction);
             }
         };
 
@@ -424,8 +438,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+            public ClusterState apply(
+                ClusterState clusterState,
+                long currentNanoTime,
+                Consumer<RoutingAllocation> routingAllocationAction
+            ) {
+                return allocationServiceRef.get()
+                    .executeWithRoutingAllocation(clusterState, "reconcile", currentNanoTime, routingAllocationAction);
             }
         };
 
@@ -542,7 +561,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, routingAllocationAction) -> reconcilerClusterState
+            (reconcilerClusterState, currentNanoTime, routingAllocationAction) -> reconcilerClusterState
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -563,7 +582,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             rerouteAndWait(service, clusterState, "reset-desired-balance");
             assertThat(
                 desiredBalanceComputer.lastComputationInput.get(),
-                equalTo(new DesiredBalance(current.lastConvergedIndex(), Map.of()))
+                equalTo(new DesiredBalance(current.lastConvergedIndex(), current.currentTimeNano(), Map.of()))
             );
         } finally {
             clusterService.close();

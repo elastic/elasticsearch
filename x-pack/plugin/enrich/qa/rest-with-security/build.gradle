@@ -19,5 +19,6 @@ testClusters.configureEach {
   user username: "test_enrich_no_privs", password: "x-pack-test-password", role: "enrich_no_privs"
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.monitoring.collection.enabled', 'true'
 }

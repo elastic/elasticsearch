@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
@@ -49,7 +50,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
             .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
-            .put(ProfilingPlugin.PROFILING_ENABLED.getKey(), true)
+            .put(XPackSettings.PROFILING_ENABLED.getKey(), true)
             .put(ProfilingPlugin.PROFILING_TEMPLATES_ENABLED.getKey(), false)
             // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // Disable ILM history index so that the tests don't have to clean it up

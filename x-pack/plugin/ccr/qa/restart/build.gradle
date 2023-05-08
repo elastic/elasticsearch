@@ -12,6 +12,7 @@ def leaderCluster = testClusters.register('leader-cluster') {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.profiling.enabled', 'false'
   user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
@@ -20,6 +21,7 @@ def followCluster = testClusters.register('follow-cluster') {
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.profiling.enabled', 'false'
   user username: 'admin', password: 'admin-password', role: 'superuser'
   setting 'cluster.remote.leader_cluster.seeds',
           { "\"${leaderCluster.get().getAllTransportPortURI().get(0)}\"" }

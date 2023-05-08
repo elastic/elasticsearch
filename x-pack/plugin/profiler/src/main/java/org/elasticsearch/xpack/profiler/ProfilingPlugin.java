@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -48,16 +49,10 @@ import static java.util.Collections.singletonList;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
-    public static final Setting<Boolean> PROFILING_ENABLED = Setting.boolSetting(
-        "xpack.profiling.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
     public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.enabled",
         // Enable by default iff the profiling plugin is enabled
-        (settings) -> String.valueOf(PROFILING_ENABLED.get(settings)),
+        (settings) -> String.valueOf(XPackSettings.PROFILING_ENABLED.get(settings)),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -71,7 +66,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
 
     public ProfilingPlugin(Settings settings) {
         this.settings = settings;
-        this.enabled = PROFILING_ENABLED.get(settings);
+        this.enabled = XPackSettings.PROFILING_ENABLED.get(settings);
     }
 
     @Override
@@ -133,7 +128,6 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(
-            PROFILING_ENABLED,
             PROFILING_TEMPLATES_ENABLED,
             TransportGetProfilingAction.PROFILING_MAX_STACKTRACE_QUERY_SLICES,
             TransportGetProfilingAction.PROFILING_MAX_DETAIL_QUERY_SLICES,

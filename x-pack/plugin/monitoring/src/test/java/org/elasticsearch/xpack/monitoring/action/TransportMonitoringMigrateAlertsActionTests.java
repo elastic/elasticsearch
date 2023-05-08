@@ -91,6 +91,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             // X-Pack configuration
             .put("xpack.license.self_generated.type", "trial")
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            .put(XPackSettings.PROFILING_ENABLED.getKey(), false)
             .build();
     }
 

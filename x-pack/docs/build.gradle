@@ -46,6 +46,8 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
+  // disabling universal profiling template management for doc tests to avoid potential lingering tasks that'd cause test flakiness
+  setting 'xpack.profiling.templates.enabled', 'false'
   // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

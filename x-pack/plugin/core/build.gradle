@@ -139,6 +139,8 @@ testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
+  // disabling universal profiling template management as it disturbs testDSXpackUsage test
+  setting 'xpack.profiling.templates.enabled', 'false'
   //disabling ILM history as it disturbs testDSXpackUsage test
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'bootstrap.password', 'x-pack-test-password'

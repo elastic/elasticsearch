@@ -50,7 +50,6 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
-            .setting("xpack.profiling.enabled", "false")
             .build();
 
         queryCluster = ElasticsearchCluster.local()

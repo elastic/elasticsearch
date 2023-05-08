@@ -117,6 +117,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
             .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
             .put("indices.lifecycle.history_index_enabled", false)
+            .put("xpack.profiling.templates.enabled", false)
             .build();
     }
 

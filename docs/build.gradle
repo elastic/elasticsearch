@@ -61,6 +61,7 @@ restResources {
 testClusters.matching { it.name == "yamlRestTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.profiling.templates.enabled', 'false'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
   }

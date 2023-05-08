@@ -18,6 +18,7 @@ restResources {
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'false'
 }
 

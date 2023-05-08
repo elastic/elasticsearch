@@ -22,6 +22,7 @@ restResources {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   // settings to test settings filtering on
   setting 'xpack.notification.email.account._email.smtp.host', 'host.domain'

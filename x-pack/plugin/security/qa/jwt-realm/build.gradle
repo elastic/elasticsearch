@@ -32,6 +32,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   extraConfigFile 'rsa.jwkset', file('src/javaRestTest/resources/jwk/rsa-public-jwkset.json')
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'

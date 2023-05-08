@@ -60,6 +60,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   // copy keystores, keys and certificates into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
   extraConfigFile nodeKey.name, nodeKey

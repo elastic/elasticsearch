@@ -15,6 +15,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   numberOfNodes = 2
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.ssl.diagnose.trust', 'true'

@@ -33,6 +33,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.certificate', 'http.crt'

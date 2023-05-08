@@ -11,6 +11,7 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
 }
 
 if (BuildParams.inFipsJvm){

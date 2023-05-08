@@ -11,6 +11,7 @@ def remoteClusterReg = testClusters.register('remote-cluster')  {
   numberOfNodes = 2
   setting 'node.roles', '[data,ingest,master]'
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.autoconfiguration.enabled', 'false'

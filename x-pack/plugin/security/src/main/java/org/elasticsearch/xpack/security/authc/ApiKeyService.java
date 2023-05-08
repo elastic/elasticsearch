@@ -70,6 +70,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -1108,6 +1109,7 @@ public class ApiKeyService {
             authResultMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, apiKeyDoc.limitedByRoleDescriptorsBytes);
             authResultMetadata.put(AuthenticationField.API_KEY_ID_KEY, credentials.getId());
             authResultMetadata.put(AuthenticationField.API_KEY_NAME_KEY, apiKeyDoc.name);
+            authResultMetadata.put(AuthenticationField.API_KEY_TYPE_KEY, apiKeyDoc.type.value());
             if (apiKeyDoc.metadataFlattened != null) {
                 authResultMetadata.put(AuthenticationField.API_KEY_METADATA_KEY, apiKeyDoc.metadataFlattened);
             }
@@ -2023,6 +2025,12 @@ public class ApiKeyService {
                 ApiKeyDoc.class
             );
             builder.declareString(constructorArg(), new ParseField("doc_type"));
+            builder.declareField(
+                optionalConstructorArg(),
+                ApiKey.Type::fromXContent,
+                new ParseField("type"),
+                ObjectParser.ValueType.STRING
+            );
             builder.declareLong(constructorArg(), new ParseField("creation_time"));
             builder.declareLongOrNull(constructorArg(), -1, new ParseField("expiration_time"));
             builder.declareBoolean(constructorArg(), new ParseField("api_key_invalidated"));
@@ -2037,6 +2045,7 @@ public class ApiKeyService {
         }
 
         final String docType;
+        final ApiKey.Type type;
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
@@ -2052,6 +2061,7 @@ public class ApiKeyService {
 
         public ApiKeyDoc(
             String docType,
+            ApiKey.Type type,
             long creationTime,
             long expirationTime,
             Boolean invalidated,
@@ -2064,6 +2074,7 @@ public class ApiKeyService {
             @Nullable BytesReference metadataFlattened
         ) {
             this.docType = docType;
+            this.type = type == null ? ApiKey.Type.REST : type;
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
@@ -2084,6 +2095,7 @@ public class ApiKeyService {
                 MessageDigests.digest(limitedByRoleDescriptorsBytes, digest)
             );
             return new CachedApiKeyDoc(
+                type,
                 creationTime,
                 expirationTime,
                 invalidated,
@@ -2108,6 +2120,7 @@ public class ApiKeyService {
      * so that duplicate role descriptors are cached only once (and therefore consume less memory).
      */
     public static final class CachedApiKeyDoc {
+        final ApiKey.Type type;
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
@@ -2121,6 +2134,7 @@ public class ApiKeyService {
         final BytesReference metadataFlattened;
 
         public CachedApiKeyDoc(
+            ApiKey.Type type,
             long creationTime,
             long expirationTime,
             Boolean invalidated,
@@ -2132,6 +2146,7 @@ public class ApiKeyService {
             String limitedByRoleDescriptorsHash,
             @Nullable BytesReference metadataFlattened
         ) {
+            this.type = type;
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;
@@ -2147,6 +2162,7 @@ public class ApiKeyService {
         public ApiKeyDoc toApiKeyDoc(BytesReference roleDescriptorsBytes, BytesReference limitedByRoleDescriptorsBytes) {
             return new ApiKeyDoc(
                 "api_key",
+                type,
                 creationTime,
                 expirationTime,
                 invalidated,

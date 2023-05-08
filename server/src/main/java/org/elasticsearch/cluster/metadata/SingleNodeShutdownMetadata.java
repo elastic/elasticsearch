@@ -45,6 +45,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
     public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
 
+    private static final TimeValue DEFAULT_GRACE_PERIOD = new TimeValue(1_000 * 60);
+
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
         a -> new SingleNodeShutdownMetadata(
@@ -195,6 +197,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             return DEFAULT_RESTART_SHARD_ALLOCATION_DELAY;
         }
         return null;
+    }
+
+    /**
+     * @return the timeout for a graceful shutdown for a SIGTERM type.
+     */
+    @Nullable
+    public TimeValue getGracePeriod() {
+        return DEFAULT_GRACE_PERIOD;
     }
 
     @Override

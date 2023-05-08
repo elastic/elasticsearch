@@ -1442,7 +1442,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
-    enum ResultsType {
+    protected enum ResultsType {
         DFS {
             @Override
             void addResultsObject(SearchContext context) {

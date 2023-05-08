@@ -40,12 +40,12 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
     static {
         PARSER.declareObjectArray(
             optionalConstructorArg(),
-            (p, c) -> RoleDescriptor.parseIndexWithPrivileges(ROLE_DESCRIPTOR_NAME, CCS_INDICES_PRIVILEGE_NAMES, p),
+            (p, c) -> RoleDescriptor.parseIndexWithPredefinedPrivileges(ROLE_DESCRIPTOR_NAME, CCS_INDICES_PRIVILEGE_NAMES, p),
             new ParseField("search")
         );
         PARSER.declareObjectArray(
             optionalConstructorArg(),
-            (p, c) -> RoleDescriptor.parseIndexWithPrivileges(ROLE_DESCRIPTOR_NAME, CCR_INDICES_PRIVILEGE_NAMES, p),
+            (p, c) -> RoleDescriptor.parseIndexWithPredefinedPrivileges(ROLE_DESCRIPTOR_NAME, CCR_INDICES_PRIVILEGE_NAMES, p),
             new ParseField("replication")
         );
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -420,6 +421,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testCreateCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
         final XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, """
             {
               "search": [ {"names": ["logs"]} ]

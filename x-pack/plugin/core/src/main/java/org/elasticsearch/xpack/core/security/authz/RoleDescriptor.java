@@ -637,7 +637,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private record IndicesPrivilegesWithOptionalRemoteClusters(IndicesPrivileges indicesPrivileges, String[] remoteClusters) {}
 
-    public static IndicesPrivileges parseIndexWithPrivileges(final String roleName, String[] privileges, XContentParser parser)
+    public static IndicesPrivileges parseIndexWithPredefinedPrivileges(final String roleName, String[] privileges, XContentParser parser)
         throws IOException {
         final IndicesPrivilegesWithOptionalRemoteClusters indicesPrivilegesWithOptionalRemoteClusters =
             parseIndexWithOptionalRemoteClusters(roleName, parser, false, false, privileges);

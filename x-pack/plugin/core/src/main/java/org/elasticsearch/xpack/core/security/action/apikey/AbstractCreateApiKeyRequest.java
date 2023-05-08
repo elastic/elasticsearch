@@ -7,16 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -44,25 +41,10 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
 
     public AbstractCreateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            this.id = in.readString();
-        } else {
-            this.id = UUIDs.base64UUID();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
-            this.name = in.readOptionalString();
-        } else {
-            this.name = in.readString();
-        }
-        this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readImmutableList(RoleDescriptor::new);
-        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
-            this.metadata = in.readMap();
-        } else {
-            this.metadata = null;
-        }
+        this.id = doReadId(in);
     }
+
+    protected abstract String doReadId(StreamInput in) throws IOException;
 
     public String getId() {
         return id;
@@ -112,28 +94,6 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
                 validationException
             );
         }
-        for (RoleDescriptor roleDescriptor : getRoleDescriptors()) {
-            validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
-        }
         return validationException;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeString(id);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
-            out.writeOptionalString(name);
-        } else {
-            out.writeString(name);
-        }
-        out.writeOptionalTimeValue(expiration);
-        out.writeList(getRoleDescriptors());
-        refreshPolicy.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_13_0)) {
-            out.writeGenericMap(metadata);
-        }
     }
 }

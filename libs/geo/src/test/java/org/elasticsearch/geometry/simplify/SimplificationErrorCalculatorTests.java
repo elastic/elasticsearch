@@ -23,16 +23,20 @@ public class SimplificationErrorCalculatorTests extends ESTestCase {
     }
 
     public void testFrechetCalculation() {
-        var calculator = new SimplificationErrorCalculator.FrechetErrorCalculator();
+        var calculator = new SimplificationErrorCalculator.SimpleFrechetErrorCalculator();
         var ao = new TestPoint(0, 0);
         var co = new TestPoint(1, 0);
         for (double degrees = 0; degrees < 360; degrees += 45) {
             TestPoint c = co.rotated(degrees, ao);
-            for (double x = -1; x <= 2; x += 0.5) {
+            for (double x = -2; x <= 3; x += 0.5) {
                 var b = new TestPoint(x, 1).rotated(degrees, ao);
                 double error = calculator.calculateError(ao, b, c);
-                // TODO: change test once Frechet calculation includes back-paths
-                assertThat("Expect a unit offset when bx=" + x + " rotated " + degrees, error, closeTo(1.0, 1e-10));
+                double expected = 1.0;  // triangle height is 1.0
+                if (x < -1 || x > 2) {
+                    // Back-paths dominate, so assert on that, otherwise assert on triangle height
+                    expected = x < 0 ? -x : x - 1;
+                }
+                assertThat("Expect a unit offset when bx=" + x + " rotated " + degrees, error, closeTo(expected, 1e-10));
             }
         }
     }

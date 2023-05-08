@@ -11,7 +11,7 @@ package org.elasticsearch.geometry.simplify;
 import org.elasticsearch.geometry.Line;
 
 public class GeometrySimplifierFrechetTests extends GeometrySimplifierTests {
-    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.FrechetErrorCalculator();
+    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.SimpleFrechetErrorCalculator();
 
     @Override
     protected SimplificationErrorCalculator calculator() {

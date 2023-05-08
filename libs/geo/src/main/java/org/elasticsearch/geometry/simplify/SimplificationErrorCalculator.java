@@ -30,7 +30,7 @@ public interface SimplificationErrorCalculator {
             add("cartesiantrianglearea", new CartesianTriangleAreaCalculator());
             add("trianglearea", new TriangleAreaCalculator());
             add("triangleheight", new TriangleHeightCalculator());
-            add("frecheterror", new FrechetErrorCalculator());
+            add("simplefrecheterror", new SimpleFrechetErrorCalculator());
         }
 
         static void add(String name, SimplificationErrorCalculator calculator) {
@@ -60,7 +60,8 @@ public interface SimplificationErrorCalculator {
     }
 
     /**
-     * Calculate the triangle area using cartesian coordinates as described at https://en.wikipedia.org/wiki/Area_of_a_triangle
+     * Calculate the triangle area using cartesian coordinates as described at
+     * <a href="https://en.wikipedia.org/wiki/Area_of_a_triangle">Area of a triangle</a>
      */
     class CartesianTriangleAreaCalculator implements SimplificationErrorCalculator {
 
@@ -75,8 +76,8 @@ public interface SimplificationErrorCalculator {
     }
 
     /**
-     * Calculate the triangle area using geographic coordinates and Herons formula (side lengths)
-     * as described at https://en.wikipedia.org/wiki/Area_of_a_triangle
+     * Calculate the triangle area using geographic coordinates and Herons formula (side lengths) as described at
+     * <a href="https://en.wikipedia.org/wiki/Area_of_a_triangle">Area of a triangle</a>
      */
     class TriangleAreaCalculator implements SimplificationErrorCalculator {
 
@@ -106,8 +107,8 @@ public interface SimplificationErrorCalculator {
     }
 
     /**
-     * Calculate the triangle area using geographic coordinates and Herons formula (side lengths)
-     * as described at https://en.wikipedia.org/wiki/Area_of_a_triangle, but scale the area down
+     * Calculate the triangle area using geographic coordinates and Herons formula (side lengths) as described at
+     * <a href="https://en.wikipedia.org/wiki/Area_of_a_triangle">Area of a triangle</a>, but scale the area down
      * by the inverse of the length of the base (left-right), which estimates the height of the triangle.
      */
     class TriangleHeightCalculator implements SimplificationErrorCalculator {
@@ -124,7 +125,7 @@ public interface SimplificationErrorCalculator {
             double db = s - b;
             double dc = s - c;
             if (da >= 0 && db >= 0 && dc >= 0) {
-                // Herons formula, scaled by 1/a
+                // Herons formula, scaled by 2/a to estimate height
                 return 2.0 * Math.sqrt(s * da * db * dc) / a;
             } else {
                 // rounding errors can cause flat triangles to have negative values, leading to NaN areas
@@ -137,7 +138,24 @@ public interface SimplificationErrorCalculator {
         }
     }
 
-    class FrechetErrorCalculator implements SimplificationErrorCalculator {
+    /**
+     * Estimate the error as the height of the point above the base, but including support for back-paths
+     * in the sense that of the point to be removed is father from either end than the height, we take that distance instead.
+     * <p>
+     * Rotate all three points such that left-right are a horizontal line on the x-axis. Then the numbers of interest are:
+     * <ol>
+     *     <li>height: y-value of middle point</li>
+     *     <li>deltaL: -min(0, middleX - leftX)</li>
+     *     <li>deltaR: max(0, middleX - rightX)</li>
+     * </ol>
+     * And the final error is: error = max(height, max(deltaL, deltaR))
+     * <p>
+     * This is not a full Frechet error calculation as it does not maintain state of all removed points,
+     * only calculating the error incurred by removal of the current point, as if the current simplified line is
+     * a good enough approximation of the original line. This restriction is currently true of all the
+     * calculations implemented so far.
+     */
+    class SimpleFrechetErrorCalculator implements SimplificationErrorCalculator {
 
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {
@@ -157,8 +175,11 @@ public interface SimplificationErrorCalculator {
                 double rightYrotated = rightY * cos - rightX * sin;
                 assert Math.abs(rightYrotated) < 1e-10;
                 assert Math.abs(rightXrotated - len) < len / 1e10;
-                // Return distance to x-axis TODO: also include back-paths for Frechet distance calculation
-                return Math.abs(middleYrotated);
+                double height = Math.abs(middleYrotated);
+                double deltaL = -Math.min(0, middleXrotated);
+                double deltaR = Math.max(0, middleXrotated - rightXrotated);
+                double backDistance = Math.max(deltaR, deltaL);
+                return Math.max(height, backDistance);
             } else {
                 // If left and right points are co-located, we assume no consequence to removing the middle point
                 return 0.0;

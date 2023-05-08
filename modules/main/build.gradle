@@ -18,13 +18,11 @@ esplugin {
 
 restResources {
   restApi {
-    include 'info', 'ping'
+    include '_common','info', 'ping'
   }
 }
 
-
 artifacts {
-  restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpResponse;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -55,6 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLEngine;
@@ -333,6 +335,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.pipeline().remove(pipelineHandlerName);
                 }
             }
+            // STEP 0: send a "wrapped" request
             testThreadPool.generic().submit(() -> {
                 ch.writeInbound(
                     HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(
@@ -606,4 +609,152 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         }
     }
 
+    public void testMalformedRequestDispatchedNoAuthn() throws Exception {
+        final AtomicReference<Throwable> dispatchThrowableReference = new AtomicReference<>();
+        final AtomicInteger authnInvocationCount = new AtomicInteger();
+        final AtomicInteger badDispatchInvocationCount = new AtomicInteger();
+        final Settings settings = Settings.builder()
+            .put(env.settings())
+            .put(HTTP_SSL_ENABLED.getKey(), false)
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE.getKey(), "32b")
+            .put(HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.getKey(), "32b")
+            .build();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected dispatched request [" + FakeRestRequest.requestToString(channel.request()) + "]");
+                throw new AssertionError("Unexpected dispatched request");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                assertThat(cause, notNullValue());
+                dispatchThrowableReference.set(cause);
+                badDispatchInvocationCount.incrementAndGet();
+            }
+        };
+        final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
+        try (
+            Netty4HttpServerTransport transport = Security.getHttpServerTransportWithHeadersValidator(
+                settings,
+                new NetworkService(Collections.emptyList()),
+                mock(BigArrays.class),
+                testThreadPool,
+                xContentRegistry(),
+                dispatcher,
+                mock(IPFilter.class),
+                sslService,
+                new SharedGroupFactory(settings),
+                randomClusterSettings(),
+                (httpPreRequest, channel, listener) -> {
+                    authnInvocationCount.incrementAndGet();
+                    throw new AssertionError("Malformed requests shouldn't be authenticated");
+                }
+            )
+        ) {
+            final ChannelHandler handler = transport.configureServerChannelHandler();
+            assertThat(authnInvocationCount.get(), is(0));
+            assertThat(badDispatchInvocationCount.get(), is(0));
+            // case 1: invalid initial line
+            {
+                EmbeddedChannel ch = new EmbeddedChannel(handler);
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("This is not a valid HTTP line"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                assertThat(dispatchThrowableReference.get().toString(), containsString("NOT A VALID HTTP LINE"));
+                assertThat(badDispatchInvocationCount.get(), is(1));
+                assertThat(authnInvocationCount.get(), is(0));
+            }
+            // case 2: too long initial line
+            {
+                EmbeddedChannel ch = new EmbeddedChannel(handler);
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("GET /this/is/a/valid/but/too/long/initial/line HTTP/1.1"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP line is larger than"));
+                assertThat(badDispatchInvocationCount.get(), is(2));
+                assertThat(authnInvocationCount.get(), is(0));
+            }
+            // case 3: invalid header with no colon
+            {
+                EmbeddedChannel ch = new EmbeddedChannel(handler);
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.copy(AsciiString.of("Host"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                assertThat(dispatchThrowableReference.get().toString(), containsString("No colon found"));
+                assertThat(badDispatchInvocationCount.get(), is(3));
+                assertThat(authnInvocationCount.get(), is(0));
+            }
+            // case 4: invalid header longer than max allowed
+            {
+                EmbeddedChannel ch = new EmbeddedChannel(handler);
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.copy(AsciiString.of("Host: this.looks.like.a.good.url.but.is.longer.than.permitted"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                assertThat(dispatchThrowableReference.get().toString(), containsString("HTTP header is larger than"));
+                assertThat(badDispatchInvocationCount.get(), is(4));
+                assertThat(authnInvocationCount.get(), is(0));
+            }
+            // case 5: invalid header format
+            {
+                EmbeddedChannel ch = new EmbeddedChannel(handler);
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.copy(AsciiString.of("Host: invalid host value"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                assertThat(dispatchThrowableReference.get().toString(), containsString("a header value contains prohibited character"));
+                assertThat(badDispatchInvocationCount.get(), is(5));
+                assertThat(authnInvocationCount.get(), is(0));
+            }
+            // case 6: connection closed before all headers are sent
+            {
+                EmbeddedChannel ch = new EmbeddedChannel(handler);
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of("GET /url HTTP/1.1"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                ByteBufUtil.writeShortBE(buf, HttpConstants.LF);
+                testThreadPool.generic().submit(() -> {
+                    ch.writeInbound(buf);
+                    ch.flushInbound();
+                }).get();
+                testThreadPool.generic().submit(() -> ch.close().get()).get();
+                assertThat(dispatchThrowableReference.get().toString(), containsString("Connection closed before received headers"));
+                assertThat(badDispatchInvocationCount.get(), is(6));
+                assertThat(authnInvocationCount.get(), is(0));
+            }
+        } finally {
+            testThreadPool.shutdownNow();
+        }
+    }
 }

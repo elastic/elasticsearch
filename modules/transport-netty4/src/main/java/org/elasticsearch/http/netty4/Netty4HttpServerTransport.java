@@ -341,11 +341,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     protected HttpMessage createMessage(String[] initialLine) throws Exception {
                         return HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(super.createMessage(initialLine));
                     }
-
-                    @Override
-                    protected HttpMessage createInvalidMessage() {
-                        return HttpHeadersAuthenticatorUtils.wrapAsMessageWithAuthenticationContext(super.createInvalidMessage());
-                    }
                 };
             } else {
                 decoder = new HttpRequestDecoder(

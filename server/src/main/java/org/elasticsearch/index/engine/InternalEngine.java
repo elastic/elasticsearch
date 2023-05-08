@@ -840,7 +840,8 @@ public class InternalEngine extends Engine {
                 } else {
                     trackTranslogLocation.set(true);
                     // We need to start tracking translog locations in the live version map. Refresh and
-                    // serve the get from the internal searcher even if we're supposed to only get from translog.
+                    // serve all the real-time gets with a missing translog location from the internal searcher
+                    // (until a flush happens) even if we're supposed to only get from translog.
                     getFromSearcherIfNotInTranslog = true;
                 }
             }

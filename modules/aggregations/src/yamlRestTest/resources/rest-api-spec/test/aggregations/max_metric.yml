@@ -274,12 +274,12 @@ setup:
         body:
           aggs:
             the_int_max:
-              avg:
+              max:
                 field: int_field
 
   - match: { hits.total: 5 }
   - length: { hits.hits: 5 }
-  - match: { aggregations.the_int_max.value: 76.0 }
+  - match: { aggregations.the_int_max.value: 151.0 }
 
 ---
 "Partially unmapped with missing":

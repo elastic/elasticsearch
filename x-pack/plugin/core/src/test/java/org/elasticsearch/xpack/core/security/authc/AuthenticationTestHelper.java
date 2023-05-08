@@ -29,20 +29,18 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -78,14 +76,10 @@ public class AuthenticationTestHelper {
         AuthenticationField.CROSS_CLUSTER_ACCESS_REALM_TYPE
     );
 
-    private static final Set<InternalUser> INTERNAL_USERS = Set.of(
-        SystemUser.INSTANCE,
-        XPackUser.INSTANCE,
-        XPackSecurityUser.INSTANCE,
-        AsyncSearchUser.INSTANCE,
-        SecurityProfileUser.INSTANCE,
-        CrossClusterAccessUser.INSTANCE
-    );
+    private static final List<InternalUser> INTERNAL_USERS_WITH_ROLE_DESCRIPTOR = InternalUsers.get()
+        .stream()
+        .filter(u -> u.getLocalClusterRole().isPresent())
+        .toList();
 
     public static AuthenticationTestBuilder builder() {
         return new AuthenticationTestBuilder();
@@ -99,7 +93,15 @@ public class AuthenticationTestHelper {
     }
 
     public static InternalUser randomInternalUser() {
-        return ESTestCase.randomFrom(INTERNAL_USERS);
+        return ESTestCase.randomFrom(InternalUsers.get());
+    }
+
+    public static Collection<InternalUser> internalUsersWithLocalRoleDescriptor() {
+        return INTERNAL_USERS_WITH_ROLE_DESCRIPTOR;
+    }
+
+    public static InternalUser randomInternalUserWithRoleDescriptor() {
+        return ESTestCase.randomFrom(INTERNAL_USERS_WITH_ROLE_DESCRIPTOR);
     }
 
     public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
@@ -228,7 +230,7 @@ public class AuthenticationTestHelper {
      * @return non-empty collection of internal usernames
      */
     public static List<String> randomInternalUsernames() {
-        return ESTestCase.randomNonEmptySubsetOf(INTERNAL_USERS.stream().map(User::principal).toList());
+        return ESTestCase.randomNonEmptySubsetOf(InternalUsers.get().stream().map(User::principal).toList());
     }
 
     public static String randomInternalRoleName() {
@@ -400,7 +402,7 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder internal() {
-            return internal(ESTestCase.randomFrom(INTERNAL_USERS));
+            return internal(ESTestCase.randomFrom(InternalUsers.get()));
         }
 
         public AuthenticationTestBuilder internal(InternalUser user) {
@@ -607,7 +609,7 @@ public class AuthenticationTestHelper {
                     }
                     case INTERNAL -> {
                         if (user == null) {
-                            user = ESTestCase.randomFrom(INTERNAL_USERS);
+                            user = ESTestCase.randomFrom(InternalUsers.get());
                         }
                         if (user instanceof InternalUser internalUser) {
                             assert internalUser instanceof InternalUser : "user must be internal for internal authentication";

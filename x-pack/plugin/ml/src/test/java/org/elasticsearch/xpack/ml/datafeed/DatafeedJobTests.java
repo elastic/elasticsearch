@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
@@ -316,12 +316,12 @@ public class DatafeedJobTests extends ESTestCase {
         {  // What we expect the created annotation to be indexed as
             Annotation expectedAnnotation = new Annotation.Builder().setAnnotation(msg)
                 .setCreateTime(new Date(annotationCreateTime))
-                .setCreateUsername(XPackUser.NAME)
+                .setCreateUsername(UsernamesField.XPACK_NAME)
                 .setTimestamp(bucket.getTimestamp())
                 .setEndTimestamp(new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000))
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationCreateTime))
-                .setModifiedUsername(XPackUser.NAME)
+                .setModifiedUsername(UsernamesField.XPACK_NAME)
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
@@ -365,12 +365,12 @@ public class DatafeedJobTests extends ESTestCase {
         {  // What we expect the updated annotation to be indexed as
             Annotation expectedUpdatedAnnotation = new Annotation.Builder().setAnnotation(msg)
                 .setCreateTime(new Date(annotationCreateTime))
-                .setCreateUsername(XPackUser.NAME)
+                .setCreateUsername(UsernamesField.XPACK_NAME)
                 .setTimestamp(bucket.getTimestamp())
                 .setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000))
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationUpdateTime))
-                .setModifiedUsername(XPackUser.NAME)
+                .setModifiedUsername(UsernamesField.XPACK_NAME)
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();

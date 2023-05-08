@@ -27,7 +27,7 @@ public class SystemUser extends InternalUser {
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {
-        super(NAME);
+        super(NAME, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -36,14 +36,6 @@ public class SystemUser extends InternalUser {
      */
     @Override
     public Optional<RoleDescriptor> getLocalClusterRole() {
-        return Optional.empty();
-    }
-
-    /**
-     * @return {@link Optional#empty()} because this user is not permitted to execute actions that originate from a remote cluster
-     */
-    @Override
-    public Optional<RoleDescriptor> getRemoteAccessRole() {
         return Optional.empty();
     }
 

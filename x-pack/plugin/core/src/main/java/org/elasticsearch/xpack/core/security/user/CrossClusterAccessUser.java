@@ -42,24 +42,15 @@ public class CrossClusterAccessUser extends InternalUser {
     public static final InternalUser INSTANCE = new CrossClusterAccessUser();
 
     private CrossClusterAccessUser() {
-        super(NAME);
-    }
-
-    /**
-     * @return {@link Optional#empty()} because this user is not permitted to execute actions that originate on the local cluster,
-     * its only purpose is to execute actions from a remote cluster
-     * @see #getRemoteAccessRole()
-     */
-    @Override
-    public Optional<RoleDescriptor> getLocalClusterRole() {
-        // This user has no role for actions that originate from the current cluster
-        // It does, however, have a descriptor for the role to be applied when actions originate from another cluster
-        return Optional.empty();
-    }
-
-    @Override
-    public Optional<RoleDescriptor> getRemoteAccessRole() {
-        return Optional.of(REMOTE_ACCESS_ROLE_DESCRIPTOR);
+        super(
+            NAME,
+            /**
+             *  this user is not permitted to execute actions that originate on the local cluster,
+             *  its only purpose is to execute actions from a remote cluster
+             */
+            Optional.empty(),
+            Optional.of(REMOTE_ACCESS_ROLE_DESCRIPTOR)
+        );
     }
 
     public static boolean is(User user) {

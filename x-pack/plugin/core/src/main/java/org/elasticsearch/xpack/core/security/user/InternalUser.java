@@ -8,16 +8,27 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
+import java.util.Objects;
 import java.util.Optional;
 
-public abstract class InternalUser extends User {
+public class InternalUser extends User {
 
-    protected InternalUser(String username) {
+    private final Optional<RoleDescriptor> localClusterRole;
+    private final Optional<RoleDescriptor> remoteAccessRole;
+
+    InternalUser(String username, @Nullable RoleDescriptor localClusterRole) {
+        this(username, Optional.ofNullable(localClusterRole), Optional.empty());
+    }
+
+    InternalUser(String username, Optional<RoleDescriptor> localClusterRole, Optional<RoleDescriptor> remoteAccessRole) {
         super(username, Strings.EMPTY_ARRAY);
         assert enabled();
         assert roles() != null && roles().length == 0;
+        this.localClusterRole = Objects.requireNonNull(localClusterRole);
+        this.remoteAccessRole = Objects.requireNonNull(remoteAccessRole);
     }
 
     @Override
@@ -36,7 +47,9 @@ public abstract class InternalUser extends User {
      * local cluster.
      * @see #getRemoteAccessRole()
      */
-    public abstract Optional<RoleDescriptor> getLocalClusterRole();
+    public Optional<RoleDescriptor> getLocalClusterRole() {
+        return localClusterRole;
+    }
 
     /**
      * The remote-access role descriptor assigned to this internal user, or {@link Optional#empty()} if this user is not permitted to
@@ -45,5 +58,7 @@ public abstract class InternalUser extends User {
      * originate from a node within an external cluster (via CCS/CCR).
      * @see #getLocalClusterRole()
      */
-    public abstract Optional<RoleDescriptor> getRemoteAccessRole();
+    public Optional<RoleDescriptor> getRemoteAccessRole() {
+        return remoteAccessRole;
+    }
 }

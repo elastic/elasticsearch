@@ -108,14 +108,10 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -1918,12 +1914,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final InternalUser systemUser = randomFrom(
-            SystemUser.INSTANCE,
-            XPackUser.INSTANCE,
-            XPackSecurityUser.INSTANCE,
-            AsyncSearchUser.INSTANCE
-        );
+        final InternalUser systemUser = AuthenticationTestHelper.randomInternalUser();
         final Authentication authentication = AuthenticationTestHelper.builder().internal(systemUser).build();
         final String requestId = randomRequestId();
 
@@ -2002,12 +1993,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final InternalUser systemUser = randomFrom(
-            SystemUser.INSTANCE,
-            XPackUser.INSTANCE,
-            XPackSecurityUser.INSTANCE,
-            AsyncSearchUser.INSTANCE
-        );
+        final InternalUser systemUser = AuthenticationTestHelper.randomInternalUser();
         final Authentication authentication = AuthenticationTestHelper.builder().internal(systemUser).build();
         final String requestId = randomRequestId();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);

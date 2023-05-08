@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -99,7 +99,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                 Set<String> potentialAnalyticsIds = new HashSet<>();
                 // Analytics Configs are created by the XPackUser
                 trainedModelConfigs.stream()
-                    .filter(c -> XPackUser.NAME.equals(c.getCreatedBy()))
+                    .filter(c -> UsernamesField.XPACK_NAME.equals(c.getCreatedBy()))
                     .forEach(c -> potentialAnalyticsIds.addAll(c.getTags()));
 
                 // Find the related DataFrameAnalyticsConfigs

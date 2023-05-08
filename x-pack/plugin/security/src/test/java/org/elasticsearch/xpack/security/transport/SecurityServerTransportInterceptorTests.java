@@ -54,14 +54,11 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.CrossClusterAccessUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
-import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
@@ -427,13 +424,13 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     public void testSetUserBasedOnActionOrigin() {
         final Map<String, User> originToUserMap = Map.of(
             SECURITY_ORIGIN,
-            XPackSecurityUser.INSTANCE,
+            InternalUsers.XPACK_SECURITY_USER,
             SECURITY_PROFILE_ORIGIN,
-            SecurityProfileUser.INSTANCE,
+            InternalUsers.SECURITY_PROFILE_USER,
             TRANSFORM_ORIGIN,
-            XPackUser.INSTANCE,
+            InternalUsers.XPACK_USER,
             ASYNC_SEARCH_ORIGIN,
-            AsyncSearchUser.INSTANCE
+            InternalUsers.ASYNC_SEARCH_USER
         );
 
         final String origin = randomFrom(originToUserMap.keySet());

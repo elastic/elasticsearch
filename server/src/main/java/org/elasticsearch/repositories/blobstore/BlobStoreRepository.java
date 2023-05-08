@@ -313,7 +313,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
         "max_snapshot_bytes_per_sec",
-        ByteSizeValue.ofMb(40), // default may be overridden to 0 (unlimited) if node bandwidth recovery settings are set
+        ByteSizeValue.ofMb(40), // default is overridden to 0 (unlimited) if node bandwidth recovery settings are set
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

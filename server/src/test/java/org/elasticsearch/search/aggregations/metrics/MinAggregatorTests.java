@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -365,18 +364,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
             indexWriter.close();
 
-            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-            unmappedIndexWriter.close();
-
-            try (
-                IndexReader indexReader = DirectoryReader.open(directory);
-                IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)
-            ) {
-
-                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newIndexSearcher(multiReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                 assertEquals(2.0, min.value(), 0);
@@ -395,19 +387,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
             indexWriter.close();
 
-            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-            unmappedIndexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-            unmappedIndexWriter.close();
-
-            try (
-                IndexReader indexReader = DirectoryReader.open(directory);
-                IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)
-            ) {
-
-                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newIndexSearcher(multiReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 Min min = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
                 assertEquals(-19.0, min.value(), 0);
@@ -595,7 +579,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {
@@ -622,7 +606,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 try (AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType)) {

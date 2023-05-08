@@ -304,7 +304,11 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   def transformTask = tasks.register(taskName("transform", architecture, base, "DockerContext"), Sync) {
     TaskProvider<Tar> buildContextTask = tasks.named(taskName("build", architecture, base, "DockerContext"))
     dependsOn(buildContextTask)
+
+    // order matters as we first copy the docker specific overrides and then copy everything from the default
+    // linux tar distro over with excluding duplicates
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
     String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"

@@ -69,8 +69,16 @@ if(useDra == false) {
 testFixtures.useFixture()
 
 configurations {
-  aarch64DockerSource
-  dockerSource
+  aarch64DockerSource {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+  dockerSource {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
   log4jConfig
   tini
   allPlugins
@@ -83,8 +91,8 @@ configurations {
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
 
 dependencies {
-  aarch64DockerSource project(path: ":distribution:archives:linux-aarch64-tar", configuration: 'default')
-  dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
+  aarch64DockerSource project(":distribution:archives:linux-aarch64-tar")
+  dockerSource project(":distribution:archives:linux-tar")
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
@@ -271,7 +279,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         // If we're performing a release build, but `build.id` hasn't been set, we can
         // infer that we're not at the Docker building stage of the build, and therefore
         // we should skip the beats part of the build.
-        String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+        String buildId = providers.systemProperty('build.id').getOrNull()
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null || useDra
 
         if (includeBeats) {
@@ -299,13 +307,14 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
 
     String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     String archiveName = "elasticsearch${base.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
-    String distributionName = "elasticsearch-${VersionProperties.elasticsearch}-linux-${architecture.classifier}.tar.gz"
+    String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
           filter { String contents ->
-            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
+            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
+                           .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
           }
         }
       }
@@ -313,11 +322,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     into "${project.buildDir}/docker-context/${archiveName}"
 
     // Since we replaced the remote URL in the Dockerfile, copy in the required file
-    if (architecture == Architecture.AARCH64) {
-      from configurations.aarch64DockerSource
-    } else {
-      from configurations.dockerSource
-    }
+    from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSource : configurations.dockerSource)
 
     if (base == DockerBase.IRON_BANK) {
       from (configurations.tini) {

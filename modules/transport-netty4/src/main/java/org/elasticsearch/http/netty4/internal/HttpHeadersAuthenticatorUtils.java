@@ -55,7 +55,7 @@ public final class HttpHeadersAuthenticatorUtils {
                 }, e -> listener.onFailure(new HttpHeadersValidationException(e))));
             } else {
                 // cannot authenticate the request because it's not wrapped correctly, see {@link #wrapAsMessageWithAuthenticationContext}
-                listener.onFailure(new IllegalStateException("Cannot authenticate unwrapped requests"));
+                listener.onFailure(new HttpHeadersValidationException(new IllegalStateException("Cannot authenticate unwrapped requests")));
             }
         }, threadContext);
     }

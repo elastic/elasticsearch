@@ -9,9 +9,12 @@
 package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.GeometryValidator;
@@ -34,9 +37,11 @@ import java.util.PriorityQueue;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.geometry.simplify.GeometrySimplifier.lengthOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -142,6 +147,26 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
     }
 
+    public void testPoint() {
+        int maxPoints = 0;  // value does not have any effect
+        var monitor = new TestMonitor("Point", maxPoints);
+        GeometrySimplifier<Point> simplifier = new GeometrySimplifier.Points(maxPoints, calculator(), monitor);
+        Point point = new Point(1, 1);
+
+        // Test full geometry simplification
+        Point simplified = simplifier.simplify(point);
+        assertThat("Same point", simplified, equalTo(point));
+        monitor.assertCompleted(0, 0, 0); // simplification never actually used
+
+        // Test streaming simplification
+        simplifier.reset();
+        simplifier.consume(point.getX(), point.getY());
+        Point streamSimplified = simplifier.produce();
+        assertThat("Same point", streamSimplified, equalTo(simplified));
+        assertThat("Should create zero PointError", simplifier.objCount, equalTo(0));
+        monitor.assertCompleted(0, 0, 0); // simplification never actually used
+    }
+
     public void testShortLine() {
         int maxPoints = 10;
         var monitor = new TestMonitor("ShortLine", maxPoints);
@@ -151,7 +176,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         // Test full geometry simplification
         Line simplified = simplifier.simplify(line);
         assertThat("Same line", simplified, equalTo(line));
-        monitor.assertCompleted(0, 0, 0); // simplification never actually used
+        monitor.assertCompleted(1, 0, 0); // simplification never actually used
 
         // Test streaming simplification
         simplifier.reset();
@@ -161,7 +186,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Line streamSimplified = simplifier.produce();
         assertThat("Same line", streamSimplified, equalTo(simplified));
         assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(line.length()));
-        monitor.assertCompleted(0, 3, 0);  // stream used for less than maxPoints
+        monitor.assertCompleted(1, 3, 0);  // stream used for less than maxPoints
     }
 
     public void testStraightLine() {
@@ -441,11 +466,12 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             new GeometrySimplifier.LineStrings(10, calculator()),
             new GeometrySimplifier.LinearRings(10, calculator()),
             new GeometrySimplifier.Polygons(10, calculator()),
-            new GeometrySimplifier.MultiPolygons(10, calculator()) }) {
+            new GeometrySimplifier.MultiPolygons(10, calculator()),
+            new GeometrySimplifier.GeometryCollections(10, calculator()) }) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
             String name = simplifier.getClass().getSimpleName();
-            String expected = name.startsWith("MultiPolygon")
-                ? "the list of shapes cannot be null or empty"
+            String expected = name.startsWith("MultiPolygon") || name.startsWith("GeometryCollection")
+                ? "geometry simplifier cannot work in streaming mode"
                 : "No points have been consumed";
             assertThat(simplifier.getClass().getSimpleName(), ex.getMessage(), containsString(expected));
         }
@@ -488,6 +514,51 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         var simplifier = new GeometrySimplifier.MultiPolygons(10, calculator());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
         assertThat(ex.getMessage(), containsString("simplifier cannot work in streaming mode"));
+    }
+
+    public void testGeometryCollectionDisallowsStreaming() {
+        var simplifier = new GeometrySimplifier.GeometryCollections(10, calculator());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
+        assertThat(ex.getMessage(), containsString("simplifier cannot work in streaming mode"));
+    }
+
+    public void testGeometryCollectionSimplificationWithoutSimplification() {
+        int maxPoints = 1000;  // So large as to ensure no simplification happens
+        Point point = new Point(-1, -1);
+        Line line = makeCircularLine(10, 10, 90, 0, 10);
+        Polygon polygon = makeCircularPolygon(10, 10, -90, 0, 10);
+        GeometryCollection<?> collection = new GeometryCollection<>(List.of(point, line, polygon));
+        // Make simplifier that will not trigger simplification
+        var simplifier = new GeometrySimplifier.GeometryCollections(maxPoints, calculator());
+        GeometryCollection<?> simplified = simplifier.simplify(collection);
+        assertThat("Same number of geometries", simplified.size(), equalTo(collection.size()));
+        for (int i = 0; i < collection.size(); i++) {
+            assertThat("Same geometry", simplified.get(i).toString(), equalTo(collection.get(i).toString()));
+        }
+    }
+
+    public void testGeometryCollectionSimplification() {
+        int maxPoints = 10;  // smaller than length of all but the point geometry
+        Point point = new Point(-1, -1);
+        Line line = makeCircularLine(10, 10, 90, 0, 10);
+        Polygon polygon = makeCircularPolygon(10, 10, -90, 0, 10);
+        GeometryCollection<?> collection = new GeometryCollection<>(List.of(point, line, polygon));
+        // Make simplifier that will not trigger simplification
+        var simplifier = new GeometrySimplifier.GeometryCollections(maxPoints, calculator());
+        GeometryCollection<?> simplified = simplifier.simplify(collection);
+        assertThat("Same number of geometries", simplified.size(), equalTo(collection.size()));
+        for (int i = 0; i < collection.size(); i++) {
+            Geometry in = collection.get(i);
+            Geometry out = simplified.get(i);
+            if (in instanceof Point) {
+                assertThat("Same geometry length", lengthOf(in), equalTo(lengthOf(out)));
+                assertThat("Same geometry", in.toString(), equalTo(out.toString()));
+            } else {
+                assertThat("Same geometry type", in.getClass().getSimpleName(), equalTo(out.getClass().getSimpleName()));
+                assertThat("Same geometry length", lengthOf(in), greaterThan(lengthOf(out)));
+                assertThat("Geometry simplified to at most maxPoints=" + maxPoints, lengthOf(out), lessThanOrEqualTo(maxPoints));
+            }
+        }
     }
 
     public void testPriorityQueue() {

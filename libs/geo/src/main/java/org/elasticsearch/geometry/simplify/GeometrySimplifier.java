@@ -9,9 +9,11 @@
 package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 
 import java.util.ArrayList;
@@ -266,16 +268,19 @@ public abstract class GeometrySimplifier<T extends Geometry> {
 
         @Override
         public Line simplify(Line line) {
-            if (line.length() <= maxPoints) {
-                return line;
-            }
             reset();
             notifyMonitorSimplificationStart();
-            for (int i = 0; i < line.length(); i++) {
-                consume(line.getX(i), line.getY(i));
+            try {
+                if (line.length() <= maxPoints) {
+                    return line;
+                }
+                for (int i = 0; i < line.length(); i++) {
+                    consume(line.getX(i), line.getY(i));
+                }
+                return produce();
+            } finally {
+                notifyMonitorSimplificationEnd();
             }
-            notifyMonitorSimplificationEnd();
-            return produce();
         }
 
         @Override
@@ -309,16 +314,19 @@ public abstract class GeometrySimplifier<T extends Geometry> {
 
         @Override
         public LinearRing simplify(LinearRing ring) {
-            if (ring.length() <= maxPoints) {
-                return ring;
-            }
             reset();
             notifyMonitorSimplificationStart();
-            for (int i = 0; i < ring.length(); i++) {
-                consume(ring.getX(i), ring.getY(i));
+            try {
+                if (ring.length() <= maxPoints) {
+                    return ring;
+                }
+                for (int i = 0; i < ring.length(); i++) {
+                    consume(ring.getX(i), ring.getY(i));
+                }
+                return produce();
+            } finally {
+                notifyMonitorSimplificationEnd();
             }
-            notifyMonitorSimplificationEnd();
-            return produce();
         }
 
         @Override
@@ -356,26 +364,29 @@ public abstract class GeometrySimplifier<T extends Geometry> {
 
         @Override
         public Polygon simplify(Polygon geometry) {
-            LinearRing ring = geometry.getPolygon();
-            if (ring.length() <= maxPoints) {
-                return geometry;
-            }
             reset();
             notifyMonitorSimplificationStart();
-            for (int i = 0; i < ring.length(); i++) {
-                consume(ring.getX(i), ring.getY(i));
+            try {
+                LinearRing ring = geometry.getPolygon();
+                if (ring.length() <= maxPoints) {
+                    return geometry;
+                }
+                for (int i = 0; i < ring.length(); i++) {
+                    consume(ring.getX(i), ring.getY(i));
+                }
+                for (int i = 0; i < geometry.getNumberOfHoles(); i++) {
+                    LinearRing hole = geometry.getHole(i);
+                    double simplificationFactor = (double) maxPoints / ring.length();
+                    int maxHolePoints = Math.max(4, (int) (simplificationFactor * hole.length()));
+                    LinearRings holeSimplifier = new LinearRings(maxHolePoints, calculator, this.monitor);
+                    holeSimplifier.description = "Polygon.Hole";
+                    holeSimplifiers.add(holeSimplifier);
+                    holeSimplifier.simplify(hole);
+                }
+                return produce();
+            } finally {
+                notifyMonitorSimplificationEnd();
             }
-            notifyMonitorSimplificationEnd();
-            for (int i = 0; i < geometry.getNumberOfHoles(); i++) {
-                LinearRing hole = geometry.getHole(i);
-                double simplificationFactor = (double) maxPoints / ring.length();
-                int maxHolePoints = Math.max(4, (int) (simplificationFactor * hole.length()));
-                LinearRings holeSimplifier = new LinearRings(maxHolePoints, calculator, this.monitor);
-                holeSimplifier.description = "Polygon.Hole";
-                holeSimplifiers.add(holeSimplifier);
-                holeSimplifier.simplify(hole);
-            }
-            return produce();
         }
 
         @Override
@@ -402,7 +413,6 @@ public abstract class GeometrySimplifier<T extends Geometry> {
      * the <code>Polygon</code> simplifier on each individually.
      */
     public static class MultiPolygons extends GeometrySimplifier<MultiPolygon> {
-        ArrayList<GeometrySimplifier<Polygon>> polygonSimplifiers = new ArrayList<>();
         ArrayList<Integer> indexes = new ArrayList<>();
 
         public MultiPolygons(int maxPoints, SimplificationErrorCalculator calculator) {
@@ -416,17 +426,13 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         @Override
         public void reset() {
             super.reset();
-            polygonSimplifiers.clear();
             indexes.clear();
         }
 
         @Override
         public MultiPolygon simplify(MultiPolygon geometry) {
-            int maxPolyLength = 0;
-            for (int i = 0; i < geometry.size(); i++) {
-                Polygon polygon = geometry.get(i);
-                maxPolyLength = Math.max(maxPolyLength, polygon.getPolygon().length());
-            }
+            ArrayList<Polygon> polygons = new ArrayList<>(geometry.size());
+            int maxPolyLength = GeometrySimplifier.maxLengthOf(geometry);
             notifyMonitorSimplificationStart();
             for (int i = 0; i < geometry.size(); i++) {
                 Polygon polygon = geometry.get(i);
@@ -434,15 +440,15 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 int maxPolyPoints = Math.max(4, (int) (simplificationFactor * polygon.getPolygon().length()));
                 Polygons simplifier = new Polygons(maxPolyPoints, calculator, monitor);
                 simplifier.description = "MultiPolygon.Polygon[" + i + "]";
-                simplifier.simplify(polygon);
-                if (simplifier.length > 0) {
+                Polygon simplified = simplifier.simplify(polygon);
+                if (simplified.getPolygon().length() > 0) {
                     // Invalid polygons (all points co-located) will not be simplified
-                    polygonSimplifiers.add(simplifier);
+                    polygons.add(simplified);
                     indexes.add(i);
                 }
             }
             notifyMonitorSimplificationEnd();
-            return produce();
+            return new MultiPolygon(polygons);
         }
 
         @Override
@@ -452,15 +458,111 @@ public abstract class GeometrySimplifier<T extends Geometry> {
 
         @Override
         public MultiPolygon produce() {
-            List<Polygon> polygons = polygonSimplifiers.stream().map(GeometrySimplifier::produce).collect(Collectors.toList());
-            return new MultiPolygon(polygons);
+            throw new IllegalArgumentException("MultiPolygon geometry simplifier cannot work in streaming mode");
         }
 
         /**
          * Provide the index of the original un-simplified polygon given the index of the simplified polygon.
+         * This is only useful in the case that some incoming polygons were invalid, and excluded from the final geometry.
          */
         public int indexOf(int simplified) {
             return indexes.get(simplified);
+        }
+    }
+
+    /**
+     * This class wraps a collection of other simplifiers.
+     * It does not make use of its own simplifier capabilities.
+     * The largest inner geometry is simplified to the specified maxPoints, while the rest are simplified
+     * to a maxPoints value that is a fraction of their size compared to the largest size.
+     * <p>
+     * Note that this simplifier cannot work in streaming mode, since it would not know what to add the points to.
+     * If you need to use the streaming mode, separate the geometry collection into individual geometries and use
+     * the <code>Polygon</code> or <code>LineString</code> simplifier on each individually.
+     */
+    public static class GeometryCollections extends GeometrySimplifier<GeometryCollection<?>> {
+        public GeometryCollections(int maxPoints, SimplificationErrorCalculator calculator) {
+            this(maxPoints, calculator, null);
+        }
+
+        public GeometryCollections(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("GeometryCollection", maxPoints, calculator, monitor);
+        }
+
+        @Override
+        public GeometryCollection<?> simplify(GeometryCollection<?> collection) {
+            ArrayList<Geometry> geometries = new ArrayList<>(collection.size());
+            int maxGeometryLength = maxLengthOf(collection);
+            notifyMonitorSimplificationStart();
+            for (int i = 0; i < collection.size(); i++) {
+                Geometry geometry = collection.get(i);
+                double simplificationFactor = (double) maxPoints / maxGeometryLength;
+                int maxLength = lengthOf(geometry);
+                int maxPolyPoints = Math.max(4, (int) (simplificationFactor * maxLength));
+                if (geometry instanceof Point point) {
+                    var pointSimplifier = new Points(maxPolyPoints, calculator, monitor);
+                    pointSimplifier.description = "GeometryCollection.Point[" + i + "]";
+                    geometries.add(pointSimplifier.simplify(point));
+                } else if (geometry instanceof Line line) {
+                    var lineSimplifier = new LineStrings(maxPolyPoints, calculator, monitor);
+                    lineSimplifier.description = "GeometryCollection.Line[" + i + "]";
+                    geometries.add(lineSimplifier.simplify(line));
+                } else if (geometry instanceof Polygon polygon) {
+                    var polygonSimplifier = new Polygons(maxPolyPoints, calculator, monitor);
+                    polygonSimplifier.description = "GeometryCollection.Polygon[" + i + "]";
+                    geometries.add(polygonSimplifier.simplify(polygon));
+                } else if (geometry instanceof MultiPolygon multiPolygon) {
+                    var multiPolygonSimplifier = new MultiPolygons(maxPolyPoints, calculator, monitor);
+                    multiPolygonSimplifier.description = "GeometryCollection.MultiPolygon[" + i + "]";
+                    geometries.add(multiPolygonSimplifier.simplify(multiPolygon));
+                } else if (geometry instanceof GeometryCollection<?> g) {
+                    var collectionSimplifier = new GeometryCollections(maxPolyPoints, calculator, monitor);
+                    collectionSimplifier.description = "GeometryCollection.GeometryCollection[" + i + "]";
+                    geometries.add(collectionSimplifier.simplify(g));
+                } else {
+                    throw new IllegalArgumentException("Unsupported geometry type: " + geometry.type());
+                }
+            }
+            notifyMonitorSimplificationEnd();
+            return new GeometryCollection<>(geometries);
+        }
+
+        @Override
+        public void consume(double x, double y) {
+            throw new IllegalArgumentException("MultiPolygon geometry simplifier cannot work in streaming mode");
+        }
+
+        @Override
+        public GeometryCollection<Geometry> produce() {
+            throw new IllegalArgumentException("MultiPolygon geometry simplifier cannot work in streaming mode");
+        }
+    }
+
+    public static class Points extends GeometrySimplifier<Point> {
+        private Point lastPoint;
+
+        public Points(int maxPoints, SimplificationErrorCalculator calculator) {
+            this(maxPoints, calculator, null);
+        }
+
+        public Points(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("Point", maxPoints, calculator, monitor);
+        }
+
+        @Override
+        public Point simplify(Point point) {
+            lastPoint = point;
+            return lastPoint;
+        }
+
+        @Override
+        public void consume(double x, double y) {
+            lastPoint = new Point(x, y);
+        }
+
+        @Override
+        public Point produce() {
+            return lastPoint;
         }
     }
 
@@ -478,5 +580,42 @@ public abstract class GeometrySimplifier<T extends Geometry> {
             y[i] = simplifier.points[i].y;
         }
         return new LinearRing(x, y);
+    }
+
+    static int lengthOf(Geometry geometry) {
+        if (geometry instanceof Polygon polygon) {
+            return polygon.getPolygon().length();
+        } else if (geometry instanceof Point) {
+            return 1;
+        } else if (geometry instanceof Line line) {
+            return line.length();
+        } else if (geometry instanceof MultiPolygon multiPolygon) {
+            int maxPolyLength = 0;
+            for (int i = 0; i < multiPolygon.size(); i++) {
+                Polygon polygon = multiPolygon.get(i);
+                maxPolyLength = Math.max(maxPolyLength, polygon.getPolygon().length());
+            }
+            return maxPolyLength;
+        } else if (geometry instanceof GeometryCollection<?> collection) {
+            return maxLengthOf(collection);
+        } else {
+            throw new IllegalArgumentException("Unsupported geometry type: " + geometry.type());
+        }
+    }
+
+    private static int maxLengthOf(GeometryCollection<?> collection) {
+        int maxLength = 0;
+        for (int i = 0; i < collection.size(); i++) {
+            maxLength = Math.max(maxLength, lengthOf(collection.get(i)));
+        }
+        return maxLength;
+    }
+
+    private static int maxLengthOf(MultiPolygon polygons) {
+        int maxLength = 0;
+        for (int i = 0; i < polygons.size(); i++) {
+            maxLength = Math.max(maxLength, lengthOf(polygons.get(i)));
+        }
+        return maxLength;
     }
 }

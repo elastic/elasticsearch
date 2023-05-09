@@ -39,12 +39,7 @@ public class MinDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double[] min = new double[] { Double.POSITIVE_INFINITY };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                min[0] = Math.min(min[0], ((DoubleBlock) values).getDouble(valueOffset));
-            }
-        });
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(min[0]));
+        double min = input.stream().flatMapToDouble(p -> allDoubles(p, group)).min().getAsDouble();
+        assertThat(((DoubleBlock) result).getDouble(position), equalTo(min));
     }
 }

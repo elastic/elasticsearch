@@ -58,7 +58,7 @@ final class QuantileStates {
         return digest;
     }
 
-    private static final double DEFAULT_COMPRESSION = 1000.0;
+    static final double DEFAULT_COMPRESSION = 1000.0;
 
     static class SingleState implements AggregatorState<SingleState> {
         private TDigestState digest;

@@ -17,11 +17,9 @@ import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.DoubleStream;
 
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MedianDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -55,9 +53,16 @@ public class MedianDoubleGroupingAggregatorFunctionTests extends GroupingAggrega
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        int bucket = Math.toIntExact(group);
-        double[] expectedValues = new double[] { 2.0, 3.0, 1.75, 3.0, 1.5 };
-        assertThat(bucket, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(4)));
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(expectedValues[bucket]));
+        assertThat(((DoubleBlock) result).getDouble(position), equalTo(median(input.stream().flatMapToDouble(p -> allDoubles(p, group)))));
+    }
+
+    static double median(DoubleStream s) {
+        // The input data is small enough that tdigest will find the actual median.
+        double[] data = s.sorted().toArray();
+        if (data.length == 0) {
+            return 0;
+        }
+        int c = data.length / 2;
+        return data.length % 2 == 0 ? (data[c - 1] + data[c]) / 2 : data[c];
     }
 }

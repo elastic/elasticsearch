@@ -40,57 +40,81 @@ public final class CountDistinctDoubleGroupingAggregatorFunction implements Grou
   @Override
   public void addRawInput(LongVector groups, Page page) {
     DoubleBlock valuesBlock = page.getBlock(channel);
+    assert groups.getPositionCount() == page.getPositionCount();
     DoubleVector valuesVector = valuesBlock.asVector();
-    if (valuesVector != null) {
-      int positions = groups.getPositionCount();
-      for (int position = 0; position < groups.getPositionCount(); position++) {
-        int groupId = Math.toIntExact(groups.getLong(position));
-        CountDistinctDoubleAggregator.combine(state, groupId, valuesVector.getDouble(position));
-      }
+    if (valuesVector == null) {
+      addRawInput(groups, valuesBlock);
     } else {
-      // move the cold branch out of this method to keep the optimized case vector/vector as small as possible
-      addRawInputWithBlockValues(groups, valuesBlock);
+      addRawInput(groups, valuesVector);
     }
   }
 
-  private void addRawInputWithBlockValues(LongVector groups, DoubleBlock valuesBlock) {
-    int positions = groups.getPositionCount();
+  private void addRawInput(LongVector groups, DoubleBlock values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groups.getLong(position));
-      if (valuesBlock.isNull(position)) {
+      if (values.isNull(position)) {
         state.putNull(groupId);
-      } else {
-        int i = valuesBlock.getFirstValueIndex(position);
-        CountDistinctDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(i));
+        continue;
       }
+      int valuesStart = values.getFirstValueIndex(position);
+      int valuesEnd = valuesStart + values.getValueCount(position);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(v));
+      }
+    }
+  }
+
+  private void addRawInput(LongVector groups, DoubleVector values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groups.getLong(position));
+      CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(position));
     }
   }
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    assert channel >= 0;
     DoubleBlock valuesBlock = page.getBlock(channel);
+    assert groups.getPositionCount() == page.getPositionCount();
     DoubleVector valuesVector = valuesBlock.asVector();
-    int positions = groups.getPositionCount();
-    if (valuesVector != null) {
-      for (int position = 0; position < groups.getPositionCount(); position++) {
-        if (groups.isNull(position) == false) {
-          int groupId = Math.toIntExact(groups.getLong(position));
-          CountDistinctDoubleAggregator.combine(state, groupId, valuesVector.getDouble(position));
-        }
-      }
+    if (valuesVector == null) {
+      addRawInput(groups, valuesBlock);
     } else {
-      for (int position = 0; position < groups.getPositionCount(); position++) {
-        if (groups.isNull(position)) {
+      addRawInput(groups, valuesVector);
+    }
+  }
+
+  private void addRawInput(LongBlock groups, DoubleBlock values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      if (groups.isNull(position)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(position);
+      int groupEnd = groupStart + groups.getValueCount(position);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = Math.toIntExact(groups.getLong(g));
+        if (values.isNull(position)) {
+          state.putNull(groupId);
           continue;
         }
-        int groupId = Math.toIntExact(groups.getLong(position));
-        if (valuesBlock.isNull(position)) {
-          state.putNull(groupId);
-        } else {
-          int i = valuesBlock.getFirstValueIndex(position);
-          CountDistinctDoubleAggregator.combine(state, groupId, valuesBlock.getDouble(position));
+        int valuesStart = values.getFirstValueIndex(position);
+        int valuesEnd = valuesStart + values.getValueCount(position);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(v));
         }
+      }
+    }
+  }
+
+  private void addRawInput(LongBlock groups, DoubleVector values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      if (groups.isNull(position)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(position);
+      int groupEnd = groupStart + groups.getValueCount(position);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = Math.toIntExact(groups.getLong(g));
+        CountDistinctDoubleAggregator.combine(state, groupId, values.getDouble(position));
       }
     }
   }

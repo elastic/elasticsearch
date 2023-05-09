@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
@@ -18,7 +17,7 @@ import org.elasticsearch.core.Tuple;
 import java.util.List;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class AvgLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
@@ -41,14 +40,8 @@ public class AvgLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
 
     @Override
     public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long[] sum = new long[] { 0 };
-        long[] count = new long[] { 0 };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                sum[0] = Math.addExact(sum[0], ((LongBlock) values).getLong(valueOffset));
-                count[0]++;
-            }
-        });
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(((double) sum[0]) / count[0]));
+        double sum = input.stream().flatMapToLong(p -> allLongs(p, group)).sum();
+        long count = input.stream().flatMapToLong(p -> allLongs(p, group)).count();
+        assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum / count, 0.001));
     }
 }

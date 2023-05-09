@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
@@ -16,11 +15,9 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -44,24 +41,11 @@ public class CountDistinctIntGroupingAggregatorFunctionTests extends GroupingAgg
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        final int groupIndex = 0;
-        final int valueIndex = 1;
-
-        long expected = input.stream().flatMapToInt(b -> IntStream.range(0, b.getPositionCount()).filter(p -> {
-            LongBlock groupBlock = b.getBlock(groupIndex);
-            Block valuesBlock = b.getBlock(valueIndex);
-            return false == groupBlock.isNull(p) && false == valuesBlock.isNull(p) && groupBlock.getLong(p) == group;
-        }).map(p -> ((IntBlock) b.getBlock(valueIndex)).getInt(p))).distinct().count();
-
+        long distinct = input.stream().flatMapToInt(p -> allInts(p, group)).distinct().count();
         long count = ((LongBlock) result).getLong(position);
-        if (expected == 0) {
-            assertThat(count, equalTo(expected));
-        } else {
-            // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
-            // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
-            // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
-            double precision = (double) count / (double) expected;
-            assertThat(precision, closeTo(1.0, .1));
-        }
+        // HLL is an approximation algorithm and precision depends on the number of values computed and the precision_threshold param
+        // https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-metrics-cardinality-aggregation.html
+        // For a number of values close to 10k and precision_threshold=1000, precision should be less than 10%
+        assertThat((double) count, closeTo(distinct, distinct * 0.1));
     }
 }

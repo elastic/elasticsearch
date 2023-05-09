@@ -37,12 +37,7 @@ public class MaxIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
 
     @Override
     public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        int[] max = new int[] { Integer.MIN_VALUE };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                max[0] = Math.max(max[0], ((IntBlock) values).getInt(valueOffset));
-            }
-        });
-        assertThat(((IntBlock) result).getInt(position), equalTo(max[0]));
+        int max = input.stream().flatMapToInt(p -> allInts(p, group)).max().getAsInt();
+        assertThat(((IntBlock) result).getInt(position), equalTo(max));
     }
 }

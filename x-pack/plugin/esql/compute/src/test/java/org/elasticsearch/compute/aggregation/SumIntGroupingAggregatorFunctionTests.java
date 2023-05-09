@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
@@ -41,12 +40,7 @@ public class SumIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long[] sum = new long[] { 0 };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                sum[0] = Math.addExact(sum[0], (long) ((IntBlock) values).getInt(valueOffset));
-            }
-        });
-        assertThat(((LongBlock) result).getLong(position), equalTo(sum[0]));
+        long sum = input.stream().flatMapToInt(p -> allInts(p, group)).asLongStream().sum();
+        assertThat(((LongBlock) result).getLong(position), equalTo(sum));
     }
 }

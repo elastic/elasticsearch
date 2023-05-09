@@ -37,12 +37,7 @@ public class MinIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
 
     @Override
     public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        int[] min = new int[] { Integer.MAX_VALUE };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                min[0] = Math.min(min[0], ((IntBlock) values).getInt(valueOffset));
-            }
-        });
-        assertThat(((IntBlock) result).getInt(position), equalTo(min[0]));
+        int min = input.stream().flatMapToInt(p -> allInts(p, group)).min().getAsInt();
+        assertThat(((IntBlock) result).getInt(position), equalTo(min));
     }
 }

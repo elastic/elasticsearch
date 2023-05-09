@@ -20,10 +20,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.allOf;
+import static org.elasticsearch.compute.aggregation.MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests.medianAbsoluteDeviation;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -58,9 +56,9 @@ public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends G
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        int bucket = Math.toIntExact(group);
-        double[] expectedValues = new double[] { 23.0, 15, 11.5, 0.0, 8.0 };
-        assertThat(bucket, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(4)));
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(expectedValues[bucket]));
+        assertThat(
+            ((DoubleBlock) result).getDouble(position),
+            equalTo(medianAbsoluteDeviation(input.stream().flatMapToInt(p -> allInts(p, group)).asDoubleStream()))
+        );
     }
 }

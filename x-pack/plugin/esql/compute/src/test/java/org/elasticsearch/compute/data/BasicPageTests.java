@@ -50,7 +50,7 @@ public class BasicPageTests extends SerializationTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new Page(0, new Block[] {}),
             page -> new Page(0, new Block[] {}),
-            page -> new Page(1, new Block[1])
+            page -> new Page(1, IntBlock.newConstantBlockWith(1, 1))
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new Page(new IntArrayVector(new int[] {}, 0).asBlock()),
@@ -94,12 +94,14 @@ public class BasicPageTests extends SerializationTestCase {
         };
 
         final EqualsHashCodeTestUtils.MutateFunction<Page> mutatePageFunction = page -> {
-            Block[] blocks = new Block[page.getBlockCount()];
-            for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-                blocks[blockIndex] = page.getBlock(blockIndex);
-            }
             assert page.getPositionCount() > 0;
-            return new Page(randomInt(page.getPositionCount() - 1), blocks);
+            Block[] blocks = new Block[page.getBlockCount()];
+            int positions = randomInt(page.getPositionCount() - 1);
+            for (int blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+                Block block = page.getBlock(blockIndex);
+                blocks[blockIndex] = block.elementType().newBlockBuilder(positions).copyFrom(block, 0, page.getPositionCount() - 1).build();
+            }
+            return new Page(blocks);
         };
 
         int positions = randomIntBetween(1, 512);

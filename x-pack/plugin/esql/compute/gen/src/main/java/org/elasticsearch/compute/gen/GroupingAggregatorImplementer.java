@@ -110,9 +110,12 @@ public class GroupingAggregatorImplementer {
 
         builder.addMethod(create());
         builder.addMethod(ctor());
-        builder.addMethod(addRawInputVector());
-        builder.addMethod(addRawInputWithBlockValues());
-        builder.addMethod(addRawInputBlock());
+        builder.addMethod(addRawInputStartup(LONG_VECTOR));
+        builder.addMethod(addRawInputLoop(LONG_VECTOR, valueBlockType(init, combine)));
+        builder.addMethod(addRawInputLoop(LONG_VECTOR, valueVectorType(init, combine)));
+        builder.addMethod(addRawInputStartup(LONG_BLOCK));
+        builder.addMethod(addRawInputLoop(LONG_BLOCK, valueBlockType(init, combine)));
+        builder.addMethod(addRawInputLoop(LONG_BLOCK, valueVectorType(init, combine)));
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
@@ -149,93 +152,107 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec addRawInputVector() {
+    private MethodSpec addRawInputStartup(TypeName groupsType) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(LONG_VECTOR, "groups").addParameter(PAGE, "page");
+        builder.addParameter(groupsType, "groups").addParameter(PAGE, "page");
         builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType(init, combine));
+        builder.addStatement("assert groups.getPositionCount() == page.getPositionCount()");
         builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
-        builder.beginControlFlow("if (valuesVector != null)");
-        {
-            builder.addStatement("int positions = groups.getPositionCount()");
-            builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
-            {
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
-                combineRawInput(builder, "valuesVector", "position");
-            }
-            builder.endControlFlow();
-        }
+        builder.beginControlFlow("if (valuesVector == null)");
+        builder.addStatement("addRawInput(groups, valuesBlock)");
         builder.nextControlFlow("else");
+        builder.addStatement("addRawInput(groups, valuesVector)");
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    private MethodSpec addRawInputLoop(TypeName groupsType, TypeName valuesType) {
+        boolean groupsIsBlock = groupsType.toString().endsWith("Block");
+        boolean valuesIsBlock = valuesType.toString().endsWith("Block");
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
+        builder.addModifiers(Modifier.PRIVATE);
+        builder.addParameter(groupsType, "groups").addParameter(valuesType, "values");
+        builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
-            builder.addComment("move the cold branch out of this method to keep the optimized case vector/vector as small as possible");
-            builder.addStatement("addRawInputWithBlockValues(groups, valuesBlock)");
+            if (groupsIsBlock) {
+                builder.beginControlFlow("if (groups.isNull(position))");
+                builder.addStatement("continue");
+                builder.endControlFlow();
+                builder.addStatement("int groupStart = groups.getFirstValueIndex(position)");
+                builder.addStatement("int groupEnd = groupStart + groups.getValueCount(position)");
+                builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
+                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(g))");
+            } else {
+                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+            }
+
+            if (valuesIsBlock) {
+                builder.beginControlFlow("if (values.isNull(position))");
+                builder.addStatement("state.putNull(groupId)");
+                builder.addStatement("continue");
+                builder.endControlFlow();
+                builder.addStatement("int valuesStart = values.getFirstValueIndex(position)");
+                builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(position)");
+                builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
+                combineRawInput(builder, "values", "v");
+                builder.endControlFlow();
+            } else {
+                combineRawInput(builder, "values", "position");
+            }
+
+            if (groupsIsBlock) {
+                builder.endControlFlow();
+            }
         }
         builder.endControlFlow();
         return builder.build();
     }
 
-    private MethodSpec addRawInputWithBlockValues() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInputWithBlockValues");
+    private MethodSpec addRawInputGroupVectorValuesVector() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
-        builder.addParameter(LONG_VECTOR, "groups").addParameter(valueBlockType(init, combine), "valuesBlock");
-        builder.addStatement("int positions = groups.getPositionCount()");
+        builder.addParameter(LONG_VECTOR, "groups").addParameter(valueVectorType(init, combine), "values");
         builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
             builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
-            builder.beginControlFlow("if (valuesBlock.isNull(position))");
+            combineRawInput(builder, "values", "position");
+        }
+        builder.endControlFlow();
+        return builder.build();
+    }
+
+    private MethodSpec addRawInputGroupBlockValuesBlock() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
+        builder.addModifiers(Modifier.PRIVATE);
+        builder.addParameter(LONG_BLOCK, "groups").addParameter(valueBlockType(init, combine), "values");
+        builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
+        {
+            builder.beginControlFlow("if (groups.isNull(position) || values.isNull(position)");
             {
                 builder.addStatement("state.putNull(groupId)");
+                builder.addStatement("continue");
             }
-            builder.nextControlFlow("else");
-            {
-                builder.addStatement("int i = valuesBlock.getFirstValueIndex(position)");
-                combineRawInput(builder, "valuesBlock", "i");
-            }
+            builder.endControlFlow();
+            builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+            builder.addStatement("int start = values.getFirstValueIndex(position)");
+            builder.addStatement("int end = start + values.getValueCount(position)");
+            builder.beginControlFlow("for (int i = start; i < end; i++)");
+            combineRawInput(builder, "values", "i");
             builder.endControlFlow();
         }
         builder.endControlFlow();
         return builder.build();
     }
 
-    private MethodSpec addRawInputBlock() {
+    private MethodSpec addRawInputGroupBlockValuesVector() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addParameter(LONG_BLOCK, "groups").addParameter(PAGE, "page");
-        builder.addStatement("assert channel >= 0");
-        builder.addStatement("$T valuesBlock = page.getBlock(channel)", valueBlockType(init, combine));
-        builder.addStatement("$T valuesVector = valuesBlock.asVector()", valueVectorType(init, combine));
-        builder.addStatement("int positions = groups.getPositionCount()");
-        builder.beginControlFlow("if (valuesVector != null)");
+        builder.addModifiers(Modifier.PRIVATE);
+        builder.addParameter(LONG_VECTOR, "groups").addParameter(valueVectorType(init, combine), "values");
+        builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
         {
-            builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
-            {
-                builder.beginControlFlow("if (groups.isNull(position) == false)");
-                {
-                    builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
-                    combineRawInput(builder, "valuesVector", "position");
-                }
-                builder.endControlFlow();
-            }
-            builder.endControlFlow();
-        }
-        builder.nextControlFlow("else");
-        {
-            builder.beginControlFlow("for (int position = 0; position < groups.getPositionCount(); position++)");
-            {
-                builder.beginControlFlow("if (groups.isNull(position))").addStatement("continue").endControlFlow();
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
-                builder.beginControlFlow("if (valuesBlock.isNull(position))");
-                {
-                    builder.addStatement("state.putNull(groupId)");
-                }
-                builder.nextControlFlow("else");
-                {
-                    builder.addStatement("int i = valuesBlock.getFirstValueIndex(position)");
-                    combineRawInput(builder, "valuesBlock", "position");
-                }
-                builder.endControlFlow();
-            }
-            builder.endControlFlow();
+            builder.addStatement("int groupId = Math.toIntExact(groups.getLong(position))");
+            combineRawInput(builder, "values", "position");
         }
         builder.endControlFlow();
         return builder.build();

@@ -19,11 +19,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
-import static org.hamcrest.Matchers.allOf;
+import static org.elasticsearch.compute.aggregation.MedianDoubleGroupingAggregatorFunctionTests.median;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -58,9 +57,15 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double[] expectedValues = new double[] { 0.8, 1.5, 0.375, 0.0, 1.25 };
-        int groupId = Math.toIntExact(group);
-        assertThat(groupId, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(4)));
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(expectedValues[groupId]));
+        assertThat(
+            ((DoubleBlock) result).getDouble(position),
+            equalTo(medianAbsoluteDeviation(input.stream().flatMapToDouble(p -> allDoubles(p, group))))
+        );
+    }
+
+    static double medianAbsoluteDeviation(DoubleStream s) {
+        double[] data = s.toArray();
+        double median = median(Arrays.stream(data));
+        return median(Arrays.stream(data).map(d -> Math.abs(median - d)));
     }
 }

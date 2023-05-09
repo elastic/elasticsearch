@@ -44,6 +44,9 @@ public class ProjectOperator extends AbstractPageMappingOperator {
 
     @Override
     protected Page process(Page page) {
+        if (page.getBlockCount() == 0) {
+            return page;
+        }
         if (blocks == null) {
             blocks = new Block[bs.cardinality()];
         }

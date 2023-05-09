@@ -37,12 +37,7 @@ public class MinLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long[] min = new long[] { Long.MAX_VALUE };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                min[0] = Math.min(min[0], ((LongBlock) values).getLong(valueOffset));
-            }
-        });
-        assertThat(((LongBlock) result).getLong(position), equalTo(min[0]));
+        long min = input.stream().flatMapToLong(p -> allLongs(p, group)).min().getAsLong();
+        assertThat(((LongBlock) result).getLong(position), equalTo(min));
     }
 }

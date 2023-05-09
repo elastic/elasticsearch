@@ -36,7 +36,7 @@ public class AvgIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     public void assertSimpleOutput(List<Block> input, Block result) {
-        long sum = input.stream().flatMapToInt(b -> allInts(b)).mapToLong(i -> (long) i).sum();
+        long sum = input.stream().flatMapToInt(b -> allInts(b)).asLongStream().sum();
         long count = input.stream().flatMapToInt(b -> allInts(b)).count();
         assertThat(((DoubleBlock) result).getDouble(0), equalTo(((double) sum) / count));
     }

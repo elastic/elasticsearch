@@ -40,20 +40,19 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         }
         for (int position = 0; position < page.getPositionCount(); position++) {
             for (int nulls = between(0, 3); nulls > 0; nulls--) {
-                int nullIndex = between(0, builders.length - 1);
                 for (int b = 0; b < builders.length; b++) {
-                    if (b == nullIndex) {
-                        builders[b].appendNull();
-                    } else {
-                        builders[b].copyFrom(page.getBlock(b), position, position + 1);
-                    }
+                    appendNull(page.getBlock(b).elementType(), builders[b], b);
                 }
             }
             for (int b = 0; b < builders.length; b++) {
                 copyValues(page.getBlock(b), position, builders[b]);
             }
         }
-        return new Page(page.getPositionCount(), Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new));
+        return new Page(Arrays.stream(builders).map(Block.Builder::build).toArray(Block[]::new));
+    }
+
+    protected void appendNull(ElementType elementType, Block.Builder builder, int blockId) {
+        builder.appendNull();
     }
 
     private void copyValues(Block from, int position, Block.Builder into) {

@@ -32,7 +32,7 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
 
     @Override
     protected SourceOperator simpleInput(int size) {
-        long max = randomLongBetween(1, Long.MAX_VALUE / size);
+        long max = randomLongBetween(1, Long.MAX_VALUE / size / 5);
         return new TupleBlockSourceOperator(
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomLongBetween(-max, max)))
         );
@@ -40,12 +40,7 @@ public class SumLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        long[] sum = new long[] { 0 };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                sum[0] = Math.addExact(sum[0], ((LongBlock) values).getLong(valueOffset));
-            }
-        });
-        assertThat(((LongBlock) result).getLong(position), equalTo(sum[0]));
+        long sum = input.stream().flatMapToLong(p -> allLongs(p, group)).sum();
+        assertThat(((LongBlock) result).getLong(position), equalTo(sum));
     }
 }

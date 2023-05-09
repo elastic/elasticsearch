@@ -42,7 +42,7 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Block> input, Block result) {
-        long sum = input.stream().flatMapToInt(b -> allInts(b)).mapToLong(i -> (long) i).sum();
+        long sum = input.stream().flatMapToInt(b -> allInts(b)).asLongStream().sum();
         assertThat(((LongBlock) result).getLong(0), equalTo(sum));
     }
 

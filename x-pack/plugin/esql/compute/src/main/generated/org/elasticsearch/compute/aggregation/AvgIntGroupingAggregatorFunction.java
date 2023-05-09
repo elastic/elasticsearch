@@ -38,57 +38,81 @@ public final class AvgIntGroupingAggregatorFunction implements GroupingAggregato
   @Override
   public void addRawInput(LongVector groups, Page page) {
     IntBlock valuesBlock = page.getBlock(channel);
+    assert groups.getPositionCount() == page.getPositionCount();
     IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector != null) {
-      int positions = groups.getPositionCount();
-      for (int position = 0; position < groups.getPositionCount(); position++) {
-        int groupId = Math.toIntExact(groups.getLong(position));
-        AvgIntAggregator.combine(state, groupId, valuesVector.getInt(position));
-      }
+    if (valuesVector == null) {
+      addRawInput(groups, valuesBlock);
     } else {
-      // move the cold branch out of this method to keep the optimized case vector/vector as small as possible
-      addRawInputWithBlockValues(groups, valuesBlock);
+      addRawInput(groups, valuesVector);
     }
   }
 
-  private void addRawInputWithBlockValues(LongVector groups, IntBlock valuesBlock) {
-    int positions = groups.getPositionCount();
+  private void addRawInput(LongVector groups, IntBlock values) {
     for (int position = 0; position < groups.getPositionCount(); position++) {
       int groupId = Math.toIntExact(groups.getLong(position));
-      if (valuesBlock.isNull(position)) {
+      if (values.isNull(position)) {
         state.putNull(groupId);
-      } else {
-        int i = valuesBlock.getFirstValueIndex(position);
-        AvgIntAggregator.combine(state, groupId, valuesBlock.getInt(i));
+        continue;
       }
+      int valuesStart = values.getFirstValueIndex(position);
+      int valuesEnd = valuesStart + values.getValueCount(position);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        AvgIntAggregator.combine(state, groupId, values.getInt(v));
+      }
+    }
+  }
+
+  private void addRawInput(LongVector groups, IntVector values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      int groupId = Math.toIntExact(groups.getLong(position));
+      AvgIntAggregator.combine(state, groupId, values.getInt(position));
     }
   }
 
   @Override
   public void addRawInput(LongBlock groups, Page page) {
-    assert channel >= 0;
     IntBlock valuesBlock = page.getBlock(channel);
+    assert groups.getPositionCount() == page.getPositionCount();
     IntVector valuesVector = valuesBlock.asVector();
-    int positions = groups.getPositionCount();
-    if (valuesVector != null) {
-      for (int position = 0; position < groups.getPositionCount(); position++) {
-        if (groups.isNull(position) == false) {
-          int groupId = Math.toIntExact(groups.getLong(position));
-          AvgIntAggregator.combine(state, groupId, valuesVector.getInt(position));
-        }
-      }
+    if (valuesVector == null) {
+      addRawInput(groups, valuesBlock);
     } else {
-      for (int position = 0; position < groups.getPositionCount(); position++) {
-        if (groups.isNull(position)) {
+      addRawInput(groups, valuesVector);
+    }
+  }
+
+  private void addRawInput(LongBlock groups, IntBlock values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      if (groups.isNull(position)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(position);
+      int groupEnd = groupStart + groups.getValueCount(position);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = Math.toIntExact(groups.getLong(g));
+        if (values.isNull(position)) {
+          state.putNull(groupId);
           continue;
         }
-        int groupId = Math.toIntExact(groups.getLong(position));
-        if (valuesBlock.isNull(position)) {
-          state.putNull(groupId);
-        } else {
-          int i = valuesBlock.getFirstValueIndex(position);
-          AvgIntAggregator.combine(state, groupId, valuesBlock.getInt(position));
+        int valuesStart = values.getFirstValueIndex(position);
+        int valuesEnd = valuesStart + values.getValueCount(position);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          AvgIntAggregator.combine(state, groupId, values.getInt(v));
         }
+      }
+    }
+  }
+
+  private void addRawInput(LongBlock groups, IntVector values) {
+    for (int position = 0; position < groups.getPositionCount(); position++) {
+      if (groups.isNull(position)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(position);
+      int groupEnd = groupStart + groups.getValueCount(position);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = Math.toIntExact(groups.getLong(g));
+        AvgIntAggregator.combine(state, groupId, values.getInt(position));
       }
     }
   }

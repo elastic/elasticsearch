@@ -40,12 +40,7 @@ public class MaxDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double[] max = new double[] { Double.NEGATIVE_INFINITY };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                max[0] = Math.max(max[0], ((DoubleBlock) values).getDouble(valueOffset));
-            }
-        });
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(max[0]));
+        double max = input.stream().flatMapToDouble(p -> allDoubles(p, group)).max().getAsDouble();
+        assertThat(((DoubleBlock) result).getDouble(position), equalTo(max));
     }
 }

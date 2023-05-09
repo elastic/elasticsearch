@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -39,12 +40,9 @@ public class SumDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double[] sum = new double[] { 0 };
-        forEachGroupAndValue(input, (groups, groupOffset, values, valueOffset) -> {
-            if (groups.getLong(groupOffset) == group) {
-                sum[0] += ((DoubleBlock) values).getDouble(valueOffset);
-            }
-        });
-        assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum[0], 0.001));
+        CompensatedSum sum = new CompensatedSum();
+        input.stream().flatMapToDouble(p -> allDoubles(p, group)).forEach(sum::add);
+        // Won't precisely match in distributed case but will be close
+        assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum.value(), 0.01));
     }
 }

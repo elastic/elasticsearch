@@ -18,10 +18,8 @@ import org.elasticsearch.core.Tuple;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.allOf;
+import static org.elasticsearch.compute.aggregation.MedianDoubleGroupingAggregatorFunctionTests.median;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MedianIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -55,9 +53,9 @@ public class MedianIntGroupingAggregatorFunctionTests extends GroupingAggregator
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        int bucket = Math.toIntExact(group);
-        double[] expectedValues = new double[] { 43.0, 30, 22.5, 30, 15 };
-        assertThat(bucket, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(4)));
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(expectedValues[bucket]));
+        assertThat(
+            ((DoubleBlock) result).getDouble(position),
+            equalTo(median(input.stream().flatMapToInt(p -> allInts(p, group)).asDoubleStream()))
+        );
     }
 }

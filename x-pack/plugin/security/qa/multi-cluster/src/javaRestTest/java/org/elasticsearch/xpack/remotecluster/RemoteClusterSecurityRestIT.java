@@ -61,7 +61,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
-            .setting("logger.org.elasticsearch.xpack.security.authc.ApiKeyAuthenticator", "debug")
             .build();
 
         queryCluster = ElasticsearchCluster.local()

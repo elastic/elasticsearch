@@ -248,19 +248,10 @@ public class Subject {
             return buildRolesReferenceForApiKeyBwc();
         }
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
-        assert (typeString != null) || version.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
-            : "API key type must be non-null except for versions older than " + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
-
-        // A null type string can only be for the REST type because it is not possible to
-        // create cross-cluster API keys for mixed cluster with old nodes.
-        // It is also not possible to send such an API key to an old node because it can only be
-        // used via the dedicated remote cluster port which means the node must be of a newer version.
-        final ApiKey.Type type = typeString == null ? ApiKey.Type.REST : ApiKey.Type.parse(typeString);
-        assert type == ApiKey.Type.REST;
+        assert ApiKey.Type.REST == getApiKeyType() : "only a REST API key should have its role built here";
 
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
-        final BytesReference limitedByRoleDescriptorsBytes = getLimitedByRoleDescriptorsBytes(type);
+        final BytesReference limitedByRoleDescriptorsBytes = getLimitedByRoleDescriptorsBytes();
         if (roleDescriptorsBytes == null && limitedByRoleDescriptorsBytes == null) {
             throw new ElasticsearchSecurityException("no role descriptors found for API key");
         }
@@ -283,8 +274,7 @@ public class Subject {
     RoleReferenceIntersection buildRoleReferencesForCrossClusterApiKey() {
         assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        assert ApiKey.Type.CROSS_CLUSTER == ApiKey.Type.parse((String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
-            : "cross cluster access must use cross-cluster API keys";
+        assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
         if (roleDescriptorsBytes == null) {
             throw new ElasticsearchSecurityException("no role descriptors found for API key");
@@ -298,8 +288,7 @@ public class Subject {
     }
 
     private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {
-        assert ApiKey.Type.CROSS_CLUSTER == ApiKey.Type.parse((String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
-            : "cross cluster access must use cross-cluster API keys";
+        assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
         final var crossClusterAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(
@@ -375,15 +364,29 @@ public class Subject {
             + "\"transient_metadata\":{\"enabled\":true}}}"
     );
 
-    private BytesReference getLimitedByRoleDescriptorsBytes(ApiKey.Type type) {
+    private BytesReference getLimitedByRoleDescriptorsBytes() {
+        assert ApiKey.Type.REST == getApiKeyType()
+            : "bug fixing for fleet-server limited-by role descriptors applies only to REST API keys";
         final BytesReference bytesReference = (BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
         // Unfortunate BWC bug fix code
-        if (type == ApiKey.Type.REST && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
+        if (bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
             if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME))
                 && "elastic/fleet-server".equals(user.principal())) {
                 return FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14;
             }
         }
         return bytesReference;
+    }
+
+    private ApiKey.Type getApiKeyType() {
+        final String typeString = (String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY);
+        assert (typeString != null) || version.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)
+            : "API key type must be non-null except for versions older than " + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
+
+        // A null type string can only be for the REST type because it is not possible to
+        // create cross-cluster API keys for mixed cluster with old nodes.
+        // It is also not possible to send such an API key to an old node because it can only be
+        // used via the dedicated remote cluster port which means the node must be of a newer version.
+        return typeString == null ? ApiKey.Type.REST : ApiKey.Type.parse(typeString);
     }
 }

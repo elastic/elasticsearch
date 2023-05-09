@@ -434,7 +434,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
 
-        // cross cluster API key cannot be used on interfaces other than dedicate remote cluster port
+        // cross cluster API key cannot be used for regular actions
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))

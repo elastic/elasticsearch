@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import com.tdunning.math.stats.Centroid;
+import org.elasticsearch.tdigest.Centroid;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;

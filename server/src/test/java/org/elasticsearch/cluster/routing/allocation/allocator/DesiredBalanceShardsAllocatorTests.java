@@ -144,7 +144,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
             public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", true, routingAllocationAction);
             }
         };
 
@@ -248,7 +248,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
                 ClusterState reconciled = allocationServiceRef.get()
-                    .executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+                    .executeWithRoutingAllocation(clusterState, "reconcile", false, routingAllocationAction);
                 reconciledStateRef.set(reconciled);
                 return reconciled;
             }
@@ -324,7 +324,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             @Override
             public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
                 reconciliations.incrementAndGet();
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", true, routingAllocationAction);
             }
         };
 
@@ -425,7 +425,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
             public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", true, routingAllocationAction);
             }
         };
 

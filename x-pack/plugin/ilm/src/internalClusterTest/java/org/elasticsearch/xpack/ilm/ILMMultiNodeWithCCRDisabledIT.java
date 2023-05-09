@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
@@ -43,7 +44,7 @@ import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
-public class ILMMultiNodeIT extends ESIntegTestCase {
+public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
     private static final String index = "myindex";
 
     @Override
@@ -58,7 +59,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
-            .put(XPackSettings.CCR_ENABLED_SETTING.getKey(), true)
+            .put(XPackSettings.CCR_ENABLED_SETTING.getKey(), false)
             .build();
     }
 
@@ -66,15 +67,14 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         startHotOnlyNode();
         startWarmOnlyNode();
         ensureGreen();
-
+        Map<String, LifecycleAction> actions = new HashMap<>();
         RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
         ShrinkAction shrinkAction = new ShrinkAction(1, null);
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
-        Map<String, Phase> phases = new HashMap<>();
-        phases.put(hotPhase.getName(), hotPhase);
-        phases.put(warmPhase.getName(), warmPhase);
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
+        actions.put(rolloverAction.getWriteableName(), rolloverAction);
+        actions.put(shrinkAction.getWriteableName(), shrinkAction);
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Collections.singletonMap(hotPhase.getName(), hotPhase));
         client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
 
         Template t = new Template(
@@ -114,7 +114,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
                 if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) && indexNameAndResp.getKey().contains(backingIndexName)) {
                     indexResp = indexNameAndResp.getValue();
                     assertNotNull(indexResp);
-                    assertThat(indexResp.getPhase(), equalTo("warm"));
+                    assertThat(indexResp.getPhase(), equalTo("hot"));
                     assertThat(indexResp.getStep(), equalTo("complete"));
                     break;
                 }

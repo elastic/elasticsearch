@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -261,7 +261,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode buildNode(String id, ByteSizeValue machineMemory, int allocatedProcessors) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             id,
             buildNewFakeTransportAddress(),
             Map.of(
@@ -272,8 +272,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
                 String.valueOf(allocatedProcessors)
             ),
-            Set.of(DiscoveryNodeRole.ML_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.ML_ROLE)
         );
     }
 

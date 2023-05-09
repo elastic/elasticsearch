@@ -63,7 +63,10 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(findPrivilegesThatGrant(IndexAction.NAME), equalTo(List.of("create_doc", "create", "index", "write", "all")));
         assertThat(findPrivilegesThatGrant(UpdateAction.NAME), equalTo(List.of("index", "write", "all")));
         assertThat(findPrivilegesThatGrant(DeleteAction.NAME), equalTo(List.of("delete", "write", "all")));
-        assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME), equalTo(List.of("monitor", "manage", "all")));
+        assertThat(
+            findPrivilegesThatGrant(IndicesStatsAction.NAME),
+            equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
+        );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
         assertThat(findPrivilegesThatGrant(ShrinkAction.NAME), equalTo(List.of("manage", "all")));
     }
@@ -109,5 +112,38 @@ public class IndexPrivilegeTests extends ESTestCase {
             ),
             is(true)
         );
+    }
+
+    public void testCrossClusterReplicationPrivileges() {
+        final IndexPrivilege crossClusterReplication = IndexPrivilege.get(Set.of("cross_cluster_replication"));
+        List.of(
+            "indices:data/read/xpack/ccr/shard_changes",
+            "indices:monitor/stats",
+            "indices:admin/seq_no/add_retention_lease",
+            "indices:admin/seq_no/remove_retention_lease",
+            "indices:admin/seq_no/renew_retention_lease"
+        ).forEach(action -> assertThat(crossClusterReplication.predicate.test(action + randomAlphaOfLengthBetween(0, 8)), is(true)));
+        assertThat(
+            Operations.subsetOf(crossClusterReplication.automaton, IndexPrivilege.get(Set.of("manage", "read", "monitor")).automaton),
+            is(true)
+        );
+
+        final IndexPrivilege crossClusterReplicationInternal = IndexPrivilege.get(Set.of("cross_cluster_replication_internal"));
+        List.of(
+            "indices:internal/admin/ccr/restore/session/clear",
+            "indices:internal/admin/ccr/restore/file_chunk/get",
+            "indices:internal/admin/ccr/restore/session/put",
+            "internal:transport/proxy/indices:internal/admin/ccr/restore/session/clear",
+            "internal:transport/proxy/indices:internal/admin/ccr/restore/file_chunk/get"
+        )
+            .forEach(
+                action -> assertThat(crossClusterReplicationInternal.predicate.test(action + randomAlphaOfLengthBetween(0, 8)), is(true))
+            );
+
+        assertThat(
+            Operations.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.get(Set.of("manage")).automaton),
+            is(false)
+        );
+        assertThat(Operations.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.get(Set.of("all")).automaton), is(true));
     }
 }

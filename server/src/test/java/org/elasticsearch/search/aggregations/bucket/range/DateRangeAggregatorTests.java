@@ -521,7 +521,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalRange<? extends InternalRange.Bucket, ? extends InternalRange<?, ?>> agg = searchAndReduce(
                     indexSearcher,

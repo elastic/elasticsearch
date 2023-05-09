@@ -20,7 +20,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /** Physical plan verifier. */
-public final class Verifier {
+public final class PhysicalVerifier {
 
     /** Verifies the physical plan. */
     public Collection<Failure> verify(PhysicalPlan plan) {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -307,6 +308,6 @@ public class TransformNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
+        return TestDiscoveryNode.create(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
     }
 }

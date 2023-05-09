@@ -100,8 +100,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File runtimeJavaHome = findRuntimeJavaHome();
         boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome) == false;
 
-        File rootDir = project.getRootDir();
-        GitInfo gitInfo = GitInfo.gitInfo(rootDir);
+        GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
 
         BuildParams.init(params -> {
             params.reset();
@@ -127,12 +126,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null);
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
-            // TODO: Test if cc issues are coming from here
-            params.setDefaultParallel(8);
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             AtomicReference<BwcVersions> cache = new AtomicReference<>();
-            params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
+            params.setBwcVersions(
+                providers.provider(
+                    () -> cache.updateAndGet(
+                        val -> val == null ? resolveBwcVersions(Util.locateElasticsearchWorkspace(project.getGradle())) : val
+                    )
+                )
+            );
         });
 
         // Enforce the minimum compiler version

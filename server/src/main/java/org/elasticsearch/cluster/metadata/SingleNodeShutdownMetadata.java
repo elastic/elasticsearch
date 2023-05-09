@@ -204,6 +204,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      */
     @Nullable
     public TimeValue getGracePeriod() {
+        if (type != Type.SIGTERM) {
+            return null;
+        }
         return DEFAULT_GRACE_PERIOD;
     }
 

@@ -29,6 +29,8 @@ import java.util.UUID;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import static org.elasticsearch.xpack.shutdown.NodeSeenService.RemoveSigtermShutdownTask;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -99,6 +101,94 @@ public class NodeSeenServiceTests extends ESTestCase {
         Mockito.verify(taskQueue, never()).submitTask(any(), any(), any());
     }
 
+    public void testExecutorRemoveStale() {
+        long now = 100_000L;
+        long grace = getDefaultGrace();
+        var master = TestDiscoveryNode.create("master1", randomNodeId());
+        var other = TestDiscoveryNode.create("other2", randomNodeId()); // not term
+        var another = TestDiscoveryNode.create("another3", randomNodeId()); // exists
+        var yetAnother = TestDiscoveryNode.create("yetAnother4", randomNodeId()); // within grace
+        var oneMore = TestDiscoveryNode.create("oneMore5", randomNodeId()); // out of grace
+        var lastOne = TestDiscoveryNode.create("lastOne6", randomNodeId()); // also out of grace
+
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.masterNodeId(master.getId());
+        nodesBuilder.localNodeId(master.getId());
+        nodesBuilder.add(master);
+        nodesBuilder.add(another);
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        var shutdownsMap = Map.of(
+            other.getId(),
+            startShutdown(other.getId(), Type.REPLACE, now - 2 * grace).setTargetNodeName(other.getId()).build(),
+            another.getId(),
+            startShutdown(another.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            yetAnother.getId(),
+            startShutdown(yetAnother.getId(), Type.SIGTERM, now - grace).build(),
+            oneMore.getId(),
+            startShutdown(oneMore.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            lastOne.getId(),
+            startShutdown(lastOne.getId(), Type.SIGTERM, now - (grace + grace / 10) - 1).build()
+        );
+        metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownsMap));
+        var state = ClusterState.builder(new ClusterName("test-cluster"))
+            .routingTable(RoutingTable.builder().build())
+            .metadata(metadataBuilder.build())
+            .nodes(nodesBuilder)
+            .build();
+
+        var update = NodeSeenService.RemoveSigtermShutdownTaskExecutor.removeStaleSigtermShutdowns(now, state);
+
+        assertThat(
+            Map.of(
+                other.getId(),
+                shutdownsMap.get(other.getId()),
+                another.getId(),
+                shutdownsMap.get(another.getId()),
+                yetAnother.getId(),
+                shutdownsMap.get(yetAnother.getId())
+            ),
+            equalTo(update.getMetadata().nodeShutdowns())
+        );
+    }
+
+    public void testExecutorInitialStateIfFresh() {
+        long now = 100_000L;
+        long grace = getDefaultGrace();
+        var master = TestDiscoveryNode.create("master1", randomNodeId());
+        var other = TestDiscoveryNode.create("other2", randomNodeId()); // not term
+        var another = TestDiscoveryNode.create("another3", randomNodeId()); // exists
+        var yetAnother = TestDiscoveryNode.create("yetAnother4", randomNodeId()); // within grace
+
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        nodesBuilder.masterNodeId(master.getId());
+        nodesBuilder.localNodeId(master.getId());
+        nodesBuilder.add(master);
+        nodesBuilder.add(another);
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        var shutdownsMap = Map.of(
+            other.getId(),
+            startShutdown(other.getId(), Type.REPLACE, now - 2 * grace).setTargetNodeName(other.getId()).build(),
+            another.getId(),
+            startShutdown(another.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            yetAnother.getId(),
+            startShutdown(yetAnother.getId(), Type.SIGTERM, now - grace).build()
+        );
+        metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownsMap));
+        var state = ClusterState.builder(new ClusterName("test-cluster"))
+            .routingTable(RoutingTable.builder().build())
+            .metadata(metadataBuilder.build())
+            .nodes(nodesBuilder)
+            .build();
+
+        var update = NodeSeenService.RemoveSigtermShutdownTaskExecutor.removeStaleSigtermShutdowns(now, state);
+
+        assertThat(state, sameInstance(update));
+    }
+
+    static SingleNodeShutdownMetadata.Builder startShutdown(String id, Type type, long startedAt) {
+        return SingleNodeShutdownMetadata.builder().setNodeId(id).setType(type).setReason("test " + id).setStartedAtMillis(startedAt);
+    }
+
     private static SingleNodeShutdownMetadata createShutdown(String name, long startedAt) {
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(name)
@@ -108,8 +198,18 @@ public class NodeSeenServiceTests extends ESTestCase {
             .build();
     }
 
+    private long getDefaultGrace() {
+        return SingleNodeShutdownMetadata.builder()
+            .setNodeId("")
+            .setReason("")
+            .setType(Type.SIGTERM)
+            .setStartedAtMillis(0)
+            .build()
+            .getGracePeriod()
+            .millis();
+    }
+
     private static ClusterState createClusterState(NodesShutdownMetadata shutdown, DiscoveryNode masterNode, DiscoveryNode... nodes) {
-        var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         if (shutdown != null) {
             metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, shutdown);
@@ -124,7 +224,7 @@ public class NodeSeenServiceTests extends ESTestCase {
             nodesBuilder.add(node);
         }
         return ClusterState.builder(new ClusterName("test-cluster"))
-            .routingTable(routingTableBuilder.build())
+            .routingTable(RoutingTable.builder().build())
             .metadata(metadataBuilder.build())
             .nodes(nodesBuilder)
             .build();

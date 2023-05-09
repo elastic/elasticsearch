@@ -164,17 +164,15 @@ public class NodeSeenService implements ClusterStateListener {
         @Override
         public ClusterState execute(BatchExecutionContext<RemoveSigtermShutdownTask> batchExecutionContext) throws Exception {
             // This makes it easier to test since there's nothing we need from the batchExecutionContext other than the initial state
-            return removeStaleSigtermShutdowns(batchExecutionContext.initialState());
+            return removeStaleSigtermShutdowns(timeSupplier.getAsLong(), batchExecutionContext.initialState());
         }
 
-        ClusterState removeStaleSigtermShutdowns(ClusterState initialState) {
+        static ClusterState removeStaleSigtermShutdowns(long now, ClusterState initialState) {
             var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
 
-            long now = timeSupplier.getAsLong();
             Predicate<String> nodeExists = initialState.nodes()::nodeExists;
             boolean modified = false;
-            Iterator<SingleNodeShutdownMetadata> it = shutdownMetadata.values().iterator();
-            while (it.hasNext()) {
+            for (Iterator<SingleNodeShutdownMetadata> it = shutdownMetadata.values().iterator(); it.hasNext();) {
                 if (isSigtermShutdownStale(it.next(), now, nodeExists)) {
                     it.remove();
                     modified = true;
@@ -215,7 +213,7 @@ public class NodeSeenService implements ClusterStateListener {
                 return true; // clock skew too big
             }
             long cleanupGrace = grace.millis() + (grace.millis() / 10);
-            return cleanupGrace <= timeRunning;
+            return cleanupGrace < timeRunning;
         }
     }
 }

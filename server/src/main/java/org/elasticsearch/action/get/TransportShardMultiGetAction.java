@@ -105,18 +105,6 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
     }
 
-    private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
-        throws IOException {
-        if (request.refresh() && request.realtime() == false) {
-            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
-                var indexShard = getIndexShard(shardId);
-                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
-            }));
-        } else {
-            super.asyncShardOperation(request, shardId, listener);
-        }
-    }
-
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
         var indexShard = getIndexShard(shardId);
@@ -160,6 +148,18 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             return ThreadPool.Names.SEARCH_THROTTLED;
         } else {
             return super.getExecutor(request, shardId);
+        }
+    }
+
+    private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
+        throws IOException {
+        if (request.refresh() && request.realtime() == false) {
+            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+                var indexShard = getIndexShard(shardId);
+                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
+            }));
+        } else {
+            super.asyncShardOperation(request, shardId, listener);
         }
     }
 

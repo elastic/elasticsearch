@@ -102,17 +102,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
     }
 
-    private void asyncGet(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
-        if (request.refresh() && request.realtime() == false) {
-            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
-                var indexShard = getIndexShard(shardId);
-                indexShard.externalRefresh("refresh_flag_get", l.map(r -> shardOperation(request, shardId)));
-            }));
-        } else {
-            super.asyncShardOperation(request, shardId, listener);
-        }
-    }
-
     @Override
     protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws IOException {
         var indexShard = getIndexShard(shardId);
@@ -143,6 +132,17 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             return ThreadPool.Names.SEARCH_THROTTLED;
         } else {
             return super.getExecutor(request, shardId);
+        }
+    }
+
+    private void asyncGet(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
+        if (request.refresh() && request.realtime() == false) {
+            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+                var indexShard = getIndexShard(shardId);
+                indexShard.externalRefresh("refresh_flag_get", l.map(r -> shardOperation(request, shardId)));
+            }));
+        } else {
+            super.asyncShardOperation(request, shardId, listener);
         }
     }
 

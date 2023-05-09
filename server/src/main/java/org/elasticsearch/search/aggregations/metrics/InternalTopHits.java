@@ -22,7 +22,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;

@@ -48,6 +48,9 @@ public class InternalProfileCollector extends ProfilerCollector implements TwoPh
      */
     @Override
     protected String deriveCollectorName(Collector c) {
+        if (c instanceof TwoPhaseCollector twoPhaseCollector) {
+            c = twoPhaseCollector.getCollector();
+        }
         String s = c.getClass().getSimpleName();
 
         // MutiCollector which wraps multiple BucketCollectors is generated
@@ -76,5 +79,10 @@ public class InternalProfileCollector extends ProfilerCollector implements TwoPh
     @Override
     public void postCollection() throws IOException {
         collector.postCollection();
+    }
+
+    @Override
+    public Collector getCollector() {
+        return collector.getCollector();
     }
 }

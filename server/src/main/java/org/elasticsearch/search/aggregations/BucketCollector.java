@@ -59,6 +59,11 @@ public abstract class BucketCollector {
         public void postCollection() {
 
         }
+
+        @Override
+        public Collector getCollector() {
+            return this;
+        }
     };
 
     public abstract LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException;
@@ -100,6 +105,11 @@ public abstract class BucketCollector {
         @Override
         public void postCollection() throws IOException {
             bucketCollector.postCollection();
+        }
+
+        @Override
+        public Collector getCollector() {
+            return this;
         }
     }
 }

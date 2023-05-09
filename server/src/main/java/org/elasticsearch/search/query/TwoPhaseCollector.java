@@ -21,6 +21,9 @@ public interface TwoPhaseCollector extends Collector {
     /** run post collection phase */
     void postCollection() throws IOException;
 
+    /** Get the wrapped collector if it exists. This si done to make the profile API happy. */
+    Collector getCollector();
+
     /** Wraps an array of {@link TwoPhaseCollector}, the post-collection phase is called for each lement of the array */
     static TwoPhaseCollector wrapCollection(TwoPhaseCollector... twoPhaseCollectors) {
         Collector multi = MultiCollector.wrap(twoPhaseCollectors);
@@ -57,6 +60,11 @@ public interface TwoPhaseCollector extends Collector {
 
         private TwoPhaseCollectorImpl(Collector collector) {
             super(collector);
+        }
+
+        @Override
+        public Collector getCollector() {
+            return in;
         }
     }
 }

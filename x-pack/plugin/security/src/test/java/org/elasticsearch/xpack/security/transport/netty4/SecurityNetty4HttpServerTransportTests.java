@@ -494,17 +494,27 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                     ch.pipeline().remove(pipelineHandlerName);
                 }
             }
-            // this tests a request that cannot be authenticated, but somehow passed authentication
-            // this is the case of an erroneous internal state
-            var writeFuture = testThreadPool.generic().submit(() -> {
-                ch.writeInbound(new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_request"));
+            // tests requests that are not wrapped by the "decoder" and so cannot be authenticated
+            testThreadPool.generic().submit(() -> {
+                ch.writeInbound(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_full_request"));
                 ch.flushInbound();
-            });
-            writeFuture.get();
+            }).get();
             ch.flushOutbound();
             Netty4HttpResponse response = ch.readOutbound();
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             var responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+            assertThat(
+                responseContentString,
+                containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
+            );
+            testThreadPool.generic().submit(() -> {
+                ch.writeInbound(new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_request"));
+                ch.flushInbound();
+            }).get();
+            ch.flushOutbound();
+            response = ch.readOutbound();
+            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+            responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
             assertThat(
                 responseContentString,
                 containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")

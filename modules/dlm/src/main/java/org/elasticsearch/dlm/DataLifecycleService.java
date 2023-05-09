@@ -626,7 +626,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         }
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            logger.trace("Updating cluster state with force merge complete marker for {}", targetIndex);
+            logger.debug("Updating cluster state with force merge complete marker for {}", targetIndex);
             IndexMetadata indexMetadata = currentState.metadata().index(targetIndex);
             Map<String, String> customMetadata = indexMetadata.getCustomData(DLM_CUSTOM_INDEX_METADATA_KEY);
             Map<String, String> newCustomMetadata = new HashMap<>();

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -145,7 +146,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             null,
             List.of(DUMMY_PLUGIN),
-            client
+            client,
+            null
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -156,7 +158,16 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new IngestService(mock(ClusterService.class), threadPool, null, null, null, List.of(DUMMY_PLUGIN, DUMMY_PLUGIN), client)
+            () -> new IngestService(
+                mock(ClusterService.class),
+                threadPool,
+                null,
+                null,
+                null,
+                List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
+                client,
+                null
+            )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
@@ -170,7 +181,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             null,
             List.of(DUMMY_PLUGIN),
-            client
+            client,
+            null
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -338,7 +350,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         assertEquals("Ingest info is empty", e.getMessage());
 
-        DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of());
         IngestInfo ingestInfo = new IngestInfo(List.of(new ProcessorInfo("set")));
         ingestService.validatePipeline(Map.of(discoveryNode, ingestInfo), putRequest.getId(), pipelineConfig);
     }
@@ -898,8 +910,8 @@ public class IngestServiceTests extends ESTestCase {
             }"""), XContentType.JSON);
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
-        DiscoveryNode node1 = new DiscoveryNode("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("_node_id2", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        DiscoveryNode node1 = TestDiscoveryNode.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode node2 = TestDiscoveryNode.create("_node_id2", buildNewFakeTransportAddress(), Map.of(), Set.of());
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"))));
@@ -1763,7 +1775,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             null,
             List.of(testPlugin),
-            client
+            client,
+            null
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2091,7 +2104,7 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client);
+        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -2373,7 +2386,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client);
+        }), client, null);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

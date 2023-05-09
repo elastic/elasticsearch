@@ -297,12 +297,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     public void testGetForcedInitialShardAllocationToNodes() {
         var index = IndexMetadata.builder("index")
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.initial_recovery._id", "node-1")
+                indexSettings(Version.CURRENT, 1, 0).put("index.routing.allocation.initial_recovery._id", "node-1")
                     .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             )
             .build();
         var clusterState = ClusterState.builder(new ClusterName("test-cluster"))

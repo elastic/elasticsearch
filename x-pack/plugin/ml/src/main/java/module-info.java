@@ -25,6 +25,7 @@ module org.elasticsearch.ml {
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires commons.math3;
+    requires ojalgo;
 
     opens org.elasticsearch.xpack.ml to org.elasticsearch.painless.spi; // whitelist resource access
     opens org.elasticsearch.xpack.ml.utils; // for exact.properties access
@@ -35,4 +36,5 @@ module org.elasticsearch.ml {
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;
     exports org.elasticsearch.xpack.ml.autoscaling;
+    exports org.elasticsearch.xpack.ml.notifications;
 }

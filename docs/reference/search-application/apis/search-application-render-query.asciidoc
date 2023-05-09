@@ -1,0 +1,85 @@
+[role="xpack"]
+[[search-application-render-query]]
+=== Render Search Application Query
+
+preview::[]
+
+++++
+<titleabbrev>Render Search Application Query</titleabbrev>
+++++
+
+Given specified query parameters, creates an Elasticsearch query to run. Any unspecified template parameters will be
+assigned their default values if applicable. Returns the specific Elasticsearch query that would be generated and
+run by calling <<search-application-search,search application search>>.
+
+[[search-application-render-query-request]]
+==== {api-request-title}
+
+`POST _application/search_application/<name>/_render_query`
+
+[[search-application-render-query-prereqs]]
+==== {api-prereq-title}
+
+Requires read privileges on the backing alias of the search application.
+
+[[search-application-render-query-request-body]]
+==== {api-request-body-title}
+
+`params`::
+(Optional, map of strings to objects)
+Query parameters specific to this request, which will override any defaults specified in the template.
+
+[[search-application-render-query-response-codes]]
+==== {api-response-codes-title}
+
+`404`::
+Search Application `<name>` does not exist.
+
+[[search-application-render-query-example]]
+==== {api-examples-title}
+
+The following example renders a query for a search application called `my-app`. In this case, the `from` and `size`
+parameters are not specified, so default values are pulled from the search application template.
+
+[source,console]
+----
+POST _application/search_application/my-app/_render_query
+{
+  "params": {
+    "value": "my first query",
+    "text_fields": [
+        {
+            "name": "title",
+            "boost": 10
+        },
+        {
+            "name": "text",
+            "boost": 1
+        }
+    ]
+  }
+}
+----
+// TEST[skip:TBD]
+
+A sample response:
+
+[source,console-result]
+----
+{
+    "size": 10,
+    "from": 0,
+    "query": {
+        "multi_match": {
+            "query": "my first query",
+            "fields": [
+                "title^10",
+                "text^1"
+            ]
+        }
+    }
+}
+
+----
+
+

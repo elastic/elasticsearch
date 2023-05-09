@@ -50,6 +50,7 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction ARCHIVE = new XPackUsageFeatureAction(XPackField.ARCHIVE);
     public static final XPackUsageFeatureAction HEALTH = new XPackUsageFeatureAction(XPackField.HEALTH_API);
     public static final XPackUsageFeatureAction REMOTE_CLUSTERS = new XPackUsageFeatureAction(XPackField.REMOTE_CLUSTERS);
+    public static final XPackUsageFeatureAction ENTERPRISE_SEARCH = new XPackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
 
     static final List<XPackUsageFeatureAction> ALL = Stream.of(
         AGGREGATE_METRIC,
@@ -75,7 +76,8 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         WATCHER,
         ARCHIVE,
         HEALTH,
-        TcpTransport.isUntrustedRemoteClusterEnabled() ? REMOTE_CLUSTERS : null
+        TcpTransport.isUntrustedRemoteClusterEnabled() ? REMOTE_CLUSTERS : null,
+        ENTERPRISE_SEARCH
     ).filter(Objects::nonNull).toList();
 
     // public for testing

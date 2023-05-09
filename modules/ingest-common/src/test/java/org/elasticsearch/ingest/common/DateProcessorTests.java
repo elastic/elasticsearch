@@ -349,8 +349,8 @@ public class DateProcessorTests extends ESTestCase {
         Function<String, ZonedDateTime> zonedDateTimeFunction1 = str -> ZonedDateTime.now();
         Function<String, ZonedDateTime> zonedDateTimeFunction2 = str -> ZonedDateTime.now();
         var cache = new DateProcessor.Cache(1);
-        var key1 = new DateProcessor.Cache.Key("format-1", ZoneId.systemDefault(), Locale.ROOT);
-        var key2 = new DateProcessor.Cache.Key("format-2", ZoneId.systemDefault(), Locale.ROOT);
+        var key1 = new DateProcessor.Cache.Key("format-1", ZoneId.systemDefault().toString(), Locale.ROOT.toString());
+        var key2 = new DateProcessor.Cache.Key("format-2", ZoneId.systemDefault().toString(), Locale.ROOT.toString());
 
         when(supplier1.get()).thenReturn(zonedDateTimeFunction1);
         when(supplier2.get()).thenReturn(zonedDateTimeFunction2);

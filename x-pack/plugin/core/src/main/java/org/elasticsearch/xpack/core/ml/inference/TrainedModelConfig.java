@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConst
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
@@ -70,6 +71,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
     public static final String HYPERPARAMETERS = "hyperparameters";
     public static final String MODEL_ALIASES = "model_aliases";
+    public static final String DEFINITION_STATUS = "definition_status";
 
     private static final String ESTIMATED_HEAP_MEMORY_USAGE_HUMAN = "estimated_heap_memory_usage";
     private static final String MODEL_SIZE_HUMAN = "model_size";
@@ -96,6 +98,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     public static final ParseField LOCATION = new ParseField("location");
+    public static final ParseField MODEL_PACKAGE = new ParseField("model_package");
 
     public static final TransportVersion VERSION_3RD_PARTY_CONFIG_ADDED = TransportVersion.V_8_0_0;
 
@@ -155,6 +158,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 : p.namedObject(StrictlyParsedTrainedModelLocation.class, n, null),
             LOCATION
         );
+        parser.declareObject(
+            TrainedModelConfig.Builder::setModelPackageConfig,
+            (p, c) -> ignoreUnknownFields ? ModelPackageConfig.fromXContentLenient(p) : ModelPackageConfig.fromXContentStrict(p),
+            MODEL_PACKAGE
+        );
         return parser;
     }
 
@@ -179,6 +187,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
     private final LazyModelDefinition definition;
     private final TrainedModelLocation location;
+    private final ModelPackageConfig modelPackageConfig;
+    private Boolean fullDefinition;
 
     TrainedModelConfig(
         String modelId,
@@ -196,7 +206,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         String licenseLevel,
         Map<String, String> defaultFieldMap,
         InferenceConfig inferenceConfig,
-        TrainedModelLocation location
+        TrainedModelLocation location,
+        ModelPackageConfig modelPackageConfig
     ) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.modelType = modelType;
@@ -222,6 +233,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
         this.inferenceConfig = inferenceConfig;
         this.location = location;
+        this.modelPackageConfig = modelPackageConfig;
     }
 
     private static TrainedModelInput handleDefaultInput(TrainedModelInput input, TrainedModelType modelType) {
@@ -254,6 +266,17 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.modelType = null;
             this.location = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            modelPackageConfig = in.readOptionalWriteable(ModelPackageConfig::new);
+            fullDefinition = in.readOptionalBoolean();
+        } else {
+            modelPackageConfig = null;
+            fullDefinition = null;
+        }
+    }
+
+    public boolean isPackagedModel() {
+        return modelId.startsWith(".");
     }
 
     public String getModelId() {
@@ -311,6 +334,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return null;
         }
         return definition.getCompressedDefinitionIfSet();
+    }
+
+    public ModelPackageConfig getModelPackageConfig() {
+        return modelPackageConfig;
     }
 
     public void clearCompressed() {
@@ -372,6 +399,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return Optional.ofNullable(inferenceConfig).map(InferenceConfig::isAllocateOnly).orElse(false);
     }
 
+    public void setFullDefinition(boolean fullDefinition) {
+        this.fullDefinition = fullDefinition;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
@@ -397,6 +428,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeOptionalEnum(modelType);
             out.writeOptionalNamedWriteable(location);
         }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalWriteable(modelPackageConfig);
+            out.writeOptionalBoolean(fullDefinition);
+        }
     }
 
     @Override
@@ -406,6 +442,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (modelType != null) {
             builder.field(MODEL_TYPE.getPreferredName(), modelType.toString());
         }
+        if (modelPackageConfig != null) {
+            builder.field(MODEL_PACKAGE.getPreferredName(), modelPackageConfig);
+        }
+
         // If the model is to be exported for future import to another cluster, these fields are irrelevant.
         if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
             builder.field(CREATED_BY.getPreferredName(), createdBy);
@@ -452,6 +492,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         if (location != null) {
             writeNamedObject(builder, params, LOCATION.getPreferredName(), location);
         }
+        if (params.paramAsBoolean(DEFINITION_STATUS, false) && fullDefinition != null) {
+            builder.field("fully_defined", fullDefinition);
+        }
         builder.endObject();
         return builder;
     }
@@ -468,6 +511,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         TrainedModelConfig that = (TrainedModelConfig) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(modelType, that.modelType)
+            && Objects.equals(modelPackageConfig, that.modelPackageConfig)
             && Objects.equals(createdBy, that.createdBy)
             && Objects.equals(version, that.version)
             && Objects.equals(description, that.description)
@@ -489,6 +533,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return Objects.hash(
             modelId,
             modelType,
+            modelPackageConfig,
             createdBy,
             version,
             createTime,
@@ -524,6 +569,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Map<String, String> defaultFieldMap;
         private InferenceConfig inferenceConfig;
         private TrainedModelLocation location;
+        private ModelPackageConfig modelPackageConfig;
 
         public Builder() {}
 
@@ -544,6 +590,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             this.defaultFieldMap = config.defaultFieldMap == null ? null : new HashMap<>(config.defaultFieldMap);
             this.inferenceConfig = config.inferenceConfig;
             this.location = config.location;
+            this.modelPackageConfig = config.modelPackageConfig;
         }
 
         public Builder setModelId(String modelId) {
@@ -567,6 +614,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         public String getModelId() {
             return this.modelId;
+        }
+
+        public Builder setModelPackageConfig(ModelPackageConfig modelPackageConfig) {
+            this.modelPackageConfig = modelPackageConfig;
+            return this;
         }
 
         public Builder setCreatedBy(String createdBy) {
@@ -743,39 +795,67 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         public Builder validate(boolean forCreation) {
             // We require a definition to be available here even though it will be stored in a different doc
             ActionRequestValidationException validationException = null;
-            if (definition != null && location != null) {
-                validationException = addValidationError(
-                    "["
-                        + DEFINITION.getPreferredName()
-                        + "] "
-                        + "and ["
-                        + LOCATION.getPreferredName()
-                        + "] are both defined but only one can be used.",
-                    validationException
-                );
-            }
-            if (definition == null && modelType == null) {
-                validationException = addValidationError(
-                    "[" + MODEL_TYPE.getPreferredName() + "] must be set if " + "[" + DEFINITION.getPreferredName() + "] is not defined.",
-                    validationException
-                );
-            }
+            boolean packagedModel = modelId != null && modelId.startsWith(".");
+
             if (modelId == null) {
                 validationException = addValidationError("[" + MODEL_ID.getPreferredName() + "] must not be null.", validationException);
             }
-            if (inferenceConfig == null && forCreation) {
-                validationException = addValidationError(
-                    "[" + INFERENCE_CONFIG.getPreferredName() + "] must not be null.",
-                    validationException
-                );
+
+            if (packagedModel == false) {
+                if (definition != null && location != null) {
+                    validationException = addValidationError(
+                        "["
+                            + DEFINITION.getPreferredName()
+                            + "] "
+                            + "and ["
+                            + LOCATION.getPreferredName()
+                            + "] are both defined but only one can be used.",
+                        validationException
+                    );
+                }
+                if (definition == null && modelType == null) {
+                    validationException = addValidationError(
+                        "["
+                            + MODEL_TYPE.getPreferredName()
+                            + "] must be set if "
+                            + "["
+                            + DEFINITION.getPreferredName()
+                            + "] is not defined.",
+                        validationException
+                    );
+                }
+
+                if (inferenceConfig == null && forCreation) {
+                    validationException = addValidationError(
+                        "[" + INFERENCE_CONFIG.getPreferredName() + "] must not be null.",
+                        validationException
+                    );
+                }
             }
 
-            if (modelId != null && MlStrings.isValidId(modelId) == false) {
-                validationException = addValidationError(
-                    Messages.getMessage(Messages.INVALID_ID, TrainedModelConfig.MODEL_ID.getPreferredName(), modelId),
-                    validationException
-                );
+            if (modelId != null) {
+                if (packagedModel) {
+                    String idToValidate = modelId.substring(1);
+                    if (idToValidate.endsWith("_SNAPSHOT")) {
+                        idToValidate = idToValidate.substring(0, idToValidate.length() - 9);
+                    }
+
+                    if (MlStrings.isValidId(idToValidate) == false) {
+                        validationException = addValidationError(
+                            Messages.getMessage(Messages.INVALID_MODEL_PACKAGE_ID, TrainedModelConfig.MODEL_ID.getPreferredName(), modelId),
+                            validationException
+                        );
+                    }
+                } else {
+                    if (MlStrings.isValidId(modelId) == false) {
+                        validationException = addValidationError(
+                            Messages.getMessage(Messages.INVALID_ID, TrainedModelConfig.MODEL_ID.getPreferredName(), modelId),
+                            validationException
+                        );
+                    }
+                }
             }
+
             if (modelId != null && MlStrings.hasValidLengthForId(modelId) == false) {
                 validationException = addValidationError(
                     Messages.getMessage(
@@ -835,7 +915,43 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                         validationException
                     );
                 }
+
+                // packaged model validation
+                validationException = checkIllegalSetting(modelPackageConfig, MODEL_PACKAGE.getPreferredName(), validationException);
             }
+            if (validationException != null) {
+                throw validationException;
+            }
+
+            return this;
+        }
+
+        /**
+         * Validate that fields defined by the package aren't defined in the request.
+         *
+         * To be called by the transport after checking that the package exists.
+         */
+        public Builder validateNoPackageOverrides() {
+            ActionRequestValidationException validationException = null;
+            validationException = checkIllegalPackagedModelSetting(description, DESCRIPTION.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(definition, DEFINITION.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(modelType, MODEL_TYPE.getPreferredName(), validationException);
+            validationException = checkIllegalPackagedModelSetting(metadata, METADATA.getPreferredName(), validationException);
+            if (modelSize != null && modelSize > 0) {
+                validationException = checkIllegalPackagedModelSetting(modelSize, MODEL_SIZE_BYTES.getPreferredName(), validationException);
+            }
+            validationException = checkIllegalPackagedModelSetting(
+                inferenceConfig,
+                INFERENCE_CONFIG.getPreferredName(),
+                validationException
+            );
+            if (tags != null && tags.isEmpty() == false) {
+                validationException = addValidationError(
+                    "illegal to set [tags] at inference model creation for packaged model",
+                    validationException
+                );
+            }
+
             if (validationException != null) {
                 throw validationException;
             }
@@ -850,6 +966,20 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         ) {
             if (value != null) {
                 return addValidationError("illegal to set [" + setting + "] at inference model creation", validationException);
+            }
+            return validationException;
+        }
+
+        private static ActionRequestValidationException checkIllegalPackagedModelSetting(
+            Object value,
+            String setting,
+            ActionRequestValidationException validationException
+        ) {
+            if (value != null) {
+                return addValidationError(
+                    "illegal to set [" + setting + "] at inference model creation for packaged model",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -871,7 +1001,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 licenseLevel == null ? License.OperationMode.PLATINUM.description() : licenseLevel,
                 defaultFieldMap,
                 inferenceConfig,
-                location
+                location,
+                modelPackageConfig
             );
         }
     }

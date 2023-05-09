@@ -205,9 +205,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
 
-        final IndexShardRoutingTable indexShardRoutingTable = client().admin()
-            .cluster()
-            .prepareState()
+        final IndexShardRoutingTable indexShardRoutingTable = clusterAdmin().prepareState()
             .clear()
             .setRoutingTable(true)
             .get()
@@ -324,7 +322,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             assertThat("size for shard " + shardRouting + " found", originalInfo.getShardSize(shardRouting), notNullValue());
         }
 
-        RoutingTable routingTable = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
+        RoutingTable routingTable = clusterAdmin().prepareState().clear().setRoutingTable(true).get().getState().routingTable();
         for (ShardRouting shard : routingTable.allShardsIterator()) {
             assertTrue(
                 infoAfterRecovery.getReservedSpace(shard.currentNodeId(), infoAfterRecovery.getDataPath(shard))

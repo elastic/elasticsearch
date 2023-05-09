@@ -576,14 +576,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Location add(final Operation operation) throws IOException {
         final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
         try {
-            final long start = out.position();
-            out.skip(Integer.BYTES);
-            writeOperationNoSize(new BufferedChecksumStreamOutput(out), operation);
-            final long end = out.position();
-            final int operationSize = (int) (end - Integer.BYTES - start);
-            out.seek(start);
-            out.writeInt(operationSize);
-            out.seek(end);
+            writeOperationWithSize(out, operation);
             final BytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
                 ensureOpen();
@@ -994,6 +987,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public interface Snapshot extends Closeable {
 
+        Snapshot EMPTY = new Snapshot() {
+            @Override
+            public void close() {}
+
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Operation next() {
+                return null;
+            }
+        };
+
         /**
          * The total estimated number of operations in the snapshot.
          */
@@ -1065,7 +1073,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public abstract static class Operation implements Writeable {
+    public abstract static sealed class Operation implements Writeable permits Delete, Index, NoOp {
         public enum Type {
             @Deprecated
             CREATE((byte) 1),
@@ -1137,7 +1145,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         protected abstract void writeBody(StreamOutput out) throws IOException;
     }
 
-    public static class Index extends Operation {
+    public static final class Index extends Operation {
 
         public static final int FORMAT_NO_PARENT = 9; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
@@ -1303,7 +1311,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     }
 
-    public static class Delete extends Operation {
+    public static final class Delete extends Operation {
 
         private static final int FORMAT_6_0 = 4; // 6.0 - *
         public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
@@ -1417,7 +1425,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public static class NoOp extends Operation {
+    public static final class NoOp extends Operation {
         private final String reason;
 
         public String reason() {
@@ -1525,7 +1533,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return operations;
     }
 
-    static Translog.Operation readOperation(BufferedChecksumStreamInput in) throws IOException {
+    public static Translog.Operation readOperation(BufferedChecksumStreamInput in) throws IOException {
         final Translog.Operation operation;
         try {
             final int opSize = in.readInt();
@@ -1590,6 +1598,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         op.writeTo(out);
         long checksum = out.getChecksum();
         out.writeInt((int) checksum);
+    }
+
+    public static void writeOperationWithSize(BytesStreamOutput out, Translog.Operation op) throws IOException {
+        final long start = out.position();
+        out.skip(Integer.BYTES);
+        writeOperationNoSize(new BufferedChecksumStreamOutput(out), op);
+        final long end = out.position();
+        final int operationSize = (int) (end - Integer.BYTES - start);
+        out.seek(start);
+        out.writeInt(operationSize);
+        out.seek(end);
     }
 
     /**

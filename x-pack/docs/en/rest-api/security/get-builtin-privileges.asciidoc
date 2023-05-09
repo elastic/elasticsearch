@@ -101,6 +101,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "monitor_transform",
     "monitor_watcher",
     "none",
+    "post_behavioral_analytics_event",
     "read_ccr",
     "read_ilm",
     "read_pipeline",

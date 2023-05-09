@@ -2307,8 +2307,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetadata.builder(index).settings(indexSettings(1, 0));
     }
 
     private ResolvedIndices resolveIndices(TransportRequest request, AuthorizedIndices authorizedIndices) {

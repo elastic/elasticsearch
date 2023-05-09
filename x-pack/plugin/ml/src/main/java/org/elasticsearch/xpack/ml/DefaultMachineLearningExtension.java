@@ -17,4 +17,19 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
     public boolean includeNodeInfo() {
         return true;
     }
+
+    @Override
+    public boolean isAnomalyDetectionEnabled() {
+        return true;
+    }
+
+    @Override
+    public boolean isDataFrameAnalyticsEnabled() {
+        return true;
+    }
+
+    @Override
+    public boolean isNlpEnabled() {
+        return true;
+    }
 }

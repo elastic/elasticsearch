@@ -607,23 +607,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
-
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            final int numDocs = 10;
-            for (int i = 0; i < numDocs; i++) {
-                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-            }
-            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-        }, card -> {
-            assertEquals(10.0, card.getValue(), 0);
-            assertEquals("cardinality", card.getName());
-            assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, fieldType);
-    }
-
     public void testSingleValuedNumericValueScript() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));

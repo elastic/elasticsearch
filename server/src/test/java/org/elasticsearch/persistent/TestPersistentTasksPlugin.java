@@ -261,11 +261,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public boolean isFragment() {
-            return false;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(phase);
         }

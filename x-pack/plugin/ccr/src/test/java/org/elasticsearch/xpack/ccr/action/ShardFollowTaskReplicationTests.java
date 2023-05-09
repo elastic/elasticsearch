@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -353,8 +354,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             followingPrimary.getLastKnownGlobalCheckpoint(),
                             followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                             permitFuture,
-                            ThreadPool.Names.SAME,
-                            primaryResult
+                            ThreadPool.Names.SAME
                         );
                         try (Releasable ignored = permitFuture.get()) {
                             TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
@@ -509,7 +509,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
             @Override
             protected synchronized void recoverPrimary(IndexShard primaryShard) {
-                DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+                DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
                     primaryShard.routingEntry(),
@@ -797,7 +797,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         @Override
         protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
             final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
             try (Releasable ignored = permitFuture.get()) {
                 ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
@@ -830,8 +830,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         getPrimaryShard().getLastKnownGlobalCheckpoint(),
                         getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(),
                         f,
-                        ThreadPool.Names.SAME,
-                        request
+                        ThreadPool.Names.SAME
                     )
                 )
             ) {

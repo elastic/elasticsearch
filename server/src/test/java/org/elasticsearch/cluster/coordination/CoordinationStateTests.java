@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -819,9 +820,7 @@ public class CoordinationStateTests extends ESTestCase {
         assertTrue(voteCollection.isEmpty());
 
         assertFalse(
-            voteCollection.addVote(
-                new DiscoveryNode("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
-            )
+            voteCollection.addVote(TestDiscoveryNode.create("master-ineligible", buildNewFakeTransportAddress(), emptyMap(), emptySet()))
         );
         assertTrue(voteCollection.isEmpty());
 
@@ -854,9 +853,7 @@ public class CoordinationStateTests extends ESTestCase {
 
     public void testSafety() {
         new CoordinationStateTestCluster(
-            IntStream.range(0, randomIntBetween(1, 5))
-                .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Version.CURRENT))
-                .toList(),
+            IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> TestDiscoveryNode.create("node_" + i)).toList(),
             ElectionStrategy.DEFAULT_INSTANCE
         ).runRandomly();
     }

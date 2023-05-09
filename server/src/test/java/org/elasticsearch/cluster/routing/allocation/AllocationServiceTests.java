@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -130,7 +131,8 @@ public class AllocationServiceTests extends ESTestCase {
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -141,9 +143,9 @@ public class AllocationServiceTests extends ESTestCase {
         allocationService.setExistingShardsAllocators(allocatorMap);
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT));
+        nodesBuilder.add(TestDiscoveryNode.create("node1"));
+        nodesBuilder.add(TestDiscoveryNode.create("node2"));
+        nodesBuilder.add(TestDiscoveryNode.create("node3"));
 
         final Metadata.Builder metadata = Metadata.builder()
             // create 3 indices with different priorities. The high and low priority indices use the default allocator which (in this test)
@@ -234,15 +236,16 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             null,
             null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        nodesBuilder.add(new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT));
-        nodesBuilder.add(new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT));
+        nodesBuilder.add(TestDiscoveryNode.create("node1"));
+        nodesBuilder.add(TestDiscoveryNode.create("node2"));
 
         final Metadata.Builder metadata = Metadata.builder()
             .put(

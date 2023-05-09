@@ -69,20 +69,14 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         new BalancedShardsAllocator(Settings.EMPTY),
         EmptyClusterInfoService.INSTANCE,
         EmptySnapshotsInfoService.INSTANCE,
-        TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+        TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+        System::nanoTime
     );
 
     private final String idxName = "test-idx";
     private final String idxUuid = "test-idx-uuid";
     private final IndexMetadata indexMetadata = IndexMetadata.builder(idxName)
-        .settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_INDEX_UUID, idxUuid)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build()
-        )
+        .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, idxUuid))
         .build();
 
     public void testNoReplacements() {

@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -324,7 +324,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             Version.CURRENT,
             TransportVersion.CURRENT,
             Build.CURRENT,
-            new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
+            TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress()),
             settings.build(),
             null,
             null,

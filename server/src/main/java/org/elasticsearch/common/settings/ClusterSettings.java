@@ -90,6 +90,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.ingest.IngestSettings;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
@@ -570,7 +571,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         StatelessSecureSettings.STATELESS_SECURE_SETTINGS,
         DataLifecycle.isEnabled() ? DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING : null,
         IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING,
-        IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING
+        IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
+        IngestSettings.GROK_WATCHDOG_INTERVAL,
+        IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -65,7 +64,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -110,13 +108,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         for (int index = 0; index < nbIndices; index++) {
             final String indexName = "index-" + index;
             final int nbShards = randomIntBetween(1, 5);
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nbShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
-            );
+            createIndex(indexName, indexSettings(nbShards, 0).build());
             shardsPerIndex.put(indexName, nbShards);
         }
 
@@ -194,14 +186,14 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         logger.debug("--> mounting indices");
         final Thread[] threads = new Thread[nbIndices];
         final AtomicArray<Throwable> throwables = new AtomicArray<>(nbIndices);
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch startMounting = new CountDownLatch(1);
 
         for (int i = 0; i < threads.length; i++) {
             int threadId = i;
             final String indexName = "index-" + threadId;
             final Thread thread = new Thread(() -> {
                 try {
-                    latch.await();
+                    startMounting.await();
 
                     final Settings restoredIndexSettings = Settings.builder()
                         .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
@@ -244,7 +236,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             thread.start();
         }
 
-        latch.countDown();
+        startMounting.countDown();
         for (Thread thread : threads) {
             thread.join();
         }
@@ -285,14 +277,16 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     .stream()
                     .filter(file -> file.metadata().hashEqualsContents() == false)
                     .filter(file -> exclusionsPerIndex.get(indexName).contains(IndexFileNames.getExtension(file.physicalName())) == false)
-                    .collect(Collectors.toList());
+                    .toList();
 
                 for (BlobStoreIndexShardSnapshot.FileInfo expectedPrewarmedBlob : expectedPrewarmedBlobs) {
                     for (int part = 0; part < expectedPrewarmedBlob.numberOfParts(); part++) {
                         final String blobName = expectedPrewarmedBlob.partName(part);
-                        long actualBytesRead = tracker.totalBytesRead(blobName);
-                        long expectedBytesRead = expectedPrewarmedBlob.partBytes(part);
-                        assertThat("Blob [" + blobName + "] not fully warmed", actualBytesRead, greaterThanOrEqualTo(expectedBytesRead));
+                        assertThat(
+                            "Blob [" + blobName + "] not fully warmed",
+                            tracker.totalBytesRead(blobName),
+                            greaterThanOrEqualTo(expectedPrewarmedBlob.partBytes(part))
+                        );
                     }
                 }
             }

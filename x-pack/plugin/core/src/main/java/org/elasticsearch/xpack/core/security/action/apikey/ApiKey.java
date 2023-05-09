@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -35,6 +36,29 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * API key information
  */
 public final class ApiKey implements ToXContentObject, Writeable {
+
+    public enum Type {
+        /**
+         * REST type API keys can authenticate on the HTTP interface
+         */
+        REST,
+        /**
+         * Cross cluster type API keys can authenticate on the dedicated remote cluster server interface
+         */
+        CROSS_CLUSTER;
+
+        public static Type parse(String value) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "rest" -> REST;
+                case "cross_cluster" -> CROSS_CLUSTER;
+                default -> throw new IllegalArgumentException("unknown API key type [" + value + "]");
+            };
+        }
+
+        public String value() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     private final String name;
     private final String id;

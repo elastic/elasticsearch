@@ -40,7 +40,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -252,24 +250,22 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     }
 
-    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws InterruptedException {
+    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"));
     }
 
-    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request)
-        throws InterruptedException {
+    private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request) throws Exception {
         PlainActionFuture<NodesResponse> future = newFuture();
         startBlockingTestNodesAction(checkLatch, request, future);
         return future;
     }
 
-    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, ActionListener<NodesResponse> listener)
-        throws InterruptedException {
+    private Task startBlockingTestNodesAction(CountDownLatch checkLatch, ActionListener<NodesResponse> listener) throws Exception {
         return startBlockingTestNodesAction(checkLatch, new NodesRequest("Test Request"), listener);
     }
 
     private Task startBlockingTestNodesAction(CountDownLatch checkLatch, NodesRequest request, ActionListener<NodesResponse> listener)
-        throws InterruptedException {
+        throws Exception {
         CountDownLatch actionLatch = new CountDownLatch(nodesCount);
         TestNodesAction[] actions = new TestNodesAction[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
@@ -296,7 +292,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         // Make sure no tasks are running
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
         Task task = testNodes[0].transportService.getTaskManager()
             .registerAndExecute("transport", actions[0], request, testNodes[0].transportService.getLocalNodeConnection(), listener);
@@ -408,7 +404,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that we don't have any lingering tasks
         for (TestNode node : testNodes) {
-            assertEquals(0, node.transportService.getTaskManager().getTasks().size());
+            assertBusy(() -> assertEquals(0, node.transportService.getTaskManager().getTasks().size()));
         }
     }
 
@@ -538,12 +534,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         responseLatch.await(10, TimeUnit.SECONDS);
     }
 
-    @TestLogging(
-        reason = "debugging for https://github.com/elastic/elasticsearch/issues/69731",
-        value = "org.elasticsearch.transport.TcpTransport:TRACE,"
-            + "org.elasticsearch.transport.TransportService.tracer:TRACE,"
-            + "org.elasticsearch.tasks.TaskManager:TRACE"
-    )
     public void testFailedTasksCount() throws Exception {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
@@ -566,25 +556,13 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             };
         }
 
-        logger.info("--> checking for ongoing tasks before starting test actions");
-        final String immediateTaskDescriptions = getAllTaskDescriptions();
-
-        // Hunting for cause of https://github.com/elastic/elasticsearch/issues/69731: if there's an unexpected task then we check whether
-        // it goes away if we wait for long enough first.
+        // Since https://github.com/elastic/elasticsearch/pull/94865 task unregistration is not guaranteed to have happened upon
+        // receiving the response, e.g. for a `internal:transport/handshake` when connecting the test nodes. Therefore, wait
+        // for ongoing tasks to finish.
         assertBusy(() -> {
-            final String ongoingTaskDescriptions = getAllTaskDescriptions();
-            assertThat(
-                "initially:\n" + immediateTaskDescriptions + "\nongoing:\n" + ongoingTaskDescriptions,
-                ongoingTaskDescriptions.length(),
-                equalTo(0)
-            );
+            final List<String> ongoingTaskDescriptions = getAllTaskDescriptions();
+            assertThat("Ongoing tasks:" + ongoingTaskDescriptions, ongoingTaskDescriptions.size(), equalTo(0));
         });
-
-        assertThat(
-            "eventually completed, but still unexpected:\n" + immediateTaskDescriptions,
-            immediateTaskDescriptions.length(),
-            equalTo(0)
-        );
 
         NodesRequest request = new NodesRequest("Test Request");
         NodesResponse responses = ActionTestUtils.executeBlockingWithTask(
@@ -607,29 +585,25 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    private String getAllTaskDescriptions() {
-        final StringBuilder taskDescriptions = new StringBuilder();
+    private List<String> getAllTaskDescriptions() {
+        List<String> taskDescriptions = new ArrayList<>();
         for (TestNode testNode : testNodes) {
-            final Map<Long, Task> tasks = testNode.transportService.getTaskManager().getTasks();
-            if (tasks.isEmpty() == false) {
-                taskDescriptions.append("still running tasks on node [").append(testNode.getNodeId()).append("]\n");
-                for (Map.Entry<Long, Task> entry : tasks.entrySet()) {
-                    final Task task = entry.getValue();
-                    taskDescriptions.append(entry.getKey())
-                        .append(": [")
-                        .append(task.getId())
-                        .append("][")
-                        .append(task.getAction())
-                        .append("] started at ")
-                        .append(task.getStartTime())
-                        .append('\n');
-                }
+            for (Task task : testNode.transportService.getTaskManager().getTasks().values()) {
+                taskDescriptions.add(
+                    Strings.format(
+                        "node [%s]: task [id:%d][%s] started at %d",
+                        testNode.getNodeId(),
+                        task.getId(),
+                        task.getAction(),
+                        task.getStartTime()
+                    )
+                );
             }
         }
-        return taskDescriptions.toString();
+        return taskDescriptions;
     }
 
-    public void testActionParentCancellationPropagates() throws ExecutionException, InterruptedException {
+    public void testActionParentCancellationPropagates() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -703,7 +677,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, responses.failureCount());
     }
 
-    public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException {
+    public void testTaskLevelActionFailures() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -771,7 +745,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      * it executes a tasks action that targets these blocked node actions. The test verifies that task actions are only
      * getting executed on nodes that are not listed in the node filter.
      */
-    public void testTaskNodeFiltering() throws ExecutionException, InterruptedException {
+    public void testTaskNodeFiltering() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);

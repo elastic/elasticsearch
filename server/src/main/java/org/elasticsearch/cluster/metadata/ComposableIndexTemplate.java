@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -198,6 +198,23 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return componentTemplates;
     }
 
+    /**
+     * Returns the <b>required</b> component templates, i.e. such that are not allowed to be missing, as in
+     * {@link #ignoreMissingComponentTemplates}.
+     * @return a list of required component templates
+     */
+    public List<String> getRequiredComponentTemplates() {
+        if (componentTemplates == null) {
+            return List.of();
+        }
+        if (ignoreMissingComponentTemplates == null) {
+            return componentTemplates;
+        }
+        return componentTemplates.stream()
+            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
+            .toList();
+    }
+
     @Nullable
     public Long priority() {
         return priority;
@@ -263,13 +280,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     /**
      * Converts the composable index template to XContent and passes the RolloverConditions, when provided, to the template.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConditions rolloverConditions)
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.template.toXContent(builder, params, rolloverConditions);
+            this.template.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);

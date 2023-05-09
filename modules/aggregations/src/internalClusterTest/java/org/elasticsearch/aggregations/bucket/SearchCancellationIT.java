@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationsPlugin;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -62,14 +61,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         int numberOfDocsPerRefresh = numberOfShards * between(3000, 3500) / numberOfRefreshes;
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                indexSettings(numberOfShards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
                     .put(TIME_SERIES_START_TIME.getKey(), now)
                     .put(TIME_SERIES_END_TIME.getKey(), now + (long) numberOfRefreshes * numberOfDocsPerRefresh + 1)
-                    .build()
             ).setMapping("""
                 {
                   "properties": {

@@ -106,10 +106,7 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
             .indices()
             .prepareCreate("index")
             .setSettings(
-                Settings.builder()
-                    .put("index.soft_deletes.retention.operations", 0)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put("index.soft_deletes.retention.operations", 0)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
             )
             .get();

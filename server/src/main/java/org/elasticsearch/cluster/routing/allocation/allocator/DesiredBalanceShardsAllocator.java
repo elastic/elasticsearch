@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,6 +63,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+    private volatile boolean resetCurrentDesiredBalance = false;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -115,7 +117,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     cumulativeComputationTime,
                     () -> setCurrentDesiredBalance(
                         desiredBalanceComputer.compute(
-                            currentDesiredBalance,
+                            getInitialDesiredBalance(),
                             desiredBalanceInput,
                             pendingDesiredBalanceMoves,
                             this::isFresh
@@ -129,6 +131,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     submitReconcileTask(currentDesiredBalance);
                 } else {
                     logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
+                }
+            }
+
+            private DesiredBalance getInitialDesiredBalance() {
+                if (resetCurrentDesiredBalance) {
+                    logger.info("Resetting current desired balance");
+                    resetCurrentDesiredBalance = false;
+                    return new DesiredBalance(currentDesiredBalance.lastConvergedIndex(), Map.of());
+                } else {
+                    return currentDesiredBalance;
                 }
             }
 
@@ -227,6 +239,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     public DesiredBalance getDesiredBalance() {
         return currentDesiredBalance;
+    }
+
+    public void resetDesiredBalance() {
+        resetCurrentDesiredBalance = true;
     }
 
     public DesiredBalanceStats getStats() {

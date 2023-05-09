@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -109,12 +110,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
     public void testStartWithStateNotRecoveredBlock() {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().add(
-            new DiscoveryNode(
+            TestDiscoveryNode.create(
                 "id1",
                 ESTestCase.buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.roles()),
-                Version.CURRENT
+                new HashSet<>(DiscoveryNodeRole.roles())
             )
         ).masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
@@ -398,28 +398,25 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = new DiscoveryNode(
+        DiscoveryNode node1 = TestDiscoveryNode.create(
             "node_1",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
-            Version.CURRENT
+            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
         );
 
-        DiscoveryNode node2 = new DiscoveryNode(
+        DiscoveryNode node2 = TestDiscoveryNode.create(
             "node_2",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))
         );
 
-        DiscoveryNode node3 = new DiscoveryNode(
+        DiscoveryNode node3 = TestDiscoveryNode.create(
             "node_3",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
-            Version.CURRENT
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE))
         );
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(indexSettings(Version.CURRENT, 1, 0));
@@ -521,12 +518,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 new DiscoveryNodes.Builder().masterNodeId("node_1")
                     .localNodeId("node_1")
                     .add(
-                        new DiscoveryNode(
+                        TestDiscoveryNode.create(
                             "node_1",
                             ESTestCase.buildNewFakeTransportAddress(),
                             Collections.emptyMap(),
-                            new HashSet<>(roles),
-                            Version.CURRENT
+                            new HashSet<>(roles)
                         )
                     )
             )
@@ -649,12 +645,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return new DiscoveryNode(
-            nodeName,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            version
-        );
+        return TestDiscoveryNode.create(nodeName, ESTestCase.buildNewFakeTransportAddress(), version);
     }
 }

@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -74,20 +73,14 @@ public class DefaultSearchContextTests extends ESTestCase {
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);
-        QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
-        when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
         when(indexShard.getThreadPool()).thenReturn(threadPool);
 
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
         int maxSlicesPerScroll = randomIntBetween(50, 100);
-        Settings settings = Settings.builder()
-            .put("index.max_result_window", maxResultWindow)
+        Settings settings = indexSettings(Version.CURRENT, 2, 1).put("index.max_result_window", maxResultWindow)
             .put("index.max_slices_per_scroll", maxSlicesPerScroll)
             .put("index.max_rescore_window", maxRescoreWindow)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .build();
 
         IndexService indexService = mock(IndexService.class);
@@ -307,8 +300,6 @@ public class DefaultSearchContextTests extends ESTestCase {
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);
-        QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
-        when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
         when(indexShard.getThreadPool()).thenReturn(threadPool);
 
         IndexService indexService = mock(IndexService.class);

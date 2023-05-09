@@ -20,7 +20,7 @@ import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestExplainDataLifecycleAction extends BaseRestHandler {
@@ -32,7 +32,7 @@ public class RestExplainDataLifecycleAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/{index}/_lifecycle/explain"));
+        return List.of(new Route(GET, "/{index}/_lifecycle/explain"));
     }
 
     @Override

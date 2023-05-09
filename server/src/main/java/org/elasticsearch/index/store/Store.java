@@ -108,7 +108,7 @@ import static org.elasticsearch.index.engine.Engine.ES_VERSION;
  * file is a file that belongs to a segment written by a Lucene commit. Files that have not been committed
  * ie. created during a merge or a shard refresh / NRT reopen are not considered in the MetadataSnapshot.
  * <p>
- * Note: If you use a store it's reference count should be increased before using it by calling #incRef and a
+ * Note: If you use a store its reference count should be increased before using it by calling #incRef and a
  * corresponding #decRef must be called in a try/finally block to release the store again ie.:
  * <pre>
  *      store.incRef();

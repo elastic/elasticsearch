@@ -9,7 +9,6 @@ package org.elasticsearch.dlm.rest;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.dlm.action.PutDataLifecycleAction;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,17 +38,13 @@ public class RestPutDataLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        DataLifecycle lifecycle;
         try (XContentParser parser = request.contentParser()) {
-            lifecycle = PutDataLifecycleAction.Request.PARSER.parse(parser, null).getLifecycle();
+            PutDataLifecycleAction.Request putLifecycleRequest = PutDataLifecycleAction.Request.parseRequest(parser);
+            putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
+            putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
+            putLifecycleRequest.timeout(request.paramAsTime("timeout", putLifecycleRequest.timeout()));
+            putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
+            return channel -> client.execute(PutDataLifecycleAction.INSTANCE, putLifecycleRequest, new RestToXContentListener<>(channel));
         }
-        PutDataLifecycleAction.Request putLifecycleRequest = new PutDataLifecycleAction.Request(
-            Strings.splitStringByCommaToArray(request.param("name")),
-            lifecycle
-        );
-        putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
-        putLifecycleRequest.timeout(request.paramAsTime("timeout", putLifecycleRequest.timeout()));
-        putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
-        return channel -> client.execute(PutDataLifecycleAction.INSTANCE, putLifecycleRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -401,7 +401,7 @@ public class InboundDecoderTests extends ESTestCase {
             throw new AssertionError(e);
         }
 
-        var invalid = TransportVersion.fromId(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id - 1);
+        var invalid = TransportVersion.fromId(TransportHandshaker.EARLIEST_HANDSHAKE_VERSION.id() - 1);
         try {
             InboundDecoder.checkHandshakeVersionCompatibility(invalid);
             fail();

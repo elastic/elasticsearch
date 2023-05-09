@@ -9,7 +9,6 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -18,12 +17,10 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +43,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * This also tests that a threading validator cannot fork the following netty pipeline handlers on a different thread.
  */
 public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
+
     private EmbeddedChannel channel;
     private ThreadPool threadPool;
 
@@ -146,11 +144,7 @@ public class Netty4HttpHeaderThreadContextTests extends ESTestCase {
         sendRequestThrough(isValidationSuccessful.get(), validationDone);
     }
 
-    private TriConsumer<HttpRequest, Channel, ActionListener<Void>> getValidator(
-        ExecutorService executorService,
-        AtomicBoolean success,
-        Semaphore validationDone
-    ) {
+    private HttpValidator getValidator(ExecutorService executorService, AtomicBoolean success, Semaphore validationDone) {
         return (httpRequest, channel, listener) -> {
             executorService.submit(() -> {
                 if (randomBoolean()) {

@@ -55,7 +55,7 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
                           "role": {
-                            "cluster": ["cross_cluster_access"],
+                            "cluster": ["cross_cluster_search"],
                             "index": [
                               {
                                   "names": ["cluster1_index*"],
@@ -74,7 +74,7 @@ public class RemoteClusterSecurityWithSameModelRemotesRestIT extends AbstractRem
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(otherFulfillingClusterClient, """
                          {
                           "role": {
-                            "cluster": ["cross_cluster_access"],
+                            "cluster": ["cross_cluster_search"],
                             "index": [
                               {
                                   "names": ["cluster2_index*"],

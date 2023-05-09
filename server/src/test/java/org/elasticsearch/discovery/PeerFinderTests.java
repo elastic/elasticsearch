@@ -11,7 +11,6 @@ package org.elasticsearch.discovery;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -331,12 +330,11 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddNonMasterEligibleNodesFromUnicastHostsList() {
-        final DiscoveryNode nonMasterNode = new DiscoveryNode(
+        final DiscoveryNode nonMasterNode = TestDiscoveryNode.create(
             "node-from-hosts-list",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            emptySet(),
-            Version.CURRENT
+            emptySet()
         );
 
         providedAddresses.add(nonMasterNode.getAddress());
@@ -420,13 +418,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     public void testDoesNotAddReachableNonMasterEligibleNodesFromIncomingRequests() {
-        final DiscoveryNode sourceNode = new DiscoveryNode(
-            "request-source",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        final DiscoveryNode sourceNode = TestDiscoveryNode.create("request-source", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final DiscoveryNode otherKnownNode = newDiscoveryNode("other-known-node");
 
         transportAddressConnector.addReachableNode(otherKnownNode);

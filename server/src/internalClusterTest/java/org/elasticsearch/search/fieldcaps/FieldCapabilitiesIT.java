@@ -557,9 +557,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                     }
                     assertNotNull(fromNode);
                     assertNotNull(toNode);
-                    client().admin()
-                        .cluster()
-                        .prepareReroute()
+                    clusterAdmin().prepareReroute()
                         .add(new MoveAllocationCommand(shardId.getIndexName(), shardId.id(), fromNode.getId(), toNode.getId()))
                         .execute()
                         .actionGet();
@@ -692,9 +690,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
             logger.info("--> waiting for field-caps tasks to be started");
             assertBusy(() -> {
-                List<TaskInfo> tasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                     .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
                     .get()
                     .getTasks();
@@ -708,9 +704,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertBusy(logAppender::assertAllExpectationsMatched);
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
-                List<TaskInfo> tasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
+                List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
                     .setActions("indices:data/read/field_caps", "indices:data/read/field_caps[n]")
                     .get()
                     .getTasks();

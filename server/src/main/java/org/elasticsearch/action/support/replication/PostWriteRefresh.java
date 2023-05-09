@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.UnpromotableShardRefreshRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
@@ -26,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class PostWriteRefresh {
 
+    public static final String POST_WRITE_REFRESH_ORIGIN = "post_write_refresh";
     public static final String FORCED_REFRESH_AFTER_INDEX = "refresh_flag_index";
     private final TransportService transportService;
 
@@ -91,8 +93,7 @@ public class PostWriteRefresh {
     }
 
     private static void immediate(IndexShard indexShard, ActionListener<Engine.RefreshResult> listener) {
-        Engine.RefreshResult refreshResult = indexShard.refresh(FORCED_REFRESH_AFTER_INDEX);
-        listener.onResponse(refreshResult);
+        indexShard.externalRefresh(FORCED_REFRESH_AFTER_INDEX, listener);
     }
 
     private static void waitUntil(IndexShard indexShard, Translog.Location location, ActionListener<Boolean> listener) {
@@ -119,17 +120,13 @@ public class PostWriteRefresh {
         engineOrNull.addFlushListener(location, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(Long generation) {
-                engineOrNull.addFlushDurabilityListener(generation, ActionListener.wrap(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                }));
+                try (
+                    ThreadContext.StoredContext ignore = transportService.getThreadPool()
+                        .getThreadContext()
+                        .stashWithOrigin(POST_WRITE_REFRESH_ORIGIN)
+                ) {
+                    sendUnpromotableRequests(indexShard, generation, forced, listener, postWriteRefreshTimeout);
+                }
             }
 
             @Override
@@ -148,7 +145,8 @@ public class PostWriteRefresh {
     ) {
         UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
             indexShard.getReplicationGroup().getRoutingTable(),
-            generation
+            generation,
+            true
         );
         transportService.sendRequest(
             transportService.getLocalNode(),

@@ -34,12 +34,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * An internal search shards API performs the can_match phase and returns target shards of indices that might match a query.
  */
 public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
+    private final TransportService transportService;
     private final TransportSearchAction transportSearchAction;
     private final SearchService searchService;
     private final RemoteClusterService remoteClusterService;
@@ -59,6 +61,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(SearchShardsAction.NAME, transportService, actionFilters, SearchShardsRequest::new);
+        this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();
@@ -108,13 +111,14 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 var shardIterators = transportSearchAction.getLocalShardsIterator(
                     clusterState,
                     searchRequest,
+                    searchShardsRequest.clusterAlias(),
                     indicesAndAliases,
                     concreteIndexNames
                 );
-                var canMatchPhase = new CanMatchPreFilterSearchPhase(
-                    logger,
-                    searchTransportService,
-                    (clusterAlias, node) -> searchTransportService.getConnection(clusterAlias, clusterState.nodes().get(node)),
+                var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
+                    return transportService.getConnection(clusterState.nodes().get(node));
+                },
                     aliasFilters,
                     Map.of(),
                     threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
@@ -122,6 +126,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     GroupShardsIterator.sortAndCreate(shardIterators),
                     timeProvider,
                     (SearchTask) task,
+                    false,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     listener.map(shardIts -> new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters))
                 );

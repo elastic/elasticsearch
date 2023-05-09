@@ -141,7 +141,8 @@ public class StatelessAllocationDeciderTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            new StatelessShardRoutingRoleStrategy()
+            new StatelessShardRoutingRoleStrategy(),
+            System::nanoTime
         );
     }
 

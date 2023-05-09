@@ -455,8 +455,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             public void onResponse(ForceMergeResponse forceMergeResponse) {
                 if (forceMergeResponse.getFailedShards() > 0) {
                     DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
-                    String message = String.format(
-                        String.valueOf(Locale.ROOT),
+                    String message = Strings.format(
                         "DLM failed to forcemerge %d shards for index [%s] due to failures [%s]",
                         forceMergeResponse.getFailedShards(),
                         targetIndex,

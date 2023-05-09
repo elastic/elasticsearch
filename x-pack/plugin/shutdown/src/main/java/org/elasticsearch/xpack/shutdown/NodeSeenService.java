@@ -155,41 +155,40 @@ public class NodeSeenService implements ClusterStateListener {
         }
     }
 
-    private static class RemoveSigtermShutdownTaskExecutor implements ClusterStateTaskExecutor<RemoveSigtermShutdownTask> {
-        private final LongSupplier timeSupplier;
+    private record RemoveSigtermShutdownTaskExecutor(
+        LongSupplier timeSupplier) implements ClusterStateTaskExecutor<RemoveSigtermShutdownTask> {
+            private RemoveSigtermShutdownTaskExecutor(LongSupplier timeSupplier) {
+                this.timeSupplier = Objects.requireNonNull(timeSupplier);
+            }
 
-        RemoveSigtermShutdownTaskExecutor(LongSupplier timeSupplier) {
-            this.timeSupplier = Objects.requireNonNull(timeSupplier);
-        }
+            @Override
+            public ClusterState execute(BatchExecutionContext<RemoveSigtermShutdownTask> batchExecutionContext) throws Exception {
+                final var initialState = batchExecutionContext.initialState();
+                var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
 
-        @Override
-        public ClusterState execute(BatchExecutionContext<RemoveSigtermShutdownTask> batchExecutionContext) throws Exception {
-            final var initialState = batchExecutionContext.initialState();
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
-
-            long now = timeSupplier.getAsLong();
-            Predicate<String> nodeExists = initialState.nodes()::nodeExists;
-            boolean modified = false;
-            Iterator<SingleNodeShutdownMetadata> it = shutdownMetadata.values().iterator();
-            while (it.hasNext()) {
-                if (removeShutdownMetadata(it.next(), now, nodeExists)) {
-                    it.remove();
-                    modified = true;
+                long now = timeSupplier.getAsLong();
+                Predicate<String> nodeExists = initialState.nodes()::nodeExists;
+                boolean modified = false;
+                Iterator<SingleNodeShutdownMetadata> it = shutdownMetadata.values().iterator();
+                while (it.hasNext()) {
+                    if (removeShutdownMetadata(it.next(), now, nodeExists)) {
+                        it.remove();
+                        modified = true;
+                    }
                 }
-            }
-            if (modified == false) {
-                return initialState;
-            }
+                if (modified == false) {
+                    return initialState;
+                }
 
-            return ClusterState.builder(initialState)
-                .metadata(
-                    Metadata.builder(initialState.metadata())
-                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
-                        .build()
-                )
-                .build();
+                return ClusterState.builder(initialState)
+                    .metadata(
+                        Metadata.builder(initialState.metadata())
+                            .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                            .build()
+                    )
+                    .build();
+            }
         }
-    }
 
     /**
      * The {@link SingleNodeShutdownMetadata} should be kept if an external node is responsible for the shutdown, or the target node still

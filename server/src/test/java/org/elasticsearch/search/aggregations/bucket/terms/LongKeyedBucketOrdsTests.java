@@ -282,6 +282,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             }
         }
     }
+
     public void testKeyIteratorManyBucketsSmall() {
         int maxAllowedOwningBucketOrd = scaledRandomIntBetween(2, 10000);
         long minValue = 0;

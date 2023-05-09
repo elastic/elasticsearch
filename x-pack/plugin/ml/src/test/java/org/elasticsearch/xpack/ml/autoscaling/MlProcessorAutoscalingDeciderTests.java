@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -537,7 +537,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
     }
 
     private static DiscoveryNode buildNode(String name, boolean isML, double allocatedProcessors) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             name,
             name,
             buildNewFakeTransportAddress(),
@@ -545,8 +545,7 @@ public class MlProcessorAutoscalingDeciderTests extends ESTestCase {
                 .put(MachineLearning.MAX_JVM_SIZE_NODE_ATTR, String.valueOf(10))
                 .put(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR, String.valueOf(allocatedProcessors))
                 .map(),
-            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            isML ? DiscoveryNodeRole.roles() : Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)
         );
     }
 

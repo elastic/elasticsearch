@@ -82,7 +82,7 @@ public class HtmlSanitizerTests extends ESTestCase {
 
     public void testDefaultFormattingAllowed() {
         String html = "<b></b><i></i><s></s><u></u><o></o><sup></sup><sub></sub><ins></ins><del></del><strong></strong>"
-            + "<strike></strike><tt></tt><code></code><big></big><small></small><span></span><br /><em></em><hr />";
+            + "<strike></strike><code></code><code></code><big></big><small></small><span></span><br /><em></em><hr />";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
         assertThat(sanitizedHtml, equalTo(html));

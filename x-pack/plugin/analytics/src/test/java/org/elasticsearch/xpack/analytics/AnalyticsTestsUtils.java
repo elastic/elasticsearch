@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.analytics;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
+import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigest;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import com.tdunning.math.stats.Centroid;
+import org.elasticsearch.tdigest.Centroid;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

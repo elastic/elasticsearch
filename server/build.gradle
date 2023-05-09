@@ -34,6 +34,7 @@ dependencies {
   api project(":libs:elasticsearch-plugin-api")
   api project(":libs:elasticsearch-plugin-analysis-api")
   api project(':libs:elasticsearch-grok')
+  api project(":libs:elasticsearch-tdigest")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
   // no compile dependency by server, but server defines security policy for this codebase so it i>

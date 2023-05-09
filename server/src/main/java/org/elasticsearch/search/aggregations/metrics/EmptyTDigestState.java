@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.tdunning.math.stats.Centroid;
-import com.tdunning.math.stats.TDigest;
+import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigest;
 
 import java.util.List;
 

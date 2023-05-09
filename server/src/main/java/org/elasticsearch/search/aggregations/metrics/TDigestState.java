@@ -7,17 +7,16 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.tdunning.math.stats.AVLTreeDigest;
-import com.tdunning.math.stats.Centroid;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tdigest.AVLTreeDigest;
+import org.elasticsearch.tdigest.Centroid;
 
 import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
+ * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.  // FIXME
  */
 public class TDigestState extends AVLTreeDigest {
 

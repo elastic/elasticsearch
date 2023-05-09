@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -46,7 +47,34 @@ public class NodeSeenServiceTests extends ESTestCase {
         return masterServiceTaskQueue;
     }
 
-    public void testClean() {
+    public void testCleanIfRemoved() {
+        ClusterService clusterService = mock(ClusterService.class);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.absoluteTimeInMillis()).thenReturn(120_000L);
+        when(clusterService.threadPool()).thenReturn(mockThreadPool);
+        MasterServiceTaskQueue<RemoveSigtermShutdownTask> taskQueue = newMockTaskQueue(clusterService);
+        NodeSeenService nodeSeenService = new NodeSeenService(clusterService);
+        var master = TestDiscoveryNode.create("node1", randomNodeId());
+        var other = TestDiscoveryNode.create("node2", randomNodeId());
+        var another = TestDiscoveryNode.create("node3", randomNodeId());
+
+        nodeSeenService.clusterChanged(
+            new ClusterChangedEvent(
+                this.getTestName(),
+                createClusterState(
+                    new NodesShutdownMetadata(Map.of(another.getId(), createShutdown(another.getId(), 0))),
+                    master,
+                    other
+                ),
+                createClusterState(null, master, other, another)
+            )
+        );
+
+        Mockito.verify(taskQueue, times(1))
+            .submitTask(eq("sigterm nodes left cluster"), any(NodeSeenService.RemoveSigtermShutdownTask.class), isNull());
+    }
+
+    public void testDontCleanIfPresent() {
         ClusterService clusterService = mock(ClusterService.class);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.absoluteTimeInMillis()).thenReturn(120_000L);
@@ -63,24 +91,30 @@ public class NodeSeenServiceTests extends ESTestCase {
                 createClusterState(
                     new NodesShutdownMetadata(
                         Map.of(
-                            another.getName(),
-                            SingleNodeShutdownMetadata.builder()
-                                .setNodeId(another.getName())
-                                .setType(Type.SIGTERM)
-                                .setReason("test")
-                                .setStartedAtMillis(0)
-                                .build()
+                            another.getId(),
+                            createShutdown(another.getId(), 0),
+                            other.getId(),
+                            createShutdown(other.getId(), 20L)
                         )
                     ),
                     master,
-                    other
+                    other,
+                    another
                 ),
                 createClusterState(null, master, other, another)
             )
         );
 
-        Mockito.verify(taskQueue, times(1))
-            .submitTask(eq("sigterm nodes left cluster"), any(NodeSeenService.RemoveSigtermShutdownTask.class), isNull());
+        Mockito.verify(taskQueue, never()).submitTask(any(), any(), any());
+    }
+
+    private static SingleNodeShutdownMetadata createShutdown(String name, long startedAt) {
+        return SingleNodeShutdownMetadata.builder()
+            .setNodeId(name)
+            .setType(Type.SIGTERM)
+            .setReason("test")
+            .setStartedAtMillis(startedAt)
+            .build();
     }
 
     private static ClusterState createClusterState(NodesShutdownMetadata shutdown, DiscoveryNode masterNode, DiscoveryNode... nodes) {

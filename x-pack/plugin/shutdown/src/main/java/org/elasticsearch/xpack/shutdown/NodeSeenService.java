@@ -152,7 +152,7 @@ public class NodeSeenService implements ClusterStateListener {
     record RemoveSigtermShutdownTask() implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> format("failed to remove shutdown metadata for sigtermed nodes"), e);
+            logger.warn("failed to remove shutdown metadata for sigtermed nodes", e);
         }
     }
 

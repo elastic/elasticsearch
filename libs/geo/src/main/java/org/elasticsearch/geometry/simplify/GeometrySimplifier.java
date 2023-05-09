@@ -8,13 +8,16 @@
 
 package org.elasticsearch.geometry.simplify;
 
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -500,7 +503,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 int maxLength = lengthOf(geometry);
                 int maxPolyPoints = Math.max(4, (int) (simplificationFactor * maxLength));
                 if (geometry instanceof Point point) {
-                    var pointSimplifier = new Identity(maxPolyPoints, calculator, monitor);
+                    var pointSimplifier = new Identity<Point>(maxPolyPoints, calculator, monitor);
                     pointSimplifier.description = "GeometryCollection.Point[" + i + "]";
                     geometries.add(pointSimplifier.simplify(point));
                 } else if (geometry instanceof Line line) {
@@ -535,6 +538,20 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         @Override
         public GeometryCollection<Geometry> produce() {
             throw new IllegalArgumentException("MultiPolygon geometry simplifier cannot work in streaming mode");
+        }
+    }
+
+    public static <G extends Geometry> GeometrySimplifier<G> simplifierFor(
+        G geometry,
+        int maxPoints,
+        SimplificationErrorCalculator calculator,
+        Monitor monitor
+    ) {
+        // TODO: Find a way to get this method to return specialized simplifiers for non-identity cases (eg. Line and Polygon)
+        if (geometry instanceof Point || geometry instanceof Circle || geometry instanceof Rectangle || geometry instanceof MultiPoint) {
+            return new Identity<>(maxPoints, calculator, monitor);
+        } else {
+            throw new IllegalArgumentException("Unsupported geometry type: " + geometry.type());
         }
     }
 

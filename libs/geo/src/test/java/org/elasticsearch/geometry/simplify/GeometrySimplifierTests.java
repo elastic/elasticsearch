@@ -13,9 +13,11 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.CircleUtils;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -30,6 +32,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -150,20 +153,47 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
     public void testPoint() {
         int maxPoints = 0;  // value does not have any effect
         var monitor = new TestMonitor("Point", maxPoints);
-        GeometrySimplifier<Point> simplifier = new GeometrySimplifier.Identity<>(maxPoints, calculator(), monitor);
         Point point = new Point(1, 1);
+        GeometrySimplifier<Point> simplifier = GeometrySimplifier.simplifierFor(point, maxPoints, calculator(), monitor);
+        assertIdentitySimplifier(simplifier, point, monitor);
+    }
 
+    public void testCircle() {
+        int maxPoints = 0;  // value does not have any effect
+        var monitor = new TestMonitor("Circle", maxPoints);
+        Circle circle = new Circle(1, 1, 1000);
+        GeometrySimplifier<Circle> simplifier = GeometrySimplifier.simplifierFor(circle, maxPoints, calculator(), monitor);
+        assertIdentitySimplifier(simplifier, circle, monitor);
+    }
+
+    public void testRectangle() {
+        int maxPoints = 0;  // value does not have any effect
+        var monitor = new TestMonitor("Rectangle", maxPoints);
+        Rectangle circle = new Rectangle(-1, 1, 1, -1);
+        GeometrySimplifier<Rectangle> simplifier = GeometrySimplifier.simplifierFor(circle, maxPoints, calculator(), monitor);
+        assertIdentitySimplifier(simplifier, circle, monitor);
+    }
+
+    public void testMultiPoint() {
+        int maxPoints = 0;  // value does not have any effect
+        var monitor = new TestMonitor("MultiPoint", maxPoints);
+        ArrayList<Point> points = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            points.add(new Point(i, i));
+        }
+        MultiPoint circle = new MultiPoint(points);
+        GeometrySimplifier<MultiPoint> simplifier = GeometrySimplifier.simplifierFor(circle, maxPoints, calculator(), monitor);
+        assertIdentitySimplifier(simplifier, circle, monitor);
+    }
+
+    private <G extends Geometry> void assertIdentitySimplifier(GeometrySimplifier<G> simplifier, G geometry, TestMonitor monitor) {
         // Test full geometry simplification
-        Point simplified = simplifier.simplify(point);
-        assertThat("Same point", simplified, equalTo(point));
+        G simplified = simplifier.simplify(geometry);
+        assertThat("Same geometry", simplified, equalTo(geometry));
         monitor.assertCompleted(1, 0, 0); // simplification never actually used
 
         // Test streaming simplification
         simplifier.reset();
-        assertIdentitySimplifierDisallowsStreaming(simplifier);
-    }
-
-    private void assertIdentitySimplifierDisallowsStreaming(GeometrySimplifier<?> simplifier) {
         String name = simplifier.getClass().getSimpleName();
         String expected = "geometry simplifier cannot work in streaming mode";
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));

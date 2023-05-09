@@ -676,7 +676,7 @@ PUT _scripts/my-search-template
 }
 ----
 
-Testing `my-search-template` with different `params`
+Testing `my-search-template` with different `params`:
 
 [source,console]
 ----
@@ -708,6 +708,8 @@ When rendered, the template outputs as:
 ----
 
 If your search template doesn't pass a value to your `query_string` the message would be replaced with a empty string.
+
+For example:
 
 [source,console]
 ----
@@ -741,9 +743,9 @@ When rendered, template outputs as:
 [[search-template-sections]]
 ==== Sections
 
-Sections are also a type of Mustache tags. You can use `sections` to your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`.
+Sections are also a type of Mustache tags. You can use `sections` in your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`.
 
-The following search template shows an example using sections with nested object:
+The following search template shows an example using sections with nested objects:
 
 [source,console]
 ----
@@ -801,8 +803,7 @@ To use inverted sections use following syntax:
 {{^my-variable}} content {{/my-variable}}
 ----
 
-For example, in the following search template if `name_exists` is false message is set with `Hello World`, else it is set to empty string.
-
+For example, in the following search template if `name_exists` is `false`, `message` is set with `Hello World`, else it is set to empty string.
 [source,console]
 ----
 POST _render/template?pretty
@@ -967,7 +968,7 @@ PUT _scripts/my-search-template?pretty
 }
 ----
 
-Testing the template again with a variable `last` to determine last item in array:
+Testing the template again with a variable, `last` to determine it's the last item in the array:
 [source,console]
 ----
 POST _render/template?pretty

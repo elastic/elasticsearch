@@ -17,7 +17,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
@@ -199,7 +198,7 @@ public class QueryPhase {
                 searchContext.parsedPostFilter() != null || searchContext.minimumScore() != null
             );
 
-            CollectorManager<Collector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
+            CollectorManager<TwoPhaseCollector, Void> collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                 searchContext.getProfilers(),
                 topDocsFactory.collectorManager(),
                 topDocsFactory.profilerName
@@ -208,15 +207,13 @@ public class QueryPhase {
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                EarlyTerminatingCollector earlyTerminatingCollector = new EarlyTerminatingCollector(
-                    EMPTY_COLLECTOR,
-                    searchContext.terminateAfter(),
-                    true
+                TwoPhaseCollector earlyTerminatingCollector = TwoPhaseCollector.wrap(
+                    new EarlyTerminatingCollector(EMPTY_COLLECTOR, searchContext.terminateAfter(), true)
                 );
-                final Collector collector = collectorManager.newCollector();
+                final TwoPhaseCollector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(earlyTerminatingCollector, collector)),
+                    new SingleThreadCollectorManager(TwoPhaseCollector.wrapCollection(earlyTerminatingCollector, collector)),
                     REASON_SEARCH_TERMINATE_AFTER_COUNT,
                     collector
                 );
@@ -229,31 +226,33 @@ public class QueryPhase {
                     ScoreMode.COMPLETE_NO_SCORES,
                     1f
                 );
-                final Collector collector = collectorManager.newCollector();
+                final TwoPhaseCollector collector = collectorManager.newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(new FilteredCollector(collector, filterWeight)),
+                    new SingleThreadCollectorManager(TwoPhaseCollector.wrap(new FilteredCollector(collector, filterWeight), collector)),
                     REASON_SEARCH_POST_FILTER,
                     collector
                 );
             }
             if (searchContext.getAggsCollectorManager() != null) {
-                final Collector collector = collectorManager.newCollector();
-                final Collector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
+                final TwoPhaseCollector collector = collectorManager.newCollector();
+                final TwoPhaseCollector aggsCollector = searchContext.getAggsCollectorManager().newCollector();
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(MultiCollector.wrap(collector, aggsCollector)),
+                    new SingleThreadCollectorManager(TwoPhaseCollector.wrapCollection(collector, aggsCollector)),
                     REASON_SEARCH_MULTI,
                     collector,
                     aggsCollector
                 );
             }
             if (searchContext.minimumScore() != null) {
-                final Collector collector = collectorManager.newCollector();
+                final TwoPhaseCollector collector = collectorManager.newCollector();
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectorManager = wrapWithProfilerCollectorManagerIfNeeded(
                     searchContext.getProfilers(),
-                    new SingleThreadCollectorManager(new MinimumScoreCollector(collector, searchContext.minimumScore())),
+                    new SingleThreadCollectorManager(
+                        TwoPhaseCollector.wrap(new MinimumScoreCollector(collector, searchContext.minimumScore()), collector)
+                    ),
                     REASON_SEARCH_MIN_SCORE,
                     collector
                 );
@@ -287,11 +286,11 @@ public class QueryPhase {
         }
     }
 
-    private static CollectorManager<Collector, Void> wrapWithProfilerCollectorManagerIfNeeded(
+    private static CollectorManager<TwoPhaseCollector, Void> wrapWithProfilerCollectorManagerIfNeeded(
         Profilers profilers,
-        CollectorManager<Collector, Void> collectorManager,
+        CollectorManager<TwoPhaseCollector, Void> collectorManager,
         String profilerName,
-        Collector... children
+        TwoPhaseCollector... children
     ) throws IOException {
         if (profilers == null) {
             return collectorManager;
@@ -308,7 +307,7 @@ public class QueryPhase {
         SearchContext searchContext,
         ContextIndexSearcher searcher,
         Query query,
-        CollectorManager<Collector, Void> collectorManager,
+        CollectorManager<TwoPhaseCollector, Void> collectorManager,
         boolean timeoutSet
     ) throws IOException {
         if (searchContext.getProfilers() != null) {

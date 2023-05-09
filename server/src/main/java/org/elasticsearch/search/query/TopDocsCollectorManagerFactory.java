@@ -80,14 +80,14 @@ abstract class TopDocsCollectorManagerFactory {
     /**
      * Returns the collector manager used to collect top hits, created depending on the incoming request options
      */
-    CollectorManager<Collector, Void> collectorManager() {
+    CollectorManager<TwoPhaseCollector, Void> collectorManager() {
         return new SingleThreadCollectorManager(collector());
     }
 
     /**
      * Returns the collector used to collect top hits, created depending on the incoming request options
      */
-    abstract Collector collector();
+    abstract TwoPhaseCollector collector();
 
     /**
      * Returns the collected top docs to be set to the {@link QuerySearchResult} within the search context.
@@ -129,8 +129,8 @@ abstract class TopDocsCollectorManagerFactory {
         }
 
         @Override
-        Collector collector() {
-            return collector;
+        TwoPhaseCollector collector() {
+            return TwoPhaseCollector.wrap(collector);
         }
 
         @Override
@@ -180,8 +180,8 @@ abstract class TopDocsCollectorManagerFactory {
         }
 
         @Override
-        Collector collector() {
-            return topDocsCollector;
+        TwoPhaseCollector collector() {
+            return TwoPhaseCollector.wrap(topDocsCollector);
         }
 
         @Override
@@ -283,8 +283,8 @@ abstract class TopDocsCollectorManagerFactory {
         }
 
         @Override
-        Collector collector() {
-            return collector;
+        TwoPhaseCollector collector() {
+            return TwoPhaseCollector.wrap(collector);
         }
 
         TopDocsAndMaxScore newTopDocs() {

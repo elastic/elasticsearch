@@ -44,6 +44,7 @@ import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
+import org.elasticsearch.search.query.TwoPhaseCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -209,6 +210,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         if (queueSizeBasedExecutor == null || leafSlices.length <= 1) {
             search(leafContexts, weight, firstCollector);
+            if (firstCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+                twoPhaseCollector.postCollection();
+            }
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         } else {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
@@ -227,6 +231,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 final C collector = collectors.get(i);
                 FutureTask<C> task = new FutureTask<>(() -> {
                     search(Arrays.asList(leaves), weight, collector);
+                    if (firstCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+                        twoPhaseCollector.postCollection();
+                    }
                     return collector;
                 });
 

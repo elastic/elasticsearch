@@ -10,7 +10,9 @@ package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.sandbox.search.ProfilerCollector;
 import org.apache.lucene.search.Collector;
+import org.elasticsearch.search.query.TwoPhaseCollector;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,12 +26,14 @@ import java.util.List;
  *
  * InternalProfiler facilitates the linking of the Collector graph
  */
-public class InternalProfileCollector extends ProfilerCollector {
+public class InternalProfileCollector extends ProfilerCollector implements TwoPhaseCollector {
 
     private final InternalProfileCollector[] children;
+    private final TwoPhaseCollector collector;
 
-    public InternalProfileCollector(Collector collector, String reason, InternalProfileCollector... children) {
+    public InternalProfileCollector(TwoPhaseCollector collector, String reason, InternalProfileCollector... children) {
         super(collector, reason, Arrays.asList(children));
+        this.collector = collector;
         this.children = children;
     }
 
@@ -67,5 +71,10 @@ public class InternalProfileCollector extends ProfilerCollector {
             childResults.add(result);
         }
         return new CollectorResult(getName(), getReason(), getTime(), childResults);
+    }
+
+    @Override
+    public void postCollection() throws IOException {
+        collector.postCollection();
     }
 }

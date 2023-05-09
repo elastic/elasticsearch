@@ -410,7 +410,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             context.setSize(10);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(TwoPhaseCollector.wrap(collector)));
             QueryPhase.executeQuery(context);
             assertFalse(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -448,7 +448,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             context.setSize(1);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(TwoPhaseCollector.wrap(collector)));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -461,7 +461,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         {
             context.setSize(0);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(TwoPhaseCollector.wrap(collector)));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             // TotalHitCountCollector counts num docs in the first leaf
@@ -479,7 +479,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         for (int trackTotalHits : new int[] { -1, 3, 76, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
             TotalHitCountCollector collector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(TwoPhaseCollector.wrap(collector)));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
@@ -502,7 +502,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         for (int trackTotalHits : new int[] { -1, 3, 75, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
             EarlyTerminatingCollector collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 1, false);
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(collector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(TwoPhaseCollector.wrap(collector)));
             QueryPhase.executeQuery(context);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
@@ -567,7 +567,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
             context.parsedPostFilter(null);
 
             final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-            context.registerAggsCollectorManager(new SingleThreadCollectorManager(totalHitCountCollector));
+            context.registerAggsCollectorManager(new SingleThreadCollectorManager(TwoPhaseCollector.wrap(totalHitCountCollector)));
             QueryPhase.executeQuery(context);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));

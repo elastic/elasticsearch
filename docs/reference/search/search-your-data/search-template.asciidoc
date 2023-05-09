@@ -1,3 +1,12 @@
+/////
+[source,console]
+--------------------------------------------------
+DELETE _scripts/my-search-template
+--------------------------------------------------
+// TEST
+// TEARDOWN
+/////
+
 [[search-template]]
 == Search templates
 
@@ -633,21 +642,19 @@ POST _render/template
 ----
 [[search-template-with-mustache-examples]]
 === Search template examples with Mustache
-Mustache template help with running your search template with different variables. You can set your value to variable through `params` in template.
+Mustache help with running your search template with different variables. You can set your value to variable through `params` in template.
 
 This document illustrates more examples of mustache tags with search templates.
 
 [discrete]
 [[search-template-mustache-variable]]
-=== Mustache Variable
+=== Mustache variables
 Mustache tags are typically enclosed in double curly brackets, A mustache variable : `{{my-variable}}` is a type of mustache tag which checks for a matching `my-variable` key in your search template `params` and replaces template with the value set for `my-variable`
 
 For example, following search template replaces `{{query_string}}` in `message` with `My query string` value passed in `params`
 
 [source,console]
-
 ----
-
 PUT _scripts/my-search-template
 {
   "script": {
@@ -666,16 +673,12 @@ PUT _scripts/my-search-template
     }
   }
 }
-
 ----
 
 Testing `my-search-template` with different `params`
 
 [source,console]
-
 ----
-
-
 POST _render/template
 {
   "id": "my-search-template",
@@ -685,15 +688,11 @@ POST _render/template
     "size": 10
   }
 }
-
-
 ----
 
 When rendered, the template outputs as:
 [source,console-result]
-
 ----
-
 {
   "template_output": {
     "query": {
@@ -705,15 +704,12 @@ When rendered, the template outputs as:
     "size": "10"
   }
 }
-
 ----
 
 If your search template doesn't pass a value to your `query_string` the message would be replaced with a empty string.
 
 [source,console]
-
 ----
-
 POST _render/template
 {
   "id": "my-search-template",
@@ -722,14 +718,11 @@ POST _render/template
     "size": 10
   }
 }
-
 ----
 
 When rendered, template outputs as:
 [source,console-result]
-
 ----
-
 {
   "template_output": {
     "query": {
@@ -741,23 +734,19 @@ When rendered, template outputs as:
     "size": "10"
   }
 }
-
 ----
 
 [discrete]
 [[search-template-sections]]
 ==== Sections
 
-Sections are also a type of Mustache tags and are useful when you have to loop through nested keys. A sections begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`
+Sections are also a type of Mustache tags. You can use `sections` to your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`.
 
 The following search template shows an example using sections in a template.
 
 [source,console]
-
 ----
-
-
-POST /_render/template?pretty
+POST _render/template?pretty
 {
   "source":
   """
@@ -765,7 +754,9 @@ POST /_render/template?pretty
     "query": {
       "match": {
         {{#query_message}}
-        "message": "Hello {{query_string}}"
+          {{#query_string}}
+        "message": "Hello {{#first_name_section}}{{first_name}}{{/first_name_section}} {{#last_name_section}}{{last_name}}{{/last_name_section}}"
+          {{/query_string}}
         {{/query_message}}
       }
     }
@@ -773,12 +764,13 @@ POST /_render/template?pretty
   """,
   "params": {
     "query_message": {
-      "query_string": "Kimchy"
+       "query_string": {
+         "first_name_section": {"first_name": "John"},
+         "last_name_section": {"last_name": "Kimchy"}
+       }
     }
   }
 }
-
-
 ----
 
 The template renders as:
@@ -789,37 +781,30 @@ The template renders as:
   "template_output": {
     "query": {
       "match": {
-        "message": "Hello Kimchy"
+        "message": "Hello John Kimchy"
       }
     }
   }
 }
-
-
 ----
-
 
 [discrete]
 [[search-template-inverted-section]]
 ==== Inverted sections
-Inverted sections are useful when you want to set value once.
+Inverted sections are useful when you want to set a value once.
 
-To use Inverted sections use following syntax:
+To use inverted sections use following syntax:
 
 [source,mustache]
 ----
-
 {{^my-variable}} content {{/my-variable}}
-
 ----
 
-For example, in the following search template if `name_exists` is false message is set with `Hello World`, else sets to empty string.
+For example, in the following search template if `name_exists` is false message is set with `Hello World`, else it is set to empty string.
 
 [source,console]
-
 ----
-
-POST /_render/template?pretty
+POST _render/template?pretty
 {
   "source": {
     "query": {
@@ -832,19 +817,15 @@ POST /_render/template?pretty
      "name_exists": false
   }
 }
-
 ----
-
 
 They can also be combined with  <<search-template-use-conditions,conditions>> and <<search-template-set-default-values,default values>>.
 
-For example, in the following search template, if `name_exists` is true, value of `{{query_string}}` is replaced else is set to default value `World`.
+For example, in the following search template, if `name_exists` is `true`, the value of `{{query_string}}` is replaced.   If `name_exists` is `false`, it is set to the default value `World`.
 
 [source,console]
-
 ----
-
-POST /_render/template?pretty
+POST _render/template?pretty
 {
   "source": {
     "query": {
@@ -858,15 +839,12 @@ POST /_render/template?pretty
      "name_exists": true
   }
 }
-
 ----
 
 When rendered, template output:
 
 [source,console-result]
-
 ----
-
 {
   "template_output": {
     "query": {
@@ -876,23 +854,18 @@ When rendered, template output:
     }
   }
 }
-
 ----
 
 [discrete]
 [[search-template-lists]]
 ==== Lists
-You can pass list of objects and loop over each item in your search template
+You can pass a list of objects and loop over each item in your search template
 
 For example, following search template combines <<search-template-sections,sections>> and matches all the usernames.
 
 [source,console]
-
-
 ----
-
-
-PUT /_scripts/my-search-template?pretty
+PUT _scripts/my-search-template?pretty
 {
   "script": {
     "lang": "mustache",
@@ -910,14 +883,30 @@ PUT /_scripts/my-search-template?pretty
     }
   }
 }
-
 ----
-
-When rendered, template outputs:
+Testing the template:
 
 [source,console]
+----
+POST _render/template?pretty
+{
+  "id": "my-search-template",
+  "params": {
+    "query_string": "My string",
+    "text_fields": [
+      {
+        "user_name": "John"
+      },
+      {
+        "user_name": "kimchy"
+      }
+    ]
+  }
+}
+----
+When rendered, template outputs:
 
-
+[source,console-result]
 ----
 {
   "template_output": {
@@ -940,18 +929,15 @@ When rendered, template outputs:
     }
   }
 }
-
 ----
 
-NOTE: The above will cause trailing comma issue, which cause invalid json. A workaround would be including <<search-template-inverted-section,inverted section>> and add a variable to make sure it's last item in array.
+NOTE: The above will cause a trailing comma issue, which causes invalid JSON. A workaround would be to include an <<search-template-inverted-section,inverted section>> and adding a variable to make sure it's the last item in the array.
 
-For example
+For example:
 
 [source,console]
-
 ----
-
-PUT /_scripts/my-search-template?pretty
+PUT _scripts/my-search-template?pretty
 {
   "script": {
     "lang": "mustache",
@@ -972,30 +958,46 @@ PUT /_scripts/my-search-template?pretty
           {
             "user_name": "kimchy",
             "last": true
-
           }
         ]
       }
     }
   }
 }
-
 ----
 
+Testing the template again with a variable `last` to determine last item in array.
+[source,console]
+----
+POST _render/template?pretty
+{
+  "id": "my-search-template",
+  "params": {
+    "query_string": "My string",
+    "text_fields": [
+      {
+        "user_name": "John",
+        "last": false
+      },
+      {
+        "user_name": "kimchy",
+        "last": true
+      }
+    ]
+  }
+}
+----
 
 When rendered the template outputs:
 
-[source,console]
-
+[source,console-result]
 ----
-
-
 {
   "template_output": {
     "query": {
       "multi-match": {
         "query": "My string",
-        "fields": "[welcome,kimchy]"
+        "fields": "[John,kimchy]"
       }
     },
     "params": {
@@ -1013,23 +1015,18 @@ When rendered the template outputs:
     }
   }
 }
-
 ----
 
 [discrete]
 [[search-template-set-delimiter]]
 ==== Set delimiter
-You can change the default demiliter: double curly brackets `{{my-variable}}` to any custom delimiter in your search template
+You can change the default delimiter: double curly brackets `{{my-variable}}` to any custom delimiter in your search template.
 
-For example, following search template changes the default demiliter to single round bracket `(my-variable)`
+For example, the following search template changes the default delimiter to a single round bracket `(my-variable)`.
 
 [source,console]
-
-
 ----
-
-
-PUT /_scripts/my-search-template?pretty
+PUT _scripts/my-search-template?pretty
 {
   "script": {
     "lang": "mustache",
@@ -1050,16 +1047,24 @@ PUT /_scripts/my-search-template?pretty
     }
   }
 }
+----
+Testing the template with new delimiter:
 
+[source,console]
+----
+POST _render/template
+{
+  "id": "my-search-template",
+  "params": {
+    "query_string": "hello world"
+  }
+}
 ----
 
 When rendered, template outputs:
 
-[source,console]
-
-
+[source,console-result]
 ----
-
 {
   "template_output": {
     "query": {
@@ -1073,11 +1078,11 @@ When rendered, template outputs:
 [discrete]
 [[search-template-lambdas]]
 ==== Lambdas
-Elasticsearch has pre-built custom functions to support converting the text into a specific format.
+{es} has pre-built custom functions to support converting the text into a specific format.
 
-To Learn more about usage of mustache lambdas, checkout examples in <<search-template-url-encode-strings,Url encode strings>> <<search-template-concatenate-values,Concatenate values>> and <<search-template-convert-json, Convert to json>>
+To Learn more about usage of mustache lambdas, check out the examples in <<search-template-url-encode-strings,Url encode strings>>, <<search-template-concatenate-values,Concatenate values>>, and <<search-template-convert-json, Convert to json>>.
 
 [discrete]
 [[search-template-unsupported-features]]
 ==== Unsupported features
-* Elasticsearch doesn't support Partials.
+* {es} doesn't support Partials.

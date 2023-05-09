@@ -78,16 +78,12 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
             {
               "role": {
                 "cluster": [
-                  "cross_cluster_access",
-                  "cluster:monitor/state",
-                  "cluster:monitor/xpack/info"
+                  "cross_cluster_replication"
                 ],
                 "index": [
                   {
                      "names": ["leader-index*"],
-                     "privileges": ["manage", "read",
-                       "indices:internal/admin/ccr/restore/*",
-                       "internal:transport/proxy/indices:internal/admin/ccr/restore/*"]
+                     "privileges": ["cross_cluster_replication", "cross_cluster_replication_internal"]
                   }
                 ]
               }
@@ -168,7 +164,8 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
                     "action [indices:internal/admin/ccr/restore/session/put] towards remote cluster is unauthorized "
                         + "for user [_cross_cluster_access] with assigned roles [] authenticated by API key id ["
                         + API_KEY_MAP_REF.get().get("id")
-                        + "] of user [test_user] on indices [private-index], this action is granted by the index privileges [all]"
+                        + "] of user [test_user] on indices [private-index], this action is granted by the index privileges "
+                        + "[cross_cluster_replication_internal,all]"
                 )
             );
 

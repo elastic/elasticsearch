@@ -170,6 +170,13 @@ public class LocallyMountedSecrets implements SecureSettings {
         return MessageDigests.sha256().digest(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Returns version number from the secrets file
+     */
+    public long getVersion() {
+        return secrets.get().metadata.version();
+    }
+
     @Override
     public void close() throws IOException {
         if (null != secrets.get() && secrets.get().map().isEmpty() == false) {

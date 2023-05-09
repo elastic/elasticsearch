@@ -516,11 +516,6 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     }
 
                     @Override
-                    public long skip(long n) throws IOException {
-                        throw new AssertionError();
-                    }
-
-                    @Override
                     public void close() throws IOException {
                         files.merge(blobName, bytesRead, Math::addExact);
                         super.close();

@@ -3,4 +3,4 @@ summary: Fix 0 default value for repo snapshot speed
 area: Snapshot/Restore
 type: bug
 issues:
- - 93651
+ - 95561

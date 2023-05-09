@@ -1656,12 +1656,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // package private for testing
     RateLimiter getSnapshotRateLimiter() {
         Settings repositorySettings = metadata.settings();
-        logger.warn("Repository settings: [{}]", repositorySettings);
         ByteSizeValue maxConfiguredBytesPerSec = MAX_SNAPSHOT_BYTES_PER_SEC.get(repositorySettings);
         if (MAX_SNAPSHOT_BYTES_PER_SEC.exists(repositorySettings) == false && recoverySettings.nodeBandwidthSettingsExist()) {
             assert maxConfiguredBytesPerSec.getMb() == 40;
             maxConfiguredBytesPerSec = ByteSizeValue.ZERO;
-            logger.warn("Setting default to: [{}] because of node bandwidth recovery settings", maxConfiguredBytesPerSec);
         }
         return getRateLimiter(
             snapshotRateLimiter,
@@ -1673,9 +1671,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // package private for testing
     RateLimiter getRestoreRateLimiter() {
-        Settings repositorySettings = metadata.settings();
-        ByteSizeValue maxConfiguredBytesPerSec = MAX_RESTORE_BYTES_PER_SEC.get(repositorySettings);
-        return getRateLimiter(restoreRateLimiter, maxConfiguredBytesPerSec, MAX_RESTORE_BYTES_PER_SEC.getKey(), true);
+        return getRateLimiter(
+            restoreRateLimiter,
+            MAX_RESTORE_BYTES_PER_SEC.get(metadata.settings()),
+            MAX_RESTORE_BYTES_PER_SEC.getKey(),
+            true
+        );
     }
 
     @Override

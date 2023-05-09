@@ -94,7 +94,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var clusterState = DesiredBalanceComputerTests.createInitialClusterState(3);
         final var routingAllocation = createRoutingAllocationFrom(clusterState);
 
-        reconcile(routingAllocation, new DesiredBalance(1, 0, Map.of()));
+        reconcile(routingAllocation, new DesiredBalance(1, Map.of()));
         assertFalse(routingAllocation.routingNodesChanged());
     }
 
@@ -162,7 +162,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             routingAllocation,
             new DesiredBalance(
                 1,
-                0,
                 randomBoolean()
                     ? Map.of()
                     : Map.of(
@@ -1030,7 +1029,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var allocation = createRoutingAllocationFrom(clusterState);
         final var balance = new DesiredBalance(
             1,
-            0,
             Map.of(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0)) // shard is assigned to the node that has left
         );
 
@@ -1130,7 +1128,6 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
     private static DesiredBalance desiredBalance(ClusterState clusterState, BiPredicate<ShardId, String> isDesiredPredicate) {
         return new DesiredBalance(
             1,
-            0,
             StreamSupport.stream(clusterState.routingTable().spliterator(), false)
                 .flatMap(indexRoutingTable -> IntStream.range(0, indexRoutingTable.size()).mapToObj(indexRoutingTable::shard))
                 .collect(

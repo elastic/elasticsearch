@@ -110,13 +110,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
                 return super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
             }
         };
-        var allocator = new DesiredBalanceShardsAllocator(
-            delegate,
-            threadPool,
-            clusterService,
-            computer,
-            (state, currentNanoTime, action) -> state
-        );
+        var allocator = new DesiredBalanceShardsAllocator(delegate, threadPool, clusterService, computer, (state, action) -> state);
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
             new TestGatewayAllocator(),
@@ -152,10 +146,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         try {
             assertThat(listener.get(), notNullValue());
             // resetting desired balance should trigger new computation with empty assignments
-            assertThat(
-                computer.lastComputationInput.get(),
-                equalTo(new DesiredBalance(balanceBeforeReset.lastConvergedIndex(), balanceBeforeReset.currentTimeNano(), Map.of()))
-            );
+            assertThat(computer.lastComputationInput.get(), equalTo(new DesiredBalance(balanceBeforeReset.lastConvergedIndex(), Map.of())));
         } finally {
             clusterService.close();
             terminate(threadPool);

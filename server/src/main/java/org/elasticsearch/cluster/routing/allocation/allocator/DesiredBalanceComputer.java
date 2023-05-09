@@ -87,7 +87,7 @@ public class DesiredBalanceComputer {
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
 
         if (routingNodes.size() == 0) {
-            return new DesiredBalance(desiredBalanceInput.index(), routingAllocation.getCurrentNanoTime(), Map.of());
+            return new DesiredBalance(desiredBalanceInput.index(), Map.of());
         }
 
         // we assume that all ongoing recoveries will complete
@@ -361,7 +361,7 @@ public class DesiredBalanceComputer {
         }
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, routingAllocation.getCurrentNanoTime(), assignments);
+        return new DesiredBalance(lastConvergedIndex, assignments);
     }
 
     private record ShardRoutings(List<ShardRouting> unassigned, List<ShardRouting> assigned) {

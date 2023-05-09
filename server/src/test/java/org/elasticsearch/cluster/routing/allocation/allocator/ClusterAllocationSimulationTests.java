@@ -488,8 +488,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             ),
             threadPool,
             clusterService,
-            (clusterState, currentTimeNano, routingAllocationAction) -> strategyRef.get()
-                .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", currentTimeNano, routingAllocationAction)
+            (clusterState, routingAllocationAction) -> strategyRef.get()
+                .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {

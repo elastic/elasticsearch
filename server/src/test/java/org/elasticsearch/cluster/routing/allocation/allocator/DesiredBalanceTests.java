@@ -80,6 +80,6 @@ public class DesiredBalanceTests extends ESTestCase {
     }
 
     private static DesiredBalance of(ShardAssignment assignment) {
-        return new DesiredBalance(1, 0, Map.of(new ShardId("index", "_na_", 0), assignment));
+        return new DesiredBalance(1, Map.of(new ShardId("index", "_na_", 0), assignment));
     }
 }

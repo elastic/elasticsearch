@@ -843,7 +843,6 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var initial = new DesiredBalance(
             1,
-            0,
             Map.of(
                 findShardId(clusterState, "index-0"),
                 new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0),

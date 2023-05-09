@@ -75,7 +75,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
-        ClusterState apply(ClusterState clusterState, long currentTimeNano, Consumer<RoutingAllocation> routingAllocationAction);
+        ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction);
     }
 
     public DesiredBalanceShardsAllocator(
@@ -138,11 +138,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 if (resetCurrentDesiredBalance) {
                     logger.info("Resetting current desired balance");
                     resetCurrentDesiredBalance = false;
-                    return new DesiredBalance(
-                        currentDesiredBalance.lastConvergedIndex(),
-                        currentDesiredBalance.currentTimeNano(),
-                        Map.of()
-                    );
+                    return new DesiredBalance(currentDesiredBalance.lastConvergedIndex(), Map.of());
                 } else {
                     return currentDesiredBalance;
                 }
@@ -315,13 +311,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             TaskContext<ReconcileDesiredBalanceTask> latest
         ) {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
-                var latestDesiredBalance = latest.getTask().desiredBalance;
                 var newState = reconciler.apply(
                     batchExecutionContext.initialState(),
-                    latestDesiredBalance.currentTimeNano(),
-                    routingAllocation -> reconcile(latestDesiredBalance, routingAllocation)
+                    routingAllocation -> reconcile(latest.getTask().desiredBalance, routingAllocation)
                 );
-                latest.success(() -> queue.complete(latestDesiredBalance.lastConvergedIndex()));
+                latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
                 return newState;
             }
         }

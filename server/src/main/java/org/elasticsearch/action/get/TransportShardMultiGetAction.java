@@ -9,6 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -92,11 +93,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            super.asyncShardOperation(request, shardId, listener);
+            asyncShardMultiGet(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {
-                    super.asyncShardOperation(request, shardId, listener);
+                    asyncShardMultiGet(request, shardId, listener);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -104,15 +105,19 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         }
     }
 
-    @Override
-    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-
+    private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
+        throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            indexShard.refresh("refresh_flag_mget");
+            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+                var indexShard = getIndexShard(shardId);
+                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> doShardOperation(request, indexShard)));
+            }));
+        } else {
+            super.asyncShardOperation(request, shardId, listener);
         }
+    }
 
+    private MultiGetShardResponse doShardOperation(MultiGetShardRequest request, IndexShard indexShard) {
         MultiGetShardResponse response = new MultiGetShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
@@ -132,16 +137,21 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
+                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", indexShard.shardId(), item.id()), e);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
                 }
             } catch (IOException e) {
-                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
+                logger.debug(() -> format("%s failed to execute multi_get for [%s]", indexShard.shardId(), item.id()), e);
                 response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
             }
         }
 
         return response;
+    }
+
+    @Override
+    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
+        return doShardOperation(request, getIndexShard(shardId));
     }
 
     @Override
@@ -154,5 +164,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         } else {
             return super.getExecutor(request, shardId);
         }
+    }
+
+    private IndexShard getIndexShard(ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getShard(shardId.id());
     }
 }

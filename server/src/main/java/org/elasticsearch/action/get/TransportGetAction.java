@@ -105,7 +105,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private void asyncGet(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
         if (request.refresh() && request.realtime() == false) {
             threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
-                var indexShard = getIndexShard(indicesService, shardId);
+                var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_get", l.map(r -> {
                     GetResult result = indexShard.getService()
                         .get(
@@ -127,7 +127,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws IOException {
-        var indexShard = getIndexShard(indicesService, shardId);
+        var indexShard = getIndexShard(shardId);
         GetResult result = indexShard.getService()
             .get(
                 request.id(),
@@ -158,7 +158,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         }
     }
 
-    private IndexShard getIndexShard(IndicesService indicesService, ShardId shardId) {
+    private IndexShard getIndexShard(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }

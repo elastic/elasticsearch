@@ -13,9 +13,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -225,21 +223,15 @@ public class SumAggregatorTests extends AggregatorTestCase {
             sum += value;
             docs.add(singleton(new NumericDocValuesField(fieldType.name(), value)));
         }
+        docs.add(singleton(new NumericDocValuesField("unrelated", 100)));
 
-        try (Directory mappedDirectory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
+        try (Directory mappedDirectory = newDirectory()) {
             try (RandomIndexWriter mappedWriter = new RandomIndexWriter(random(), mappedDirectory)) {
                 mappedWriter.addDocuments(docs);
             }
 
-            new RandomIndexWriter(random(), unmappedDirectory).close();
-
-            try (
-                IndexReader mappedReader = DirectoryReader.open(mappedDirectory);
-                IndexReader unmappedReader = DirectoryReader.open(unmappedDirectory);
-                MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
-            ) {
-
-                final IndexSearcher searcher = newIndexSearcher(multiReader);
+            try (DirectoryReader mappedReader = DirectoryReader.open(mappedDirectory)) {
+                final IndexSearcher searcher = newIndexSearcher(mappedReader);
 
                 final Sum internalSum = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
                 assertEquals(sum, internalSum.value(), 0d);

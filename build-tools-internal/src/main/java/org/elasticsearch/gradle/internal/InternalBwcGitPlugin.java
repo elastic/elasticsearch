@@ -81,15 +81,29 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             findRemote.doLast(t -> { extraProperties.set("remoteExists", isRemoteAvailable(remote, findRemote.getOutput())); });
         });
 
-        TaskProvider<LoggedExec> addRemoteTaskProvider = tasks.register("addRemote", LoggedExec.class, addRemote -> {
+        TaskProvider<Task> addRemoteTaskProvider = tasks.register("addRemote", addRemote -> {
             addRemote.dependsOn(findRemoteTaskProvider);
             addRemote.onlyIf("remote exists", task -> ((boolean) extraProperties.get("remoteExists")) == false);
-            addRemote.getWorkingDir().set(gitExtension.getCheckoutDir());
-            String remoteRepo = remote.get();
-            // for testing only we can override the base remote url
-            String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
-                .getOrElse("https://github.com/" + remoteRepo + "/" + project.getRootProject().getName());
-            addRemote.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
+            addRemote.doLast(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    LoggedExec.exec(execOperations, spec -> {
+                        spec.setWorkingDir(gitExtension.getCheckoutDir());
+                        String remoteRepo = remote.get();
+                        // for testing only we can override the base remote url
+                        String remoteRepoUrl = providerFactory.systemProperty("testRemoteRepo")
+                            .orElse(
+                                providerFactory.provider(
+                                    () -> addRemote.getExtensions().getExtraProperties().has("remote")
+                                        ? addRemote.getExtensions().getExtraProperties().get("remote").toString()
+                                        : null
+                                )
+                            )
+                            .getOrElse("https://github.com/" + remoteRepo + "/" + project.getRootProject().getName());
+                        spec.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
+                    });
+                }
+            });
         });
 
         boolean isOffline = project.getGradle().getStartParameter().isOffline();

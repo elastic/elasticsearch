@@ -129,13 +129,6 @@ GET /_xpack/usage
         }
       }
     },
-    "enterprise_search" : {
-      "available": true,
-      "enabled": true,
-      "search_applications" : {
-        "count": 0
-      }
-    },
     "inference" : {
       "ingest_processors" : {
         "_all" : {
@@ -413,6 +406,13 @@ GET /_xpack/usage
     "enabled" : true,
     "invocations": {
       "total": 0
+    }
+  },
+  "enterprise_search" : {
+    "available": true,
+    "enabled": true,
+    "search_applications" : {
+      "count": 0
     }
   }
 }

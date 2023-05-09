@@ -162,12 +162,11 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
             final boolean simulateFailures = randomBoolean();
             final Map<DiscoveryNode, TransportVersion> nodeTransports = new HashMap<>();
-            final DiscoveryNode localNode = new DiscoveryNode(
+            final DiscoveryNode localNode = TestDiscoveryNode.create(
                 "localNode",
                 buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+                emptyMap(),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE)
             );
             final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             final MockTransport mockTransport = new MockTransport() {

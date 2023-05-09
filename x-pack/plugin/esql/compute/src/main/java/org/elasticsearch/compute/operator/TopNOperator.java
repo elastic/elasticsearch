@@ -47,7 +47,7 @@ public class TopNOperator implements Operator {
 
         int[] idToFirstValueIndex; // keeps the offset inside each of the arrays above where a specific block position starts from
         ElementType[] idToType;
-        int[] numberOfValues; // keeps the count of values each specialized array (booleans, ints, longs etc) above has
+        int[] numberOfValues; // keeps the count of values of each field in the specialized array
 
         boolean isNull(int i) {
             return nullValues[i];

@@ -293,14 +293,14 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testCollectAllValues_RandomMultiValues() {
-        int size = 10;
+        int rows = 10;
         int topCount = 3;
         int blocksCount = 20;
         List<Block> blocks = new ArrayList<>();
-        List<List<? extends Object>> expectedTop = new ArrayList<>();
+        List<List<?>> expectedTop = new ArrayList<>();
 
-        IntBlock keys = new IntArrayVector(IntStream.range(0, size).toArray(), size).asBlock();
-        List<Integer> topKeys = new ArrayList<>(IntStream.range(size - topCount, size).boxed().toList());
+        IntBlock keys = new IntArrayVector(IntStream.range(0, rows).toArray(), rows).asBlock();
+        List<Integer> topKeys = new ArrayList<>(IntStream.range(rows - topCount, rows).boxed().toList());
         Collections.reverse(topKeys);
         expectedTop.add(topKeys);
         blocks.add(keys);
@@ -311,8 +311,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 continue;
             }
             List<Object> eTop = new ArrayList<>();
-            Block.Builder builder = e.newBlockBuilder(size);
-            for (int i = 0; i < size; i++) {
+            Block.Builder builder = e.newBlockBuilder(rows);
+            for (int i = 0; i < rows; i++) {
                 if (e != ElementType.DOC && e != ElementType.NULL && randomBoolean()) {
                     // generate a multi-value block
                     int mvCount = randomIntBetween(5, 10);
@@ -321,20 +321,20 @@ public class TopNOperatorTests extends OperatorTestCase {
                     for (int j = 0; j < mvCount; j++) {
                         Object value = randomValue(e);
                         append(builder, value);
-                        if (i >= size - topCount) {
+                        if (i >= rows - topCount) {
                             eTopList.add(value);
                         }
                     }
                     builder.endPositionEntry();
-                    if (i >= size - topCount) {
+                    if (i >= rows - topCount) {
                         eTop.add(eTopList);
                     }
-                    continue;
-                }
-                Object value = randomValue(e);
-                append(builder, value);
-                if (i >= size - topCount) {
-                    eTop.add(value);
+                } else {
+                    Object value = randomValue(e);
+                    append(builder, value);
+                    if (i >= rows - topCount) {
+                        eTop.add(value);
+                    }
                 }
             }
             Collections.reverse(eTop);

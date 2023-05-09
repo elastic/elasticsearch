@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TimeoutReleasableListener;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -81,7 +82,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         final ShardRequest request,
         final ActionListener<Releasable> onAcquired
     ) {
-        primary.acquireAllPrimaryOperationsPermits(onAcquired, request.timeout());
+        primary.acquireAllPrimaryOperationsPermits(
+            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, ThreadPool.Names.GENERIC)
+        );
     }
 
     @Override
@@ -93,7 +96,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         final long globalCheckpoint,
         final long maxSeqNoOfUpdateOrDeletes
     ) {
-        replica.acquireAllReplicaOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNoOfUpdateOrDeletes, onAcquired, request.timeout());
+        replica.acquireAllReplicaOperationsPermits(
+            primaryTerm,
+            globalCheckpoint,
+            maxSeqNoOfUpdateOrDeletes,
+            TimeoutReleasableListener.create(onAcquired, request.timeout(), threadPool, ThreadPool.Names.GENERIC)
+        );
     }
 
     @Override

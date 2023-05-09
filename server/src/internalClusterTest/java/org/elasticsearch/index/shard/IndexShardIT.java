@@ -37,7 +37,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -697,7 +696,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 r.close();
                 engineResetLatch.countDown();
             }
-        }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
+        }, Assert::assertNotNull));
         engineResetLatch.await();
 
         final long moreDocs = between(10, 20);

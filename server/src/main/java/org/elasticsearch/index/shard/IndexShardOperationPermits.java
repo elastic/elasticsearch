@@ -10,7 +10,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -20,7 +19,6 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -73,16 +71,14 @@ final class IndexShardOperationPermits implements Closeable {
      * this case the {@code onFailure} handler will be invoked after delayed operations are released.
      *
      * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed. This listener should not throw.
-     * @param timeout    the maximum time to wait for the in-flight operations block
-     * @param timeUnit   the time unit of the {@code timeout} argument
      * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit, String executor) {
+    public void blockOperations(final ActionListener<Releasable> onAcquired, String executor) {
         delayOperations();
-        waitUntilBlocked(ActionListener.assertOnce(onAcquired), timeout, timeUnit, executor);
+        waitUntilBlocked(ActionListener.assertOnce(onAcquired), executor);
     }
 
-    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, long timeout, TimeUnit timeUnit, String executor) {
+    private void waitUntilBlocked(ActionListener<Releasable> onAcquired, String executor) {
         threadPool.executor(executor).execute(new AbstractRunnable() {
 
             final Releasable released = Releasables.releaseOnce(() -> releaseDelayedOperations());
@@ -100,7 +96,7 @@ final class IndexShardOperationPermits implements Closeable {
             protected void doRun() {
                 final Releasable releasable;
                 try {
-                    releasable = acquireAll(timeout, timeUnit);
+                    releasable = acquireAll();
                 } catch (Exception e) {
                     onFailure(e);
                     return;
@@ -128,21 +124,18 @@ final class IndexShardOperationPermits implements Closeable {
         }
     }
 
-    private Releasable acquireAll(final long timeout, final TimeUnit timeUnit) throws InterruptedException {
+    private Releasable acquireAll() throws InterruptedException {
         if (Assertions.ENABLED) {
             // since delayed is not volatile, we have to synchronize even here for visibility
             synchronized (this) {
                 assert queuedBlockOperations > 0;
             }
         }
-        if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-            return Releasables.releaseOnce(() -> {
-                assert semaphore.availablePermits() == 0;
-                semaphore.release(TOTAL_PERMITS);
-            });
-        } else {
-            throw new ElasticsearchTimeoutException("timeout while blocking operations after [" + new TimeValue(timeout, timeUnit) + "]");
-        }
+        semaphore.acquire(TOTAL_PERMITS);
+        return Releasables.releaseOnce(() -> {
+            assert semaphore.availablePermits() == 0;
+            semaphore.release(TOTAL_PERMITS);
+        });
     }
 
     private void releaseDelayedOperations() {

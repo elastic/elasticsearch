@@ -471,7 +471,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
                 fail(e.toString());
             }
 
-        }, TimeValue.timeValueHours(1));
+        });
 
         blockedLatch.await();
 

@@ -9,25 +9,20 @@
 package org.elasticsearch.node.internal;
 
 /**
- * Interface for termination handlers, which are called after Elasticsearch receives a signal indicating it should shut down
+ * Interface for termination handlers, which are called after Elasticsearch receives a signal from the OS indicating it should shut down
  * but before core services are stopped. These handlers may be called in any order or concurrently, so do not depend on ordering
  * guarantees and leave the system in a functioning state so that other handlers can complete.
+ *
+ * <p>Note that this class is mostly for plumbing - translating a low-level signal received by a node process into a higher-level set
+ *  of operations. Logic to respond to planned changes in cluster membership should use Node Shutdown primitives instead, see
+ *  {@link org.elasticsearch.plugins.ShutdownAwarePlugin} for lower-level plugin operations and
+ *  {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata} for cluster state level operations.
+ *  </p>
  */
 public interface TerminationHandler {
 
     /**
-     * Provides a name for this termination handler to allow easier problem isolation.
-     *
-     * @return The name of this termination handler.
+     * The method which is called when the node is signalled to shut down. This method should block until the node is ready to shut down.
      */
-    String name();
-
-    /**
-     * The method which is called when the node is preparing to shut down. Do not block the thread - do any long-running work
-     * asynchronously, and call the supplied Runnable when this handler has completed the work necessary to prepare the node
-     * for graceful shutdown. Once all handlers have called their Runnables, the node will proceed with terminating core services.
-     *
-     * @param done This runnable should be invoked when this handler has finished preparing the node for shutdown.
-     */
-    void handleTermination(Runnable done);
+    void handleTermination();
 }

@@ -22,11 +22,13 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -185,12 +187,39 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         if (path.isEmpty()) {
             return this;
         }
-        assert path.size() == 1 : "property paths for top_hits can only contain a single field";
+        if (path.size() != 1) {
+            throw new IllegalArgumentException(
+                "property paths for top_hits ["
+                    + getName()
+                    + "] can only contain a single field in _source, score or sort values, got "
+                    + path
+            );
+        }
+
+        // Supported property prefixes.
+        final String SOURCE = "_source";
+        final String SORT_VALUE = "_sort";
+        final String SCORE = "_score";
+
+        String[] tokens = path.get(0).toLowerCase(Locale.ROOT).split(":|>|\\.");
         assert searchHits.getHits().length == 1 : "property paths should only resolve against top_hits with size == 1.";
-        Map<String, Object> sourceAsMap = searchHits.getAt(0).getSourceAsMap();
-        if (sourceAsMap != null) {
-            Object property = sourceAsMap.get(path.get(0));
-            if (property != null) return property;
+        SearchHit topHit = searchHits.getAt(0);
+        if (tokens[0].equals(SORT_VALUE)) {
+            Object[] sortValues = topHit.getSortValues();
+            if (sortValues != null) {
+                return sortValues[0];
+            }
+        } else if (tokens[0].equals(SCORE)) {
+            return topHit.getScore();
+        } else {
+            Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
+            if (sourceAsMap != null) {
+                String field = tokens[0];
+                if (tokens.length == 2 && tokens[0].equals(SOURCE)) field = tokens[1];
+                Object property = sourceAsMap.get(field);
+                if (property != null) return property;
+            }
+
         }
         throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }

@@ -23,8 +23,11 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -280,12 +283,18 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
         SearchHit hit = new SearchHit(0);
         hit = hit.sourceRef(Source.fromMap(Map.of("foo", Double.valueOf(1000)), XContentType.YAML).internalSourceRef());
+        hit.sortValues(new Object[] { Double.valueOf(10.0) }, new DocValueFormat[] { DocValueFormat.RAW });
+        hit.score(1.0f);
         SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
         InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
 
         assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
         assertEquals(1000.0, internalTopHits.getProperty(List.of("foo")));
-        expectThrows(AssertionError.class, () -> internalTopHits.getProperty(List.of("foo", "bar")));  // Path size has to be 1.
+        assertEquals(1000.0, internalTopHits.getProperty(List.of("_source.foo")));
+        assertEquals(10.0, internalTopHits.getProperty(List.of("_sort")));
+        assertEquals(1.0f, internalTopHits.getProperty(List.of("_score")));
+
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
         expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
 
         // Two SearchHit instances are not allowed, only the first will be used without assertion.

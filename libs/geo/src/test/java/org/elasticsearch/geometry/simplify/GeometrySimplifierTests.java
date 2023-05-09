@@ -150,21 +150,26 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
     public void testPoint() {
         int maxPoints = 0;  // value does not have any effect
         var monitor = new TestMonitor("Point", maxPoints);
-        GeometrySimplifier<Point> simplifier = new GeometrySimplifier.Points(maxPoints, calculator(), monitor);
+        GeometrySimplifier<Point> simplifier = new GeometrySimplifier.Identity<>(maxPoints, calculator(), monitor);
         Point point = new Point(1, 1);
 
         // Test full geometry simplification
         Point simplified = simplifier.simplify(point);
         assertThat("Same point", simplified, equalTo(point));
-        monitor.assertCompleted(0, 0, 0); // simplification never actually used
+        monitor.assertCompleted(1, 0, 0); // simplification never actually used
 
         // Test streaming simplification
         simplifier.reset();
-        simplifier.consume(point.getX(), point.getY());
-        Point streamSimplified = simplifier.produce();
-        assertThat("Same point", streamSimplified, equalTo(simplified));
-        assertThat("Should create zero PointError", simplifier.objCount, equalTo(0));
-        monitor.assertCompleted(0, 0, 0); // simplification never actually used
+        assertIdentitySimplifierDisallowsStreaming(simplifier);
+    }
+
+    private void assertIdentitySimplifierDisallowsStreaming(GeometrySimplifier<?> simplifier) {
+        String name = simplifier.getClass().getSimpleName();
+        String expected = "geometry simplifier cannot work in streaming mode";
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
+        assertThat(name, ex.getMessage(), containsString(expected));
+        ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
+        assertThat(name, ex.getMessage(), containsString(expected));
     }
 
     public void testShortLine() {

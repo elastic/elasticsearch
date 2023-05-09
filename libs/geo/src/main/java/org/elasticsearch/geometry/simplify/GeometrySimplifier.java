@@ -500,7 +500,7 @@ public abstract class GeometrySimplifier<T extends Geometry> {
                 int maxLength = lengthOf(geometry);
                 int maxPolyPoints = Math.max(4, (int) (simplificationFactor * maxLength));
                 if (geometry instanceof Point point) {
-                    var pointSimplifier = new Points(maxPolyPoints, calculator, monitor);
+                    var pointSimplifier = new Identity(maxPolyPoints, calculator, monitor);
                     pointSimplifier.description = "GeometryCollection.Point[" + i + "]";
                     geometries.add(pointSimplifier.simplify(point));
                 } else if (geometry instanceof Line line) {
@@ -538,31 +538,37 @@ public abstract class GeometrySimplifier<T extends Geometry> {
         }
     }
 
-    public static class Points extends GeometrySimplifier<Point> {
-        private Point lastPoint;
-
-        public Points(int maxPoints, SimplificationErrorCalculator calculator) {
+    /**
+     * This simplifier simply returns the original geometry unsimplified.
+     * It is useful for unsimplifiable geometries like Point, Rectangle and Circle.
+     */
+    public static class Identity<G extends Geometry> extends GeometrySimplifier<G> {
+        public Identity(int maxPoints, SimplificationErrorCalculator calculator) {
             this(maxPoints, calculator, null);
         }
 
-        public Points(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
-            super("Point", maxPoints, calculator, monitor);
+        public Identity(int maxPoints, SimplificationErrorCalculator calculator, Monitor monitor) {
+            super("Identity", maxPoints, calculator, monitor);
         }
 
         @Override
-        public Point simplify(Point point) {
-            lastPoint = point;
-            return lastPoint;
+        public G simplify(G geometry) {
+            notifyMonitorSimplificationStart();
+            try {
+                return geometry;
+            } finally {
+                notifyMonitorSimplificationEnd();
+            }
         }
 
         @Override
         public void consume(double x, double y) {
-            lastPoint = new Point(x, y);
+            throw new IllegalArgumentException("Identity geometry simplifier cannot work in streaming mode");
         }
 
         @Override
-        public Point produce() {
-            return lastPoint;
+        public G produce() {
+            throw new IllegalArgumentException("Identity geometry simplifier cannot work in streaming mode");
         }
     }
 

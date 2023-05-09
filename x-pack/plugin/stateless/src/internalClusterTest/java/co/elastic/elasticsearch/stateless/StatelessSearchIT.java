@@ -420,6 +420,31 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertEquals(docsToIndex, searchResponse.getHits().getTotalHits().value);
     }
 
+    public void testForcedRefreshIsVisibleOnNewSearchShard() throws Exception {
+        startIndexNodes(1);
+        startSearchNodes(1);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                .build()
+        );
+
+        int numDocs = randomIntBetween(1, 100);
+        // Either forced refresh via a bulk request or an explicit API call
+        indexDocsAndRefresh(indexName, numDocs);
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+    }
+
     public void testUnpromotableRefreshFailure() throws Exception {
         List<String> indexNodes = startIndexNodes(1);
         startSearchNodes(2);

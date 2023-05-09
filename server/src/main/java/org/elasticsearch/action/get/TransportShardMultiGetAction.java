@@ -110,14 +110,16 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         if (request.refresh() && request.realtime() == false) {
             threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
-                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> doShardOperation(request, indexShard)));
+                indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
             }));
         } else {
             super.asyncShardOperation(request, shardId, listener);
         }
     }
 
-    private MultiGetShardResponse doShardOperation(MultiGetShardRequest request, IndexShard indexShard) {
+    @Override
+    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
+        var indexShard = getIndexShard(shardId);
         MultiGetShardResponse response = new MultiGetShardResponse();
         for (int i = 0; i < request.locations.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
@@ -137,21 +139,16 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", indexShard.shardId(), item.id()), e);
+                    logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
                     response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
                 }
             } catch (IOException e) {
-                logger.debug(() -> format("%s failed to execute multi_get for [%s]", indexShard.shardId(), item.id()), e);
+                logger.debug(() -> format("%s failed to execute multi_get for [%s]", shardId, item.id()), e);
                 response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), item.id(), e));
             }
         }
 
         return response;
-    }
-
-    @Override
-    protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
-        return doShardOperation(request, getIndexShard(shardId));
     }
 
     @Override

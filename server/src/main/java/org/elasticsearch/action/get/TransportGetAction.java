@@ -106,19 +106,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         if (request.refresh() && request.realtime() == false) {
             threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
-                indexShard.externalRefresh("refresh_flag_get", l.map(r -> {
-                    GetResult result = indexShard.getService()
-                        .get(
-                            request.id(),
-                            request.storedFields(),
-                            request.realtime(),
-                            request.version(),
-                            request.versionType(),
-                            request.fetchSourceContext(),
-                            request.isForceSyntheticSource()
-                        );
-                    return new GetResponse(result);
-                }));
+                indexShard.externalRefresh("refresh_flag_get", l.map(r -> shardOperation(request, shardId)));
             }));
         } else {
             super.asyncShardOperation(request, shardId, listener);

@@ -371,7 +371,7 @@ PUT _cluster/settings
     "xpack.profiling.templates.enabled": false
   }
 }
-
+----
 
 . {blank}
 +
@@ -501,6 +501,7 @@ PUT _cluster/settings
     "xpack.profiling.templates.enabled": true
   }
 }
+----
 
 . If wanted, reset the `action.destructive_requires_name` cluster setting.
 +

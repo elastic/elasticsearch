@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -313,26 +314,15 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 preDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
             }
             final int preDlmSegmentsAboutToBeRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
-            /*
-             * Here we briefly enable DLM so that it will run exactly once. We expect for a new write index to get created and for the one
-             * stored in toBeRolledOverIndex to get rolled over. And the one stored in toBeForceMergedIndex (if we're in the
-             * 2nd generation or later and it exists) to get force merged.
-             */
-            TimeValue dlmPollInterval = TimeValue.timeValueMillis(1000);
-            enableDLM(dlmPollInterval);
-            long dlmEnabledTime = System.nanoTime();
             int currentBackingIndexCount = currentGeneration;
+            DataLifecycleService dataLifecycleService = internalCluster().getInstance(
+                DataLifecycleService.class,
+                internalCluster().getMasterName()
+            );
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+            // run DLM once
+            dataLifecycleService.run(clusterService.state());
             assertBusy(() -> {
-                if (TimeValue.timeValueNanos(System.nanoTime()).millis() - TimeValue.timeValueNanos(dlmEnabledTime)
-                    .millis() > dlmPollInterval.millis()) {
-                    /*
-                     * We want to disable DLM immediately after it has run the first time so that it doesn't roll over the latest
-                     * generation or force merge the second one.
-                     */
-                    disableDLM();
-                } else {
-                    throw new AssertionError("DLM hasn't run yet so no point in going on");
-                }
                 GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
                 GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
                     .actionGet();

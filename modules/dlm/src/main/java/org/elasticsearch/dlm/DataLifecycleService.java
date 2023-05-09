@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -46,7 +47,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a DLM lifecycle configured.
@@ -102,9 +103,9 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     private volatile RolloverConfiguration rolloverConfiguration;
     private SchedulerEngine.Job scheduledJob;
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
-    private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> clusterStateUpdateTaskQueue;
+    private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
 
-    private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> STATE_UPDATE_TASK_EXECUTOR =
+    private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
             @Override
             public Tuple<ClusterState, Void> executeTask(UpdateForceMergeCompleteTask task, ClusterState clusterState) throws Exception {
@@ -113,7 +114,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
 
             @Override
             public void taskSucceeded(UpdateForceMergeCompleteTask task, Void unused) {
-                logger.trace("Updated cluster state for force merge");
+                logger.trace("Updated cluster state for force merge of index [{}]", task.targetIndex);
                 task.listener.onResponse(null);
             }
         };
@@ -138,10 +139,10 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         this.scheduledJob = null;
         this.pollInterval = DLM_POLL_INTERVAL_SETTING.get(settings);
         this.rolloverConfiguration = clusterService.getClusterSettings().get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING);
-        this.clusterStateUpdateTaskQueue = clusterService.createTaskQueue(
-            "dlm-clusterstate-update",
+        this.forceMergeClusterStateUpdateTaskQueue = clusterService.createTaskQueue(
+            "dlm-forcemerge-state-update",
             Priority.LOW,
-            STATE_UPDATE_TASK_EXECUTOR
+            FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR
         );
     }
 
@@ -335,9 +336,8 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
     }
 
     /*
-     * This method force merges the given indices in the datastream that that have not been force merged previously. Before force
-     * merging, it writes custom metadata as a marker in the cluster state so that we know a force merge is in
-     * process. And it writes another marker in the cluster state upon completion of the force merge.
+     * This method force merges the given indices in the datastream. It writes a timestamp in the cluster state upon completion of the
+     * force merge.
      */
     private void maybeExecuteForceMerge(ClusterState state, DataStream dataStream, List<Index> indices) {
         Metadata metadata = state.metadata();
@@ -453,37 +453,36 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
         client.admin().indices().forceMerge(forceMergeRequest, new ActionListener<>() {
             @Override
             public void onResponse(ForceMergeResponse forceMergeResponse) {
-                if (RestStatus.OK.equals(forceMergeResponse.getStatus())) {
-                    if (forceMergeResponse.getFailedShards() > 0) {
-                        String message = Strings.format(
-                            "Force merge request resulted in %d failed shards",
-                            forceMergeResponse.getFailedShards()
-                        );
-                        listener.onFailure(new ElasticsearchException(message));
-                        logger.warn(message);
-                    } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
-                        String message = Strings.format(
-                            "Force merge request only had %d successful shards out of a total of %d",
-                            forceMergeResponse.getSuccessfulShards(),
-                            forceMergeResponse.getTotalShards()
-                        );
-                        listener.onFailure(new ElasticsearchException(message));
-                        logger.warn(message);
-                    } else {
-                        logger.info("DLM successfully force merged index [{}]", targetIndex);
-                        setForceMergeCompletedTimestamp(targetIndex, listener);
-                    }
-                } else {
-                    String message = Strings.format("Force merge request returned a %s response code", forceMergeResponse.getStatus());
-                    listener.onFailure(new ElasticsearchException(message));
+                if (forceMergeResponse.getFailedShards() > 0) {
+                    DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                    String message = String.format(
+                        String.valueOf(Locale.ROOT),
+                        "DLM failed to forcemerge %d shards for index [%s] due to failures [%s]",
+                        forceMergeResponse.getFailedShards(),
+                        targetIndex,
+                        failures == null
+                            ? "unknown"
+                            : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
+                    );
                     logger.warn(message);
+                    listener.onFailure(new ElasticsearchException(message));
+                } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
+                    String message = Strings.format(
+                        "Force merge request only had %d successful shards out of a total of %d",
+                        forceMergeResponse.getSuccessfulShards(),
+                        forceMergeResponse.getTotalShards()
+                    );
+                    logger.warn(message);
+                    listener.onFailure(new ElasticsearchException(message));
+                } else {
+                    logger.info("DLM successfully force merged index [{}]", targetIndex);
+                    setForceMergeCompletedTimestamp(targetIndex, listener);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 String previousError = errorStore.getError(targetIndex);
-                listener.onFailure(e);
                 // To avoid spamming our logs, we only want to log the error once.
                 if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
                     logger.warn(
@@ -495,6 +494,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                         e
                     );
                 }
+                listener.onFailure(e);
             }
         });
     }
@@ -504,7 +504,7 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
      * method returns immediately, but the update happens asynchronously and listener is notified on success or failure.
      */
     private void setForceMergeCompletedTimestamp(String targetIndex, ActionListener<Void> listener) {
-        clusterStateUpdateTaskQueue.submitTask(
+        forceMergeClusterStateUpdateTaskQueue.submitTask(
             Strings.format("Adding force merge complete marker to cluster state for [%s]", targetIndex),
             new UpdateForceMergeCompleteTask(listener, targetIndex, threadPool),
             null

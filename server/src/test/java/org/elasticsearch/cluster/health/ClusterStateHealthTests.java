@@ -155,15 +155,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             threadPool,
             new ActionFilters(new HashSet<>()),
             indexNameExpressionResolver,
-            new AllocationService(
-                null,
-                new TestGatewayAllocator(),
-                null,
-                null,
-                null,
-                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                System::nanoTime
-            )
+            new AllocationService(null, new TestGatewayAllocator(), null, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(action, null, new ClusterHealthRequest().waitForGreenStatus(), listener);

@@ -257,31 +257,6 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> assertEquals(expected, avg.getValue(), delta), fieldType);
     }
 
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
-        indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
-        indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
-        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-        indexWriter.close();
-
-        DirectoryReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-
-        InternalAvg avg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-
-        assertEquals(4, avg.getValue(), 0);
-        assertEquals(3, avg.getCount(), 0);
-        assertTrue(AggregationInspectionHelper.hasValue(avg));
-
-        indexReader.close();
-        directory.close();
-    }
-
     public void testSingleValuedField() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));

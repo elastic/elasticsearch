@@ -61,11 +61,7 @@ public class NodeSeenServiceTests extends ESTestCase {
         nodeSeenService.clusterChanged(
             new ClusterChangedEvent(
                 this.getTestName(),
-                createClusterState(
-                    new NodesShutdownMetadata(Map.of(another.getId(), createShutdown(another.getId(), 0))),
-                    master,
-                    other
-                ),
+                createClusterState(new NodesShutdownMetadata(Map.of(another.getId(), createShutdown(another.getId(), 0))), master, other),
                 createClusterState(null, master, other, another)
             )
         );
@@ -90,12 +86,7 @@ public class NodeSeenServiceTests extends ESTestCase {
                 this.getTestName(),
                 createClusterState(
                     new NodesShutdownMetadata(
-                        Map.of(
-                            another.getId(),
-                            createShutdown(another.getId(), 0),
-                            other.getId(),
-                            createShutdown(other.getId(), 20L)
-                        )
+                        Map.of(another.getId(), createShutdown(another.getId(), 0), other.getId(), createShutdown(other.getId(), 20L))
                     ),
                     master,
                     other,

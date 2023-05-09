@@ -145,8 +145,10 @@ public class InternalEngine extends Engine {
     private final LiveVersionMapArchive liveVersionMapArchive;
     // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
     // generation it is safe to rely on the LiveVersionMap for a real-time get.
-    // TODO: can we move this entirely into the stateless plugin?
+    // TODO: move the following two to the stateless plugin
     private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
+    // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
+    private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -2101,6 +2103,12 @@ public class InternalEngine extends Engine {
                         translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         long lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
+                        // Pre-emptively recording the upcoming segment generation so that the live version map archive records
+                        // the correct segment generation for doc IDs that go to the archive while a flush is happening. Otherwise,
+                        // if right after committing the IndexWriter new docs get indexed/updated and a refresh moves them to the archive,
+                        // we clear them from the archive once we see that segment generation on the search shards, but those changes
+                        // were not included in the commit since they happened right after it.
+                        preCommitSegmentGeneration.set(lastCommittedSegmentInfos.getGeneration() + 1);
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
@@ -3237,5 +3245,9 @@ public class InternalEngine extends Engine {
     private static boolean assertGetUsesIdField(Get get) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         return true;
+    }
+
+    protected long getPreCommitSegmentGeneration() {
+        return preCommitSegmentGeneration.get();
     }
 }

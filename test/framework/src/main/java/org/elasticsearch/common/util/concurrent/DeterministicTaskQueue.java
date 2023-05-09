@@ -35,7 +35,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 
 /**
  * Permits the testing of async processes by interleaving all the tasks on a single thread in a pseudo-random (deterministic) fashion,
@@ -229,14 +228,10 @@ public class DeterministicTaskQueue {
         return getThreadPool(Function.identity());
     }
 
-    public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-        return getThreadPool(runnableWrapper, null);
-    }
-
     /**
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
-    public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper, LongSupplier nanoTimeSupplier) {
+    public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
         return new ThreadPool() {
             private final Map<String, ThreadPool.Info> infos = new HashMap<>();
 
@@ -315,11 +310,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public long relativeTimeInNanos() {
-                if (nanoTimeSupplier != null) {
-                    return nanoTimeSupplier.getAsLong();
-                } else {
-                    return TimeValue.timeValueMillis(currentTimeMillis).nanos();
-                }
+                throw new AssertionError("DeterministicTaskQueue does not support nanosecond-precision timestamps");
             }
 
             @Override

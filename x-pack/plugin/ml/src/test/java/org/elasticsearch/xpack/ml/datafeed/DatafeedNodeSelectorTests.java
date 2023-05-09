@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -70,13 +71,12 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         resolver = TestIndexNameExpressionResolver.newInstance();
         nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "node_name",
                     "node_id",
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                     Collections.emptyMap(),
-                    Collections.emptySet(),
-                    Version.CURRENT
+                    Collections.emptySet()
                 )
             )
             .build();
@@ -740,13 +740,12 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         int port = 9300;
         for (String nodeId : nodeIds) {
             candidateNodes.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     nodeId + "-name",
                     nodeId,
                     new TransportAddress(InetAddress.getLoopbackAddress(), port++),
                     Collections.emptyMap(),
-                    DiscoveryNodeRole.roles(),
-                    Version.CURRENT
+                    DiscoveryNodeRole.roles()
                 )
             );
         }

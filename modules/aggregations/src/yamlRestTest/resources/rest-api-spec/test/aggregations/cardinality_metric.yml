@@ -347,6 +347,7 @@ setup:
       reason: execution hints introduced in 8.4.0
   - do:
       search:
+        index: test_1
         body:
           profile: true
           size: 0

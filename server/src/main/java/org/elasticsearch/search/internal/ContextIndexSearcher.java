@@ -209,11 +209,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * */
     private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
         if (queueSizeBasedExecutor == null || leafSlices.length <= 1) {
-            search(leafContexts, weight, firstCollector);
-            if (firstCollector instanceof TwoPhaseCollector twoPhaseCollector) {
-                twoPhaseCollector.postCollection();
+            try {
+                search(leafContexts, weight, firstCollector);
+            } finally {
+                if (firstCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+                    twoPhaseCollector.postCollection();
+                }
             }
             return collectorManager.reduce(Collections.singletonList(firstCollector));
+
+
         } else {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);
@@ -230,11 +235,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 final LeafReaderContext[] leaves = leafSlices[i].leaves;
                 final C collector = collectors.get(i);
                 FutureTask<C> task = new FutureTask<>(() -> {
-                    search(Arrays.asList(leaves), weight, collector);
-                    if (collector instanceof TwoPhaseCollector twoPhaseCollector) {
-                        twoPhaseCollector.postCollection();
+                    try {
+                        search(Arrays.asList(leaves), weight, collector);
+                        return collector;
+                    } finally {
+                        if (collector instanceof TwoPhaseCollector twoPhaseCollector) {
+                            twoPhaseCollector.postCollection();
+                        }
                     }
-                    return collector;
+
                 });
 
                 listTasks.add(task);

@@ -1489,16 +1489,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         DataLifecycle dataLifecycle2 = new DataLifecycle(TimeValue.timeValueDays(30));
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, null, dataLifecycle2), null, null);
         ComponentTemplate ctNoLifecycle = new ComponentTemplate(new Template(null, null, null, null), null, null);
+        ComponentTemplate ctNullLifecycle = new ComponentTemplate(new Template(null, null, null, DataLifecycle.NULL), null, null);
 
-        state = service.addComponentTemplate(state, true, "ct_high", ct1);
-        state = service.addComponentTemplate(state, true, "ct_low", ct2);
+        state = service.addComponentTemplate(state, true, "ct_1", ct1);
+        state = service.addComponentTemplate(state, true, "ct_2", ct2);
         state = service.addComponentTemplate(state, true, "ct_no_lifecycle", ctNoLifecycle);
+        state = service.addComponentTemplate(state, true, "ct_null_lifecycle", ctNullLifecycle);
         {
             // Respect the order the templates are defined
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i1*"),
                 new Template(null, null, null),
-                List.of("ct_low", "ct_high"),
+                List.of("ct_2", "ct_1"),
                 0L,
                 1L,
                 null,
@@ -1515,7 +1517,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i2*"),
                 new Template(null, null, null),
-                List.of("ct_high", "ct_no_lifecycle"),
+                List.of("ct_1", "ct_no_lifecycle"),
                 0L,
                 1L,
                 null,
@@ -1533,7 +1535,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i3*"),
                 new Template(null, null, null, dataLifecycle2),
-                List.of("ct_no_lifecycle", "ct_high"),
+                List.of("ct_no_lifecycle", "ct_1"),
                 0L,
                 1L,
                 null,
@@ -1546,6 +1548,43 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             // Based on precedence only the latest
             assertThat(resolvedLifecycle, equalTo(dataLifecycle2));
+        }
+        {
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i4*"),
+                new Template(null, null, null, DataLifecycle.NULL),
+                List.of("ct_no_lifecycle", "ct_1"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-4", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-4");
+
+            // The nullified data lifecycle in the index template unsets the lifecycle
+            assertThat(resolvedLifecycle, nullValue());
+        }
+        {
+            // If one of the component templates has null lifecycle, treat like it was missing.
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i5*"),
+                new Template(null, null, null),
+                List.of("ct_1", "ct_null_lifecycle"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-5", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-5");
+
+            // Based on precedence only the latest
+            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
         }
     }
 

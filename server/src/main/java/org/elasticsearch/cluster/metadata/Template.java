@@ -82,7 +82,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         // We adjust the parser to ensure that the error message will be consistent with that of an unknown field.
         if (DataLifecycle.isEnabled()) {
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataLifecycle.fromXContent(p), LIFECYCLE);
+            PARSER.declareObjectOrNull(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> DataLifecycle.fromXContent(p),
+                DataLifecycle.NULL,
+                LIFECYCLE
+            );
         }
     }
 

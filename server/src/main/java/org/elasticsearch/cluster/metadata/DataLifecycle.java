@@ -44,6 +44,9 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     private static final FeatureFlag DLM_FEATURE_FLAG = new FeatureFlag("dlm");
 
     public static final DataLifecycle EMPTY = new DataLifecycle();
+    // This represents when the data lifecycle was explicitly set to be null.
+    // This value takes effect only if it is defined in the index template during the resolution of the lifecycle templates
+    public static final DataLifecycle NULL = new DataLifecycle(null, true);
     public static final String DLM_ORIGIN = "data_lifecycle";
 
     public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
@@ -70,13 +73,19 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     @Nullable
     private final TimeValue dataRetention;
+    private final boolean nullified;
 
     public DataLifecycle() {
-        this.dataRetention = null;
+        this((TimeValue) null);
     }
 
     public DataLifecycle(@Nullable TimeValue dataRetention) {
+        this(dataRetention, false);
+    }
+
+    private DataLifecycle(@Nullable TimeValue dataRetention, boolean nullified) {
         this.dataRetention = dataRetention;
+        this.nullified = nullified;
     }
 
     public DataLifecycle(long timeInMills) {
@@ -88,27 +97,32 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return dataRetention;
     }
 
+    public boolean isNullified() {
+        return nullified;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
         final DataLifecycle that = (DataLifecycle) o;
-        return Objects.equals(dataRetention, that.dataRetention);
+        return Objects.equals(dataRetention, that.dataRetention) && this.nullified == that.nullified;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(dataRetention);
+        return Objects.hash(dataRetention, nullified);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(dataRetention);
+        out.writeBoolean(nullified);
     }
 
     public DataLifecycle(StreamInput in) throws IOException {
-        dataRetention = in.readOptionalTimeValue();
+        this(in.readOptionalTimeValue(), in.readBoolean());
     }
 
     public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {
@@ -130,6 +144,10 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
+        if (nullified) {
+            return builder.nullValue();
+        }
+
         builder.startObject();
         if (dataRetention != null) {
             builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());

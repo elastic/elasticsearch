@@ -1421,8 +1421,13 @@ public class MetadataIndexTemplateService {
     public static DataLifecycle resolveLifecycle(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
         Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");
+
         // The actual index template's lifecycle takes the highest precedence.
         if (template.template() != null && template.template().lifecycle() != null) {
+            // An explicitly nullified lifecycle on the index template ensures that the data lifecycle will not be set.
+            if (template.template().lifecycle().isNullified()) {
+                return null;
+            }
             return template.template().lifecycle();
         }
         List<DataLifecycle> componentLifecycle = template.composedOf()
@@ -1431,7 +1436,7 @@ public class MetadataIndexTemplateService {
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
             .map(Template::lifecycle)
-            .filter(Objects::nonNull)
+            .filter(lifecycle -> lifecycle != null && lifecycle.isNullified() == false)
             .toList();
         return componentLifecycle.isEmpty() ? null : componentLifecycle.get(componentLifecycle.size() - 1);
     }

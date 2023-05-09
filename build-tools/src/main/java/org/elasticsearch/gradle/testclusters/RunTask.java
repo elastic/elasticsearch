@@ -207,8 +207,7 @@ public class RunTask extends DefaultTestClustersTask {
                     }
                 }
 
-                // TODO(stu): for testing, allow some to die without killing task
-                if (aliveChecks.stream().anyMatch(BooleanSupplier::getAsBoolean) == false) {
+                if (aliveChecks.stream().allMatch(BooleanSupplier::getAsBoolean) == false) {
                     throw new GradleException("Elasticsearch cluster died");
                 }
 

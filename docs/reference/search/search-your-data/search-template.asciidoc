@@ -1,3 +1,5 @@
+[[search-template]]
+
 /////
 [source,console]
 --------------------------------------------------
@@ -7,7 +9,6 @@ DELETE _scripts/my-search-template
 // TEARDOWN
 /////
 
-[[search-template]]
 == Search templates
 
 A search template is a stored search you can run with different variables.
@@ -742,7 +743,7 @@ When rendered, template outputs as:
 
 Sections are also a type of Mustache tags. You can use `sections` to your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`.
 
-The following search template shows an example using sections in a template.
+The following search template shows an example using sections with nested object:
 
 [source,console]
 ----
@@ -861,7 +862,7 @@ When rendered, template output:
 ==== Lists
 You can pass a list of objects and loop over each item in your search template
 
-For example, following search template combines <<search-template-sections,sections>> and matches all the usernames.
+For example, following search template combines <<search-template-sections,sections>> and matches all the usernames:
 
 [source,console]
 ----
@@ -966,7 +967,7 @@ PUT _scripts/my-search-template?pretty
 }
 ----
 
-Testing the template again with a variable `last` to determine last item in array.
+Testing the template again with a variable `last` to determine last item in array:
 [source,console]
 ----
 POST _render/template?pretty

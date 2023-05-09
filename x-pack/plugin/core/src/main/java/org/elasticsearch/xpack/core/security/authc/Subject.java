@@ -283,25 +283,23 @@ public class Subject {
     RoleReferenceIntersection buildRoleReferencesForCrossClusterApiKey() {
         assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        // TODO: enable following assertion when cross cluster access uses the right type of API keys
-        // assert ApiKey.Type.parse((String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY)) == ApiKey.Type.CROSS_CLUSTER;
+        assert ApiKey.Type.CROSS_CLUSTER == ApiKey.Type.parse((String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
+            : "cross cluster access must use cross-cluster API keys";
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
         if (roleDescriptorsBytes == null) {
             throw new ElasticsearchSecurityException("no role descriptors found for API key");
         }
         final BytesReference limitedByRoleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
-        // TODO: enable following assertion when cross cluster access uses the right type of API keys
-        // assert isEmptyRoleDescriptorsBytes(limitedByRoleDescriptorsBytes)
-        // : "cross cluster API keys must have empty limited-by role descriptors";
+        assert isEmptyRoleDescriptorsBytes(limitedByRoleDescriptorsBytes)
+            : "cross cluster API keys must have empty limited-by role descriptors";
         return new RoleReferenceIntersection(
             new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED)
         );
     }
 
     private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {
-        // TODO: enable following assertion when cross cluster access uses the right type of API keys
-        // assert ApiKey.Type.CROSS_CLUSTER.value().equals(metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
-        // : "cross cluster access must use cross-cluster API keys";
+        assert ApiKey.Type.CROSS_CLUSTER == ApiKey.Type.parse((String) metadata.get(AuthenticationField.API_KEY_TYPE_KEY))
+            : "cross cluster access must use cross-cluster API keys";
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
         final var crossClusterAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(

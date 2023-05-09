@@ -709,6 +709,21 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
         final String apiKeyId = createResponse.evaluate("id");
 
+        // Cross cluster API key cannot be used on the REST interface
+        final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
+        authenticateRequest.setOptions(
+            authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        );
+        final ResponseException authenticateError = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(authenticateRequest)
+        );
+        assertThat(authenticateError.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(
+            authenticateError.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
         final Request fetchRequest;
         if (randomBoolean()) {
             fetchRequest = new Request("GET", "/_security/api_key");

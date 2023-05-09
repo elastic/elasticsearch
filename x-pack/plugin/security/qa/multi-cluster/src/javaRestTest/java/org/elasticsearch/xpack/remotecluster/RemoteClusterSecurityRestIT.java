@@ -26,6 +26,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicReference<Map<String, Object>> REST_API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
 
     static {
@@ -59,6 +61,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .setting("xpack.security.authc.token.enabled", "true")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
+            .setting("logger.org.elasticsearch.xpack.security.authc.ApiKeyAuthenticator", "debug")
             .build();
 
         queryCluster = ElasticsearchCluster.local()
@@ -71,15 +74,11 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_search"],
-                            "index": [
-                                {
-                                    "names": ["index*", "not_found_index", "shared-metrics"],
-                                    "privileges": ["read", "read_cross_cluster"]
-                                }
-                            ]
-                          }
+                          "search": [
+                            {
+                                "names": ["index*", "not_found_index", "shared-metrics"]
+                            }
+                          ]
                         }""");
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -87,6 +86,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             })
             // Define a bogus API key for another remote cluster
             .keystore("cluster.remote.invalid_remote.credentials", randomEncodedApiKey())
+            // Define remote with a REST API key to observe expected failure
+            .keystore("cluster.remote.wrong_api_key_type.credentials", () -> {
+                if (REST_API_KEY_MAP_REF.get() == null) {
+                    initFulfillingClusterClient();
+                    final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+                    createApiKeyRequest.setJsonEntity("""
+                        {
+                          "name": "rest_api_key"
+                        }""");
+                    try {
+                        final Response createApiKeyResponse = performRequestWithAdminUser(fulfillingClusterClient, createApiKeyRequest);
+                        assertOK(createApiKeyResponse);
+                        REST_API_KEY_MAP_REF.set(responseAsMap(createApiKeyResponse));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+                return (String) REST_API_KEY_MAP_REF.get().get("encoded");
+            })
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics")
             .build();
@@ -325,6 +343,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final String publishAddress = ObjectPath.eval("remote_cluster_server.publish_address", node);
             assertThat(publishAddress, notNullValue());
         });
+    }
+
+    public void testRestApiKeyIsNotSupportedForCrossClusterAccess() throws IOException {
+        updateClusterSettings(
+            randomBoolean()
+                ? Settings.builder()
+                    .put("cluster.remote.wrong_api_key_type.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .build()
+                : Settings.builder()
+                    .put("cluster.remote.wrong_api_key_type.mode", "proxy")
+                    .put("cluster.remote.wrong_api_key_type.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .build()
+        );
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithRemoteSearchUser(new Request("GET", "/wrong_api_key_type:*/_search"))
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(e.getMessage(), containsString("unable to authenticate user "));
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

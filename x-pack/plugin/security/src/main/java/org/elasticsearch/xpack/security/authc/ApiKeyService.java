@@ -995,6 +995,17 @@ public class ApiKeyService {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + apiKeyDoc.docType + "] not an api key", null)
             );
+        } else if (apiKeyDoc.type != credentials.expectedType) {
+            listener.onResponse(
+                AuthenticationResult.terminate(
+                    Strings.format(
+                        "authentication expected API key type of [%s], but API key [%s] has type [%s]",
+                        credentials.expectedType.value(),
+                        credentials.getId(),
+                        apiKeyDoc.type.value()
+                    )
+                )
+            );
         } else if (apiKeyDoc.invalidated == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("api key document is missing invalidated field", null));
         } else if (apiKeyDoc.invalidated) {
@@ -1123,22 +1134,22 @@ public class ApiKeyService {
      * Gets the API Key from the <code>Authorization</code> header if the header begins with
      * <code>ApiKey </code>
      */
-    ApiKeyCredentials getCredentialsFromHeader(ThreadContext threadContext) {
+    ApiKeyCredentials getCredentialsFromThreadContext(ThreadContext threadContext) {
         if (false == isEnabled()) {
             return null;
         }
-        return getCredentialsFromHeader(threadContext.getHeader("Authorization"));
+        return getCredentialsFromHeader(threadContext.getHeader("Authorization"), ApiKey.Type.REST);
     }
 
-    static ApiKeyCredentials getCredentialsFromHeader(final String header) {
-        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"));
+    static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {
+        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), expectedType);
     }
 
     public static String withApiKeyPrefix(final String encodedApiKey) {
         return "ApiKey " + encodedApiKey;
     }
 
-    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString) {
+    private static ApiKeyCredentials parseApiKey(SecureString apiKeyString, ApiKey.Type expectedType) {
         if (apiKeyString != null) {
             final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
             char[] apiKeyCredChars = null;
@@ -1157,7 +1168,8 @@ public class ApiKeyService {
                 }
                 return new ApiKeyCredentials(
                     new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
-                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, colonIndex + 1, apiKeyCredChars.length))
+                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, colonIndex + 1, apiKeyCredChars.length)),
+                    expectedType
                 );
             } finally {
                 if (apiKeyCredChars != null) {
@@ -1207,10 +1219,12 @@ public class ApiKeyService {
     public static final class ApiKeyCredentials implements AuthenticationToken, Closeable {
         private final String id;
         private final SecureString key;
+        private final ApiKey.Type expectedType;
 
-        public ApiKeyCredentials(String id, SecureString key) {
+        public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType) {
             this.id = id;
             this.key = key;
+            this.expectedType = expectedType;
         }
 
         String getId() {
@@ -1241,6 +1255,9 @@ public class ApiKeyService {
             close();
         }
 
+        public ApiKey.Type getExpectedType() {
+            return expectedType;
+        }
     }
 
     private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {

@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
@@ -480,11 +479,6 @@ public final class Authentication implements ToXContentObject {
      */
     public boolean isApiKey() {
         return effectiveSubject.getType() == Subject.Type.API_KEY;
-    }
-
-    public boolean isCrossClusterApiKey() {
-        return isApiKey()
-            && ApiKey.Type.CROSS_CLUSTER.value().equals(getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_TYPE_KEY));
     }
 
     public boolean isCrossClusterAccess() {

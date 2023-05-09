@@ -21,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -182,7 +183,7 @@ public class AuthenticatorChainTests extends ESTestCase {
     public void testAuthenticateWithApiKey() throws IOException {
         final Authenticator.Context context = createAuthenticatorContext();
         when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()), ApiKey.Type.REST)
         );
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -261,7 +262,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         threadContext.putHeader("Authorization", unsuccessfulApiKey ? "ApiKey key_id:key_secret" : "Bearer some_token_value");
         if (unsuccessfulApiKey) {
             when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()), ApiKey.Type.REST)
             );
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")

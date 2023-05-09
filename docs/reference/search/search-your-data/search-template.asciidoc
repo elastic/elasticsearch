@@ -643,9 +643,8 @@ POST _render/template
 ----
 [[search-template-with-mustache-examples]]
 === Search template examples with Mustache
-Mustache help with running your search template with different variables. You can set your value to variable through `params` in template.
 
-This document illustrates more examples of mustache tags with search templates.
+The mustache templating language defines various tag types you can use within templates. The following sections describe some of these tag types and provide examples of using them in {es} <<search-template, search templates>>.
 
 [discrete]
 [[search-template-mustache-variable]]
@@ -724,6 +723,7 @@ POST _render/template
 ----
 
 When rendered, template outputs as:
+
 [source,console-result]
 ----
 {
@@ -741,7 +741,7 @@ When rendered, template outputs as:
 
 [discrete]
 [[search-template-sections]]
-==== Sections
+=== Sections
 
 Sections are also a type of Mustache tags. You can use `sections` in your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`.
 
@@ -792,76 +792,9 @@ The template renders as:
 ----
 
 [discrete]
-[[search-template-inverted-section]]
-==== Inverted sections
-Inverted sections are useful when you want to set a value once.
-
-To use inverted sections use following syntax:
-
-[source,mustache]
-----
-{{^my-variable}} content {{/my-variable}}
-----
-
-For example, in the following search template if `name_exists` is `false`, `message` is set with `Hello World`, else it is set to empty string.
-[source,console]
-----
-POST _render/template?pretty
-{
-  "source": {
-    "query": {
-      "match": {
-        "message": "{{^name_exists}}Hello World{{/name_exists}}"
-      }
-    }
-  },
-  "params": {
-     "name_exists": false
-  }
-}
-----
-
-They can also be combined with  <<search-template-use-conditions,conditions>> and <<search-template-set-default-values,default values>>.
-
-For example, in the following search template, if `name_exists` is `true`, the value of `{{query_string}}` is replaced.   If `name_exists` is `false`, it is set to the default value `World`.
-
-[source,console]
-----
-POST _render/template?pretty
-{
-  "source": {
-    "query": {
-      "match": {
-        "message": "Hello {{#name_exists}}{{query_string}}{{/name_exists}}{{^name_exists}}World{{/name_exists}}"
-      }
-    }
-  },
-  "params": {
-    "query_string": "Kimchy",
-     "name_exists": true
-  }
-}
-----
-
-When rendered, template output:
-
-[source,console-result]
-----
-{
-  "template_output": {
-    "query": {
-      "match": {
-        "message": "Hello Kimchy"
-      }
-    }
-  }
-}
-----
-
-[discrete]
 [[search-template-lists]]
 ==== Lists
-You can pass a list of objects and loop over each item in your search template
+You can pass a list of objects and loop over each item in your search template.
 
 For example, following search template combines <<search-template-sections,sections>> and matches all the usernames:
 
@@ -886,6 +819,7 @@ PUT _scripts/my-search-template?pretty
   }
 }
 ----
+
 Testing the template:
 
 [source,console]
@@ -1020,8 +954,83 @@ When rendered the template outputs:
 ----
 
 [discrete]
+[[search-template-lambdas]]
+==== Lambdas
+{es} has pre-built custom functions to support converting the text into a specific format.
+
+To Learn more about usage of mustache lambdas, check out the examples in <<search-template-url-encode-strings,Url encode strings>>, <<search-template-concatenate-values,Concatenate values>>, and <<search-template-convert-json, Convert to json>>.
+
+[discrete]
+[[search-template-inverted-section]]
+=== Inverted sections
+Inverted sections are useful when you want to set a value once.
+
+To use inverted sections use following syntax:
+
+[source,mustache]
+----
+{{^my-variable}} content {{/my-variable}}
+----
+
+For example, in the following search template if `name_exists` is `false`, `message` is set with `Hello World`, else it is set to empty string.
+
+[source,console]
+----
+POST _render/template?pretty
+{
+  "source": {
+    "query": {
+      "match": {
+        "message": "{{^name_exists}}Hello World{{/name_exists}}"
+      }
+    }
+  },
+  "params": {
+     "name_exists": false
+  }
+}
+----
+
+They can also be combined with  <<search-template-use-conditions,conditions>> and <<search-template-set-default-values,default values>>.
+
+For example, in the following search template, if `name_exists` is `true`, the value of `{{query_string}}` is replaced.   If `name_exists` is `false`, it is set to the default value `World`.
+
+[source,console]
+----
+POST _render/template?pretty
+{
+  "source": {
+    "query": {
+      "match": {
+        "message": "Hello {{#name_exists}}{{query_string}}{{/name_exists}}{{^name_exists}}World{{/name_exists}}"
+      }
+    }
+  },
+  "params": {
+    "query_string": "Kimchy",
+     "name_exists": true
+  }
+}
+----
+
+When rendered, template output:
+
+[source,console-result]
+----
+{
+  "template_output": {
+    "query": {
+      "match": {
+        "message": "Hello Kimchy"
+      }
+    }
+  }
+}
+----
+
+[discrete]
 [[search-template-set-delimiter]]
-==== Set delimiter
+=== Set delimiter
 You can change the default delimiter: double curly brackets `{{my-variable}}` to any custom delimiter in your search template.
 
 For example, the following search template changes the default delimiter to a single round bracket `(my-variable)`.
@@ -1071,20 +1080,16 @@ When rendered, template outputs:
   "template_output": {
     "query": {
       "match": {
-        "message": "Hello world"
+        "message": "hello world"
       }
     }
   }
 }
 ----
-[discrete]
-[[search-template-lambdas]]
-==== Lambdas
-{es} has pre-built custom functions to support converting the text into a specific format.
-
-To Learn more about usage of mustache lambdas, check out the examples in <<search-template-url-encode-strings,Url encode strings>>, <<search-template-concatenate-values,Concatenate values>>, and <<search-template-convert-json, Convert to json>>.
 
 [discrete]
 [[search-template-unsupported-features]]
-==== Unsupported features
-* {es} doesn't support Partials.
+=== Unsupported features
+The following mustache features are not supported in {es} search templates:
+
+* Partials

@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_HOT;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_WARM;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfiguration;
@@ -120,6 +121,7 @@ public class DataTierTests extends ESTestCase {
         assertThat(getPreferredTiersConfiguration(DATA_HOT), is(DATA_HOT));
         assertThat(getPreferredTiersConfiguration(DATA_WARM), is(DATA_WARM + "," + DATA_HOT));
         assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
+        assertThat(getPreferredTiersConfiguration(DATA_FROZEN), is(DATA_FROZEN));
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
         assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
     }

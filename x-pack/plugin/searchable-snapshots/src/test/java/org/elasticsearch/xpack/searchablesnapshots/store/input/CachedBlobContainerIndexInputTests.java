@@ -127,7 +127,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 ) {
                     RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
                     final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-                    final boolean loaded = directory.loadSnapshot(recoveryState, future);
+                    final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
                     if (randomBoolean()) {
                         // randomly wait for pre-warm before running the below reads
                         future.get();
@@ -233,7 +233,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             ) {
                 RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, f);
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, () -> false, f);
                 try {
                     f.get();
                 } catch (ExecutionException e) {

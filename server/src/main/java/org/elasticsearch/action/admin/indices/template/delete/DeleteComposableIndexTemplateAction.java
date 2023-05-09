@@ -92,9 +92,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
 
         @Override
         public String[] dataStreamPatterns(ClusterState state) {
-            // TODO check if any templates have lifecycles and check `manage_dlm` cluster privilege accordingly
-            // it's impossible to delete a template if it's still in use by data streams, so we don't need to check index-level privileges
-            // for data streams
+            // TODO return data streams for all templates that have a lifecycle (directly or via component templates)
             return null;
         }
     }

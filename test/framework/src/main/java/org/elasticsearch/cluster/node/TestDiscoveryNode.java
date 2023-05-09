@@ -12,9 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import java.security.AccessControlException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
@@ -23,6 +25,15 @@ import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
  * Various shortcuts to constructors in {@link DiscoveryNode}.
  */
 public class TestDiscoveryNode {
+
+    private static String newEphemeralId() {
+        try {
+            return UUIDs.randomBase64UUID(random());
+        } catch (AccessControlException e) {
+            // don't have SM permissions to access thread group context - probably part of a static init
+            return UUID.randomUUID().toString();
+        }
+    }
 
     public static DiscoveryNode create(String id) {
         return create(id, buildNewFakeTransportAddress());
@@ -40,7 +51,7 @@ public class TestDiscoveryNode {
         return new DiscoveryNode(
             name,
             id,
-            UUIDs.randomBase64UUID(random()),
+            newEphemeralId(),
             address.address().getHostString(),
             address.getAddress(),
             address,
@@ -58,7 +69,7 @@ public class TestDiscoveryNode {
         return new DiscoveryNode(
             null,
             id,
-            UUIDs.randomBase64UUID(random()),
+            newEphemeralId(),
             address.address().getHostString(),
             address.getAddress(),
             address,
@@ -90,7 +101,7 @@ public class TestDiscoveryNode {
         return new DiscoveryNode(
             null,
             id,
-            UUIDs.randomBase64UUID(random()),
+            newEphemeralId(),
             address.address().getHostString(),
             address.getAddress(),
             address,
@@ -114,7 +125,7 @@ public class TestDiscoveryNode {
         return new DiscoveryNode(
             nodeName,
             nodeId,
-            UUIDs.randomBase64UUID(random()),
+            newEphemeralId(),
             address.address().getHostString(),
             address.getAddress(),
             address,
@@ -135,7 +146,7 @@ public class TestDiscoveryNode {
         return new DiscoveryNode(
             nodeName,
             nodeId,
-            UUIDs.randomBase64UUID(random()),
+            newEphemeralId(),
             address.address().getHostString(),
             address.getAddress(),
             address,

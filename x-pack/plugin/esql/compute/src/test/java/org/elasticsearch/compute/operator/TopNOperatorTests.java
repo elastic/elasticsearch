@@ -292,6 +292,71 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertMap(actualTop, matchesList(expectedTop));
     }
 
+    public void testCollectAllValues_RandomMultiValues() {
+        int rows = 10;
+        int topCount = 3;
+        int blocksCount = 20;
+        List<Block> blocks = new ArrayList<>();
+        List<List<?>> expectedTop = new ArrayList<>();
+
+        IntBlock keys = new IntArrayVector(IntStream.range(0, rows).toArray(), rows).asBlock();
+        List<Integer> topKeys = new ArrayList<>(IntStream.range(rows - topCount, rows).boxed().toList());
+        Collections.reverse(topKeys);
+        expectedTop.add(topKeys);
+        blocks.add(keys);
+
+        for (int type = 0; type < blocksCount; type++) {
+            ElementType e = randomFrom(ElementType.values());
+            if (e == ElementType.UNKNOWN) {
+                continue;
+            }
+            List<Object> eTop = new ArrayList<>();
+            Block.Builder builder = e.newBlockBuilder(rows);
+            for (int i = 0; i < rows; i++) {
+                if (e != ElementType.DOC && e != ElementType.NULL && randomBoolean()) {
+                    // generate a multi-value block
+                    int mvCount = randomIntBetween(5, 10);
+                    List<Object> eTopList = new ArrayList<>(mvCount);
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < mvCount; j++) {
+                        Object value = randomValue(e);
+                        append(builder, value);
+                        if (i >= rows - topCount) {
+                            eTopList.add(value);
+                        }
+                    }
+                    builder.endPositionEntry();
+                    if (i >= rows - topCount) {
+                        eTop.add(eTopList);
+                    }
+                } else {
+                    Object value = randomValue(e);
+                    append(builder, value);
+                    if (i >= rows - topCount) {
+                        eTop.add(value);
+                    }
+                }
+            }
+            Collections.reverse(eTop);
+            blocks.add(builder.build());
+            expectedTop.add(eTop);
+        }
+
+        List<List<Object>> actualTop = new ArrayList<>();
+        try (
+            Driver driver = new Driver(
+                new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
+                List.of(new TopNOperator(topCount, List.of(new TopNOperator.SortOrder(0, false, false)))),
+                new PageConsumerOperator(page -> readInto(actualTop, page)),
+                () -> {}
+            )
+        ) {
+            driver.run();
+        }
+
+        assertMap(actualTop, matchesList(expectedTop));
+    }
+
     private List<Tuple<Long, Long>> topNTwoColumns(
         List<Tuple<Long, Long>> inputValues,
         int limit,

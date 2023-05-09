@@ -231,7 +231,7 @@ sortWithLimitOne
 from employees | sort languages | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean
-244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |2.05           |2.049999952316284|2.05078125       |2.05               |1989-09-12T00:00:00.000Z|false          |null           |1              |1              |1              |1              |Maliniak       |63528          |-2.14          |-2               |-2                |true                      
+244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |2.05           |2.049999952316284|2.05078125       |2.05               |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2, 13]          |true                      
 ;
 
 sortWithLimitFifteenAndProject
@@ -260,7 +260,7 @@ simpleEvalWithSortAndLimitOne
 from employees | eval x = languages + 7 | sort x | limit 1;
 
 avg_worked_seconds:long | birth_date:date | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date | is_rehired:boolean | job_positions:keyword | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer |salary_change.long:long | still_hired:boolean | x:integer
-244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |2.05           |2.049999952316284|2.05078125       |2.05               |1989-09-12T00:00:00.000Z|false          |null           |1              |1              |1              |1              |Maliniak       |63528          |-2.14          |-2               |-2                |true           |8                            
+244294991         |1955-01-21T00:00:00.000Z|10005          |Kyoichi        |M              |2.05           |2.049999952316284|2.05078125       |2.05               |1989-09-12T00:00:00.000Z|[false, false, false, true]|null           |1              |1              |1              |1              |Maliniak       |63528          |[-2.14, 13.07] |[-2, 13]         |[-2, 13]|true           |8                            
 ;
 
 evalOfAverageValue

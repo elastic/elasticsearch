@@ -232,7 +232,7 @@ snapshot as well as each feature's indices.
 
 To restore a specific feature state from the snapshot, specify the
 `feature_name` from the response in the restore snapshot API's
-<<restore-snapshot-api-feature-states,`feature_states`>> parameter. 
+<<restore-snapshot-api-feature-states,`feature_states`>> parameter.
 
 NOTE: When you restore a feature state, {es} closes and overwrites the feature's existing indices.
 
@@ -247,7 +247,7 @@ realm>> to ensure you'll still be able to access your cluster.
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
   "feature_states": [ "geoip" ],
-  "include_global_state": false,    <1>  
+  "include_global_state": false,    <1>
   "indices": "-*"                   <2>
 }
 ----
@@ -256,7 +256,7 @@ POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 // TEST[s/_restore/_restore?wait_for_completion=true/]
 // TEST[s/"feature_states": \[ "geoip" \],//]
 
-<1> Exclude the cluster state from the restore operation. 
+<1> Exclude the cluster state from the restore operation.
 <2> Exclude the other indices and data streams in the snapshot from the restore operation.
 
 [discrete]
@@ -360,6 +360,17 @@ POST _watcher/_start
 // TEST[continued]
 ////
 --
+
+* Universal Profiling
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.profiling.templates.enabled": false
+  }
+}
 
 
 . {blank}
@@ -479,6 +490,17 @@ PUT _cluster/settings
 POST _watcher/_start
 ----
 --
+
+* Universal Profiling
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.profiling.templates.enabled": true
+  }
+}
 
 . If wanted, reset the `action.destructive_requires_name` cluster setting.
 +

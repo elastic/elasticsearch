@@ -55,15 +55,21 @@ public final class ScriptFieldsPhase implements FetchSubPhase {
                 int docId = hitContext.docId();
                 for (int i = 0; i < leafScripts.length; i++) {
                     leafScripts[i].setDocument(docId);
-                    final Object value;
+                    Object value;
                     try {
                         value = leafScripts[i].execute();
-                        CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsPhase leaf script " + i);
+
                         // Check that the value returned by the script can be serialized to transport and x-content so that
                         // later sending the value either to the coordinating node or responding to the user request is
                         // guaranteed to succeed.
-                        StreamOutput.checkWriteable(value);
-                        XContentBuilder.ensureToXContentable(value);
+                        try {
+                            CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsPhase leaf script " + i);
+                            StreamOutput.checkWriteable(value);
+                            XContentBuilder.ensureToXContentable(value);
+                        } catch (IllegalArgumentException e) {
+                            value = "<unserializable>";
+                        }
+
                     } catch (RuntimeException e) {
                         if (scriptFields.get(i).ignoreException()) {
                             continue;

@@ -65,7 +65,7 @@ public class SubjectTests extends ESTestCase {
 
         final AnonymousUser anonymousUser = randomFrom(getAnonymousUser(), null);
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser, Set.of());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, hasSize(1));
         assertThat(roleReferences.get(0), instanceOf(NamedRoleReference.class));
@@ -86,7 +86,7 @@ public class SubjectTests extends ESTestCase {
             Map.of()
         );
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser, Set.of());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, hasSize(1));
         assertThat(roleReferences.get(0), instanceOf(NamedRoleReference.class));
@@ -104,7 +104,7 @@ public class SubjectTests extends ESTestCase {
             Map.of()
         );
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser(), Set.of());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, hasSize(1));
         assertThat(roleReferences.get(0), instanceOf(ServiceAccountRoleReference.class));
@@ -135,7 +135,7 @@ public class SubjectTests extends ESTestCase {
             authMetadata
         );
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser(), Set.of());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         if (emptyRoleBytes) {
             assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class)));
@@ -187,7 +187,7 @@ public class SubjectTests extends ESTestCase {
         final boolean isInternalUser = CrossClusterAccessUser.is(
             crossClusterAccessSubjectInfo.getAuthentication().getEffectiveSubject().getUser()
         );
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser(), Set.of());
         // Number of role references depends on the authentication and its number of roles.
         // Test setup can randomly authentication with 0, 1 or 2 (in case of API key) role descriptors,
         final int numberOfRemoteRoleDescriptors = crossClusterAccessSubjectInfo.getRoleDescriptorsBytesList().size();
@@ -299,7 +299,7 @@ public class SubjectTests extends ESTestCase {
         final FixedRoleReference fixedRoleReference = (FixedRoleReference) roleReferences.get(index);
         assertThat(
             fixedRoleReference.id(),
-            equalTo(new RoleKey(Set.of(CrossClusterAccessUser.ROLE_DESCRIPTOR.getName()), "cross_cluster_access_internal"))
+            equalTo(new RoleKey(Set.of(CrossClusterAccessUser.ROLE_DESCRIPTOR.getName()), "cross_cluster_access_internal", Set.of()))
         );
     }
 
@@ -327,7 +327,7 @@ public class SubjectTests extends ESTestCase {
             authMetadata
         );
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser(), Set.of());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
 
         if (emptyApiKeyRoleDescriptor) {
@@ -368,7 +368,7 @@ public class SubjectTests extends ESTestCase {
             )
         );
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser());
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(getAnonymousUser(), Set.of());
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class)));
         final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(1);

@@ -16,18 +16,21 @@ import java.util.Set;
 public final class RoleKey {
 
     public static final String ROLES_STORE_SOURCE = "roles_stores";
-    public static final RoleKey ROLE_KEY_EMPTY = new RoleKey(Set.of(), "__empty_role");
+    public static final RoleKey ROLE_KEY_EMPTY = new RoleKey(Set.of(), "__empty_role", Set.of());
     public static final RoleKey ROLE_KEY_SUPERUSER = new RoleKey(
         Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()),
-        RoleKey.ROLES_STORE_SOURCE
+        RoleKey.ROLES_STORE_SOURCE,
+        Set.of()
     );
 
     private final Set<String> names;
     private final String source;
+    private final Set<String> workflows;
 
-    public RoleKey(Set<String> names, String source) {
+    public RoleKey(Set<String> names, String source, Set<String> workflows) {
         this.names = Objects.requireNonNull(names);
         this.source = Objects.requireNonNull(source);
+        this.workflows = Objects.requireNonNull(workflows);
     }
 
     public Set<String> getNames() {
@@ -38,21 +41,25 @@ public final class RoleKey {
         return source;
     }
 
+    public Set<String> getWorkflows() {
+        return workflows;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RoleKey roleKey = (RoleKey) o;
-        return names.equals(roleKey.names) && source.equals(roleKey.source);
+        return names.equals(roleKey.names) && source.equals(roleKey.source) && workflows.equals(roleKey.workflows);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(names, source);
+        return Objects.hash(names, source, workflows);
     }
 
     @Override
     public String toString() {
-        return "RoleKey{" + "names=" + names + ", source='" + source + '\'' + '}';
+        return "RoleKey{" + "names=" + names + ", source='" + source + "', workflows=" + workflows + "}";
     }
 }

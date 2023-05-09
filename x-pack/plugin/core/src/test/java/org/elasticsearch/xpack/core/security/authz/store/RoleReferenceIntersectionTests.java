@@ -49,7 +49,7 @@ public class RoleReferenceIntersectionTests extends ESTestCase {
 
         for (int i = 0; i < size; i++) {
             final RoleReference roleReference = mock(RoleReference.class);
-            when(roleReference.id()).thenReturn(new RoleKey(Set.of(), String.valueOf(i)));
+            when(roleReference.id()).thenReturn(new RoleKey(Set.of(), String.valueOf(i), Set.of()));
             roleReferences.add(roleReference);
 
             final Role role = mock(Role.class);

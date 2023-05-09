@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermission.Workflow;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -25,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -101,16 +104,17 @@ public class Subject {
         return version;
     }
 
-    public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
+    public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser, Set<Workflow> workflows) {
+        Set<String> workflowNames = workflows.stream().map(Workflow::name).collect(Collectors.toSet());
         switch (type) {
             case USER:
-                return buildRoleReferencesForUser(anonymousUser);
+                return buildRoleReferencesForUser(anonymousUser, workflowNames);
             case API_KEY:
-                return buildRoleReferencesForApiKey();
+                return buildRoleReferencesForApiKey(workflowNames);
             case SERVICE_ACCOUNT:
-                return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal()));
+                return new RoleReferenceIntersection(new RoleReference.ServiceAccountRoleReference(user.principal(), workflowNames));
             case CROSS_CLUSTER_ACCESS:
-                return buildRoleReferencesForCrossClusterAccess();
+                return buildRoleReferencesForCrossClusterAccess(workflowNames);
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");
@@ -224,9 +228,9 @@ public class Subject {
             + '}';
     }
 
-    private RoleReferenceIntersection buildRoleReferencesForUser(AnonymousUser anonymousUser) {
+    private RoleReferenceIntersection buildRoleReferencesForUser(AnonymousUser anonymousUser, Set<String> workflows) {
         if (user.equals(anonymousUser)) {
-            return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles()));
+            return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(user.roles(), workflows));
         }
         final String[] allRoleNames;
         if (anonymousUser == null || false == anonymousUser.enabled()) {
@@ -238,12 +242,12 @@ public class Subject {
             }
             allRoleNames = ArrayUtils.concat(user.roles(), anonymousUser.roles());
         }
-        return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(allRoleNames));
+        return new RoleReferenceIntersection(new RoleReference.NamedRoleReference(allRoleNames, workflows));
     }
 
-    private RoleReferenceIntersection buildRoleReferencesForApiKey() {
+    private RoleReferenceIntersection buildRoleReferencesForApiKey(Set<String> workflows) {
         if (version.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
-            return buildRolesReferenceForApiKeyBwc();
+            return buildRolesReferenceForApiKeyBwc(workflows);
         }
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         final BytesReference roleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY);
@@ -254,18 +258,19 @@ public class Subject {
         final RoleReference.ApiKeyRoleReference limitedByRoleReference = new RoleReference.ApiKeyRoleReference(
             apiKeyId,
             limitedByRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.LIMITED_BY
+            RoleReference.ApiKeyRoleType.LIMITED_BY,
+            workflows
         );
         if (isEmptyRoleDescriptorsBytes(roleDescriptorsBytes)) {
             return new RoleReferenceIntersection(limitedByRoleReference);
         }
         return new RoleReferenceIntersection(
-            new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+            new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED, workflows),
             limitedByRoleReference
         );
     }
 
-    private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {
+    private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess(Set<String> workflows) {
         final List<RoleReference> roleReferences = new ArrayList<>(4);
         @SuppressWarnings("unchecked")
         final var crossClusterAccessRoleDescriptorsBytes = (List<RoleDescriptorsBytes>) metadata.get(
@@ -277,22 +282,26 @@ public class Subject {
             assert crossClusterAccessRoleDescriptorsBytes.isEmpty()
                 : "role descriptors bytes list for internal cross cluster access user must be empty";
             roleReferences.add(
-                new RoleReference.FixedRoleReference(CrossClusterAccessUser.ROLE_DESCRIPTOR, "cross_cluster_access_internal")
+                new RoleReference.FixedRoleReference(CrossClusterAccessUser.ROLE_DESCRIPTOR, "cross_cluster_access_internal", workflows)
             );
         } else if (crossClusterAccessRoleDescriptorsBytes.isEmpty()) {
             // If the cross cluster access role descriptors are empty, the remote user has no privileges. We need to add an empty role to
             // restrict access of the overall intersection accordingly
-            roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), RoleDescriptorsBytes.EMPTY));
+            roleReferences.add(
+                new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), RoleDescriptorsBytes.EMPTY, workflows)
+            );
         } else {
             // This is just a sanity check, since we should never have more than 2 role descriptors.
             // We can have max two role descriptors in case when API key is used for cross cluster access.
             assert crossClusterAccessRoleDescriptorsBytes.size() <= 2
                 : "not expected to have list of cross cluster access role descriptors bytes which have more than 2 elements";
             for (RoleDescriptorsBytes roleDescriptorsBytes : crossClusterAccessRoleDescriptorsBytes) {
-                roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), roleDescriptorsBytes));
+                roleReferences.add(
+                    new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), roleDescriptorsBytes, workflows)
+                );
             }
         }
-        roleReferences.addAll(buildRoleReferencesForApiKey().getRoleReferences());
+        roleReferences.addAll(buildRoleReferencesForApiKey(workflows).getRoleReferences());
         return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 
@@ -300,7 +309,7 @@ public class Subject {
         return roleDescriptorsBytes == null || (roleDescriptorsBytes.length() == 2 && "{}".equals(roleDescriptorsBytes.utf8ToString()));
     }
 
-    private RoleReferenceIntersection buildRolesReferenceForApiKeyBwc() {
+    private RoleReferenceIntersection buildRolesReferenceForApiKeyBwc(Set<String> workflows) {
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         final Map<String, Object> roleDescriptorsMap = getRoleDescriptorMap(API_KEY_ROLE_DESCRIPTORS_KEY);
         final Map<String, Object> limitedByRoleDescriptorsMap = getRoleDescriptorMap(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
@@ -310,13 +319,19 @@ public class Subject {
             final RoleReference.BwcApiKeyRoleReference limitedByRoleReference = new RoleReference.BwcApiKeyRoleReference(
                 apiKeyId,
                 limitedByRoleDescriptorsMap,
-                RoleReference.ApiKeyRoleType.LIMITED_BY
+                RoleReference.ApiKeyRoleType.LIMITED_BY,
+                workflows
             );
             if (roleDescriptorsMap == null || roleDescriptorsMap.isEmpty()) {
                 return new RoleReferenceIntersection(limitedByRoleReference);
             } else {
                 return new RoleReferenceIntersection(
-                    new RoleReference.BwcApiKeyRoleReference(apiKeyId, roleDescriptorsMap, RoleReference.ApiKeyRoleType.ASSIGNED),
+                    new RoleReference.BwcApiKeyRoleReference(
+                        apiKeyId,
+                        roleDescriptorsMap,
+                        RoleReference.ApiKeyRoleType.ASSIGNED,
+                        workflows
+                    ),
                     limitedByRoleReference
                 );
             }

@@ -2554,7 +2554,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
 
         final Subject subject = mock(Subject.class);
-        when(subject.getRoleReferenceIntersection(any())).thenReturn(
+        when(subject.getRoleReferenceIntersection(any(), any())).thenReturn(
             new RoleReferenceIntersection(new RoleReference.NamedRoleReference(new String[] { roleName }))
         );
         final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
@@ -2564,7 +2564,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
         final Subject subject = mock(Subject.class);
-        when(subject.getRoleReferenceIntersection(any())).thenReturn(
+        when(subject.getRoleReferenceIntersection(any(), any())).thenReturn(
             new RoleReferenceIntersection(new RoleReference.NamedRoleReference(roleNames.toArray(String[]::new)))
         );
         rolesStore.getRole(subject, listener);

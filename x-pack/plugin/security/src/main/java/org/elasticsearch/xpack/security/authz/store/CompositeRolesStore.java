@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermission.Workflow;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermissionResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -102,6 +104,7 @@ public class CompositeRolesStore {
     private final Role superuserRole;
     private final Map<String, Role> internalUserRoles;
     private final RestrictedIndices restrictedIndices;
+    private final ThreadContext threadContext;
 
     public CompositeRolesStore(
         Settings settings,
@@ -170,6 +173,7 @@ public class CompositeRolesStore {
             effectiveRoleDescriptorsConsumer
         );
         this.anonymousUser = new AnonymousUser(settings);
+        this.threadContext = threadContext;
     }
 
     public void getRoles(Authentication authentication, ActionListener<Tuple<Role, Role>> roleActionListener) {
@@ -196,8 +200,9 @@ public class CompositeRolesStore {
         }
 
         assert false == User.isInternal(subject.getUser()) : "Internal user should not pass here";
-
-        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        String restEndpoint = threadContext.getHeader("_xpack_rest_handler_name");
+        Set<Workflow> workflows = WorkflowPermissionResolver.resolveWorkflowsByEndpoint(restEndpoint);
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser, workflows);
         roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
     }
 
@@ -237,6 +242,7 @@ public class CompositeRolesStore {
             return;
         }
 
+        Workflow workflow = null;
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
@@ -335,7 +341,11 @@ public class CompositeRolesStore {
         tryGetRoleDescriptorForInternalUser(subject).ifPresentOrElse(
             roleDescriptor -> listener.onResponse(List.of(Set.of(roleDescriptor))),
             () -> {
-                final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser).getRoleReferences();
+                // TODO: Should this call be restricted to workflows at all?
+                String restEndpoint = threadContext.getHeader("_xpack_rest_handler_name");
+                Set<Workflow> workflows = WorkflowPermissionResolver.resolveWorkflowsByEndpoint(restEndpoint);
+                final List<RoleReference> roleReferences = subject.getRoleReferenceIntersection(anonymousUser, workflows)
+                    .getRoleReferences();
                 final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
                     roleReferences.size(),
                     listener

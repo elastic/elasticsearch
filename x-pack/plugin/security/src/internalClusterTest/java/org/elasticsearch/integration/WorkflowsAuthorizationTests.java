@@ -94,26 +94,17 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
         assertOK(response);
 
         // user_b should be denied access
-        response = performRequestWithUser("user_b", new Request("GET", "/_security/_authenticate"));
+        var e = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithUser("user_b", new Request("GET", "/_security/_authenticate"))
+        );
+        assertThat(e.getMessage(), containsString("access denied by workflows"));
+
+        e = expectThrows(ResponseException.class, () -> performRequestWithUser("user_b", new Request("GET", "/_search")));
+        assertThat(e.getMessage(), containsString("access denied by workflows"));
+
+        response = performRequestWithUser("user_b", new Request("GET", "/_license"));
         assertOK(response);
-
-        var e = expectThrows(ResponseException.class, () -> performRequestWithUser("user_b", new Request("GET", "/_search")));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "action [indices:data/read/search] is unauthorized for user [user_b] "
-                    + "with effective roles [] (assigned roles [role_b] were not found)"
-            )
-        );
-
-        e = expectThrows(ResponseException.class, () -> performRequestWithUser("user_b", new Request("GET", "/_license")));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "action [cluster:monitor/xpack/license/get] is unauthorized for user [user_b] "
-                    + "with effective roles [] (assigned roles [role_b] were not found)"
-            )
-        );
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {

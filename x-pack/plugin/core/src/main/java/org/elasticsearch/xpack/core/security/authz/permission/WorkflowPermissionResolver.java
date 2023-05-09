@@ -30,7 +30,7 @@ public final class WorkflowPermissionResolver {
      */
     public static final Workflow SEARCH_APPLICATION = Workflow.builder()
         .name("search_application")
-        .endpoints("search_application_query_action")
+        .endpoints("search_application_query_action", "get_license")
         .build();
 
     private static final Map<String, Workflow> WORKFLOW_LOOKUP_MAP;
@@ -91,6 +91,19 @@ public final class WorkflowPermissionResolver {
             workflows.add(WorkflowPermissionResolver.resolveWorkflow(name));
         }
         return new WorkflowPermission(workflows);
+    }
+
+    public static Set<Workflow> resolveWorkflowsByEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isEmpty()) {
+            return Set.of();
+        }
+        final Set<Workflow> result = new HashSet<>();
+        for (Workflow workflow : WORKFLOW_LOOKUP_MAP.values()) {
+            if (workflow.checkEndpoint(endpoint)) {
+                result.add(workflow);
+            }
+        }
+        return Set.copyOf(result);
     }
 
     private static <T> Set<T> readStaticFields(Class<?> source, Class<T> fieldType) {

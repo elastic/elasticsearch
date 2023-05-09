@@ -9,15 +9,19 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.WorkflowPermissionResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -280,16 +284,23 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     }
 
     private Set<RoleDescriptor> maybeRemoveRoleDescriptorsUsingWorkflows(Set<RoleDescriptor> roleDescriptors) {
-        return roleDescriptors.stream().filter(roleDescriptor -> {
+        if (roleDescriptors.isEmpty()) {
+            return roleDescriptors;
+        }
+        Set<RoleDescriptor> filtered = new HashSet<>();
+        for (RoleDescriptor roleDescriptor : roleDescriptors) {
             // TODO: Add license check and disable the role if license is not allowing workflow feature.
-            final String restEndpoint = threadContext.getHeader("_xpack_rest_handler_name");
-            logger.trace(() -> "Filtering role descriptors based on rest endpoint: " + restEndpoint);
+            String restEndpoint = threadContext.getHeader("_xpack_rest_handler_name");
+            Set<WorkflowPermission.Workflow> workflows = WorkflowPermissionResolver.resolveWorkflowsByEndpoint(restEndpoint);
+            logger.trace(() -> "Filtering role descriptors based on resolved workflows: " + workflows);
             boolean includeDescriptor = true;
-            if (restEndpoint == null) {
+            if (workflows == null || workflows.isEmpty()) {
                 includeDescriptor = roleDescriptor.hasWorkflowPrivileges() == false;
             } else if (roleDescriptor.hasWorkflowPrivileges()) {
-                includeDescriptor = WorkflowPermissionResolver.resolve(Set.of(roleDescriptor.getWorkflowPrivileges()))
-                    .checkEndpoint(restEndpoint);
+                includeDescriptor = Sets.haveNonEmptyIntersection(
+                    WorkflowPermissionResolver.resolve(Set.of(roleDescriptor.getWorkflowPrivileges())).workflows(),
+                    workflows
+                );
             }
             if (includeDescriptor == false) {
                 logger.debug(
@@ -298,9 +309,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleDescriptor.getName()
                     )
                 );
+            } else {
+                filtered.add(roleDescriptor);
             }
-            return includeDescriptor;
-        }).collect(Collectors.toSet());
+        }
+
+        if (filtered.isEmpty()) {
+            throw new ElasticsearchSecurityException("access denied by workflows", RestStatus.FORBIDDEN);
+        }
+        return filtered;
     }
 
 }

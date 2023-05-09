@@ -463,16 +463,14 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                             ? "unknown"
                             : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
                     );
-                    logger.warn(message);
-                    listener.onFailure(new ElasticsearchException(message));
+                    onFailure(new ElasticsearchException(message));
                 } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
                     String message = Strings.format(
                         "Force merge request only had %d successful shards out of a total of %d",
                         forceMergeResponse.getSuccessfulShards(),
                         forceMergeResponse.getTotalShards()
                     );
-                    logger.warn(message);
-                    listener.onFailure(new ElasticsearchException(message));
+                    onFailure(new ElasticsearchException(message));
                 } else {
                     logger.info("DLM successfully force merged index [{}]", targetIndex);
                     setForceMergeCompletedTimestamp(targetIndex, listener);
@@ -482,6 +480,11 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
             @Override
             public void onFailure(Exception e) {
                 String previousError = errorStore.getError(targetIndex);
+                /*
+                 * Note that this call to onFailure has to happen before the logging because we choose whether to log or not based on a
+                 * side effect of the onFailure call (it updates the error in the errorStore).
+                 */
+                listener.onFailure(e);
                 // To avoid spamming our logs, we only want to log the error once.
                 if (previousError == null || previousError.equals(errorStore.getError(targetIndex)) == false) {
                     logger.warn(
@@ -493,7 +496,6 @@ public class DataLifecycleService implements ClusterStateListener, Closeable, Sc
                         e
                     );
                 }
-                listener.onFailure(e);
             }
         });
     }

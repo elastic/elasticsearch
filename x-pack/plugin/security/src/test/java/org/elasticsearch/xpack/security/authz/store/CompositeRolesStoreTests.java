@@ -2522,8 +2522,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             when(subject.getUser()).thenReturn(internalUser);
             final PlainActionFuture<Collection<Set<RoleDescriptor>>> future = new PlainActionFuture<>();
             compositeRolesStore.getRoleDescriptorsList(subject, future);
-            internalUser.getLocalClusterRole()
-                .ifPresent(expectedRoleDescriptor -> assertThat(future.actionGet(), equalTo(List.of(Set.of(expectedRoleDescriptor)))));
+            assertThat(future.actionGet(), equalTo(List.of(Set.of(internalUser.getLocalClusterRole().get()))));
         }
     }
 

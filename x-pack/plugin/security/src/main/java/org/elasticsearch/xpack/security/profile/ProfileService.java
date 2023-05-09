@@ -197,8 +197,7 @@ public class ProfileService {
             return;
         }
 
-        User user = subject.getUser();
-        if (user instanceof InternalUser) {
+        if (subject.getUser() instanceof InternalUser) {
             listener.onFailure(
                 new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
             );

@@ -612,7 +612,6 @@ public class AuthenticationTestHelper {
                             user = ESTestCase.randomFrom(InternalUsers.get());
                         }
                         if (user instanceof InternalUser internalUser) {
-                            assert internalUser instanceof InternalUser : "user must be internal for internal authentication";
                             assert realmRef == null : "cannot specify realm type for internal authentication";
                             String nodeName = ESTestCase.randomAlphaOfLengthBetween(3, 8);
                             if (internalUser == SystemUser.INSTANCE) {

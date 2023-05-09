@@ -158,6 +158,12 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 searchShardIterator.getClusterAlias()
             );
             final ShardSearchRequest request = canMatchNodeRequest.createShardSearchRequest(buildShardLevelRequest(searchShardIterator));
+            if (searchShardIterator.prefiltered()) {
+                CanMatchShardResponse result = new CanMatchShardResponse(searchShardIterator.skip() == false, null);
+                result.setShardIndex(request.shardRequestIndex());
+                results.consumeResult(result, () -> {});
+                continue;
+            }
             boolean canMatch = true;
             CoordinatorRewriteContext coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(
                 request.shardId().getIndex()
@@ -520,11 +526,8 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         SearchSourceBuilder source = request.source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
-            if (possibleMatches.get(i++)) {
-                iter.reset();
-            } else {
-                iter.resetAndSkip();
-            }
+            boolean match = possibleMatches.get(i++);
+            iter.reset(match == false);
         }
         if (shouldSortShards(results.minAndMaxes) == false) {
             return shardsIts;

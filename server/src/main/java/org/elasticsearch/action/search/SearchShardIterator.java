@@ -34,7 +34,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final OriginalIndices originalIndices;
     private final String clusterAlias;
     private final ShardId shardId;
-    private boolean skip = false;
+    private boolean skip;
+    private final boolean prefiltered;
 
     private final ShardSearchContextId searchContextId;
     private final TimeValue searchContextKeepAlive;
@@ -50,7 +51,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      * @param originalIndices the indices that the search request originally related to (before any rewriting happened)
      */
     public SearchShardIterator(@Nullable String clusterAlias, ShardId shardId, List<ShardRouting> shards, OriginalIndices originalIndices) {
-        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null);
+        this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, false);
     }
 
     public SearchShardIterator(
@@ -59,7 +60,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         List<String> targetNodeIds,
         OriginalIndices originalIndices,
         ShardSearchContextId searchContextId,
-        TimeValue searchContextKeepAlive
+        TimeValue searchContextKeepAlive,
+        boolean prefiltered,
+        boolean skip
     ) {
         this.shardId = shardId;
         this.targetNodesIterator = new PlainIterator<>(targetNodeIds);
@@ -68,6 +71,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         this.searchContextId = searchContextId;
         this.searchContextKeepAlive = searchContextKeepAlive;
         assert searchContextKeepAlive == null || searchContextId != null;
+        this.prefiltered = prefiltered;
+        this.skip = skip;
+        assert skip == false || prefiltered : "only prefiltered shards are skip-able";
     }
 
     /**
@@ -112,16 +118,8 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
-    /**
-     * Reset the iterator and mark it as skippable
-     * @see #skip()
-     */
-    void resetAndSkip() {
-        reset();
-        skip = true;
-    }
-
-    void reset() {
+    void reset(boolean skip) {
+        this.skip = skip;
         targetNodesIterator.reset();
     }
 
@@ -130,6 +128,13 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      */
     boolean skip() {
         return skip;
+    }
+
+    /**
+     * Returns {@code true} if this iterator was applied pre-filtered
+     */
+    boolean prefiltered() {
+        return prefiltered;
     }
 
     @Override

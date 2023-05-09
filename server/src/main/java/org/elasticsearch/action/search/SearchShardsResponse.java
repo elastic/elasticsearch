@@ -9,13 +9,23 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,7 +37,11 @@ public final class SearchShardsResponse extends ActionResponse {
     private final Collection<DiscoveryNode> nodes;
     private final Map<String, AliasFilter> aliasFilters;
 
-    SearchShardsResponse(Collection<SearchShardsGroup> groups, Collection<DiscoveryNode> nodes, Map<String, AliasFilter> aliasFilters) {
+    public SearchShardsResponse(
+        Collection<SearchShardsGroup> groups,
+        Collection<DiscoveryNode> nodes,
+        Map<String, AliasFilter> aliasFilters
+    ) {
         this.groups = groups;
         this.nodes = nodes;
         this.aliasFilters = aliasFilters;
@@ -79,5 +93,23 @@ public final class SearchShardsResponse extends ActionResponse {
     @Override
     public int hashCode() {
         return Objects.hash(groups, nodes, aliasFilters);
+    }
+
+    public static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
+        List<SearchShardsGroup> groups = new ArrayList<>(oldResp.getGroups().length);
+        Map<String, Index> indexByNames = new HashMap<>();
+        for (ClusterSearchShardsGroup oldGroup : oldResp.getGroups()) {
+            ShardId shardId = oldGroup.getShardId();
+            indexByNames.put(shardId.getIndexName(), shardId.getIndex());
+            List<String> allocatedNodes = Arrays.stream(oldGroup.getShards()).map(ShardRouting::currentNodeId).toList();
+            groups.add(new SearchShardsGroup(shardId, allocatedNodes, false, false));
+        }
+        // convert index_name -> alias_filters to index_uuid -> alias_filters
+        Map<String, AliasFilter> aliasFilters = Maps.newMapWithExpectedSize(oldResp.getIndicesAndFilters().size());
+        for (Map.Entry<String, AliasFilter> e : oldResp.getIndicesAndFilters().entrySet()) {
+            Index index = indexByNames.get(e.getKey());
+            aliasFilters.put(index.getUUID(), e.getValue());
+        }
+        return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters);
     }
 }

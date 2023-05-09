@@ -23,6 +23,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -139,6 +142,18 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 Collections.emptyMap()
                             )
                         );
+                    }
+                }
+            );
+            newService.registerRequestHandler(
+                SearchShardsAction.NAME,
+                ThreadPool.Names.SAME,
+                SearchShardsRequest::new,
+                (request, channel, task) -> {
+                    if ("index_not_found".equals(request.preference())) {
+                        channel.sendResponse(new IndexNotFoundException("index"));
+                    } else {
+                        channel.sendResponse(new SearchShardsResponse(List.of(), knownNodes, Collections.emptyMap()));
                     }
                 }
             );

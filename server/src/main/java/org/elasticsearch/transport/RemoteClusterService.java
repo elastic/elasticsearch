@@ -218,7 +218,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * Ensures that the given cluster alias is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
+    public void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
         final RemoteClusterConnection remoteClusterConnection;
         try {
             remoteClusterConnection = getRemoteClusterConnection(clusterAlias);

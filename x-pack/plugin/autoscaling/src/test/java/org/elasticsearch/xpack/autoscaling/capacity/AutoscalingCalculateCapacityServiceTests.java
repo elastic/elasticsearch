@@ -216,7 +216,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
 
         assertThat(context.nodes().size(), equalTo(1));
-        assertThat(context.nodes(), equalTo(new HashSet<>(state.nodes())));
+        assertThat(context.nodes(), equalTo(new HashSet<>(state.nodes().getAllNodes())));
         if (hasDataRole) {
             assertNull(context.currentCapacity());
         } else {

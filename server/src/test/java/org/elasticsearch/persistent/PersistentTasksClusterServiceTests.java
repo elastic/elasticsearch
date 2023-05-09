@@ -45,9 +45,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -59,6 +57,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -116,7 +115,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         final PersistentTasksClusterService service = createService(
             (params, candidateNodes, clusterState) -> "never_assign".equals(((TestParams) params).getTestParam())
                 ? NO_NODE_FOUND
-                : randomNodeAssignment(clusterState.nodes())
+                : randomNodeAssignment(clusterState.nodes().getAllNodes())
         );
 
         int numberOfIterations = randomIntBetween(1, 30);
@@ -184,7 +183,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         final ClusterChangedEvent event = new ClusterChangedEvent("test", current, previous);
 
         final PersistentTasksClusterService service = createService(
-            (params, candidateNodes, clusterState) -> randomNodeAssignment(clusterState.nodes())
+            (params, candidateNodes, clusterState) -> randomNodeAssignment(clusterState.nodes().getAllNodes())
         );
         assertThat(dumpEvent(event), service.shouldReassignPersistentTasks(event), equalTo(changed && unassigned));
     }
@@ -614,14 +613,13 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             // Now that we have a bunch of tasks that need to be assigned, let's
             // mark half the nodes as shut down and make sure they do not have any
             // tasks assigned
-            Collection<DiscoveryNode> allNodes = clusterState.nodes();
-            Map<String, SingleNodeShutdownMetadata> shutdownMetadataMap = new HashMap<>();
-            allNodes.stream()
+            var allNodes = clusterState.nodes();
+            var shutdownMetadataMap = allNodes.stream()
                 .limit(Math.floorDiv(allNodes.size(), 2))
-                .forEach(
-                    node -> shutdownMetadataMap.put(
-                        node.getId(),
-                        SingleNodeShutdownMetadata.builder()
+                .collect(
+                    toMap(
+                        DiscoveryNode::getId,
+                        node -> SingleNodeShutdownMetadata.builder()
                             .setNodeId(node.getId())
                             .setReason("shutdown for a unit test")
                             .setType(type)

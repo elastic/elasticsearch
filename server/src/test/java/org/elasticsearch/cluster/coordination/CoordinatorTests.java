@@ -657,7 +657,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksIfLeaderStandsDown() {
-        try (Cluster cluster = new Cluster(3)) {
+        testAckListenerReceivesNacksIfLeaderStandsDown(Settings.EMPTY, TimeValue.ZERO);
+    }
+
+    protected void testAckListenerReceivesNacksIfLeaderStandsDown(Settings settings, TimeValue extraStabilisationTime) {
+        try (Cluster cluster = new Cluster(3, true, settings)) {
             cluster.runRandomly();
             cluster.stabilise();
             final ClusterNode leader = cluster.getAnyLeader();
@@ -670,7 +674,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             // let followers elect a leader among themselves before healing the leader and running the publication
             cluster.runFor(
                 DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
-                    + DEFAULT_ELECTION_DELAY,
+                    + DEFAULT_ELECTION_DELAY + extraStabilisationTime.millis(),
                 "elect new leader"
             );
             // cluster has two nodes in mode LEADER, in different terms ofc, and the one in the lower term won’t be able to publish anything

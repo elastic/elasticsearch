@@ -78,4 +78,12 @@ public class LiveVersionMapTestUtils {
     public static BytesRef uid(String id) {
         return new Term(IdFieldMapper.NAME, Uid.encodeId(id)).bytes();
     }
+
+    public static boolean isUnsafe(LiveVersionMap map) {
+        return map.isUnsafe();
+    }
+
+    public static boolean isSafeAccessRequired(LiveVersionMap map) {
+        return map.isSafeAccessRequired();
+    }
 }

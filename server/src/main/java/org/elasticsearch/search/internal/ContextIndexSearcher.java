@@ -218,7 +218,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
             return collectorManager.reduce(Collections.singletonList(firstCollector));
 
-
         } else {
             final List<C> collectors = new ArrayList<>(leafSlices.length);
             collectors.add(firstCollector);

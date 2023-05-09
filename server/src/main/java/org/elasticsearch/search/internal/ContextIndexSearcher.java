@@ -231,7 +231,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 final C collector = collectors.get(i);
                 FutureTask<C> task = new FutureTask<>(() -> {
                     search(Arrays.asList(leaves), weight, collector);
-                    if (firstCollector instanceof TwoPhaseCollector twoPhaseCollector) {
+                    if (collector instanceof TwoPhaseCollector twoPhaseCollector) {
                         twoPhaseCollector.postCollection();
                     }
                     return collector;

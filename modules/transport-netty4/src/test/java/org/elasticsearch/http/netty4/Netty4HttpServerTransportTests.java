@@ -9,6 +9,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PoolArenaMetric;
@@ -822,6 +823,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().uri(), is(urlReference.get()));
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
+                // assert content is dropped
+                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {
@@ -860,10 +863,12 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 );
                 validationResultExceptionReference.set(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
                 try (Netty4HttpClient client = new Netty4HttpClient()) {
+                    ByteBuf content = Unpooled.copiedBuffer(randomAlphaOfLengthBetween(1, 32), StandardCharsets.UTF_8);
                     FullHttpRequest request = new DefaultFullHttpRequest(
                         HttpVersion.HTTP_1_1,
                         httpMethodReference.get(),
-                        urlReference.get()
+                        urlReference.get(),
+                        content
                     );
                     // submit the request with some header custom header
                     headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));

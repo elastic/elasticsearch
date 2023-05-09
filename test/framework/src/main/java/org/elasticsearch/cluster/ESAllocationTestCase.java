@@ -363,8 +363,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 shardsAllocator,
                 clusterInfoService,
                 snapshotsInfoService,
-                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-                System::nanoTime
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
             this.gatewayAllocator = gatewayAllocator;
             this.shardsAllocator = shardsAllocator;

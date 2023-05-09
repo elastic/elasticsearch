@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -89,21 +89,13 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 .build(),
             HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
-        node = new DiscoveryNode(
-            "node",
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        frozenNode = new DiscoveryNode(
+        node = TestDiscoveryNode.create("node", "node");
+        frozenNode = TestDiscoveryNode.create(
             "frozen-node",
             "frozen-node",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
         );
         clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
@@ -311,13 +303,12 @@ public class LocalHealthMonitorTests extends ESTestCase {
     }
 
     public void testYellowStatusForNonDataNode() {
-        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
+        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
             "master-node",
             "master-node-1",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
         clusterState = ClusterStateCreationUtils.state(
             dedicatedMasterNode,
@@ -339,13 +330,12 @@ public class LocalHealthMonitorTests extends ESTestCase {
         DiscoveryNode localNode = state.nodes().getLocalNode();
         assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
 
-        DiscoveryNode dedicatedMasterNode = new DiscoveryNode(
+        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
             "master-node",
             "master-node-1",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
         ClusterState newState = ClusterState.builder(state)
             .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))

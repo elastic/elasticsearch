@@ -149,8 +149,7 @@ public class ClusterModule extends AbstractModule {
             shardsAllocator,
             clusterInfoService,
             snapshotsInfoService,
-            shardRoutingRoleStrategy,
-            threadPool::relativeTimeInNanos
+            shardRoutingRoleStrategy
         );
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
     }

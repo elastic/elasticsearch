@@ -145,6 +145,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     // tries to pre-filter shards based on information that's available to the coordinator
     // without having to reach out to the actual shards
     private void runCoordinatorRewritePhase() {
+        // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {

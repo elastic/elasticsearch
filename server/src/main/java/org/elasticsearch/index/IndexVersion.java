@@ -269,6 +269,20 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return org.elasticsearch.Version.fromId(id);
     }
 
+    /**
+     * Returns the minimum version of {@code version1} and {@code version2}
+     */
+    public static IndexVersion min(IndexVersion version1, IndexVersion version2) {
+        return version1.id < version2.id ? version1 : version2;
+    }
+
+    /**
+     * Returns the maximum version of {@code version1} and {@code version2}
+     */
+    public static IndexVersion max(IndexVersion version1, IndexVersion version2) {
+        return version1.id > version2.id ? version1 : version2;
+    }
+
     public boolean after(IndexVersion version) {
         return version.id < id;
     }

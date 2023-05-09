@@ -69,17 +69,28 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
-            && event.state().nodes().isLocalNodeElectedMaster();
-        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
-            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
-            return;
-        }
-
         NodesShutdownMetadata eventShutdownMetadata = event.state().metadata().custom(NodesShutdownMetadata.TYPE);
 
         if (eventShutdownMetadata == null) {
             // Since there's no shutdown metadata at all, we know no shutdowns have ever been registered and we can bail.
+            return;
+        }
+
+        final boolean sigtermNodesRemoved = eventShutdownMetadata.getAllNodeMetadataMap()
+            .values()
+            .stream()
+            .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.SIGTERM)
+            .map(SingleNodeShutdownMetadata::getNodeId)
+            .anyMatch(nodeId -> event.state().nodes().nodeExists(nodeId) == false);
+
+        if (sigtermNodesRemoved) {
+            cleanupSigtermTaskQueue.submitTask("sigterm nodes left cluster", new RemoveSigtermShutdownTask(), null);
+        }
+
+        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && event.state().nodes().isLocalNodeElectedMaster();
+        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
+            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
             return;
         }
 
@@ -93,17 +104,6 @@ public class NodeSeenService implements ClusterStateListener {
 
         if (nodesNotPreviouslySeen.isEmpty() == false) {
             setSeenTaskQueue.submitTask("saw new nodes", new SetSeenNodesShutdownTask(nodesNotPreviouslySeen), null);
-        }
-
-        final boolean sigtermNodesRemoved = eventShutdownMetadata.getAllNodeMetadataMap()
-            .values()
-            .stream()
-            .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.SIGTERM)
-            .map(SingleNodeShutdownMetadata::getNodeId)
-            .anyMatch(nodeId -> event.state().nodes().nodeExists(nodeId) == false);
-
-        if (sigtermNodesRemoved == false) {
-            cleanupSigtermTaskQueue.submitTask("sigterm nodes left cluster", new RemoveSigtermShutdownTask(), null);
         }
     }
 
@@ -177,7 +177,7 @@ public class NodeSeenService implements ClusterStateListener {
                     modified = true;
                 }
             }
-            if (modified) {
+            if (modified == false) {
                 return initialState;
             }
 

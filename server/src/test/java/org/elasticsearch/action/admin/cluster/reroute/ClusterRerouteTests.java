@@ -77,7 +77,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
 
@@ -108,7 +109,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
         ClusterState clusterState = createInitialClusterState(allocationService);
 

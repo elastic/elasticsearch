@@ -82,7 +82,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     }
 
     @Before
-    private void setup() {
+    public void setup() {
         canAllocate.set((r, n, a) -> { throw new UnsupportedOperationException("canAllocate not initiated in this test"); });
         canRemain.set((r, n, a) -> { throw new UnsupportedOperationException("canRemain not initiated in this test"); });
 
@@ -129,7 +129,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             new BalancedShardsAllocator(Settings.EMPTY),
             clusterInfoService,
             snapshotsInfoService,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
     }

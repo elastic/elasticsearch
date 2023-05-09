@@ -59,7 +59,7 @@ public class WorkflowsAuthorizationTests extends SecurityIntegTestCase {
 
     private static final String USERS_ROLES = """
         role_a:user_a
-        role_b:user_b
+        role_b:user_b,user_a
         """;
 
     @Override

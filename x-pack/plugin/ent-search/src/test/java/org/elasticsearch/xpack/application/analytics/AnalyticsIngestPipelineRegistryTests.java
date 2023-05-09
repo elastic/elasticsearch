@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -173,6 +174,25 @@ public class AnalyticsIngestPipelineRegistryTests extends ESTestCase {
 
         client.setVerifier((a, r, l) -> {
             fail("if the master is missing nothing should happen");
+            return null;
+        });
+
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
+        registry.clusterChanged(event);
+    }
+
+    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
+        DiscoveryNode updatedNode = TestDiscoveryNode.create("updatedNode");
+        DiscoveryNode outdatedNode = TestDiscoveryNode.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_7_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId("updatedNode")
+            .masterNodeId("updatedNode")
+            .add(updatedNode)
+            .add(outdatedNode)
+            .build();
+
+        client.setVerifier((a, r, l) -> {
+            fail("if some cluster mode are not updated to at least v.8.8.0 nothing should happen");
             return null;
         });
 

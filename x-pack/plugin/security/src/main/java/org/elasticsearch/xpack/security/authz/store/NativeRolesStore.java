@@ -65,7 +65,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -225,11 +225,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else if (role.hasRemoteIndicesPrivileges()
-            && clusterService.state().nodes().getMinNodeVersion().before(VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "all nodes must have version ["
-                            + VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                        "all nodes must have transport version ["
+                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
                             + "] or higher to support remote indices privileges"
                     )
                 );

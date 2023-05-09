@@ -92,6 +92,10 @@ public class TransformDestIndexIT extends TransformRestTestCase {
         // Verify that the search results are the same, regardless whether we use index or alias
         assertHitsAreTheSame(destIndex1, destAliasAll, destAliasLatest);
 
+        // Stop the transform so that the transform task is properly removed before calling DELETE.
+        // TODO: Remove this step once the underlying issue (race condition is fixed).
+        stopTransform(transformId, false);
+
         // Delete the transform
         deleteTransform(transformId);
         assertAliases(destIndex1, destAliasAll, destAliasLatest);

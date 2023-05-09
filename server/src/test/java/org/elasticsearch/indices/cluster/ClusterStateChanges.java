@@ -161,8 +161,7 @@ public class ClusterStateChanges {
             new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            threadPool::relativeTimeInNanos
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);

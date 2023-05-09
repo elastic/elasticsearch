@@ -53,7 +53,7 @@ public class GeometrySimplificationBenchmark {
     @Setup
     public void setup() throws ParseException, IOException {
         SimplificationErrorCalculator calculator = SimplificationErrorCalculator.byName(calculatorName);
-        this.simplifier = new GeometrySimplifier.LinearRings(maxPoints, calculator);
+        this.simplifier = new GeometrySimplifier.LinearRingSimplifier(maxPoints, calculator);
         if (ring == null) {
             ring = loadRing("us.json.gz");
         }

@@ -58,7 +58,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
      * as done in the geometry-simplifier-debug project. Or, as done here, it can allow for collecting
      * information for later test assertions.
      */
-    private static class TestMonitor implements GeometrySimplifier.Monitor {
+    private static class TestMonitor implements StreamingGeometrySimplifier.Monitor {
         private final String name;
         private final int maxPoints;
         private int added = 0;
@@ -191,21 +191,12 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         G simplified = simplifier.simplify(geometry);
         assertThat("Same geometry", simplified, equalTo(geometry));
         monitor.assertCompleted(1, 0, 0); // simplification never actually used
-
-        // Test streaming simplification
-        simplifier.reset();
-        String name = simplifier.getClass().getSimpleName();
-        String expected = "geometry simplifier cannot work in streaming mode";
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
-        assertThat(name, ex.getMessage(), containsString(expected));
-        ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
-        assertThat(name, ex.getMessage(), containsString(expected));
     }
 
     public void testShortLine() {
         int maxPoints = 10;
         var monitor = new TestMonitor("ShortLine", maxPoints);
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         Line line = new Line(new double[] { -1, 0, 1 }, new double[] { -1, 0, 1 });
 
         // Test full geometry simplification
@@ -214,20 +205,20 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         monitor.assertCompleted(1, 0, 0); // simplification never actually used
 
         // Test streaming simplification
-        simplifier.reset();
+        StreamingGeometrySimplifier<Line> streaming = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         for (int i = 0; i < line.length(); i++) {
-            simplifier.consume(line.getX(i), line.getY(i));
+            streaming.consume(line.getX(i), line.getY(i));
         }
-        Line streamSimplified = simplifier.produce();
+        Line streamSimplified = streaming.produce();
         assertThat("Same line", streamSimplified, equalTo(simplified));
-        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(line.length()));
+        assertThat("Should create exactly the needed number of PointError objects", streaming.objCount, equalTo(line.length()));
         monitor.assertCompleted(1, 3, 0);  // stream used for less than maxPoints
     }
 
     public void testStraightLine() {
         int maxPoints = 10;
         var monitor = new TestMonitor("StraightLine", maxPoints);
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         double[] x = new double[100];
         double[] y = new double[100];
         for (int i = 0; i < 100; i++) {
@@ -242,11 +233,11 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         monitor.assertCompleted(1, line.length(), line.length() - maxPoints);
 
         // Test streaming simplification
-        simplifier.reset();
+        StreamingGeometrySimplifier<Line> streaming = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         for (int i = 0; i < line.length(); i++) {
-            simplifier.consume(line.getX(i), line.getY(i));
+            streaming.consume(line.getX(i), line.getY(i));
         }
-        Line streamSimplified = simplifier.produce();
+        Line streamSimplified = streaming.produce();
         assertLineEnds(maxPoints, streamSimplified, line);
         for (int i = 0; i < line.length(); i++) {
             double px = line.getX(i);
@@ -255,7 +246,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             assertTrue(onLine, pointExistsOnLine(px, py, simplified));
             assertTrue(onLine, pointExistsOnLine(px, py, streamSimplified));
         }
-        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        assertThat("Should create exactly the needed number of PointError objects", streaming.objCount, equalTo(maxPoints + 1));
         monitor.assertCompleted(1, 2 * line.length(), 2 * (line.length() - maxPoints));
     }
 
@@ -264,7 +255,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         int zigSize = 2;
         int lineLength = (maxPoints - 1) * zigSize + 1; // chosen to get rid of all y-crossings during simplification
         var monitor = new TestMonitor("ZigZagLine", maxPoints);
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         double[] x = new double[lineLength];
         double[] y = new double[lineLength];
         for (int i = 0; i < lineLength; i++) {
@@ -283,11 +274,11 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         monitor.assertCompleted(1, line.length(), line.length() - maxPoints);
 
         // Test streaming simplification
-        simplifier.reset();
+        StreamingGeometrySimplifier<Line> streaming = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         for (int i = 0; i < line.length(); i++) {
-            simplifier.consume(line.getX(i), line.getY(i));
+            streaming.consume(line.getX(i), line.getY(i));
         }
-        Line streamSimplified = simplifier.produce();
+        Line streamSimplified = streaming.produce();
         assertLineEnds(maxPoints, streamSimplified, line);
         assertLinePointNeverHave(simplified, 0.0);
         for (int i = 0; i < line.length(); i++) {
@@ -298,7 +289,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
             assertTrue(onLine, pointExistsOnLine(px, py, streamSimplified));
         }
         assertThat("Same line", streamSimplified, equalTo(simplified));
-        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        assertThat("Should create exactly the needed number of PointError objects", streaming.objCount, equalTo(maxPoints + 1));
         monitor.assertCompleted(1, 2 * line.length(), 2 * (line.length() - maxPoints));
     }
 
@@ -311,27 +302,25 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Line line = makeCircularLine(maxPoints, countFactor, centerX, centerY, radius);
         assertPointsOnCircle(centerX, centerY, radius, line);
         var monitor = new TestMonitor("CircularLine", maxPoints);
-        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
+        GeometrySimplifier<Line> simplifier = new GeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         // Test full geometry simplification
         Line simplified = simplifier.simplify(line);
         assertLineEnds(maxPoints, simplified, line);
         assertPointsOnCircle(centerX, centerY, radius, simplified);
 
         // Test streaming simplification
-        simplifier.reset();
-        simplifier.notifyMonitorSimplificationStart();
+        StreamingGeometrySimplifier<Line> streaming = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
         for (int i = 0; i < line.length(); i++) {
-            simplifier.consume(line.getX(i), line.getY(i));
+            streaming.consume(line.getX(i), line.getY(i));
         }
-        simplifier.notifyMonitorSimplificationEnd();
-        Line streamSimplified = simplifier.produce();
+        Line streamSimplified = streaming.produce();
         assertLineEnds(maxPoints, streamSimplified, line);
         assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
         assertThat("Same line", streamSimplified, equalTo(simplified));
         int shouldHaveAdded = 2 * maxPoints * countFactor;
         int shouldHaveRemoved = shouldHaveAdded - maxPoints * 2;
-        monitor.assertCompleted(2, shouldHaveAdded, shouldHaveRemoved);
-        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        monitor.assertCompleted(1, shouldHaveAdded, shouldHaveRemoved);
+        assertThat("Should create exactly the needed number of PointError objects", streaming.objCount, equalTo(maxPoints + 1));
     }
 
     public void testCircularPolygon() {
@@ -343,28 +332,30 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Polygon polygon = makeCircularPolygon(maxPoints, countFactor, centerX, centerY, radius);
         assertPointsOnCircle(centerX, centerY, radius, polygon);
         var monitor = new TestMonitor("CircularPolygon", maxPoints);
-        GeometrySimplifier<Polygon> simplifier = new GeometrySimplifier.Polygons(maxPoints, calculator(), monitor);
+        GeometrySimplifier<Polygon> simplifier = new GeometrySimplifier.PolygonSimplifier(maxPoints, calculator(), monitor);
         // Test full geometry simplification
         Polygon simplified = simplifier.simplify(polygon);
         assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
         assertPointsOnCircle(centerX, centerY, radius, simplified);
 
         // Test streaming simplification
-        simplifier.reset();
-        simplifier.notifyMonitorSimplificationStart();
+        StreamingGeometrySimplifier<Polygon> streaming = new StreamingGeometrySimplifier.PolygonSimplifier(
+            maxPoints,
+            calculator(),
+            monitor
+        );
         LinearRing ring = polygon.getPolygon();
         for (int i = 0; i < ring.length(); i++) {
-            simplifier.consume(ring.getX(i), ring.getY(i));
+            streaming.consume(ring.getX(i), ring.getY(i));
         }
-        simplifier.notifyMonitorSimplificationEnd();
-        Polygon streamSimplified = simplifier.produce();
+        Polygon streamSimplified = streaming.produce();
         assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
         assertPointsOnCircle(centerX, centerY, radius, streamSimplified);
         assertThat("Same line", streamSimplified, equalTo(simplified));
         int shouldHaveAdded = 2 * maxPoints * countFactor + 2;
         int shouldHaveRemoved = shouldHaveAdded - maxPoints * 2;
-        monitor.assertCompleted(2, shouldHaveAdded, shouldHaveRemoved);
-        assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
+        monitor.assertCompleted(1, shouldHaveAdded, shouldHaveRemoved);
+        assertThat("Should create exactly the needed number of PointError objects", streaming.objCount, equalTo(maxPoints + 1));
     }
 
     public void testLineWithBackPaths() {
@@ -373,10 +364,13 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Line line = new Line(x, y);
         int maxPoints = 7;
         var monitor = new TestMonitor("LineWithBackPaths", maxPoints);
-        GeometrySimplifier.LineStrings simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
-        Line simplified = simplifier.simplify(line);
+        var simplifier = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
+        for (int i = 0; i < line.length(); i++) {
+            simplifier.consume(line.getX(i), line.getY(i));
+        }
+        Line simplified = simplifier.produce();
         assertLineEnds(maxPoints, simplified, line);
-        monitor.assertCompleted(1, x.length, x.length - maxPoints);
+        monitor.assertCompleted(0, x.length, x.length - maxPoints);
         assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
     }
 
@@ -390,13 +384,17 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         int[] maxPointsArray = new int[] { 15, 7 };
         var monitor = new TestMonitor("LineWithBackPaths2", maxPointsArray[0]);
         for (int maxPoints : maxPointsArray) {
-            var simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
-            simplifier.simplify(line);
+            var simplifier = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
+            for (int i = 0; i < line.length(); i++) {
+                simplifier.consume(line.getX(i), line.getY(i));
+            }
+            Line simplified = simplifier.produce();
+            assertLineEnds(maxPoints, simplified, line);
             assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
         }
         int shouldHaveAdded = maxPointsArray.length * line.length();
         int shouldHaveRemoved = shouldHaveAdded - Arrays.stream(maxPointsArray).sum();
-        monitor.assertCompleted(2, shouldHaveAdded, shouldHaveRemoved);
+        monitor.assertCompleted(0, shouldHaveAdded, shouldHaveRemoved);
     }
 
     public void testLineWithNarrowSpikes() {
@@ -417,10 +415,13 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
         Line line = new Line(x, y);
         var monitor = new TestMonitor("LineWithNarrowSpikes", maxPoints);
-        GeometrySimplifier.LineStrings simplifier = new GeometrySimplifier.LineStrings(maxPoints, calculator(), monitor);
-        Line simplified = simplifier.simplify(line);
+        var simplifier = new StreamingGeometrySimplifier.LineSimplifier(maxPoints, calculator(), monitor);
+        for (int i = 0; i < line.length(); i++) {
+            simplifier.consume(line.getX(i), line.getY(i));
+        }
+        Line simplified = simplifier.produce();
         assertLineWithNarrowSpikes(simplified, count);
-        monitor.assertCompleted(1, x.length, x.length - maxPoints);
+        monitor.assertCompleted(0, x.length, x.length - maxPoints);
         assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
     }
 
@@ -445,10 +446,14 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Polygon polygon = Arrays.stream(polygons).reduce((v, p) -> p.getPolygon().length() > v.getPolygon().length() ? p : v).get();
         for (int maxPoints : new int[] { maxPoints1, maxPoints2 }) {
             var monitor = new TestMonitor("us-polygon-" + maxPoints, maxPoints);
-            var simplifier = new GeometrySimplifier.Polygons(maxPoints, calculator(), monitor);
-            Polygon simplified = simplifier.simplify(polygon);
+            var simplifier = new StreamingGeometrySimplifier.PolygonSimplifier(maxPoints, calculator(), monitor);
+            var ring = polygon.getPolygon();
+            for (int i = 0; i < ring.length(); i++) {
+                simplifier.consume(ring.getX(i), ring.getY(i));
+            }
+            var simplified = simplifier.produce();
             assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
-            monitor.assertCompleted(1, polygon.getPolygon().length(), polygon.getPolygon().length() - maxPoints);
+            monitor.assertCompleted(0, polygon.getPolygon().length(), ring.length() - maxPoints);
             assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
         }
     }
@@ -458,13 +463,17 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         Polygon[] polygons = makePolygonsFromGeoJsonFile("us.json.gz");
         for (int i = 0; i < polygons.length; i++) {
             Polygon polygon = polygons[i];
-            int length = polygon.getPolygon().length();
+            var ring = polygon.getPolygon();
+            int length = ring.length();
             if (length > maxPoints * 2 && length < maxPoints * 10) {
                 var monitor = new TestMonitor("us-polygon-" + i + "-" + maxPoints, maxPoints);
-                var simplifier = new GeometrySimplifier.Polygons(maxPoints, calculator(), monitor);
-                Polygon simplified = simplifier.simplify(polygon);
+                var simplifier = new StreamingGeometrySimplifier.PolygonSimplifier(maxPoints, calculator(), monitor);
+                for (int j = 0; j < length; j++) {
+                    simplifier.consume(ring.getX(j), ring.getY(j));
+                }
+                var simplified = simplifier.produce();
                 assertPolygonEnds("Polygon", maxPoints, simplified, polygon);
-                monitor.assertCompleted(1, length, length - maxPoints);
+                monitor.assertCompleted(0, length, length - maxPoints);
                 assertThat("Should create exactly the needed number of PointError objects", simplifier.objCount, equalTo(maxPoints + 1));
             }
         }
@@ -478,7 +487,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         MultiPolygon multiPolygon = new MultiPolygon(Arrays.asList(polygons));
         for (int maxPoints : new int[] { maxPoints1, maxPoints2 }) {
             var monitor = new TestMonitor("us-polygon-mp-" + maxPoints, maxPoints);
-            var simplifier = new GeometrySimplifier.MultiPolygons(maxPoints, calculator(), monitor);
+            var simplifier = new GeometrySimplifier.MultiPolygonSimplifier(maxPoints, calculator(), monitor);
             MultiPolygon simplifiedMultiPolygon = simplifier.simplify(multiPolygon);
             for (int i = 0; i < simplifiedMultiPolygon.size(); i++) {
                 Polygon simplified = simplifiedMultiPolygon.get(i);
@@ -496,26 +505,20 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
     }
 
-    public void testErrorOnEmptySimplifier() {
-        for (GeometrySimplifier<?> simplifier : new GeometrySimplifier<?>[] {
-            new GeometrySimplifier.LineStrings(10, calculator()),
-            new GeometrySimplifier.LinearRings(10, calculator()),
-            new GeometrySimplifier.Polygons(10, calculator()),
-            new GeometrySimplifier.MultiPolygons(10, calculator()),
-            new GeometrySimplifier.GeometryCollections(10, calculator()) }) {
+    public void testErrorOnEmptyStreamingSimplifier() {
+        for (StreamingGeometrySimplifier<?> simplifier : new StreamingGeometrySimplifier<?>[] {
+            new StreamingGeometrySimplifier.LineSimplifier(10, calculator()),
+            new StreamingGeometrySimplifier.LinearRingSimplifier(10, calculator()),
+            new StreamingGeometrySimplifier.PolygonSimplifier(10, calculator()) }) {
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
-            String name = simplifier.getClass().getSimpleName();
-            String expected = name.startsWith("MultiPolygon") || name.startsWith("GeometryCollection")
-                ? "geometry simplifier cannot work in streaming mode"
-                : "No points have been consumed";
-            assertThat(simplifier.getClass().getSimpleName(), ex.getMessage(), containsString(expected));
+            assertThat(simplifier.getClass().getSimpleName(), ex.getMessage(), containsString("No points have been consumed"));
         }
     }
 
     public void testShortValidLinearRing() {
         double[] x = new double[] { 0, 1, 1, 0, 0 };
         double[] y = new double[] { 0, 0, 1, 1, 0 };
-        var simplifier = new GeometrySimplifier.LinearRings(10, calculator());
+        var simplifier = new StreamingGeometrySimplifier.LinearRingSimplifier(10, calculator());
         for (int i = 0; i < x.length; i++) {
             simplifier.consume(x[i], y[i]);
         }
@@ -526,7 +529,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
     public void testShortInvalidLinearRing() {
         double[] x = new double[] { 0, 1, 1 };
         double[] y = new double[] { 0, 0, 1 };
-        var simplifier = new GeometrySimplifier.LinearRings(10, calculator());
+        var simplifier = new StreamingGeometrySimplifier.LinearRingSimplifier(10, calculator());
         for (int i = 0; i < x.length; i++) {
             simplifier.consume(x[i], y[i]);
         }
@@ -537,24 +540,12 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
     public void testInvalidLinearRing() {
         double[] x = new double[] { 0, 1, 1, 0 };
         double[] y = new double[] { 0, 0, 1, 1 };
-        var simplifier = new GeometrySimplifier.LinearRings(10, calculator());
+        var simplifier = new StreamingGeometrySimplifier.LinearRingSimplifier(10, calculator());
         for (int i = 0; i < x.length; i++) {
             simplifier.consume(x[i], y[i]);
         }
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, simplifier::produce);
-        assertThat(ex.getMessage(), containsString("first and last points of the linear ring must be the same"));
-    }
-
-    public void testMultiPolygonDisallowsStreaming() {
-        var simplifier = new GeometrySimplifier.MultiPolygons(10, calculator());
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
-        assertThat(ex.getMessage(), containsString("simplifier cannot work in streaming mode"));
-    }
-
-    public void testGeometryCollectionDisallowsStreaming() {
-        var simplifier = new GeometrySimplifier.GeometryCollections(10, calculator());
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> simplifier.consume(0, 0));
-        assertThat(ex.getMessage(), containsString("simplifier cannot work in streaming mode"));
+        assertThat(ex.getMessage(), containsString("LinearRing cannot have first and last points differ"));
     }
 
     public void testGeometryCollectionSimplificationWithoutSimplification() {
@@ -610,17 +601,17 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
     }
 
     public void testPriorityQueuePointError() {
-        PriorityQueue<GeometrySimplifier.PointError> queue = new PriorityQueue<>();
-        GeometrySimplifier.PointError[] errors = new GeometrySimplifier.PointError[10];
+        PriorityQueue<StreamingGeometrySimplifier.PointError> queue = new PriorityQueue<>();
+        StreamingGeometrySimplifier.PointError[] errors = new StreamingGeometrySimplifier.PointError[10];
         for (int i = 0; i < 10; i++) {
-            GeometrySimplifier.PointError error = new GeometrySimplifier.PointError(i, 0, 0);
+            StreamingGeometrySimplifier.PointError error = new StreamingGeometrySimplifier.PointError(i, 0, 0);
             error.error = randomDouble();
             queue.add(error);
             errors[i] = error;
         }
-        GeometrySimplifier.PointError previous = null;
+        StreamingGeometrySimplifier.PointError previous = null;
         while (queue.isEmpty() == false) {
-            GeometrySimplifier.PointError error = queue.poll();
+            StreamingGeometrySimplifier.PointError error = queue.poll();
             if (previous != null) {
                 assertThat("Should be sorted", error.error, greaterThanOrEqualTo(previous.error));
             }
@@ -637,7 +628,7 @@ public abstract class GeometrySimplifierTests extends ESTestCase {
         }
         previous = null;
         while (queue.isEmpty() == false) {
-            GeometrySimplifier.PointError error = queue.poll();
+            StreamingGeometrySimplifier.PointError error = queue.poll();
             if (previous != null) {
                 assertThat("Should be sorted", error.error, greaterThanOrEqualTo(previous.error));
             }

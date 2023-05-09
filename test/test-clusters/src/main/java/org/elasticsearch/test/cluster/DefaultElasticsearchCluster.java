@@ -6,23 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.test.cluster.local;
+package org.elasticsearch.test.cluster;
 
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.LocalDistributionResolver;
-import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionResolver;
-import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
 import org.elasticsearch.test.cluster.util.Version;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-public class LocalElasticsearchCluster implements ElasticsearchCluster {
-    private final DefaultLocalClusterSpecBuilder builder;
-    private LocalClusterSpec spec;
-    private LocalClusterHandle handle;
+import java.util.function.Supplier;
 
-    public LocalElasticsearchCluster(DefaultLocalClusterSpecBuilder builder) {
-        this.builder = builder;
+public class DefaultElasticsearchCluster<S extends ClusterSpec, H extends ClusterHandle> implements ElasticsearchCluster {
+    private final Supplier<S> specProvider;
+    private final ClusterFactory<S, H> clusterFactory;
+    private H handle;
+
+    public DefaultElasticsearchCluster(Supplier<S> specProvider, ClusterFactory<S, H> clusterFactory) {
+        this.specProvider = specProvider;
+        this.clusterFactory = clusterFactory;
     }
 
     @Override
@@ -31,10 +30,8 @@ public class LocalElasticsearchCluster implements ElasticsearchCluster {
             @Override
             public void evaluate() throws Throwable {
                 try {
-                    spec = builder.buildClusterSpec();
-                    handle = new LocalClusterFactory(
-                        new LocalDistributionResolver(new SnapshotDistributionResolver(new ReleasedDistributionResolver()))
-                    ).create(spec);
+                    S spec = specProvider.get();
+                    handle = clusterFactory.create(spec);
                     handle.start();
                     base.evaluate();
                 } finally {

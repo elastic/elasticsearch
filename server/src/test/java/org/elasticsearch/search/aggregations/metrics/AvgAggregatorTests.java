@@ -13,9 +13,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -257,37 +255,6 @@ public class AvgAggregatorTests extends AggregatorTestCase {
              */
             iw.addDocuments(docs);
         }, avg -> assertEquals(expected, avg.getValue(), delta), fieldType);
-    }
-
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
-        indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
-        indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
-        indexWriter.close();
-
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-
-        InternalAvg avg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
-
-        assertEquals(4, avg.getValue(), 0);
-        assertEquals(3, avg.getCount(), 0);
-        assertTrue(AggregationInspectionHelper.hasValue(avg));
-
-        multiReader.close();
-        directory.close();
-        unmappedDirectory.close();
     }
 
     public void testSingleValuedField() throws IOException {
@@ -532,8 +499,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         Terms terms = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldType));
         assertNotNull(terms);
@@ -587,16 +554,11 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(singleton(new NumericDocValuesField("value", i + 1)));
         }
+        indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value");
@@ -607,9 +569,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertEquals("avg", avg.getName());
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 
     /**
@@ -625,14 +586,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
 
-        Directory unmappedDirectory = newDirectory();
-        RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-        unmappedIndexWriter.close();
-
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory);
-        MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-        IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg").field("value")
@@ -654,9 +609,8 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertEquals("avg", avg.getName());
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
-        multiReader.close();
+        indexReader.close();
         directory.close();
-        unmappedDirectory.close();
     }
 
     @Override

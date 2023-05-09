@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -493,12 +493,11 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static ClusterState state() {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "1",
                     ESTestCase.buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles()),
-                    Version.CURRENT
+                    new HashSet<>(DiscoveryNodeRole.roles())
                 )
             )
             .masterNodeId("1")

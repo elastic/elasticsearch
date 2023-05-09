@@ -148,7 +148,7 @@ public class InternalEngine extends Engine {
     // TODO: move the following two to the stateless plugin
     private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
     // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
-    protected final AtomicLong preCommitRecordedSegmentGeneration = new AtomicLong(-1);
+    private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -2108,7 +2108,7 @@ public class InternalEngine extends Engine {
                         // if right after committing the IndexWriter new docs get indexed/updated and a refresh moves them to the archive,
                         // we clear them from the archive once we see that segment generation on the search shards, but those changes
                         // were not included in the commit since they happened right after it.
-                        preCommitRecordedSegmentGeneration.set(lastCommittedSegmentInfos.getGeneration() + 1);
+                        preCommitSegmentGeneration.set(lastCommittedSegmentInfos.getGeneration() + 1);
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
@@ -3245,5 +3245,9 @@ public class InternalEngine extends Engine {
     private static boolean assertGetUsesIdField(Get get) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         return true;
+    }
+
+    protected long getPreCommitSegmentGeneration() {
+        return preCommitSegmentGeneration.get();
     }
 }

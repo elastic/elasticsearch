@@ -143,7 +143,8 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
     }
 

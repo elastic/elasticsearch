@@ -131,7 +131,8 @@ public class AllocationServiceTests extends ESTestCase {
             },
             new EmptyClusterInfoService(),
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
 
         final String unrealisticAllocatorName = "unrealistic";
@@ -235,7 +236,8 @@ public class AllocationServiceTests extends ESTestCase {
             null,
             null,
             null,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            System::nanoTime
         );
         allocationService.setExistingShardsAllocators(
             Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator())

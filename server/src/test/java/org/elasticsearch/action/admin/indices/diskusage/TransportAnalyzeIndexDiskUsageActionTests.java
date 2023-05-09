@@ -88,7 +88,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> groupShardRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            DiscoveryNode node = randomFrom(nodes);
+            DiscoveryNode node = randomFrom(nodes.getAllNodes());
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED);
             groupShardRoutings.put(shardId, List.of(shardRouting));
             nodeToShards.computeIfAbsent(node, k -> new LinkedList<>()).add(shardRouting);
@@ -145,7 +145,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> shardToRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, nodes.size()), nodes).stream()
+            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, nodes.size()), nodes.getAllNodes()).stream()
                 .map(node -> TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED))
                 .toList();
             shardToRoutings.put(shardId, shardRoutings);
@@ -229,7 +229,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
         Map<ShardId, List<ShardRouting>> shardToRoutings = new HashMap<>();
         for (int i = 0; i < numberOfShards; i++) {
             ShardId shardId = new ShardId("test_index", "n/a", i);
-            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, discoNodes.size()), discoNodes).stream()
+            List<ShardRouting> shardRoutings = randomSubsetOf(between(1, discoNodes.size()), discoNodes.getAllNodes()).stream()
                 .map(node -> TestShardRouting.newShardRouting(shardId, node.getId(), randomBoolean(), ShardRoutingState.STARTED))
                 .toList();
             shardToRoutings.put(shardId, shardRoutings);

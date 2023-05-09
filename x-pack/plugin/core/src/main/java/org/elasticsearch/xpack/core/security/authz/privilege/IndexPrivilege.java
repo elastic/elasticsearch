@@ -29,6 +29,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.transport.TcpTransport;
@@ -77,7 +78,8 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
-        ClusterSearchShardsAction.NAME
+        ClusterSearchShardsAction.NAME,
+        SearchShardsAction.NAME
     );
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
@@ -112,6 +114,7 @@ public final class IndexPrivilege extends Privilege {
         GetFieldMappingsAction.NAME + "*",
         GetMappingsAction.NAME,
         ClusterSearchShardsAction.NAME,
+        SearchShardsAction.NAME,
         ValidateQueryAction.NAME + "*",
         GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME,

@@ -265,7 +265,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final Collection<RetentionLease> expiredLeases = partitionByExpiration.get(true);
         if (expiredLeases == null) {
             // early out as no retention leases have expired
-            logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
+            logger.trace("no retention leases are expired from current retention leases [{}]", retentionLeases);
             return retentionLeases;
         }
         final List<RetentionLease> nonExpiredLeases = partitionByExpiration.get(false) != null

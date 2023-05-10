@@ -16,6 +16,7 @@ dependencies {
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
 }
 
 addQaCheckDependencies(project)

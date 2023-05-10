@@ -49,6 +49,7 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   keystore 's3.client.searchable_snapshots.access_key', s3AccessKey
   keystore 's3.client.searchable_snapshots.secret_key', s3SecretKey
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.profiling.templates.enabled', 'false'
 
   if (useFixture) {
     def fixtureAddress = { fixtureName ->

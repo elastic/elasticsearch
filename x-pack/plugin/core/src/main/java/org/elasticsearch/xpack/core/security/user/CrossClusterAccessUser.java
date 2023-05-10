@@ -23,8 +23,14 @@ public class CrossClusterAccessUser extends User {
 
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(
         UsernamesField.CROSS_CLUSTER_ACCESS_ROLE,
-        new String[] { "cross_cluster_access" },
-        null,
+        new String[] { "cross_cluster_search", "cross_cluster_replication" },
+        // Needed for CCR background jobs (with system user)
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices("*")
+                .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
+                .allowRestrictedIndices(true)
+                .build() },
         null,
         null,
         null,

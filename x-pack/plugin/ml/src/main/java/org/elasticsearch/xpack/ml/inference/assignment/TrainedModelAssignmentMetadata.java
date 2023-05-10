@@ -114,6 +114,17 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         return deploymentRoutingEntries.containsKey(deploymentId);
     }
 
+    public boolean modelIsDeployed(String modelId) {
+        return deploymentRoutingEntries.values().stream().anyMatch(assignment -> modelId.equals(assignment.getModelId()));
+    }
+
+    public List<TrainedModelAssignment> getDeploymentsUsingModel(String modelId) {
+        return deploymentRoutingEntries.values()
+            .stream()
+            .filter(assignment -> modelId.equals(assignment.getModelId()))
+            .collect(Collectors.toList());
+    }
+
     public Map<String, TrainedModelAssignment> allAssignments() {
         return Collections.unmodifiableMap(deploymentRoutingEntries);
     }

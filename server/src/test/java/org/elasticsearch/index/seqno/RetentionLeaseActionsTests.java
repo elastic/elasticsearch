@@ -38,11 +38,7 @@ import static org.hamcrest.Matchers.hasToString;
 public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
 
     public void testAddAction() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -73,11 +69,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testAddAlreadyExists() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -104,11 +96,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRenewAction() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -195,11 +183,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRenewNotFound() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -218,11 +202,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveAction() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -253,11 +233,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveNotFound() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -274,11 +250,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testAddUnderBlock() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
         final String id = randomAlphaOfLength(8);
@@ -323,11 +295,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRenewUnderBlock() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
         final String id = randomAlphaOfLength(8);
@@ -429,11 +397,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveUnderBlock() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
         final String id = randomAlphaOfLength(8);

@@ -102,6 +102,8 @@ subprojects {
     javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
     javaRestTestRuntimeOnly project(path: ':modules:legacy-geo')
 
+    javaRestTestRuntimeOnly project(path: ':modules:rest-root')
+
     javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
   }
   }

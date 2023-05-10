@@ -230,8 +230,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
         if (seedNodesSuppliers.hasNext()) {
             final Consumer<Exception> onFailure = e -> {
-                if (e instanceof ConnectTransportException || e instanceof IOException || e instanceof IllegalStateException) {
-                    // ISE if we fail the handshake with an version incompatible node
+                if (isRetryableException(e)) {
                     if (seedNodesSuppliers.hasNext()) {
                         logger.debug(
                             () -> format("fetching nodes from external cluster [%s] failed moving to next seed node", clusterAlias),
@@ -347,7 +346,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 onFailure.accept(e);
             });
         } else {
-            listener.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
+            listener.onFailure(new NoSeedNodeLeftException("no seed node left for cluster: [" + clusterAlias + "]"));
         }
     }
 
@@ -499,15 +498,18 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         if (proxyAddress == null || proxyAddress.isEmpty()) {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(address));
             return new DiscoveryNode(
-                clusterAlias + "#" + transportAddress.toString(),
+                null,
+                clusterAlias + "#" + transportAddress,
                 transportAddress,
+                Collections.emptyMap(),
+                DiscoveryNodeRole.roles(),
                 Version.CURRENT.minimumCompatibilityVersion()
             );
         } else {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode(
-                "",
+                null,
                 clusterAlias + "#" + address,
                 UUIDs.randomBase64UUID(),
                 hostName,

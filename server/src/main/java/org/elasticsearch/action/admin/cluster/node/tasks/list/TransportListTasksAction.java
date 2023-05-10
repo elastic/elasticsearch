@@ -8,14 +8,12 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -123,27 +121,20 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             removalRefs.decRef();
             collectionComplete.set(true);
 
-            if (future.isDone()) {
-                // No tasks to wait, we can run nodeOperation in the management pool
-                allMatchedTasksRemovedListener.onResponse(null);
-            } else {
-                final var threadPool = clusterService.threadPool();
-                future.addListener(
-                    new ThreadedActionListener<>(
-                        threadPool.executor(ThreadPool.Names.MANAGEMENT),
-                        new ContextPreservingActionListener<>(
-                            threadPool.getThreadContext().newRestorableContext(false),
-                            allMatchedTasksRemovedListener
-                        )
-                    )
-                );
-                var cancellable = threadPool.schedule(
-                    () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of tasks")),
-                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
-                    ThreadPool.Names.SAME
-                );
-                future.addListener(ActionListener.running(cancellable::cancel));
-            }
+            final var threadPool = clusterService.threadPool();
+            future.addListener(
+                new ContextPreservingActionListener<>(
+                    threadPool.getThreadContext().newRestorableContext(false),
+                    allMatchedTasksRemovedListener
+                ),
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                null
+            );
+            future.addTimeout(
+                requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                threadPool,
+                ThreadPool.Names.SAME
+            );
         } else {
             super.processTasks(request, operation, nodeOperation);
         }

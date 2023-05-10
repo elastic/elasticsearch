@@ -10,7 +10,6 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -201,7 +201,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 exception = new RemoteTransportException("remote", cause);
             } else {
                 TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-                DiscoveryNode node = new DiscoveryNode("replica", address, Version.CURRENT);
+                DiscoveryNode node = TestDiscoveryNode.create("replica", address);
                 cause = new ConnectTransportException(node, "broken");
                 exception = cause;
             }
@@ -309,9 +309,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final Exception shardActionFailure;
         if (randomBoolean()) {
-            shardActionFailure = new NodeClosedException(new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT));
+            shardActionFailure = new NodeClosedException(TestDiscoveryNode.create("foo"));
         } else if (randomBoolean()) {
-            DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode node = TestDiscoveryNode.create("foo");
             shardActionFailure = new SendRequestTransportException(
                 node,
                 ShardStateAction.SHARD_FAILED_ACTION_NAME,

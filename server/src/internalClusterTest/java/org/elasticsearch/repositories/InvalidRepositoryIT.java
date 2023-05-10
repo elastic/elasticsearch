@@ -105,7 +105,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         // verification should fail with some node has InvalidRepository
         final var expectedException = expectThrows(
             RepositoryVerificationException.class,
-            () -> client().admin().cluster().prepareVerifyRepository(repositoryName).get()
+            () -> clusterAdmin().prepareVerifyRepository(repositoryName).get()
         );
         for (Throwable suppressed : expectedException.getSuppressed()) {
             Throwable outerCause = suppressed.getCause();
@@ -129,16 +129,16 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
         // put repository again: let all node can create repository successfully
         createRepository(repositoryName, UnstableRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
         // verification should succeed with all node create repository successfully
-        VerifyRepositoryResponse verifyRepositoryResponse = client().admin().cluster().prepareVerifyRepository(repositoryName).get();
+        VerifyRepositoryResponse verifyRepositoryResponse = clusterAdmin().prepareVerifyRepository(repositoryName).get();
         assertEquals(verifyRepositoryResponse.getNodes().size(), internalCluster().numDataAndMasterNodes());
 
     }
 
     private void createRepository(String name, String type, Settings.Builder settings) {
         // create
-        assertAcked(client().admin().cluster().preparePutRepository(name).setType(type).setVerify(false).setSettings(settings).get());
+        assertAcked(clusterAdmin().preparePutRepository(name).setType(type).setVerify(false).setSettings(settings).get());
         // get
-        final GetRepositoriesResponse updatedGetRepositoriesResponse = client().admin().cluster().prepareGetRepositories(name).get();
+        final GetRepositoriesResponse updatedGetRepositoriesResponse = clusterAdmin().prepareGetRepositories(name).get();
         // assert
         assertThat(updatedGetRepositoriesResponse.repositories(), hasSize(1));
         final RepositoryMetadata updatedRepositoryMetadata = updatedGetRepositoriesResponse.repositories().get(0);

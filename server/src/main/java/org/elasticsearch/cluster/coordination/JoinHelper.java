@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -481,6 +482,10 @@ public class JoinHelper {
 
                     @Override
                     public void onFailure(Exception e) {
+                        logger.warn(
+                            Strings.format("failed to retrieve latest stored state after winning election in term [%d]", joiningTerm),
+                            e
+                        );
                         joinRequestAccumulator.values().forEach(joinCallback -> joinCallback.v2().onFailure(e));
                     }
                 }, joiningTerm);

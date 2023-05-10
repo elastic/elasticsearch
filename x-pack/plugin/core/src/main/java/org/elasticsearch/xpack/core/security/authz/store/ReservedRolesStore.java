@@ -764,6 +764,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),
                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.diagnostic.collection-*").privileges("read").build(),
+                // Fleet secrets, Kibana can only write ot this index. 
+                // This definition must come before .fleet* below. 
                 RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".fleet-secrets*")
                 .privileges("write", "create_index")

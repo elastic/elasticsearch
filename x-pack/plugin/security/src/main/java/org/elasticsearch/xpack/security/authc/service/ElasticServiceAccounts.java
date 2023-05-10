@@ -83,7 +83,11 @@ final class ElasticServiceAccounts {
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-secrets*").privileges("read").allowRestrictedIndices(true).build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
                     // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"

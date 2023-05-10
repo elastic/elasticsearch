@@ -19,9 +19,7 @@ To create or update a search template, use the <<create-stored-script-api,create
 stored script API>>.
 
 
-The request's `source` supports the same parameters as the
-<<search-search-api-request-body,search API>>'s request body. `source` also
-supports https://mustache.github.io/[Mustache] variables and has a https://github.com/elastic/elasticsearch/blob/main/modules/lang-mustache/build.gradle/[dependency] on the open source project https://github.com/spullara/mustache.java[mustache.java].
+The request's `source` supports the same parameters as the <<search-search-api-request-body,search API>>'s request body.`source` also accepts https://mustache.github.io/[Mustache] variables, from an open source project https://github.com/spullara/mustache.java[mustache.java].
 
 Typically https://mustache.github.io/[Mustache] variables are enclosed in
 double curly brackets: `{{my-var}}`. When you run a templated search, {es}

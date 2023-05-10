@@ -303,19 +303,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         if (pastDataNode) {
             nodes.add(
-                TestDiscoveryNode.create(
-                    "past-data-node-1",
-                    Collections.emptyMap(),
-                    new HashSet<>(
-                        Arrays.asList(
+                TestDiscoveryNode.builder("past-data-node-1")
+                    .roles(
+                        Set.of(
                             DiscoveryNodeRole.DATA_ROLE,
                             DiscoveryNodeRole.MASTER_ROLE,
                             DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
                             DiscoveryNodeRole.TRANSFORM_ROLE
                         )
-                    ),
-                    Version.V_7_7_0
-                )
+                    )
+                    .version(Version.V_7_7_0)
+                    .build()
             );
         }
 

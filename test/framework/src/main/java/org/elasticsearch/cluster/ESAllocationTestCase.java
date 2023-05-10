@@ -208,7 +208,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
-        return TestDiscoveryNode.create(nodeId, emptyMap(), MASTER_DATA_ROLES, version);
+        return TestDiscoveryNode.builder(nodeId).roles(MASTER_DATA_ROLES).version(version).build();
     }
 
     protected static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {

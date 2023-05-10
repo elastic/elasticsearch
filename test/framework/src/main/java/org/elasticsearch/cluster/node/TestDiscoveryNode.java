@@ -38,10 +38,6 @@ public class TestDiscoveryNode {
         return builder(id).address(address).build();
     }
 
-    public static DiscoveryNode create(String name, String id, TransportAddress address) {
-        return builder(id).name(name).address(address).build();
-    }
-
     public static DiscoveryNode create(String id, Version version) {
         return builder(id).version(version).build();
     }
@@ -56,10 +52,6 @@ public class TestDiscoveryNode {
 
     public static DiscoveryNode create(String id, TransportAddress address, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return builder(id).address(address).attributes(attributes).roles(roles).build();
-    }
-
-    public static DiscoveryNode create(String id, Map<String, String> attributes, Set<DiscoveryNodeRole> roles, Version version) {
-        return builder(id).attributes(attributes).roles(roles).version(version).build();
     }
 
     public static DiscoveryNode create(String nodeName, String nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {

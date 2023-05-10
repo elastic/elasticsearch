@@ -88,7 +88,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class NodeStatsTests extends ESTestCase {
@@ -710,7 +709,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     public static NodeStats createNodeStats() {
-        DiscoveryNode node = TestDiscoveryNode.create("test_node", emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
+        DiscoveryNode node = TestDiscoveryNode.builder("test_node").roles(emptySet()).version(VersionUtils.randomVersion(random())).build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
             final Index indexTest = new Index("test", "_na_");

@@ -45,8 +45,8 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            TestDiscoveryNode.create("a", emptyMap(), emptySet(), targetNodeVersion),
-            TestDiscoveryNode.create("b", emptyMap(), emptySet(), targetNodeVersion),
+            TestDiscoveryNode.builder("a").roles(emptySet()).version(targetNodeVersion).build(),
+            TestDiscoveryNode.builder("b").roles(emptySet()).version(targetNodeVersion).build(),
             metadataSnapshot,
             randomBoolean(),
             randomNonNegativeLong(),

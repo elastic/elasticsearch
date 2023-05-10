@@ -18,7 +18,6 @@ import org.junit.Before;
 
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -121,6 +120,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles, Version version) {
-        return TestDiscoveryNode.create(nodeId, emptyMap(), roles, version);
+        return TestDiscoveryNode.builder(nodeId).roles(roles).version(version).build();
     }
 }

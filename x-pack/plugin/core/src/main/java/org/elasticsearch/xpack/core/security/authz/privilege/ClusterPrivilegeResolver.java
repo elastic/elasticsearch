@@ -21,7 +21,6 @@ import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTem
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -144,7 +143,6 @@ public class ClusterPrivilegeResolver {
         GetRepositoriesAction.NAME
     );
     private static final Set<String> READ_CCR_PATTERN = Set.of(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
-    private static final Set<String> MANAGE_DLM_PATTERN = Set.of("cluster:admin/dlm/*");
     private static final Set<String> MANAGE_ILM_PATTERN = Set.of("cluster:admin/ilm/*");
     private static final Set<String> READ_ILM_PATTERN = Set.of(GetLifecycleAction.NAME, GetStatusAction.NAME);
     private static final Set<String> MANAGE_SLM_PATTERN = Set.of(
@@ -256,7 +254,6 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
     public static final NamedClusterPrivilege CREATE_SNAPSHOT = new ActionClusterPrivilege("create_snapshot", CREATE_SNAPSHOT_PATTERN);
     public static final NamedClusterPrivilege MONITOR_SNAPSHOT = new ActionClusterPrivilege("monitor_snapshot", MONITOR_SNAPSHOT_PATTERN);
-    public static final NamedClusterPrivilege MANAGE_DLM = new ActionClusterPrivilege("manage_dlm", MANAGE_DLM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ILM = new ActionClusterPrivilege("manage_ilm", MANAGE_ILM_PATTERN);
     public static final NamedClusterPrivilege READ_ILM = new ActionClusterPrivilege("read_ilm", READ_ILM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SLM = new ActionClusterPrivilege("manage_slm", MANAGE_SLM_PATTERN);
@@ -323,7 +320,6 @@ public class ClusterPrivilegeResolver {
             TRANSPORT_CLIENT,
             MANAGE_SECURITY,
             READ_SECURITY,
-            DataLifecycle.isEnabled() ? MANAGE_DLM : null,
             MANAGE_SAML,
             MANAGE_OIDC,
             MANAGE_API_KEY,

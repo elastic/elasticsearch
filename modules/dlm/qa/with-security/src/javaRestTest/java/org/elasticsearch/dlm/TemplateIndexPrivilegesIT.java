@@ -40,7 +40,7 @@ public class TemplateIndexPrivilegesIT extends ESRestTestCase {
     public void testAuthorizeIndexTemplateActions() throws IOException {
         makeRequest(client(), requestWithBody("PUT", "/_index_template/test_template", """
             {
-                "index_patterns": ["dlm-test*"],
+                "index_patterns": ["test-*"],
                 "data_stream": { }
             }"""), true);
     }

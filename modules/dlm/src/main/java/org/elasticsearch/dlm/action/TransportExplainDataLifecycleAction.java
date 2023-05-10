@@ -72,7 +72,8 @@ public class TransportExplainDataLifecycleAction extends TransportMasterNodeRead
         ExplainDataLifecycleAction.Request request,
         ClusterState state,
         ActionListener<ExplainDataLifecycleAction.Response> listener
-    ) {
+    ) throws Exception {
+
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         List<ExplainIndexDataLifecycle> explainIndices = new ArrayList<>(concreteIndices.length);
         Metadata metadata = state.metadata();

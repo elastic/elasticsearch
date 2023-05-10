@@ -69,8 +69,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     createException.getMessage(),
                     anyOf(
                         containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                        containsString("remote indices not supported for API keys"),
-                        containsString("unknown index privilege")
+                        containsString("remote indices not supported for API keys")
                     )
                 );
 
@@ -85,8 +84,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                         updateException.getMessage(),
                         anyOf(
                             containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                            containsString("remote indices not supported for API keys"),
-                            containsString("unknown index privilege")
+                            containsString("remote indices not supported for API keys")
                         )
                     );
                 }
@@ -112,8 +110,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             anyOf(
                                 containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                                containsString("remote indices not supported for API keys"),
-                                containsString("unknown index privilege")
+                                containsString("remote indices not supported for API keys")
                             )
                         );
                     }
@@ -122,8 +119,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                         e.getMessage(),
                         anyOf(
                             containsString("failed to parse role [my_role]. unexpected field [remote_indices]"),
-                            containsString("remote indices not supported for API keys"),
-                            containsString("unknown index privilege")
+                            containsString("remote indices not supported for API keys")
                         )
                     );
 

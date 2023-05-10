@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.List;
 
 public interface HasPrivilegesCheck {
-    void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener);
 
     void checkPrivileges(PrivilegesToCheck privilegesToCheck, ActionListener<Void> listener);
 
@@ -36,11 +35,6 @@ public interface HasPrivilegesCheck {
     class Noop implements HasPrivilegesCheck {
         @Inject
         public Noop() {}
-
-        @Override
-        public void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener) {
-            listener.onResponse(null);
-        }
 
         @Override
         public void checkPrivileges(PrivilegesToCheck privilegesToCheck, ActionListener<Void> listener) {

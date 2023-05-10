@@ -1,17 +1,8 @@
 manage_dlm:
   cluster:
-    - manage_dlm
     - manage_index_templates
   indices:
-    - names: [ 'dlm-*' ]
+    - names: [ 'test-*' ]
       privileges:
         - manage
-        - view_index_metadata
-    - names: [ 'composed-dlm-*' ]
-      privileges:
-        - view_index_metadata
-not_privileged:
-  indices:
-    - names: [ 'dlm-*' ]
-      privileges:
         - view_index_metadata

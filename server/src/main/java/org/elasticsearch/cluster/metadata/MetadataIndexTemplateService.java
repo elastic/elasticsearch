@@ -661,7 +661,7 @@ public class MetadataIndexTemplateService {
     }
 
     private void runBlockingHasPrivilegesCheck(List<String> indexPatternsToCheck) throws ExecutionException, InterruptedException {
-        // The blocking action is for sure bad but this doesn't actually work at all
+        // The blocking action is bad but this doesn't actually work at all
         // The threadContext is empty when we hit HasPrivilegesCheckWithSecurity.checkPrivileges, so we have no user info to authenticate
         // and authorize with
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();

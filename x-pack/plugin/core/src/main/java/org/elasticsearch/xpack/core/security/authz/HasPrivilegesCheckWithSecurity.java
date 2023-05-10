@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.authz.dlm;
+package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -14,8 +14,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+
+import java.util.Objects;
 
 public class HasPrivilegesCheckWithSecurity implements HasPrivilegesCheck {
     private final SecurityContext securityContext;
@@ -28,29 +29,8 @@ public class HasPrivilegesCheckWithSecurity implements HasPrivilegesCheck {
     }
 
     @Override
-    public void checkCanConfigure(String[] dataStreamPatterns, ActionListener<Void> listener) {
-        RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = dataStreamPatterns.length == 0
-            ? new RoleDescriptor.IndicesPrivileges[0]
-            : new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices(dataStreamPatterns).privileges("manage").build() };
-        HasPrivilegesRequest hasPrivilegesRequest = new HasPrivilegesRequest();
-        hasPrivilegesRequest.username(securityContext.getAuthentication().getEffectiveSubject().getUser().principal());
-        hasPrivilegesRequest.clusterPrivileges("manage_dlm");
-        hasPrivilegesRequest.indexPrivileges(indicesPrivilegesToCheck);
-        hasPrivilegesRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-
-        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(hasPrivilegesResponse -> {
-            if (hasPrivilegesResponse.isCompleteMatch()) {
-                listener.onResponse(null);
-            } else {
-                // TODO detailed failure message here
-                listener.onFailure(Exceptions.authorizationError("insufficient privileges to configure DLM"));
-            }
-        }, listener::onFailure));
-    }
-
-    @Override
     public void checkPrivileges(PrivilegesToCheck privilegesToCheck, ActionListener<Void> listener) {
+        Objects.requireNonNull(securityContext.getAuthentication());
         RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = privilegesToCheck.indexPrivileges()
             .stream()
             .map(

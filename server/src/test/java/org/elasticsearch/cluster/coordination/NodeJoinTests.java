@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
@@ -251,7 +251,7 @@ public class NodeJoinTests extends ESTestCase {
             roles = Set.of();
         }
         final String prefix = master ? "master_" : "data_";
-        return new DiscoveryNode(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        return TestDiscoveryNode.create(prefix + i, i + "", buildNewFakeTransportAddress(), emptyMap(), roles);
     }
 
     private Future<Void> joinNodeAsync(final JoinRequest joinRequest) {
@@ -528,13 +528,12 @@ public class NodeJoinTests extends ESTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
 
-        DiscoveryNode knownJoiningNode = new DiscoveryNode(
+        DiscoveryNode knownJoiningNode = TestDiscoveryNode.create(
             "knownNodeName",
             "newNodeId",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long newerTerm = newTerm + randomLongBetween(1, 10);

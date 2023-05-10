@@ -8,13 +8,13 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -70,21 +70,19 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         int totalNodes = randomIntBetween(1, 200);
         allNodes = new DiscoveryNode[totalNodes];
-        localNode = new DiscoveryNode(
+        localNode = TestDiscoveryNode.create(
             "local_node",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
         );
         allNodes[0] = localNode;
         for (int i = 0; i < totalNodes - 1; i++) {
-            DiscoveryNode remoteNode = new DiscoveryNode(
+            DiscoveryNode remoteNode = TestDiscoveryNode.create(
                 "remote_node" + i,
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
             );
             allNodes[i + 1] = remoteNode;
         }

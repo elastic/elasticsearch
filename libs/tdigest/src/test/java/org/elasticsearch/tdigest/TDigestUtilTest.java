@@ -36,7 +36,7 @@ public class TDigestUtilTest extends AbstractTest {
 
     @Test
     public void testIntEncoding() {
-        Random gen = getRandom();
+        Random gen = random();
         ByteBuffer buf = ByteBuffer.allocate(10000);
         List<Integer> ref = new ArrayList<>();
         for (int i = 0; i < 3000; i++) {

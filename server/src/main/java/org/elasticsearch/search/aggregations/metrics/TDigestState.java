@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.  // FIXME
+ * Extension of {@link org.elasticsearch.tdigest.TDigest} with custom serialization.
  */
 public class TDigestState extends AVLTreeDigest {
 

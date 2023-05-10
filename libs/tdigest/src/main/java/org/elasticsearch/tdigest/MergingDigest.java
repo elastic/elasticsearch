@@ -729,7 +729,7 @@ public class MergingDigest extends AbstractTDigest {
         }
 
         // usually the last centroid will have unit weight so this test will make it moot
-        if (index > totalWeight - 1) {
+        if (index >= totalWeight) {
             return max;
         }
 
@@ -747,31 +747,22 @@ public class MergingDigest extends AbstractTDigest {
                 // centroids i and i+1 bracket our current point
 
                 // check for unit weight
-                double leftUnit = 0;
-                if (weight[i] == 1) {
-                    if (index - weightSoFar < 0.5) {
-                        // within the singleton's sphere
-                        return mean[i];
-                    } else {
-                        leftUnit = 0.5;
-                    }
+                if (weight[i] == 1 && index - weightSoFar < 0.5) {
+                    // within the singleton's sphere
+                    return mean[i];
                 }
-                double rightUnit = 0;
-                if (weight[i + 1] == 1) {
-                    if (weightSoFar + dw - index <= 0.5) {
-                        // no interpolation needed near singleton
-                        return mean[i + 1];
-                    }
-                    rightUnit = 0.5;
+                if (weight[i + 1] == 1 && weightSoFar + dw - index > 0.5) {
+                    // no interpolation needed near singleton
+                    return mean[i + 1];
                 }
-                double z1 = index - weightSoFar - leftUnit;
-                double z2 = weightSoFar + dw - index - rightUnit;
+                double z1 = index - weightSoFar;
+                double z2 = weightSoFar + dw - index;
                 return weightedAverage(mean[i], z2, mean[i + 1], z1);
             }
             weightSoFar += dw;
         }
-        // we handled singleton at end up above
-        assert weight[n - 1] > 1;
+
+        assert weight[n - 1] >= 1;
         assert index <= totalWeight;
         assert index >= totalWeight - weight[n - 1] / 2;
 

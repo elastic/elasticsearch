@@ -413,11 +413,11 @@ public class AVLTreeDigest extends AbstractTDigest {
         final double index = q * count;
 
         // deal with min and max as a special case singletons
-        if (index < 1) {
+        if (index <= 0) {
             return min;
         }
 
-        if (index >= count - 1) {
+        if (index >= count) {
             return max;
         }
 
@@ -441,10 +441,10 @@ public class AVLTreeDigest extends AbstractTDigest {
         double weightSoFar = currentWeight / 2.0;
 
         // at left boundary, we interpolate between min and first mean
-        if (index < weightSoFar) {
+        if (index <= weightSoFar) {
             // we know that there was a sample exactly at min so we exclude that
             // from the interpolation
-            return weightedAverage(min, weightSoFar - index, values.mean(currentNode), index - 1);
+            return weightedAverage(values.mean(currentNode), weightSoFar - index, values.mean(values.next(currentNode)),  index);
         }
         for (int i = 0; i < values.size() - 1; i++) {
             int nextNode = values.next(currentNode);
@@ -455,29 +455,16 @@ public class AVLTreeDigest extends AbstractTDigest {
                 // index is bracketed between centroids
 
                 // deal with singletons if present
-                double leftExclusion = 0;
-                double rightExclusion = 0;
-                if (currentWeight == 1) {
-                    if (index < weightSoFar + 0.5) {
-                        return values.mean(currentNode);
-                    } else {
-                        leftExclusion = 0.5;
-                    }
-                }
-                if (nextWeight == 1) {
-                    if (index >= weightSoFar + dw - 0.5) {
-                        return values.mean(nextNode);
-                    } else {
-                        rightExclusion = 0.5;
-                    }
-                }
-                // if both are singletons, we will have returned a result already
-                assert leftExclusion + rightExclusion < 1;
-                assert dw > 1;
+                // if (currentWeight == 1 && index < weightSoFar + 0.5) {
+                // return values.mean(currentNode);
+                // }
+                // if (nextWeight == 1 && index < weightSoFar + dw - 0.5) {
+                // return values.mean(nextNode);
+                // }
+                assert dw >= 1;
                 // centroids i and i+1 bracket our current point
-                // we interpolate, but the weights are diminished if singletons are present
-                double w1 = index - weightSoFar - leftExclusion;
-                double w2 = weightSoFar + dw - index - rightExclusion;
+                double w1 = index - weightSoFar;
+                double w2 = weightSoFar + dw - index;
                 return weightedAverage(values.mean(currentNode), w2, values.mean(nextNode), w1);
             }
             weightSoFar += dw;
@@ -486,12 +473,12 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
         // index is in the right hand side of the last node, interpolate to max
         // we have already handled the case were last centroid is a singleton
-        assert currentWeight > 1;
-        assert index - weightSoFar < currentWeight / 2.0 - 1;
-        assert count - weightSoFar > 0.5;
+        assert currentWeight >= 1;
+        assert index - weightSoFar < count - currentWeight / 2.0;
+        assert count - weightSoFar >= 0.5;
 
         double w1 = index - weightSoFar;
-        double w2 = count - 1 - index;
+        double w2 = count - weightSoFar - w1;
         return weightedAverage(values.mean(currentNode), w2, max, w1);
     }
 

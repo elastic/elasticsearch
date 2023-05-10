@@ -37,10 +37,7 @@ public class EmptyTDigestStateTests extends ESTestCase {
     }
 
     public void testTestAddList() {
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> singleton.add(randomDouble(), randomInt(10), List.of(randomDouble(), randomDouble()))
-        );
+        expectThrows(UnsupportedOperationException.class, () -> singleton.add(randomDouble(), randomInt(10)));
     }
 
     public void testTestAddListTDigest() {

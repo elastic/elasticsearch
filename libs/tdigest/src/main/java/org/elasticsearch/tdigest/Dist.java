@@ -57,28 +57,22 @@ public class Dist {
         if (n == 0) {
             return Double.NaN;
         }
-        double index = q * n;
+        double index = q * (n - 1);
         if (index < 0) {
             index = 0;
         }
         if (index > n - 1) {
             index = n - 1;
         }
-        return data[(int) Math.floor(index)];
+        int low_index = (int) Math.floor(index);
+        int high_index = low_index + 1;
+
+        double high_weight = index - low_index;
+        double low_weight = 1 - high_weight;
+        return low_weight * data[low_index] + high_weight * data[high_index];
     }
 
     public static double quantile(final double q, List<Double> data) {
-        int n = data.size();
-        if (n == 0) {
-            return Double.NaN;
-        }
-        double index = q * n;
-        if (index < 0) {
-            index = 0;
-        }
-        if (index > n - 1) {
-            index = n - 1;
-        }
-        return data.get((int) Math.floor(index));
+        return quantile(q, data.stream().mapToDouble(i -> i).toArray());
     }
 }

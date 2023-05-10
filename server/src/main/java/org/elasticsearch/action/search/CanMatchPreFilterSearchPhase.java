@@ -74,6 +74,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     private final Map<String, AliasFilter> aliasFilter;
     private final SearchTask task;
     private final Executor executor;
+    private final boolean requireAtLeastOneMatch;
 
     private final CanMatchSearchPhaseResults results;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
@@ -89,6 +90,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
+        boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         ActionListener<GroupShardsIterator<SearchShardIterator>> listener
     ) {
@@ -103,6 +105,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.task = task;
+        this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
         this.executor = executor;
         this.shardItIndexMap = new HashMap<>();
@@ -142,6 +145,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     // tries to pre-filter shards based on information that's available to the coordinator
     // without having to reach out to the actual shards
     private void runCoordinatorRewritePhase() {
+        // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
@@ -497,7 +501,8 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     ) {
         int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
-        if (cardinality == 0) {
+        // TODO: pick the local shard when possible
+        if (requireAtLeastOneMatch && cardinality == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
             // to produce a valid search result with all the aggs etc.
             // Since it's possible that some of the shards that we're skipping are

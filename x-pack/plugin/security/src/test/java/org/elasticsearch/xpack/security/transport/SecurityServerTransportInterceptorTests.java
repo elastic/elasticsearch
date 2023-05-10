@@ -341,7 +341,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id + randomIntBetween(100, 100000));
+        final TransportVersion connectionVersion = TransportVersion.fromId(TransportVersion.CURRENT.id() + randomIntBetween(100, 100000));
         assertEquals(TransportVersion.CURRENT, TransportVersion.min(connectionVersion, TransportVersion.CURRENT));
 
         Transport.Connection connection = mock(Transport.Connection.class);

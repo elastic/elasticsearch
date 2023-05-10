@@ -1080,12 +1080,11 @@ public class Node implements Closeable {
                         );
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-                // TODO this is horrible business
-                boolean dataLifecycleAuthzCheckBound = false;
+                // TODO this is horrible business; ignore for now
+                boolean privCheckBound = false;
                 for (Object p : pluginComponents) {
                     if (p instanceof PluginComponentBinding<?, ?> pcb) {
-                        dataLifecycleAuthzCheckBound = dataLifecycleAuthzCheckBound
-                            || pcb.inter().isAssignableFrom(HasPrivilegesCheck.class);
+                        privCheckBound = privCheckBound || pcb.inter().isAssignableFrom(HasPrivilegesCheck.class);
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) pcb.inter();
                         b.bind(clazz).toInstance(pcb.impl());
@@ -1095,7 +1094,7 @@ public class Node implements Closeable {
                         b.bind(clazz).toInstance(p);
                     }
                 }
-                if (false == dataLifecycleAuthzCheckBound) {
+                if (false == privCheckBound) {
                     b.bind(HasPrivilegesCheck.class).toInstance(new HasPrivilegesCheck.Noop());
                 }
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);

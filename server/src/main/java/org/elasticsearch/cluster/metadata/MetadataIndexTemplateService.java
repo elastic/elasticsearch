@@ -673,7 +673,6 @@ public class MetadataIndexTemplateService {
      * we throw an {@link IllegalArgumentException} with information about the conflicting templates.
      * <p>
      * This method doesn't check for conflicting overlaps with v1 templates.
-     *
      * @param currentState the current cluster state
      * @param name the composable index template name
      * @param template the full composable index template object we check for overlaps
@@ -1163,9 +1162,9 @@ public class MetadataIndexTemplateService {
      * @param metadata The {@link Metadata} containing all of the {@link IndexTemplateMetadata} values
      * @param indexName The name of the index that templates are being found for
      * @param isHidden Whether or not the index is known to be hidden. May be {@code null} if the index
-     *                  being hidden has not been explicitly requested. When {@code null} if the result
-     *                  of template application results in a hidden index, then global templates will
-     *                  not be returned
+     *                 being hidden has not been explicitly requested. When {@code null} if the result
+     *                 of template application results in a hidden index, then global templates will
+     *                 not be returned
      * @return a list of templates sorted by {@link IndexTemplateMetadata#order()} descending.
      */
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {

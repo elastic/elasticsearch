@@ -291,24 +291,22 @@ public class DesiredBalanceReconciler {
     }
 
     private Iterable<String> getDesiredNodesIds(ShardRouting shard, ShardAssignment assignment) {
-        return allocationOrdering.sortNodeIds(
-            allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
-                }
-                return forced;
-            }).orElse(assignment.nodeIds())
-        );
+        return allocationOrdering.sort(allocation.deciders().getForcedInitialShardAllocationToNodes(shard, allocation).map(forced -> {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Shard [{}] assignment is ignored. Initial allocation forced to {}", shard.shardId(), forced);
+            }
+            return forced;
+        }).orElse(assignment.nodeIds()));
     }
 
     private Iterable<String> getFallbackNodeIds(ShardRouting shard, AtomicBoolean isThrottled) {
         return () -> {
             if (shard.primary() && isThrottled.get() == false) {
-                var fallbackNodeIds = allocation.routingNodes().stream().map(RoutingNode::nodeId).toList();
+                var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
                 if (logger.isDebugEnabled()) {
                     logger.trace("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                 }
-                return allocationOrdering.sortNodeIds(fallbackNodeIds).iterator();
+                return allocationOrdering.sort(fallbackNodeIds).iterator();
             } else {
                 return Collections.emptyIterator();
             }
@@ -487,10 +485,10 @@ public class DesiredBalanceReconciler {
 
         OrderedNodesShardsIterator() {
             this.queue = new ArrayDeque<>(routingNodes.size());
-            for (RoutingNode routingNode : moveOrdering.sortNodes(routingNodes)) {
-                final var shards = routingNode.copyShards();
+            for (var nodeId : moveOrdering.sort(routingNodes.getAllNodeIds())) {
+                final var shards = routingNodes.node(nodeId).copyShards();
                 if (shards.length > 0) {
-                    this.queue.add(new NodeAndShardIterator(routingNode.nodeId(), Iterators.forArray(shards)));
+                    this.queue.add(new NodeAndShardIterator(nodeId, Iterators.forArray(shards)));
                 }
             }
         }

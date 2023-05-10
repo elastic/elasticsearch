@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.field.IPAddress;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -782,6 +783,11 @@ public abstract class StreamOutput extends OutputStream {
             o.writeInt(period.getYears());
             o.writeInt(period.getMonths());
             o.writeInt(period.getDays());
+        }),
+        entry(IPAddress.class, (o, v) -> {
+            o.writeByte((byte) 30);
+            final IPAddress address = (IPAddress) v;
+            address.writeTo(o);
         })
     );
 

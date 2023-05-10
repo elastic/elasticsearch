@@ -19,7 +19,7 @@ import org.junit.ClassRule;
 /** Runs yaml rest tests */
 public class RestMainClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("main").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("rest-root").build();
 
     public RestMainClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

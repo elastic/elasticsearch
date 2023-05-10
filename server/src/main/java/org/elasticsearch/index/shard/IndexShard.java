@@ -1301,7 +1301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public SearchStats searchStats(String... groups) {
-        return searchStats.stats(this.isSearchIdle(), this.searchIdleTime(), groups);
+        return searchStats.stats(groups);
     }
 
     public FieldUsageStats fieldUsageStats(String... fields) {

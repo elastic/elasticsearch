@@ -1542,7 +1542,9 @@ public class IndexShardTests extends IndexShardTestCase {
             CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
-            shard.getRetentionLeaseStats()
+            shard.getRetentionLeaseStats(),
+            shard.isSearchIdle(),
+            shard.searchIdleTime()
         );
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());

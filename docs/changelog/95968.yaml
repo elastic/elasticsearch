@@ -1,0 +1,5 @@
+pr: 95968
+summary: Cleanup expired SIGTERM `NodeShutdownMetadata` in `NodeSeenService`
+area: Infra/Node Lifecycle
+type: enhancement
+issues: []

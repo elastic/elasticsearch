@@ -1,6 +1,0 @@
-pr: 93299
-summary: No length check for source-only keyword fields
-area: Mapping
-type: bug
-issues:
- - 9304

@@ -1,5 +1,0 @@
-pr: 92276
-summary: Minor TSDB parsing speedup
-area: TSDB
-type: enhancement
-issues: []

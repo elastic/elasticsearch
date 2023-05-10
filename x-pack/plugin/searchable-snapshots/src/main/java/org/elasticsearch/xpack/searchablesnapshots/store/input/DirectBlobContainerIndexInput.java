@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.CheckedRunnable;
@@ -125,12 +126,9 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             // we did not read everything in an optimized fashion, so read the remainder directly
             final long startTimeNanos = stats.currentTimeNanos();
             try (InputStream inputStream = openBlobStream(part, pos + optimizedReadSize, length - optimizedReadSize)) {
-                final int directReadSize = readFully(
-                    inputStream,
-                    b,
-                    length - optimizedReadSize,
-                    () -> { throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]"); }
-                );
+                final int directReadSize = readFully(inputStream, b, length - optimizedReadSize, () -> {
+                    throw new EOFException("Read past EOF at [" + position + "] with length [" + fileInfo.partBytes(part) + "]");
+                });
                 assert optimizedReadSize + directReadSize == length : optimizedReadSize + " and " + directReadSize + " vs " + length;
                 position += directReadSize;
                 final long endTimeNanos = stats.currentTimeNanos();
@@ -244,11 +242,7 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     protected void seekInternal(long pos) throws IOException {
-        if (pos > length()) {
-            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + length() + "] for " + toString());
-        } else if (pos < 0L) {
-            throw new IOException("Seeking to negative position [" + pos + "] for " + toString());
-        }
+        BlobCacheUtils.ensureSeek(pos, this);
         if (position != offset + pos) {
             position = offset + pos;
             closeStreamForSequentialReads();
@@ -267,28 +261,23 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     @Override
     public IndexInput slice(String sliceName, long offset, long length) throws IOException {
-        if ((offset >= 0L) && (length >= 0L) && (offset + length <= length())) {
-            final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
-                sliceName,
-                blobContainer,
-                fileInfo,
-                context,
-                stats,
-                position,
-                this.offset + offset,
-                length,
-                // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
-                // solution: do not optimize sequential reads on slices.
-                NO_SEQUENTIAL_READ_OPTIMIZATION
-            );
-            slice.isClone = true;
-            slice.seek(0L);
-            return slice;
-        } else {
-            throw new IllegalArgumentException(
-                "slice() " + sliceName + " out of bounds: offset=" + offset + ",length=" + length + ",fileLength=" + length() + ": " + this
-            );
-        }
+        BlobCacheUtils.ensureSlice(sliceName, offset, length, this);
+        final DirectBlobContainerIndexInput slice = new DirectBlobContainerIndexInput(
+            sliceName,
+            blobContainer,
+            fileInfo,
+            context,
+            stats,
+            position,
+            this.offset + offset,
+            length,
+            // Slices might not be closed when they are no longer needed, but we must always close streamForSequentialReads. The simple
+            // solution: do not optimize sequential reads on slices.
+            NO_SEQUENTIAL_READ_OPTIMIZATION
+        );
+        slice.isClone = true;
+        slice.seek(0L);
+        return slice;
     }
 
     @Override

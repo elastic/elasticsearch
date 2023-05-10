@@ -480,10 +480,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Setting.Property.Final
     );
 
-    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_ROUTING_PATH = Setting.stringListSetting(
         "index.routing_path",
-        List.of(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -2234,7 +2232,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             builder.startObject(KEY_SETTINGS);
             if (context != Metadata.XContentContext.API) {
-                indexMetadata.getSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
+                indexMetadata.getSettings().toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
             } else {
                 indexMetadata.getSettings().toXContent(builder, params);
             }

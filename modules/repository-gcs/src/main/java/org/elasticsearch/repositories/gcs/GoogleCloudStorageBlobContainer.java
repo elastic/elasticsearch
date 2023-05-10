@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -22,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.OptionalLong;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -116,5 +118,17 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
+    }
+
+    @Override
+    public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        if (skipCas(listener)) return;
+        ActionListener.completeWith(listener, () -> blobStore.compareAndExchangeRegister(buildKey(key), path, key, expected, updated));
+    }
+
+    @Override
+    public void getRegister(String key, ActionListener<OptionalLong> listener) {
+        if (skipCas(listener)) return;
+        ActionListener.completeWith(listener, () -> blobStore.getRegister(buildKey(key), path, key));
     }
 }

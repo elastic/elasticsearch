@@ -58,7 +58,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -82,10 +81,9 @@ public class ScriptScoreBenchmark {
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class));
 
     private final Map<String, MappedFieldType> fieldTypes = Map.ofEntries(
-        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null))
+        Map.entry("n", new NumberFieldType("n", NumberType.LONG, false, false, true, true, null, Map.of(), null, false, null, null))
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
-    private final Map<String, Set<String>> sourcePaths = Map.of("n", Set.of("n"));
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
     private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -40,7 +41,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends AbstractXContentSerializingTestCase<ClusterHealthResponse> {
-    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
+    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.values());
 
     public void testIsTimeout() {
         ClusterHealthResponse res = new ClusterHealthResponse();
@@ -109,7 +110,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
         Map<String, ClusterIndexHealth> indices = Maps.newMapWithExpectedSize(indicesSize);
-        if (ClusterHealthRequest.Level.INDICES.equals(level) || ClusterHealthRequest.Level.SHARDS.equals(level)) {
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             for (int i = 0; i < indicesSize; i++) {
                 String indexName = randomAlphaOfLengthBetween(1, 5) + i;
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));

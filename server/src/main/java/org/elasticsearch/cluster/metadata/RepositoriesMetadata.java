@@ -168,7 +168,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {

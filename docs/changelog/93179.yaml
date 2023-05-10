@@ -1,6 +1,0 @@
-pr: 93179
-summary: Making `JsonProcessor` stricter so that it does not silently drop data
-area: Ingest Node
-type: bug
-issues:
- - 92898

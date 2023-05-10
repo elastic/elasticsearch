@@ -69,7 +69,7 @@ tasks.named("dependencyLicenses").configure {
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
 def generateProviderManifest = tasks.register("generateProviderManifest") {
   File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")
-  inputs.property('jars', configurations.providerImpl)
+  inputs.files('jars', configurations.providerImpl).withPathSensitivity(PathSensitivity.RELATIVE)
   outputs.file(manifestFile)
   doLast {
     manifestFile.parentFile.mkdirs()

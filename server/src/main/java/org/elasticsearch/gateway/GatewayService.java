@@ -228,7 +228,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             logger.info("recovered [{}] indices into cluster_state", newState.metadata().indices().size());
             // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
             // not-recovered state, that we again do another state recovery.
-            rerouteService.reroute("state recovered", Priority.NORMAL, ActionListener.wrap(GatewayService.this::resetRecoveredFlags));
+            rerouteService.reroute("state recovered", Priority.NORMAL, ActionListener.running(GatewayService.this::resetRecoveredFlags));
         }
 
         @Override

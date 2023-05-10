@@ -71,6 +71,26 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         this.earlyTerminated = earlyTerminated;
     }
 
+    /**
+     * Checks that the afterKey formatting does not result in loss of information
+     *
+     * Only called when a new InternalComposite() is built after a reduce.  We can't validate afterKeys from
+     * InternalComposites built from a StreamInput because they may be coming from nodes that do not
+     * do validation, and errors thrown during StreamInput deserialization can kill a node.  However,
+     * InternalComposites that come from remote nodes will always be reduced on the co-ordinator, and
+     * this will always create a new InternalComposite by calling the standard constructor.
+     */
+    private void validateAfterKey() {
+        if (afterKey != null) {
+            if (this.formats.size() != this.afterKey.size()) {
+                throw new IllegalArgumentException("Cannot format afterkey [" + this.afterKey + "] - wrong number of formats");
+            }
+            for (int i = 0; i < this.afterKey.size(); i++) {
+                formatObject(this.afterKey.get(i), this.formats.get(i));
+            }
+        }
+    }
+
     public InternalComposite(StreamInput in) throws IOException {
         super(in);
         this.size = in.readVInt();
@@ -240,7 +260,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             lastKey = lastBucket.getRawKey();
         }
         reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        return new InternalComposite(
+        InternalComposite reduced = new InternalComposite(
             name,
             size,
             sourceNames,
@@ -252,6 +272,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             earlyTerminated,
             metadata
         );
+        reduced.validateAfterKey();
+        return reduced;
     }
 
     @Override
@@ -528,11 +550,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseLong(
-                formatted.toString(),
-                false,
-                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
-            );
+            parsed = format.parseLong(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
             if (parsed.equals(((Number) obj).longValue()) == false) {
                 throw new IllegalArgumentException(
                     "Format ["
@@ -556,11 +576,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseDouble(
-                formatted.toString(),
-                false,
-                () -> { throw new UnsupportedOperationException("Using now() is not supported in after keys"); }
-            );
+            parsed = format.parseDouble(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
             if (parsed.equals(((Number) obj).doubleValue()) == false) {
                 throw new IllegalArgumentException(
                     "Format ["

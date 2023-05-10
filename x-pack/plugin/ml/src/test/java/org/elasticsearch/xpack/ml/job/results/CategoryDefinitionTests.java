@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -181,7 +181,7 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
     }
 
     @Override
-    protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
+    protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, TransportVersion version) {
         return instance;
     }
 }

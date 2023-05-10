@@ -16,7 +16,6 @@ date:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -65,7 +64,6 @@ date_nanos:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -114,7 +112,6 @@ automatically add with date:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -162,7 +159,6 @@ reject @timestamp with wrong type:
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
                 number_of_shards: 2
             mappings:
               properties:
@@ -187,7 +183,6 @@ reject timestamp meta field with wrong type:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             _data_stream_timestamp:
@@ -210,7 +205,6 @@ enable timestamp meta field:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             _data_stream_timestamp:
@@ -240,7 +234,6 @@ reject bad timestamp meta field:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             _data_stream_timestamp: enabled
@@ -262,7 +255,6 @@ write without timestamp:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             properties:
@@ -302,7 +294,6 @@ explicitly enable timestamp meta field:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
-              number_of_replicas: 0
               number_of_shards: 2
           mappings:
             properties:
@@ -353,7 +344,6 @@ unable to create a time series index with @timestamp runtime field:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]

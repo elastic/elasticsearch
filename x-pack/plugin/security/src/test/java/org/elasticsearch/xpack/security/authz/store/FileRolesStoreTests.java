@@ -99,7 +99,7 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
 
         RoleDescriptor descriptor = roles.get("role1");
         assertNotNull(descriptor);
@@ -355,13 +355,13 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(6));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 7 : 6));
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
         assertThat(roles.get("role_query_invalid"), nullValue());
 
-        assertThat(events, hasSize(4));
+        assertThat(events, hasSize(TcpTransport.isUntrustedRemoteClusterEnabled() ? 4 : 5));
         assertThat(
             events.get(0),
             startsWith(
@@ -394,6 +394,9 @@ public class FileRolesStoreTests extends ESTestCase {
                     + "]. document and field level security is not enabled."
             )
         );
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(events.get(4), startsWith("failed to parse role [role_remote_indices]. unexpected field [remote_indices]"));
+        }
     }
 
     public void testParseFileWithFLSAndDLSUnlicensed() throws Exception {
@@ -405,7 +408,7 @@ public class FileRolesStoreTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, licenseState, xContentRegistry());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(9));
+        assertThat(roles.size(), is(TcpTransport.isUntrustedRemoteClusterEnabled() ? 10 : 9));
         assertNotNull(roles.get("role_fields"));
         assertNotNull(roles.get("role_query"));
         assertNotNull(roles.get("role_query_fields"));
@@ -693,7 +696,12 @@ public class FileRolesStoreTests extends ESTestCase {
 
         Map<String, Object> usageStats = store.usageStats();
 
-        assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        if (TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 10 : 7));
+            assertThat(usageStats.get("remote_indices"), is(1L));
+        } else {
+            assertThat(usageStats.get("size"), is(flsDlsEnabled ? 9 : 6));
+        }
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }

@@ -128,7 +128,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
     }
 
@@ -280,7 +280,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override

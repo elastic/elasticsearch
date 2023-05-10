@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -62,7 +62,7 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
     }
 
     @Override
-    protected Hyperparameters mutateInstanceForVersion(Hyperparameters instance, Version version) {
+    protected Hyperparameters mutateInstanceForVersion(Hyperparameters instance, TransportVersion version) {
         return instance;
     }
 }

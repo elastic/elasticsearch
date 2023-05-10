@@ -303,14 +303,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         final Metadata initialMetadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("test")
-                    .settings(
-                        settings(Version.CURRENT).put("index.number_of_shards", 2)
-                            .put("index.number_of_replicas", 1)
-                            .put(initialIndexSettings.build())
-                    )
-            )
+            .put(IndexMetadata.builder("test").settings(indexSettings(Version.CURRENT, 2, 1).put(initialIndexSettings.build())))
             .build();
 
         final RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

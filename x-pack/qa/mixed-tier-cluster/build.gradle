@@ -42,7 +42,7 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
       nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
       nonInputProperties.systemProperty('tests.clustername', baseName)
     }
-    onlyIf { project.bwc_tests_enabled }
+    onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
@@ -54,5 +54,5 @@ tasks.withType(Test).configureEach {
   classpath = sourceSets.javaRestTest.runtimeClasspath
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   // Security is explicitly disabled, do not run tests in FIPS mode
-  onlyIf { BuildParams.inFipsJvm == false}
+  BuildParams.withFipsEnabledOnly(it)
 }

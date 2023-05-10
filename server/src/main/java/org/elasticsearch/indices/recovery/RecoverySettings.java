@@ -44,8 +44,9 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
     public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
+    public static final TransportVersion SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_15_0;
     public static final Version SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_16_0;
-    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION = TransportVersion.V_7_16_0;
+    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION = TransportVersion.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
@@ -700,7 +701,7 @@ public class RecoverySettings {
     /**
      * Whether the node bandwidth recovery settings are set.
      */
-    public static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
+    private static boolean hasNodeBandwidthRecoverySettings(Settings settings) {
         return NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .count() == NODE_BANDWIDTH_RECOVERY_SETTINGS.size();

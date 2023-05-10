@@ -43,12 +43,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        3,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(3, 0, 10, -1);
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private static final ObjectParser<SignificantTermsAggregationBuilder, Void> PARSER = new ObjectParser<>(

@@ -345,8 +345,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(GetCcrRestoreFileChunkAction.NAME) == false
-                    && action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.NAME)) == false) {
+                if (action.equals(GetCcrRestoreFileChunkAction.INTERNAL_NAME) == false
+                    && action.equals(TransportActionProxy.getProxyAction(GetCcrRestoreFileChunkAction.INTERNAL_NAME)) == false) {
                     connection.sendRequest(requestId, action, request, options);
                 }
             });
@@ -441,7 +441,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         Runnable updateMappings = () -> {
             if (updateSent.compareAndSet(false, true)) {
                 leaderClient().admin().indices().preparePutMapping(leaderIndex).setSource("""
-                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.wrap(latch::countDown));
+                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.running(latch::countDown));
             }
             try {
                 latch.await();
@@ -454,7 +454,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             MockTransportService mockTransportService = (MockTransportService) transportService;
             transportServices.add(mockTransportService);
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(PutCcrRestoreSessionAction.NAME)) {
+                if (action.equals(PutCcrRestoreSessionAction.INTERNAL_NAME)) {
                     updateMappings.run();
                     connection.sendRequest(requestId, action, request, options);
                 } else {

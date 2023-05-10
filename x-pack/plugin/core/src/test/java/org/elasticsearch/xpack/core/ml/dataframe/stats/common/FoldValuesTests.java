@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -58,7 +58,7 @@ public class FoldValuesTests extends AbstractBWCSerializationTestCase<FoldValues
     }
 
     @Override
-    protected FoldValues mutateInstanceForVersion(FoldValues instance, Version version) {
+    protected FoldValues mutateInstanceForVersion(FoldValues instance, TransportVersion version) {
         return instance;
     }
 }

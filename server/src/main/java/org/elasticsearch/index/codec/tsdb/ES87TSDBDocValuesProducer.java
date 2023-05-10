@@ -38,23 +38,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private final Map<String, SortedNumericEntry> sortedNumerics = new HashMap<>();
     private final IndexInput data;
     private final int maxDoc;
-    private final int numericBlockShift;
-    private final int numericBlockSize;
-    private final int numericBlockMask;
 
-    ES87TSDBDocValuesProducer(
-        SegmentReadState state,
-        String dataCodec,
-        String dataExtension,
-        String metaCodec,
-        String metaExtension,
-        int numericBlockShift,
-        int numericBlockSize,
-        int numericBlockMask
-    ) throws IOException {
-        this.numericBlockShift = numericBlockShift;
-        this.numericBlockSize = numericBlockSize;
-        this.numericBlockMask = numericBlockMask;
+    ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
+        throws IOException {
         String metaName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
         this.maxDoc = state.segmentInfo.maxDoc();
 
@@ -186,7 +172,11 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         entry.numValues = meta.readLong();
         if (entry.numValues > 0) {
             final int indexBlockShift = meta.readInt();
-            entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> numericBlockShift), indexBlockShift);
+            entry.indexMeta = DirectMonotonicReader.loadMeta(
+                meta,
+                1 + ((entry.numValues - 1) >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+                indexBlockShift
+            );
             entry.indexOffset = meta.readLong();
             entry.indexLength = meta.readLong();
             entry.valuesOffset = meta.readLong();
@@ -235,9 +225,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
                 private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
-                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder(numericBlockSize);
+                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[numericBlockSize];
+                private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
                 @Override
                 public int docID() {
@@ -271,8 +261,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = doc;
-                    final int blockIndex = index >>> numericBlockShift;
-                    final int blockInIndex = index & numericBlockMask;
+                    final int blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    final int blockInIndex = index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
                     if (blockIndex != currentBlockIndex) {
                         assert blockIndex > currentBlockIndex;
                         if (blockIndex - 1 > currentBlockIndex) {
@@ -295,9 +285,9 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             );
             return new NumericDocValues() {
 
-                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder(numericBlockSize);
+                private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
                 private long currentBlockIndex = -1;
-                private final long[] currentBlock = new long[numericBlockSize];
+                private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
                 @Override
                 public int advance(int target) throws IOException {
@@ -327,8 +317,8 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public long longValue() throws IOException {
                     final int index = disi.index();
-                    final int blockIndex = index >>> numericBlockShift;
-                    final int blockInIndex = index & numericBlockMask;
+                    final int blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    final int blockInIndex = index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
                     if (blockIndex != currentBlockIndex) {
                         assert blockIndex > currentBlockIndex;
                         if (blockIndex - 1 > currentBlockIndex) {
@@ -353,12 +343,12 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
             private final ES87TSDBDocValuesEncoder decoder = new ES87TSDBDocValuesEncoder();
             private long currentBlockIndex = -1;
-            private final long[] currentBlock = new long[numericBlockSize];
+            private final long[] currentBlock = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
 
             @Override
             long advance(long index) throws IOException {
-                final long blockIndex = index >>> numericBlockShift;
-                final int blockInIndex = (int) (index & numericBlockMask);
+                final long blockIndex = index >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                final int blockInIndex = (int) (index & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK);
                 if (blockIndex != currentBlockIndex) {
                     assert blockIndex > currentBlockIndex;
                     if (blockIndex - 1 > currentBlockIndex) {

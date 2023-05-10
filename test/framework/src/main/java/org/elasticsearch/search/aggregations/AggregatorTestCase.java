@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
@@ -52,6 +51,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -59,16 +59,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
@@ -165,6 +161,7 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -347,7 +344,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             emptyMap()
         );
 
-        MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
             searchExecutionContext,
@@ -355,7 +351,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             bytesToPreallocate,
             () -> query,
             null,
-            consumer,
+            maxBucket,
             () -> buildSubSearchContext(indexSettings, searchExecutionContext, bitsetFilterCache),
             bitsetFilterCache,
             randomInt(),
@@ -648,7 +644,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+            try (
+                DirectoryReader unwrapped = DirectoryReader.open(directory);
+                DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
+            ) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 V agg = searchAndReduce(indexSearcher, aggTestConfig);
@@ -659,55 +658,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void multiIndexTestCase(
-        T aggregationBuilder,
-        Query query,
-        List<CheckedConsumer<RandomIndexWriter, IOException>> indexBuilders,
-        Consumer<V> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        Directory[] directories = new Directory[indexBuilders.size()];
-        boolean timeSeries = aggregationBuilder.isInSortOrderExecutionRequired();
-        try {
-            for (int i = 0; i < indexBuilders.size(); i++) {
-                directories[i] = newDirectory();
-                IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
-                if (timeSeries) {
-                    Sort sort = new Sort(
-                        new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
-                        new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
-                    );
-                    config.setIndexSort(sort);
-                }
-                RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directories[i], config);
-                indexBuilders.get(i).accept(indexWriter);
-                indexWriter.close();
-            }
-            // construct the multi-reader
-            List<DirectoryReader> directoryReaders = new ArrayList<>();
-            try {
-                for (Directory directory : directories) {
-                    DirectoryReader open = DirectoryReader.open(directory);
-                    directoryReaders.add(open);
-                }
-                DirectoryReader[] readers = directoryReaders.toArray(new DirectoryReader[0]);
-                try (MultiReader multiReader = new MultiReader(readers)) {
-                    IndexSearcher indexSearcher = newIndexSearcher(multiReader);
-
-                    V agg = searchAndReduce(indexSearcher, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
-                    verify.accept(agg);
-
-                    verifyOutputFieldNames(aggregationBuilder, agg);
-                }
-            } finally {
-                IOUtils.close(directoryReaders);
-            }
-        } finally {
-            IOUtils.close(directories);
-        }
-
-    }
-
     protected void withIndex(
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         CheckedConsumer<IndexSearcher, IOException> consume
@@ -716,7 +666,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
             buildIndex.accept(iw);
             iw.close();
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+            try (
+                DirectoryReader unwrapped = DirectoryReader.open(directory);
+                DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
+            ) {
                 consume.accept(newIndexSearcher(indexReader));
             }
         }
@@ -734,7 +687,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             );
             buildIndex.accept(iw);
             iw.close();
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+            try (
+                DirectoryReader unwrapped = DirectoryReader.open(directory);
+                DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
+            ) {
                 consume.accept(newIndexSearcher(indexReader));
             }
         }
@@ -794,7 +750,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     getMockScriptService(),
                     () -> false,
                     builder,
-                    context.multiBucketConsumer(),
+                    new MultiBucketConsumer(context.maxBuckets(), context.breaker()),
                     builder.buildPipelineTree()
                 )
             );
@@ -834,7 +790,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+            try (
+                DirectoryReader unwrapped = DirectoryReader.open(directory);
+                DirectoryReader indexReader = wrapDirectoryReader(unwrapped)
+            ) {
                 IndexSearcher searcher = newIndexSearcher(indexReader);
                 try (AggregationContext context = createAggregationContext(searcher, query, fieldTypes)) {
                     verify.accept(searcher, createAggregator(aggregationBuilder, context));
@@ -884,7 +843,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Override to wrap the {@linkplain DirectoryReader} for aggs like
      * {@link NestedAggregationBuilder}.
      */
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         return reader;
     }
 
@@ -915,7 +874,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * like {@link org.apache.lucene.tests.util.LuceneTestCase#newSearcher(IndexReader)}, which can't be used because it also
      * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
-    protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
+    protected static IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
         if (randomBoolean()) {
             // this executes basic query checks and asserts that weights are normalized only once etc.
             return new AssertingIndexSearcher(random(), indexReader);
@@ -929,7 +888,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * like {@link org.apache.lucene.tests.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
      * wraps in the IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
      */
-    protected static IndexReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
+    protected static DirectoryReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
         if (randomBoolean()) {
             return new AssertingDirectoryReader(reader);
         } else {
@@ -1034,7 +993,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 writeTestDoc(fieldType, fieldName, indexWriter);
                 indexWriter.close();
 
-                try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
@@ -1201,7 +1160,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends MappingParserContext {
         MockParserContext(IndexSettings indexSettings) {
-            super(null, null, null, Version.CURRENT, null, ScriptCompiler.NONE, null, indexSettings, null);
+            super(null, null, null, Version.CURRENT, () -> TransportVersion.CURRENT, null, ScriptCompiler.NONE, null, indexSettings, null);
         }
 
         @Override
@@ -1211,12 +1170,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public IndexAnalyzers getIndexAnalyzers() {
-            NamedAnalyzer defaultAnalyzer = new NamedAnalyzer(
-                AnalysisRegistry.DEFAULT_ANALYZER_NAME,
-                AnalyzerScope.GLOBAL,
-                new StandardAnalyzer()
-            );
-            return new IndexAnalyzers(Map.of(AnalysisRegistry.DEFAULT_ANALYZER_NAME, defaultAnalyzer), Map.of(), Map.of());
+            return (type, name) -> Lucene.STANDARD_ANALYZER;
         }
 
     }

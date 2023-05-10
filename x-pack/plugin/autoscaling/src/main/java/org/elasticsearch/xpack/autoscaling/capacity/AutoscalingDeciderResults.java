@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPAR
  * Represents a collection of individual autoscaling decider results that can be aggregated into a single autoscaling capacity for a
  * policy
  */
-public class AutoscalingDeciderResults implements ToXContent, Writeable {
+public class AutoscalingDeciderResults implements ToXContentObject, Writeable {
 
     private final AutoscalingCapacity currentCapacity;
     private final SortedSet<DiscoveryNode> currentNodes;
@@ -72,11 +72,6 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
         currentCapacity.writeTo(out);
         out.writeCollection(currentNodes);
         out.writeMap(results, StreamOutput::writeString, (output, result) -> result.writeTo(output));
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

@@ -91,6 +91,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             0.1 + randomDouble() * 100,
             null,
+            null,
             null
         );
         Directory dir = newDirectory();

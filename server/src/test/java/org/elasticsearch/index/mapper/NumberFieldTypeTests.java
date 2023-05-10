@@ -127,7 +127,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap(), null, false, null);
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            false,
+            false,
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null
+        );
     }
 
     public void testTermQuery() {
@@ -571,13 +584,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void doTestIndexSortRangeQueries(NumberType type, Supplier<Number> valueSupplier) throws IOException {
         // Create index settings with an index sort.
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.sort.field", "field")
-            .build();
-
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 

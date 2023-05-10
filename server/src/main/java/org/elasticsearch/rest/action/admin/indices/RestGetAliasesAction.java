@@ -22,6 +22,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -41,6 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 /**
  * The REST handler for get alias and head alias APIs.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override

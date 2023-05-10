@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 /**
@@ -25,8 +24,7 @@ public class XPackUser extends User {
                 .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
                 .privileges("all")
                 .allowRestrictedIndices(true)
-                .build(),
-            RoleDescriptor.IndicesPrivileges.builder().indices(IndexAuditTrailField.INDEX_NAME_PREFIX + "-*").privileges("read").build() },
+                .build() },
         new String[] { "*" },
         MetadataUtils.DEFAULT_RESERVED_METADATA
     );

@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
@@ -352,7 +353,8 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             original.isReplicated(),
             original.isSystem(),
             original.isAllowCustomRouting(),
-            original.getIndexMode()
+            original.getIndexMode(),
+            original.getLifecycle()
         );
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 
@@ -379,6 +381,28 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             )
         );
         assertThat(e.getMessage(), equalTo("index [" + indexToRemove + "] not found"));
+    }
+
+    public void testUpdateLifecycle() {
+        String dataStream = randomAlphaOfLength(5);
+        DataLifecycle dataLifecycle = new DataLifecycle(randomMillisUpToYear9999());
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStream, 2)), List.of());
+        {
+            // Remove lifecycle
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), null);
+            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            assertNotNull(updatedDataStream);
+            assertThat(updatedDataStream.getLifecycle(), nullValue());
+            before = after;
+        }
+
+        {
+            // Set lifecycle
+            ClusterState after = MetadataDataStreamsService.updateDataLifecycle(before, List.of(dataStream), dataLifecycle);
+            DataStream updatedDataStream = after.metadata().dataStreams().get(dataStream);
+            assertNotNull(updatedDataStream);
+            assertThat(updatedDataStream.getLifecycle(), equalTo(dataLifecycle));
+        }
     }
 
     private MapperService getMapperService(IndexMetadata im) {

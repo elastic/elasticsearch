@@ -395,11 +395,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
             return false;
         }
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return Objects.equals(snapshotRepository, that.snapshotRepository);
+        return Objects.equals(snapshotRepository, that.snapshotRepository) && Objects.equals(forceMergeIndex, that.forceMergeIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository);
+        return Objects.hash(snapshotRepository, forceMergeIndex);
     }
 }

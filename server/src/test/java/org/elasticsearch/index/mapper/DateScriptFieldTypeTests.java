@@ -152,7 +152,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1595432181351]}"))));
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 DateScriptFieldType ft = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
                 DateScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -191,7 +191,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 DateScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
@@ -212,7 +212,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
@@ -246,7 +246,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
                 TopDocs docs = searcher.search(query, 4);
                 assertThat(docs.scoreDocs, arrayWithSize(3));
@@ -285,7 +285,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
             }
         }
@@ -298,7 +298,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
                 assertThat(
                     searcher.count(
@@ -379,7 +379,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("2020-07-22T15:36:21.354Z", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("1595432181355", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1595432181354L, mockContext())), equalTo(1));
@@ -408,7 +408,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 MappedFieldType ft = simpleMappedFieldType();
-                IndexSearcher searcher = newUnthreadedSearcher(reader);
+                IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(ft.termsQuery(List.of("2020-07-22T15:36:21.354Z"), mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.termsQuery(List.of("1595432181354"), mockContext())), equalTo(1));
                 assertThat(searcher.count(ft.termsQuery(List.of(1595432181354L), mockContext())), equalTo(1));
@@ -448,7 +448,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         // Check that we don't allow the use of camel case date formats on 8.x indices
         assertEquals(
             "Failed to parse mapping: Invalid format: [strictDateOptionalTime]: Unknown pattern letter: t",
-            expectThrows(MapperParsingException.class, () -> { createMapperService(mapping.get()); }).getMessage()
+            expectThrows(MapperParsingException.class, () -> {
+                createMapperService(mapping.get());
+            }).getMessage()
         );
     }
 

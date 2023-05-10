@@ -200,7 +200,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 parsedNullValue(),
                 meta.getValue(),
                 dimension.getValue(),
-                metric.getValue()
+                metric.getValue(),
+                indexMode
             );
             return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -213,6 +214,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final Number nullValueFormatted;
         private final boolean isDimension;
         private final MetricType metricType;
+        private final IndexMode indexMode;
 
         public UnsignedLongFieldType(
             String name,
@@ -222,16 +224,18 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             Number nullValueFormatted,
             Map<String, String> meta,
             boolean isDimension,
-            MetricType metricType
+            MetricType metricType,
+            IndexMode indexMode
         ) {
             super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValueFormatted = nullValueFormatted;
             this.isDimension = isDimension;
             this.metricType = metricType;
+            this.indexMode = indexMode;
         }
 
         public UnsignedLongFieldType(String name) {
-            this(name, true, false, true, null, Collections.emptyMap(), false, null);
+            this(name, true, false, true, null, Collections.emptyMap(), false, null, null);
         }
 
         @Override
@@ -316,7 +320,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.COUNTER
+            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER
                 ? TimeSeriesValuesSourceType.COUNTER
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
 
@@ -326,7 +330,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         name(),
                         IndexNumericFieldData.NumericType.LONG,
                         valuesSourceType,
-                        (dv, n) -> { throw new UnsupportedOperationException(); }
+                        (dv, n) -> {
+                            throw new UnsupportedOperationException();
+                        }
                     ).build(cache, breakerService);
                     return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
                 };

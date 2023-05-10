@@ -21,26 +21,27 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Utility class used for fetching field values by reading field data
+ * Utility class used for fetching field values by reading field data.
+ * For fields whose type is multi-valued the 'name' matches the parent field
+ * name (normally used for indexing data), while the actual sub-field
+ * name is accessible by means of {@link MappedFieldType#name()}.
  */
 class FieldValueFetcher {
 
-    private final MappedFieldType fieldType;
-    private final IndexFieldData<?> fieldData;
-    private final AbstractRollupFieldProducer rollupFieldProducer;
+    protected final String name;
+    protected final MappedFieldType fieldType;
+    protected final IndexFieldData<?> fieldData;
+    protected final AbstractDownsampleFieldProducer rollupFieldProducer;
 
-    protected FieldValueFetcher(MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+        this.name = name;
         this.fieldType = fieldType;
         this.fieldData = fieldData;
         this.rollupFieldProducer = createRollupFieldProducer();
     }
 
     public String name() {
-        return fieldType().name();
-    }
-
-    public MappedFieldType fieldType() {
-        return fieldType;
+        return name;
     }
 
     public FormattedDocValues getLeaf(LeafReaderContext context) {
@@ -48,15 +49,17 @@ class FieldValueFetcher {
         return fieldData.load(context).getFormattedValues(format);
     }
 
-    public AbstractRollupFieldProducer rollupFieldProducer() {
+    public AbstractDownsampleFieldProducer rollupFieldProducer() {
         return rollupFieldProducer;
     }
 
-    private AbstractRollupFieldProducer createRollupFieldProducer() {
+    private AbstractDownsampleFieldProducer createRollupFieldProducer() {
         if (fieldType.getMetricType() != null) {
             return switch (fieldType.getMetricType()) {
                 case GAUGE -> new MetricFieldProducer.GaugeMetricFieldProducer(name());
                 case COUNTER -> new MetricFieldProducer.CounterMetricFieldProducer(name());
+                // TODO: Support POSITION in downsampling
+                case POSITION -> throw new IllegalArgumentException("Unsupported metric type [position] for down-sampling");
             };
         } else {
             // If field is not a metric, we downsample it as a label
@@ -87,8 +90,11 @@ class FieldValueFetcher {
                 }
             } else {
                 if (context.fieldExistsInIndex(field)) {
-                    IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                    fetchers.add(new FieldValueFetcher(fieldType, fieldData));
+                    final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+                    final String fieldName = context.isMultiField(field)
+                        ? fieldType.name().substring(0, fieldType.name().lastIndexOf('.'))
+                        : fieldType.name();
+                    fetchers.add(new FieldValueFetcher(fieldName, fieldType, fieldData));
                 }
             }
         }

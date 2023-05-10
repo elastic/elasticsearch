@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +29,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
      * Copy the {@link Writeable} by round tripping it through {@linkplain StreamInput} and {@linkplain StreamOutput}.
      */
     @Override
-    protected final T copyInstance(T instance, Version version) throws IOException {
+    protected final T copyInstance(T instance, TransportVersion version) throws IOException {
         return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version);
     }
 }

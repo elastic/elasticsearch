@@ -10,17 +10,25 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transports;
+import org.junit.Assert;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -167,7 +175,7 @@ public class ListenableActionFutureTests extends ESTestCase {
         final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
 
         for (int i = between(1, 3); i > 0; i--) {
-            future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+            future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         }
         reachabilityChecker.checkReachable();
         if (randomBoolean()) {
@@ -177,7 +185,60 @@ public class ListenableActionFutureTests extends ESTestCase {
         }
         reachabilityChecker.ensureUnreachable();
 
-        future.addListener(reachabilityChecker.register(ActionListener.wrap(() -> {})));
+        future.addListener(reachabilityChecker.register(ActionListener.running(() -> {})));
         reachabilityChecker.ensureUnreachable();
+    }
+
+    public void testExceptionWrapping() {
+        assertExceptionWrapping(new ElasticsearchException("simulated"), e -> {
+            assertEquals(ElasticsearchException.class, e.getClass());
+            assertEquals("simulated", e.getMessage());
+        });
+
+        assertExceptionWrapping(new RuntimeException("simulated"), e -> {
+            assertEquals(RuntimeException.class, e.getClass());
+            assertEquals("simulated", e.getMessage());
+        });
+
+        assertExceptionWrapping(new IOException("simulated"), e -> {
+            assertEquals(UncategorizedExecutionException.class, e.getClass());
+            assertEquals(ExecutionException.class, e.getCause().getClass());
+            assertEquals(IOException.class, e.getCause().getCause().getClass());
+            assertEquals("simulated", e.getCause().getCause().getMessage());
+        });
+
+        assertExceptionWrapping(new ElasticsearchException("outer", new IOException("inner")), e -> {
+            assertEquals(ElasticsearchException.class, e.getClass());
+            assertEquals(IOException.class, e.getCause().getClass());
+            assertEquals("outer", e.getMessage());
+            assertEquals("inner", e.getCause().getMessage());
+        });
+
+        assertExceptionWrapping(new RemoteTransportException("outer", new IOException("inner")), e -> {
+            assertEquals(UncategorizedExecutionException.class, e.getClass());
+            assertEquals(IOException.class, e.getCause().getClass());
+            assertEquals("Failed execution", e.getMessage());
+            assertEquals("inner", e.getCause().getMessage());
+        });
+    }
+
+    private void assertExceptionWrapping(Exception exception, Consumer<Exception> assertException) {
+        final AtomicInteger assertCount = new AtomicInteger();
+        final BiConsumer<ActionListener<Void>, Exception> exceptionCheck = (l, e) -> {
+            assertException.accept(e);
+            assertCount.incrementAndGet();
+        };
+        final var future = new ListenableActionFuture<Void>();
+
+        future.addListener(ActionListener.<Void>running(Assert::fail).delegateResponse(exceptionCheck));
+
+        future.onFailure(exception);
+        assertEquals(1, assertCount.get());
+
+        exceptionCheck.accept(null, expectThrows(Exception.class, future::actionResult));
+        assertEquals(2, assertCount.get());
+
+        future.addListener(ActionListener.<Void>running(Assert::fail).delegateResponse(exceptionCheck));
+        assertEquals(3, assertCount.get());
     }
 }

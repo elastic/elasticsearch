@@ -122,6 +122,22 @@
                         }
                       }
                     },
+                    "event_loop_utilization": {
+                      "properties": {
+                        "active": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        },
+                        "idle": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        },
+                        "utilization": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        }
+                      }
+                    },
                     "uptime": {
                       "properties": {
                         "ms": {
@@ -520,6 +536,7 @@
       }
     },
     "settings": {
+      "index.auto_expand_replicas": "0-1",
       "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }

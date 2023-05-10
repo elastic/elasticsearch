@@ -230,7 +230,7 @@ public class OpenJobAction extends ActionType<NodeAcknowledgedResponse> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT.minimumCompatibilityVersion();
+            return TransportVersion.MINIMUM_COMPATIBLE;
         }
 
         @Override

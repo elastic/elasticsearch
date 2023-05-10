@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -37,7 +37,7 @@ public class VocabularyConfigTests extends AbstractBWCSerializationTestCase<Voca
     }
 
     @Override
-    protected VocabularyConfig mutateInstanceForVersion(VocabularyConfig instance, Version version) {
+    protected VocabularyConfig mutateInstanceForVersion(VocabularyConfig instance, TransportVersion version) {
         return instance;
     }
 

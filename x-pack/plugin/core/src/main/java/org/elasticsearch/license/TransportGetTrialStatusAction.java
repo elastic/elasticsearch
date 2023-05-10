@@ -21,13 +21,16 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction<GetTrialStatusRequest, GetTrialStatusResponse> {
 
+    private final LicenseService licenseService;
+
     @Inject
     public TransportGetTrialStatusAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        LicenseService licenseService
     ) {
         super(
             GetTrialStatusAction.NAME,
@@ -40,6 +43,7 @@ public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction
             GetTrialStatusResponse::new,
             ThreadPool.Names.SAME
         );
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -49,9 +53,12 @@ public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetTrialStatusResponse> listener
     ) throws Exception {
-        LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
-        listener.onResponse(new GetTrialStatusResponse(licensesMetadata == null || licensesMetadata.isEligibleForTrial()));
-
+        if (licenseService instanceof ClusterStateLicenseService) {
+            LicensesMetadata licensesMetadata = state.metadata().custom(LicensesMetadata.TYPE);
+            listener.onResponse(new GetTrialStatusResponse(licensesMetadata == null || licensesMetadata.isEligibleForTrial()));
+        } else {
+            listener.onResponse(new GetTrialStatusResponse(false));
+        }
     }
 
     @Override

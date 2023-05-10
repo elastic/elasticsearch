@@ -172,7 +172,7 @@ public class MetadataTests extends ESTestCase {
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
         String[] concreteIndices = allIndices.stream().map(Index::getName).toList().toArray(new String[] {});
-        Map<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        Map<String, DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
         assertThat(dataStreams.size(), equalTo(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
             assertThat(dataStreams.containsKey(backingIndex.getName()), is(true));
@@ -620,26 +620,8 @@ public class MetadataTests extends ESTestCase {
 
     public void testFindMappings() throws IOException {
         Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index1")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(FIND_MAPPINGS_TEST_ITEM)
-            )
-            .put(
-                IndexMetadata.builder("index2")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(FIND_MAPPINGS_TEST_ITEM)
-            )
+            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(FIND_MAPPINGS_TEST_ITEM))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(FIND_MAPPINGS_TEST_ITEM))
             .build();
 
         {
@@ -684,16 +666,7 @@ public class MetadataTests extends ESTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index1")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(originalMappingMetadata)
-            )
+            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(originalMappingMetadata))
             .build();
 
         {
@@ -729,36 +702,9 @@ public class MetadataTests extends ESTestCase {
         }
 
         Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("index1")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(mapping)
-            )
-            .put(
-                IndexMetadata.builder("index2")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(mapping)
-            )
-            .put(
-                IndexMetadata.builder("index3")
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    )
-                    .putMapping(mapping)
-            )
+            .put(IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(mapping))
+            .put(IndexMetadata.builder("index2").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(mapping))
+            .put(IndexMetadata.builder("index3").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(mapping))
             .build();
 
         {
@@ -1269,14 +1215,7 @@ public class MetadataTests extends ESTestCase {
 
         b = Metadata.builder();
         b.put(
-            IndexMetadata.builder("index1")
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .putAlias(new AliasMetadata.Builder("my-alias"))
+            IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putAlias(new AliasMetadata.Builder("my-alias"))
         );
 
         addDataStream("d1", b);
@@ -1304,14 +1243,7 @@ public class MetadataTests extends ESTestCase {
 
         b = Metadata.builder();
         b.put(
-            IndexMetadata.builder("index1")
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
-                .putAlias(new AliasMetadata.Builder("my-alias"))
+            IndexMetadata.builder("index1").settings(indexSettings(Version.CURRENT, 1, 0)).putAlias(new AliasMetadata.Builder("my-alias"))
         );
         b.dataStreams(Map.of("d1", createDataStream("d1")), Map.of("my-alias", new DataStreamAlias("my-alias", List.of("d1"), null, null)));
         e = expectThrows(IllegalStateException.class, b::build);

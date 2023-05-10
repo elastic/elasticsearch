@@ -7,7 +7,17 @@
 
 package org.elasticsearch.blobcache;
 
+import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.Streams;
+
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class BlobCacheUtils {
 
@@ -19,5 +29,57 @@ public class BlobCacheUtils {
      */
     public static int toIntBytes(long l) {
         return ByteSizeUnit.BYTES.toIntBytes(l);
+    }
+
+    public static void throwEOF(long channelPos, long len, Object file) throws EOFException {
+        throw new EOFException(format("unexpected EOF reading [%d-%d] from %s", channelPos, channelPos + len, file));
+    }
+
+    public static void ensureSeek(long pos, IndexInput input) throws IOException {
+        final long length = input.length();
+        if (pos > length) {
+            throw new EOFException("Reading past end of file [position=" + pos + ", length=" + input.length() + "] for " + input);
+        } else if (pos < 0L) {
+            throw new IOException("Seeking to negative position [" + pos + "] for " + input);
+        }
+    }
+
+    public static ByteRange computeRange(long rangeSize, long position, long length) {
+        long start = (position / rangeSize) * rangeSize;
+        long end = Math.min(start + rangeSize, length);
+        return ByteRange.of(start, end);
+    }
+
+    public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput input) {
+        if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > input.length()) {
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceName
+                    + " out of bounds: offset="
+                    + sliceOffset
+                    + ",length="
+                    + sliceLength
+                    + ",fileLength="
+                    + input.length()
+                    + ": "
+                    + input
+            );
+        }
+    }
+
+    /**
+     * Perform a single {@code read()} from {@code inputStream} into {@code copyBuffer}, handling an EOF by throwing an {@link EOFException}
+     * rather than returning {@code -1}. Returns the number of bytes read, which is always positive.
+     *
+     * Most of its arguments are there simply to make the message of the {@link EOFException} more informative.
+     */
+    public static int readSafe(InputStream inputStream, ByteBuffer copyBuffer, long rangeStart, long remaining, Object cacheFileReference)
+        throws IOException {
+        final int len = (remaining < copyBuffer.remaining()) ? toIntBytes(remaining) : copyBuffer.remaining();
+        final int bytesRead = Streams.read(inputStream, copyBuffer, len);
+        if (bytesRead <= 0) {
+            throwEOF(rangeStart, remaining, cacheFileReference);
+        }
+        return bytesRead;
     }
 }

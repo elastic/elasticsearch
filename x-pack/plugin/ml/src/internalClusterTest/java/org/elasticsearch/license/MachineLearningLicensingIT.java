@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -664,12 +665,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            InferModelAction.Request.forDocs(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         InferModelAction.Response response = inferModelSuccess.actionGet();
@@ -685,12 +686,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             client().execute(
                 InferModelAction.INSTANCE,
-                InferModelAction.Request.forDocs(
+                InferModelAction.Request.forIngestDocs(
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
                     false
-                )
+                ).setInferenceTimeout(TimeValue.timeValueSeconds(5))
             ).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -701,12 +702,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         inferModelSuccess = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            InferModelAction.Request.forDocs(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 true
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             inferModelSuccess
         );
         response = inferModelSuccess.actionGet();
@@ -721,12 +722,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         PlainActionFuture<InferModelAction.Response> listener = PlainActionFuture.newFuture();
         client().execute(
             InferModelAction.INSTANCE,
-            InferModelAction.Request.forDocs(
+            InferModelAction.Request.forIngestDocs(
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
                 false
-            ),
+            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
             listener
         );
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
@@ -834,7 +835,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, null);
+            licenseState.update(new XPackLicenseStatus(operationMode, false, null));
         }
     }
 
@@ -844,7 +845,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, null);
+            licenseState.update(new XPackLicenseStatus(operationMode, true, null));
         }
     }
 }

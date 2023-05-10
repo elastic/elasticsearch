@@ -135,6 +135,10 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
                     if (pipeline.equals(otherPipeline) == false) {
                         return false;
                     }
+                    otherPipelineMap.remove(pipeline.getId());
+                }
+                if (otherPipelineMap.isEmpty() == false) {
+                    return false;
                 }
                 return true;
             }

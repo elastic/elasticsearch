@@ -69,8 +69,8 @@ cycle.
 * Lines that are not part of your change should not be edited (e.g. don't format
   unchanged lines, don't reorder existing imports)
 * Add the appropriate [license headers](#license-headers) to any new files
-* For contributions involving the elasticsearch build you can find (details about the build setup in the
-* [BUILDING](BUILDING.md) file
+* For contributions involving the elasticsearch build you can find details about the build setup in the
+  [BUILDING](BUILDING.md) file
 
 ### Submitting your changes
 
@@ -114,14 +114,7 @@ Contributing to the Elasticsearch codebase
 
 JDK 17 is required to build Elasticsearch. You must have a JDK 17 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 17 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 17 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
-pointing to the Java home of a JDK 11 installation. Note that this mechanism can
-be used to test against other JDKs as well, this is not only limited to JDK 11.
-
-> Note: It is also required to have `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA17_HOME`
-available so that the tests can pass.
+your JDK 17 installation.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`

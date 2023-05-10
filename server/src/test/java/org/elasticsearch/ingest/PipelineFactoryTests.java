@@ -200,7 +200,7 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getVersion(), equalTo(version));
         assertThat(pipeline.getProcessors().size(), equalTo(1));
-        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("compound"));
+        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("on_failure"));
     }
 
     public void testFlattenProcessors() throws Exception {

@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -34,7 +34,7 @@ import java.util.Objects;
 import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
 
 /**
- * An index template is comprised of a set of index patterns, an optional template, and a list of
+ * An index template consists of a set of index patterns, an optional template, and a list of
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */
@@ -175,7 +175,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             this.ignoreMissingComponentTemplates = in.readOptionalStringList();
         } else {
             this.ignoreMissingComponentTemplates = null;
@@ -196,6 +196,23 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return List.of();
         }
         return componentTemplates;
+    }
+
+    /**
+     * Returns the <b>required</b> component templates, i.e. such that are not allowed to be missing, as in
+     * {@link #ignoreMissingComponentTemplates}.
+     * @return a list of required component templates
+     */
+    public List<String> getRequiredComponentTemplates() {
+        if (componentTemplates == null) {
+            return List.of();
+        }
+        if (ignoreMissingComponentTemplates == null) {
+            return componentTemplates;
+        }
+        return componentTemplates.stream()
+            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
+            .toList();
     }
 
     @Nullable
@@ -250,17 +267,26 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the composable index template to XContent and passes the RolloverConditions, when provided, to the template.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
+        throws IOException {
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
-            builder.field(TEMPLATE.getPreferredName(), this.template, params);
+            builder.field(TEMPLATE.getPreferredName());
+            this.template.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);

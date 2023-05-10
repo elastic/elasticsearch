@@ -255,11 +255,11 @@ public class RecoveriesCollection {
     }
 
     /**
-     * a reference to {@link RecoveryTarget}, which implements {@link AutoCloseable}. closing the reference
+     * a reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */
-    public static class RecoveryRef implements AutoCloseable {
+    public static class RecoveryRef implements Releasable {
 
         private final RecoveryTarget status;
         private final AtomicBoolean closed = new AtomicBoolean(false);

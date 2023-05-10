@@ -20,6 +20,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -73,6 +74,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomMap;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -99,7 +101,18 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
+        return newInstance(name, indices, generation, metadata, replicated, null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataLifecycle lifecycle
+    ) {
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null, lifecycle);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -241,7 +254,8 @@ public final class DataStreamTestHelper {
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
-            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
+            randomBoolean() ? new DataLifecycle(randomMillisUpToYear9999()) : null
         );
     }
 

@@ -572,13 +572,9 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> testCase(
-                    new MatchAllDocsQuery(),
-                    terms,
-                    null,
-                    iw -> { iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3))); },
-                    h -> fail("Should have thrown exception")
-                )
+                () -> testCase(new MatchAllDocsQuery(), terms, null, iw -> {
+                    iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3)));
+                }, h -> fail("Should have thrown exception"))
             );
             if (terms == null) {
                 assertEquals("[terms] must not be null: [my_terms]", ex.getMessage());

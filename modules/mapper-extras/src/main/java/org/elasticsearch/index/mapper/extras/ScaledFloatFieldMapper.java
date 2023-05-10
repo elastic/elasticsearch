@@ -192,7 +192,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 meta.getValue(),
                 scalingFactor.getValue(),
                 nullValue.getValue(),
-                metric.getValue()
+                metric.getValue(),
+                indexMode
             );
             return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
@@ -205,6 +206,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final double scalingFactor;
         private final Double nullValue;
         private final TimeSeriesParams.MetricType metricType;
+        private final IndexMode indexMode;
 
         public ScaledFloatFieldType(
             String name,
@@ -214,12 +216,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             Map<String, String> meta,
             double scalingFactor,
             Double nullValue,
-            TimeSeriesParams.MetricType metricType
+            TimeSeriesParams.MetricType metricType,
+            IndexMode indexMode
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.scalingFactor = scalingFactor;
             this.nullValue = nullValue;
             this.metricType = metricType;
+            this.indexMode = indexMode;
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
@@ -227,7 +231,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor, boolean indexed) {
-            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null);
+            this(name, indexed, false, true, Collections.emptyMap(), scalingFactor, null, null, null);
         }
 
         public double getScalingFactor() {
@@ -302,7 +306,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.COUNTER
+            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER
                 ? TimeSeriesValuesSourceType.COUNTER
                 : IndexNumericFieldData.NumericType.LONG.getValuesSourceType();
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
@@ -311,7 +315,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         name(),
                         IndexNumericFieldData.NumericType.LONG,
                         valuesSourceType,
-                        (dv, n) -> { throw new UnsupportedOperationException(); }
+                        (dv, n) -> {
+                            throw new UnsupportedOperationException();
+                        }
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };

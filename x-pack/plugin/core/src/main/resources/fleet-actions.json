@@ -45,6 +45,16 @@
         },
         "user_id" : {
           "type": "keyword"
+        },
+        "signed" : {
+          "properties": {
+            "data" : {
+              "type": "binary"
+            },
+            "signature" : {
+              "type": "binary"
+            }
+          }
         }
       }
     }

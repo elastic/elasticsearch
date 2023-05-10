@@ -18,10 +18,10 @@ public class DefaultDistributionDescriptor implements DistributionDescriptor {
     private final Path distributionDir;
     private final DistributionType type;
 
-    public DefaultDistributionDescriptor(Version version, boolean snapshot, Path distributionDir, DistributionType type) {
+    public DefaultDistributionDescriptor(Version version, boolean snapshot, Path extractedDir, DistributionType type) {
         this.version = version;
         this.snapshot = snapshot;
-        this.distributionDir = distributionDir;
+        this.distributionDir = extractedDir;
         this.type = type;
     }
 
@@ -34,7 +34,7 @@ public class DefaultDistributionDescriptor implements DistributionDescriptor {
     }
 
     public Path getDistributionDir() {
-        return distributionDir;
+        return distributionDir.resolve("elasticsearch-" + version + (snapshot ? "-SNAPSHOT" : ""));
     }
 
     public DistributionType getType() {

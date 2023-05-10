@@ -332,7 +332,20 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnLongs() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG));
         doTestRequireDocValues(
-            new NumberFieldMapper.NumberFieldType("field", LONG, true, false, false, false, null, Collections.emptyMap(), null, false, null)
+            new NumberFieldMapper.NumberFieldType(
+                "field",
+                LONG,
+                true,
+                false,
+                false,
+                false,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null
+            )
         );
     }
 
@@ -350,6 +363,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             )
         );

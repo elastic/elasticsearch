@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,11 +36,15 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  * Contains the settings and some associated logic for the settings related to the Remote Access port, used by Remote Cluster Security 2.0.
  */
 public class RemoteClusterPortSettings {
+
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS = TransportVersion.V_8_8_0;
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR = TransportVersion.V_8_9_0;
+
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
 
-    public static final Setting<Boolean> REMOTE_CLUSTER_PORT_ENABLED = boolSetting(
-        REMOTE_CLUSTER_PREFIX + "enabled",
+    public static final Setting<Boolean> REMOTE_CLUSTER_SERVER_ENABLED = boolSetting(
+        "remote_cluster_server.enabled",
         false,
         Setting.Property.NodeScope
     );
@@ -127,7 +132,7 @@ public class RemoteClusterPortSettings {
     );
 
     static void validateRemoteAccessSettings(Settings settings) {
-        if (REMOTE_CLUSTER_PORT_ENABLED.get(settings)
+        if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
             && settings.getGroups("transport.profiles.", true).keySet().contains(REMOTE_CLUSTER_PROFILE)) {
             throw new IllegalArgumentException(
                 "Remote Access settings should not be configured using the ["

@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
  */
-final class ServerTransportFilter {
+class ServerTransportFilter {
 
     private static final Logger logger = LogManager.getLogger(ServerTransportFilter.class);
 
@@ -101,11 +101,11 @@ final class ServerTransportFilter {
         }
 
         TransportVersion version = transportChannel.getVersion();
-        authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
+        authenticate(securityAction, request, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
                 if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME)
                     && SystemUser.is(authentication.getEffectiveSubject().getUser()) == false) {
-                    securityContext.executeAsSystemUser(TransportVersion.fromId(version.id), original -> {
+                    securityContext.executeAsSystemUser(version, original -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
                     });
@@ -118,8 +118,21 @@ final class ServerTransportFilter {
         }, listener::onFailure));
     }
 
+    protected void authenticate(
+        final String securityAction,
+        final TransportRequest request,
+        final ActionListener<Authentication> authenticationListener
+    ) {
+        authcService.authenticate(securityAction, request, true, authenticationListener);
+    }
+
+    protected final ThreadContext getThreadContext() {
+        return threadContext;
+    }
+
     // Package private for testing
     boolean isExtractClientCert() {
         return extractClientCert;
     }
+
 }

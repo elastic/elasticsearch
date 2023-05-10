@@ -111,14 +111,15 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         MlMemoryTracker memoryTracker,
         Client client,
         IndexNameExpressionResolver expressionResolver,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        boolean includeNodeInfo
     ) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.auditor = new AnomalyDetectionAuditor(client, clusterService, includeNodeInfo);
         this.licenseState = licenseState;
         clusterService.addListener(event -> clusterState = event.state());
     }
@@ -219,7 +220,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         validateJobAndId(jobId, job);
         // If we already know that we can't find an ml node because all ml nodes are running at capacity or
         // simply because there are no ml nodes in the cluster then we fail quickly here:
-        PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState.nodes(), clusterState);
+        PersistentTasksCustomMetadata.Assignment assignment = getAssignment(params, clusterState.nodes().getAllNodes(), clusterState);
         if (assignment.equals(AWAITING_UPGRADE)) {
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }

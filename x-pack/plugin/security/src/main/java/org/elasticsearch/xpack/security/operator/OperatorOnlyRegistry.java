@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.action.admin.cluster.allocation.DeleteDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
@@ -41,6 +42,7 @@ public class OperatorOnlyRegistry {
         "cluster:admin/repository/analyze",
         "cluster:admin/repository/analyze/blob",
         "cluster:admin/repository/analyze/blob/read",
+        "cluster:admin/repository/analyze/register",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",
@@ -51,7 +53,8 @@ public class OperatorOnlyRegistry {
         DeleteDesiredNodesAction.NAME,
         GetDesiredNodesAction.NAME,
         UpdateDesiredNodesAction.NAME,
-        GetDesiredBalanceAction.NAME
+        GetDesiredBalanceAction.NAME,
+        DeleteDesiredBalanceAction.NAME
     );
 
     private final ClusterSettings clusterSettings;

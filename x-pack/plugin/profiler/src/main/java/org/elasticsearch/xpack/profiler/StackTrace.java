@@ -12,16 +12,19 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 final class StackTrace implements ToXContentObject {
-    int[] addressOrLines;
-    String[] fileIds;
-    String[] frameIds;
-    int[] typeIds;
+    List<Integer> addressOrLines;
+    List<String> fileIds;
+    List<String> frameIds;
+    List<Integer> typeIds;
 
-    StackTrace(int[] addressOrLines, String[] fileIds, String[] frameIds, int[] typeIds) {
+    StackTrace(List<Integer> addressOrLines, List<String> fileIds, List<String> frameIds, List<Integer> typeIds) {
         this.addressOrLines = addressOrLines;
         this.fileIds = fileIds;
         this.frameIds = frameIds;
@@ -60,8 +63,8 @@ final class StackTrace implements ToXContentObject {
      * @return Corresponding numbers that are encoded in the input.
      */
     // package-private for testing
-    static int[] runLengthDecodeBase64Url(String input, int size, int capacity) {
-        int[] output = new int[capacity];
+    static List<Integer> runLengthDecodeBase64Url(String input, int size, int capacity) {
+        Integer[] output = new Integer[capacity];
         int multipleOf8 = size / 8;
         int remainder = size % 8;
 
@@ -125,7 +128,10 @@ final class StackTrace implements ToXContentObject {
             Arrays.fill(output, j, j + count, value);
             j += count;
         }
-        return output;
+        if (j < capacity) {
+            Arrays.fill(output, j, capacity, 0);
+        }
+        return Arrays.asList(output);
     }
 
     // package-private for testing
@@ -168,9 +174,9 @@ final class StackTrace implements ToXContentObject {
         String inputFrameTypes = ObjectPath.eval("Stacktrace.frame.types", source);
         int countsFrameIDs = inputFrameIDs.length() / BASE64_FRAME_ID_LENGTH;
 
-        String[] fileIDs = new String[countsFrameIDs];
-        String[] frameIDs = new String[countsFrameIDs];
-        int[] addressOrLines = new int[countsFrameIDs];
+        List<String> fileIDs = new ArrayList<>(countsFrameIDs);
+        List<String> frameIDs = new ArrayList<>(countsFrameIDs);
+        List<Integer> addressOrLines = new ArrayList<>(countsFrameIDs);
 
         // Step 1: Convert the base64-encoded frameID list into two separate
         // lists (frame IDs and file IDs), both of which are also base64-encoded.
@@ -183,13 +189,13 @@ final class StackTrace implements ToXContentObject {
         // address (see diagram in definition of EncodedStackTrace).
         for (int i = 0, pos = 0; i < countsFrameIDs; i++, pos += BASE64_FRAME_ID_LENGTH) {
             String frameID = inputFrameIDs.substring(pos, pos + BASE64_FRAME_ID_LENGTH);
-            frameIDs[i] = frameID;
-            fileIDs[i] = getFileIDFromStackFrameID(frameID);
-            addressOrLines[i] = getAddressFromStackFrameID(frameID);
+            frameIDs.add(frameID);
+            fileIDs.add(getFileIDFromStackFrameID(frameID));
+            addressOrLines.add(getAddressFromStackFrameID(frameID));
         }
 
         // Step 2: Convert the run-length byte encoding into a list of uint8s.
-        int[] typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
+        List<Integer> typeIDs = runLengthDecodeBase64Url(inputFrameTypes, inputFrameTypes.length(), countsFrameIDs);
 
         return new StackTrace(addressOrLines, fileIDs, frameIDs, typeIDs);
     }
@@ -197,35 +203,29 @@ final class StackTrace implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.array("address_or_lines", this.addressOrLines);
-        builder.array("file_ids", this.fileIds);
-        builder.array("frame_ids", this.frameIds);
-        builder.array("type_ids", this.typeIds);
+        builder.field("address_or_lines", this.addressOrLines);
+        builder.field("file_ids", this.fileIds);
+        builder.field("frame_ids", this.frameIds);
+        builder.field("type_ids", this.typeIds);
         builder.endObject();
         return builder;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
+        if (this == o) return true;
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
         StackTrace that = (StackTrace) o;
-        return Arrays.equals(addressOrLines, that.addressOrLines)
-            && Arrays.equals(fileIds, that.fileIds)
-            && Arrays.equals(frameIds, that.frameIds)
-            && Arrays.equals(typeIds, that.typeIds);
+        return addressOrLines.equals(that.addressOrLines)
+            && fileIds.equals(that.fileIds)
+            && frameIds.equals(that.frameIds)
+            && typeIds.equals(that.typeIds);
     }
 
     @Override
     public int hashCode() {
-        int result = Arrays.hashCode(addressOrLines);
-        result = 31 * result + Arrays.hashCode(fileIds);
-        result = 31 * result + Arrays.hashCode(frameIds);
-        result = 31 * result + Arrays.hashCode(typeIds);
-        return result;
+        return Objects.hash(addressOrLines, fileIds, frameIds, typeIds);
     }
 }

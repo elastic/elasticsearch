@@ -9,7 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -543,7 +543,7 @@ public class SettingsTests extends ESTestCase {
         final boolean flatSettings = randomBoolean();
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "" + flatSettings)));
+        settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(Settings.FLAT_SETTINGS_PARAM, "" + flatSettings)));
         builder.endObject();
         XContentParser parser = createParser(builder);
         Settings build = Settings.fromXContent(parser);
@@ -591,7 +591,7 @@ public class SettingsTests extends ESTestCase {
 
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+        test.toXContent(builder, Settings.FLAT_SETTINGS_TRUE);
         builder.endObject();
         assertEquals("""
             {"foo.bar":["1","2","3"]}""", Strings.toString(builder));
@@ -635,19 +635,17 @@ public class SettingsTests extends ESTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        ElasticsearchParseException e = expectThrows(
-            ElasticsearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
@@ -663,7 +661,7 @@ public class SettingsTests extends ESTestCase {
 
     public void testReadWriteArray() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
-        output.setVersion(randomFrom(Version.CURRENT, Version.V_7_0_0));
+        output.setTransportVersion(randomFrom(TransportVersion.CURRENT, TransportVersion.V_7_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
         settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));

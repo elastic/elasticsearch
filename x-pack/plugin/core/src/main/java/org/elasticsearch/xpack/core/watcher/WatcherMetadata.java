@@ -43,7 +43,7 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override

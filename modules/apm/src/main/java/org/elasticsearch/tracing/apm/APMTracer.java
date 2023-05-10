@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.SpanId;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -59,7 +60,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
     /** Holds in-flight span information. */
-    private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<SpanId, Context> spans = ConcurrentCollections.newConcurrentMap();
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -158,7 +159,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void startTrace(ThreadContext threadContext, String spanId, String spanName, @Nullable Map<String, Object> attributes) {
+    public void startTrace(ThreadContext threadContext, SpanId spanId, String spanName, @Nullable Map<String, Object> attributes) {
         assert threadContext != null;
         assert spanId != null;
         assert spanName != null;
@@ -273,7 +274,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * @return a method to close the scope when you are finished with it.
      */
     @Override
-    public Releasable withScope(String spanId) {
+    public Releasable withScope(SpanId spanId) {
         final Context context = spans.get(spanId);
         if (context != null) {
             var scope = context.makeCurrent();
@@ -330,7 +331,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addError(String spanId, Throwable throwable) {
+    public void addError(SpanId spanId, Throwable throwable) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.recordException(throwable);
@@ -338,7 +339,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, boolean value) {
+    public void setAttribute(SpanId spanId, String key, boolean value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -346,7 +347,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, double value) {
+    public void setAttribute(SpanId spanId, String key, double value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -354,7 +355,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, long value) {
+    public void setAttribute(SpanId spanId, String key, long value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -362,7 +363,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, String value) {
+    public void setAttribute(SpanId spanId, String key, String value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -370,7 +371,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void stopTrace(String spanId) {
+    public void stopTrace(SpanId spanId) {
         final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
@@ -387,7 +388,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addEvent(String spanId, String eventName) {
+    public void addEvent(SpanId spanId, String eventName) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.addEvent(eventName);
@@ -412,7 +413,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     // VisibleForTesting
-    Map<String, Context> getSpans() {
+    Map<SpanId, Context> getSpans() {
         return spans;
     }
 

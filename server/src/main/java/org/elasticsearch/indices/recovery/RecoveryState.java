@@ -631,7 +631,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)) {
+            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 recoveredFromSnapshot = in.readLong();
             }
         }
@@ -642,7 +642,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.transportVersion)) {
+            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
                 out.writeLong(recoveredFromSnapshot);
             }
         }
@@ -833,10 +833,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return fileDetails.size();
         }
 
-        public boolean isEmpty() {
-            return fileDetails.isEmpty();
-        }
-
         public void clear() {
             fileDetails.clear();
             complete = false;
@@ -990,8 +986,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * (recovered / (float) total);
             }
         }
 

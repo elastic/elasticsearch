@@ -38,12 +38,8 @@ import static org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig.Builder.
 
 public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder<CategorizeTextAggregationBuilder> {
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        1,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
 
     public static final String NAME = "categorize_text";
 

@@ -98,8 +98,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
@@ -208,8 +207,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             EsExecutors.daemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+            threadPool.scheduler()
         );
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
@@ -276,7 +274,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         runExecutionTest(runner, runnable, willThrow, o -> {
             assertEquals(willThrow, o.isPresent());
             if (willThrow) {
-                if (o.get()instanceof Error error) throw error;
+                if (o.get() instanceof Error error) throw error;
                 assertThat(o.get(), instanceOf(IllegalStateException.class));
                 assertThat(o.get(), hasToString(containsString("future exception")));
             }

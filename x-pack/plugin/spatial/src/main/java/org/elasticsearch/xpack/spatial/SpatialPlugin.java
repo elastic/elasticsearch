@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.ingest.CircleProcessor;
+import org.elasticsearch.xpack.spatial.ingest.GeoGridProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.InternalGeoLine;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoGridTiler;
@@ -77,7 +78,6 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -122,7 +122,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
+        return List.of(
             new ActionPlugin.ActionHandler<>(XPackUsageFeatureAction.SPATIAL, SpatialUsageTransportAction.class),
             new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.SPATIAL, SpatialInfoTransportAction.class),
             new ActionPlugin.ActionHandler<>(SpatialStatsAction.INSTANCE, SpatialStatsTransportAction.class)
@@ -188,7 +188,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory());
+        return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory(), GeoGridProcessor.TYPE, new GeoGridProcessor.Factory());
     }
 
     private static void registerGeoShapeBoundsAggregator(ValuesSourceRegistry.Builder builder) {

@@ -13,6 +13,7 @@ tasks.named("test").configure { enabled = false }
 
 dependencies {
   api project(':server')
+  testImplementation project(':test:framework')
 }
 
 tasks.named("preProcessFixture").configure {

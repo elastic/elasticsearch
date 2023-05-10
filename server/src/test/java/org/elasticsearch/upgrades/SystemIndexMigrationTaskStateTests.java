@@ -8,7 +8,7 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
@@ -54,7 +54,8 @@ public class SystemIndexMigrationTaskStateTests extends AbstractNamedWriteableTe
     }
 
     @Override
-    protected SystemIndexMigrationTaskState copyInstance(SystemIndexMigrationTaskState instance, Version version) throws IOException {
+    protected SystemIndexMigrationTaskState copyInstance(SystemIndexMigrationTaskState instance, TransportVersion version)
+        throws IOException {
         return new SystemIndexMigrationTaskState(
             instance.getCurrentIndex(),
             instance.getCurrentFeature(),

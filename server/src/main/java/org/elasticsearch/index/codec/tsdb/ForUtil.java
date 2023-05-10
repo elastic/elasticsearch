@@ -29,7 +29,7 @@ public final class ForUtil {
         this(DEFAULT_BLOCK_SIZE);
     }
 
-    public ForUtil(int blockSize) {
+    private ForUtil(int blockSize) {
         this.blockSize = blockSize;
         this.blockSizeLog2 = (int) (Math.log(blockSize) / Math.log(2));
         this.tmp = new long[blockSize / 2];

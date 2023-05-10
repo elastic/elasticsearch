@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -136,9 +135,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             RateAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
         ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators);
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            rate.addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new);
-        }
+        rate.addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new);
         return rate;
     }
 

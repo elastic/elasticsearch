@@ -77,6 +77,22 @@ public interface ClusterHandle extends Closeable {
     String getTransportEndpoint(int index);
 
     /**
+     * Returns a comma-separated list of remote cluster server endpoints for cluster. If this method is called on an unstarted cluster,
+     * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node remote cluster server endpoints
+     */
+    String getRemoteClusterServerEndpoint();
+
+    /**
+     * Returns the remote cluster server endpoint for the node at the given index. If this method is called on an unstarted cluster,
+     * the cluster will be started. This method is thread-safe and subsequent calls will wait for cluster start and availability.
+     *
+     * @return cluster node remote cluster server endpoints
+     */
+    String getRemoteClusterServerEndpoint(int index);
+
+    /**
      * Upgrades a single node to the given version. Method blocks until the node is back up and ready to respond to requests.
      *
      * @param index index of node ot upgrade
@@ -90,4 +106,9 @@ public interface ClusterHandle extends Closeable {
      * @param version version to upgrade to
      */
     void upgradeToVersion(Version version);
+
+    /**
+     * Cleans up any resources created by this cluster.
+     */
+    void close();
 }

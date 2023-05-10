@@ -196,7 +196,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> making sure that snapshot no longer exists");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
+            () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
 
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
@@ -647,13 +647,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         indexRandomDocs(sourceIdx, randomIntBetween(10, 100));
 
         logger.info("--> shrink the index");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.blocks.write", true))
-                .get()
-        );
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), sourceIdx);
         assertAcked(client().admin().indices().prepareResizeIndex(sourceIdx, shrunkIdx).get());
 
         logger.info("--> snapshot the shrunk index");
@@ -969,7 +963,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final String indexName = "index-retention-leases";
         final int shardCount = randomIntBetween(1, 5);
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(indexSettingsNoReplicas(shardCount)));
+        createIndex(indexName, shardCount, 0);
         final ShardId shardId = new ShardId(resolveIndex(indexName), randomIntBetween(0, shardCount - 1));
 
         final int snapshotDocCount = iterations(10, 1000);
@@ -1229,7 +1223,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testGetReposWithWildcard() {
         internalCluster().startMasterOnlyNode();
-        List<RepositoryMetadata> repositoryMetadata = client().admin().cluster().prepareGetRepositories("*").get().repositories();
+        List<RepositoryMetadata> repositoryMetadata = clusterAdmin().prepareGetRepositories("*").get().repositories();
         assertThat(repositoryMetadata, empty());
     }
 

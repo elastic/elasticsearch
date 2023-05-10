@@ -162,7 +162,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
             () -> Strings.format(
                 "%s attempting snapshot-based recovery of %s based on %s",
                 shardId,
-                snapshotFilesToRecover.getSnapshotFiles()
+                snapshotFilesToRecover.snapshotFiles()
                     .stream()
                     .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
                     .collect(Collectors.joining(", ", "[", "]")),

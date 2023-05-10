@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -493,12 +493,11 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private static ClusterState state() {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "1",
                     ESTestCase.buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles()),
-                    Version.CURRENT
+                    new HashSet<>(DiscoveryNodeRole.roles())
                 )
             )
             .masterNodeId("1")
@@ -515,14 +514,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         String mappings
     ) {
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-        indexMetadata.settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format)
-                .build()
-        );
+        indexMetadata.settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format));
         indexMetadata.putAlias(AliasMetadata.builder(aliasName).build());
         indexMetadata.state(state);
         if (mappings != null) {

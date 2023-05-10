@@ -165,11 +165,11 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
@@ -338,11 +338,8 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                     .contains("search.allow_expensive_queries") == false
         );
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
         // This will fail because repo-new isn't there, not because we can't write test-snapshots-err, meaning we were allowed to
         // make the request
         assertEquals(

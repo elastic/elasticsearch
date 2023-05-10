@@ -89,7 +89,9 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
                     "index.refresh_interval should be set as we are including defaults",
                     defaultsResponse.getSetting(indexName, "index.refresh_interval")
                 ),
-                exception -> { throw new AssertionError(exception); }
+                exception -> {
+                    throw new AssertionError(exception);
+                }
             )
         );
     }
@@ -105,7 +107,9 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
                     "index.refresh_interval should be null as it was never set",
                     noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
                 ),
-                exception -> { throw new AssertionError(exception); }
+                exception -> {
+                    throw new AssertionError(exception);
+                }
             )
         );
     }

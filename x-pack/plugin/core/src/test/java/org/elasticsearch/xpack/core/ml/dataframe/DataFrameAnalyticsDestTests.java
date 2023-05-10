@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -36,7 +36,7 @@ public class DataFrameAnalyticsDestTests extends AbstractBWCSerializationTestCas
         return new DataFrameAnalyticsDest(index, resultsField);
     }
 
-    public static DataFrameAnalyticsDest mutateForVersion(DataFrameAnalyticsDest instance, Version version) {
+    public static DataFrameAnalyticsDest mutateForVersion(DataFrameAnalyticsDest instance, TransportVersion version) {
         return instance;
     }
 
@@ -46,7 +46,7 @@ public class DataFrameAnalyticsDestTests extends AbstractBWCSerializationTestCas
     }
 
     @Override
-    protected DataFrameAnalyticsDest mutateInstanceForVersion(DataFrameAnalyticsDest instance, Version version) {
+    protected DataFrameAnalyticsDest mutateInstanceForVersion(DataFrameAnalyticsDest instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

@@ -72,6 +72,10 @@ necessary to complete the analysis at the cost of using more CPU.
 Note that the process may use additional threads for operational
 functionality other than the analysis itself.
 
+`_meta`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
+
 `model_memory_limit`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]

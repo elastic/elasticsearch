@@ -1,0 +1,39 @@
+{
+  "search_application.list": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-search-applications.html",
+      "description": "Returns the existing search applications."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_application/search_application",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "q": {
+        "type": "string",
+        "description": "Query in the Lucene query string syntax"
+      },
+      "from": {
+        "type": "int",
+        "description": "Starting offset (default: 0)"
+      },
+      "size": {
+        "type": "int",
+        "description": "specifies a max number of results to get"
+      }
+    }
+  }
+}

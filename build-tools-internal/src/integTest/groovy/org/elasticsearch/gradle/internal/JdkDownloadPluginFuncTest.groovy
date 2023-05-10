@@ -35,6 +35,10 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     private static final String OPEN_JDK_VERSION = "12.0.1+99@123456789123456789123456789abcde"
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)")
 
+    def setup() {
+        configurationCacheCompatible = false
+    }
+
     @Unroll
     def "jdk #jdkVendor for #platform#suffix are downloaded and extracted"() {
         given:
@@ -54,10 +58,11 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
               }
             }
 
+            def theJdks = jdks
             tasks.register("getJdk") {
                 dependsOn jdks.myJdk
                 doLast {
-                    println "JDK HOME: " + jdks.myJdk
+                    println "JDK HOME: " + theJdks.myJdk
                 }
             }
         """

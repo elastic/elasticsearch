@@ -79,7 +79,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     private File signatureFile;
 
-    private String javaHome;
+    private Property<String> javaHome;
 
     private final Property<JavaVersion> targetCompatibility;
 
@@ -106,6 +106,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         this.fileSystemOperations = fileSystemOperations;
         this.projectLayout = projectLayout;
         this.targetCompatibility = objectFactory.property(JavaVersion.class);
+        this.javaHome = objectFactory.property(String.class);
     }
 
     @Input
@@ -127,14 +128,9 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         this.signatureFile = signatureFile;
     }
 
-    @Input
-    @Optional
-    public String getJavaHome() {
+    @Internal
+    public Property<String> getJavaHome() {
         return javaHome;
-    }
-
-    public void setJavaHome(String javaHome) {
-        this.javaHome = javaHome;
     }
 
     @Internal
@@ -335,8 +331,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
         ExecResult result = execOperations.javaexec(spec -> {
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
             spec.jvmArgs("-Xmx1g");
@@ -368,8 +364,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.setStandardOutput(standardOut);
         });

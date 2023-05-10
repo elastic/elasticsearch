@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -70,9 +69,9 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         // intentionally not writing any docs
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
+        testCase(new MatchAllDocsQuery(), newIndexSearcher(indexReader), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
             assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
@@ -87,12 +86,11 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+        DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
-        // TODO set "maybeWrap" to true for IndexSearcher once #23338 is resolved
-        IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         testCase(new MatchAllDocsQuery(), indexSearcher, child -> {
             int expectedTotalChildren = 0;
@@ -129,12 +127,12 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             indexWriter.close();
 
             try (
-                IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+                DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
                     DirectoryReader.open(directory),
                     new ShardId(new Index("foo", "_na_"), 1)
                 )
             ) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, false, true);
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 AggregationBuilder request = new TermsAggregationBuilder("t").field("kwd")
                     .subAggregation(
@@ -190,7 +188,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             ) {
                 // maybeWrap should be false here, in ValueSource.java we sometimes cast to DirectoryReader and
                 // these casts can then fail if the maybeWrap is true.
-                var indexSearcher = newSearcher(indexReader, false, true);
+                var indexSearcher = newIndexSearcher(indexReader);
                 // invalid usage,
                 {
                     var aggregationBuilder = new ChildrenAggregationBuilder("_name1", CHILD_TYPE);
@@ -279,7 +277,6 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
     private static List<Field> createParentDocument(String id, String kwd) {
         return Arrays.asList(
             new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO),
-            new SortedSetDocValuesField("kwd", new BytesRef(kwd)),
             new Field("kwd", new BytesRef(kwd), KeywordFieldMapper.Defaults.FIELD_TYPE),
             new StringField("join_field", PARENT_TYPE, Field.Store.NO),
             createJoinField(PARENT_TYPE, id)

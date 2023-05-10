@@ -9,9 +9,9 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -103,20 +103,22 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
             true,
             Collections.emptyMap()
         );
+        FieldType luceneFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        if (keywordFieldType.isIndexed() == false) {
+            luceneFieldType.setIndexOptions(IndexOptions.NONE);
+        }
+        luceneFieldType.freeze();
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
-                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isIndexed()) {
-                        document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                    }
+                    document.add(new Field(KEYWORD_FIELD, new BytesRef(value), luceneFieldType));
                     indexWriter.addDocument(document);
                     document.clear();
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");

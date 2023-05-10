@@ -1465,6 +1465,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final FieldValues<Number> scriptValues;
         private final boolean isDimension;
         private final MetricType metricType;
+        private final IndexMode indexMode;
 
         public NumberFieldType(
             String name,
@@ -1477,7 +1478,8 @@ public class NumberFieldMapper extends FieldMapper {
             Map<String, String> meta,
             FieldValues<Number> script,
             boolean isDimension,
-            MetricType metricType
+            MetricType metricType,
+            IndexMode indexMode
         ) {
             super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
@@ -1486,6 +1488,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.scriptValues = script;
             this.isDimension = isDimension;
             this.metricType = metricType;
+            this.indexMode = indexMode;
         }
 
         NumberFieldType(String name, Builder builder) {
@@ -1500,7 +1503,8 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.meta.getValue(),
                 builder.scriptValues(),
                 builder.dimension.getValue(),
-                builder.metric.getValue()
+                builder.metric.getValue(),
+                builder.indexMode
             );
         }
 
@@ -1509,7 +1513,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed) {
-            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null);
+            this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null, null);
         }
 
         @Override
@@ -1589,7 +1593,7 @@ public class NumberFieldMapper extends FieldMapper {
                 failIfNoDocValues();
             }
 
-            ValuesSourceType valuesSourceType = metricType == TimeSeriesParams.MetricType.COUNTER
+            ValuesSourceType valuesSourceType = indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER
                 ? TimeSeriesValuesSourceType.COUNTER
                 : type.numericType.getValuesSourceType();
 

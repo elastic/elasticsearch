@@ -31,21 +31,45 @@ public class CancellableTasksTracker<T> {
     }
 
     private final Map<Long, T> byTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-    private final Map<TaskId, T[]> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<TaskId, Map<Long, T[]>> byParentTaskId = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+
+    /**
+     * Gets the cancellable children of a parent task.
+     *
+     * Note: children of non-positive request IDs (e.g., -1) may be grouped together.
+     */
+    public Stream<T> getChildrenByRequestId(TaskId parentTaskId, long childRequestId) {
+        Map<Long, T[]> byRequestId = byParentTaskId.get(parentTaskId);
+        if (byRequestId != null) {
+            T[] children = byRequestId.get(childRequestId);
+            if (children != null) {
+                return Arrays.stream(children);
+            }
+        }
+        return Stream.empty();
+    }
 
     /**
      * Add an item for the given task. Should only be called once for each task, and {@code item} must be unique per task too.
      */
-    public void put(Task task, T item) {
+    public void put(Task task, long requestId, T item) {
         final long taskId = task.getId();
         if (task.getParentTaskId().isSet()) {
-            byParentTaskId.compute(task.getParentTaskId(), (ignored, oldValue) -> {
-                if (oldValue == null) {
-                    oldValue = empty;
+            byParentTaskId.compute(task.getParentTaskId(), (taskKey, oldRequestIdMap) -> {
+                if (oldRequestIdMap == null) {
+                    oldRequestIdMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
                 }
-                final T[] newValue = Arrays.copyOf(oldValue, oldValue.length + 1);
-                newValue[oldValue.length] = item;
-                return newValue;
+
+                oldRequestIdMap.compute(requestId, (requestIdKey, oldValue) -> {
+                    if (oldValue == null) {
+                        oldValue = empty;
+                    }
+                    final T[] newValue = Arrays.copyOf(oldValue, oldValue.length + 1);
+                    newValue[oldValue.length] = item;
+                    return newValue;
+                });
+
+                return oldRequestIdMap;
             });
         }
         final T oldItem = byTaskId.put(taskId, item);
@@ -60,36 +84,50 @@ public class CancellableTasksTracker<T> {
     }
 
     /**
-     * Remove (and return) the item that corresponds with the given task. Return {@code null} if not present. Safe to call multiple times
-     * for each task. However, {@link #getByParent} may return this task even after a call to this method completes, if the removal is
-     * actually being completed by a concurrent call that's still ongoing.
+     * Remove (and return) the item that corresponds with the given task and request ID. Return {@code null} if not present. Safe to call
+     * multiple times for each task. However, {@link #getByParent} may return this task even after a call to this method completes, if
+     * the removal is actually being completed by a concurrent call that's still ongoing.
      */
     public T remove(Task task) {
         final long taskId = task.getId();
         final T oldItem = byTaskId.remove(taskId);
         if (oldItem != null && task.getParentTaskId().isSet()) {
-            byParentTaskId.compute(task.getParentTaskId(), (ignored, oldValue) -> {
-                if (oldValue == null) {
+            byParentTaskId.compute(task.getParentTaskId(), (taskKey, oldRequestIdMap) -> {
+                if (oldRequestIdMap == null) {
                     return null;
                 }
-                if (oldValue.length == 1) {
-                    if (oldValue[0] == oldItem) {
-                        return null;
-                    } else {
+
+                for (Long requestId : oldRequestIdMap.keySet()) {
+                    oldRequestIdMap.compute(requestId, (requestIdKey, oldValue) -> {
+                        if (oldValue == null) {
+                            return null;
+                        }
+                        if (oldValue.length == 1) {
+                            if (oldValue[0] == oldItem) {
+                                return null;
+                            } else {
+                                return oldValue;
+                            }
+                        }
+                        if (oldValue[0] == oldItem) {
+                            return Arrays.copyOfRange(oldValue, 1, oldValue.length);
+                        }
+                        for (int i = 1; i < oldValue.length; i++) {
+                            if (oldValue[i] == oldItem) {
+                                final T[] newValue = Arrays.copyOf(oldValue, oldValue.length - 1);
+                                System.arraycopy(oldValue, i + 1, newValue, i, oldValue.length - i - 1);
+                                return newValue;
+                            }
+                        }
                         return oldValue;
-                    }
+                    });
                 }
-                if (oldValue[0] == oldItem) {
-                    return Arrays.copyOfRange(oldValue, 1, oldValue.length);
+
+                if (oldRequestIdMap.keySet().isEmpty()) {
+                    return null;
                 }
-                for (int i = 1; i < oldValue.length; i++) {
-                    if (oldValue[i] == oldItem) {
-                        final T[] newValue = Arrays.copyOf(oldValue, oldValue.length - 1);
-                        System.arraycopy(oldValue, i + 1, newValue, i, oldValue.length - i - 1);
-                        return newValue;
-                    }
-                }
-                return oldValue;
+
+                return oldRequestIdMap;
             });
         }
         return oldItem;
@@ -109,11 +147,11 @@ public class CancellableTasksTracker<T> {
      * started before this method was called have not completed.
      */
     public Stream<T> getByParent(TaskId parentTaskId) {
-        final T[] byParent = byParentTaskId.get(parentTaskId);
+        final Map<Long, T[]> byParent = byParentTaskId.get(parentTaskId);
         if (byParent == null) {
             return Stream.empty();
         }
-        return Arrays.stream(byParent);
+        return byParent.values().stream().flatMap(Stream::of);
     }
 
     // assertion for tests, not an invariant but should eventually be true
@@ -123,12 +161,14 @@ public class CancellableTasksTracker<T> {
 
         // every by-parent value must be tracked by task too; the converse isn't true since we don't track values without a parent
         final Set<T> byTaskValues = new HashSet<>(byTaskId.values());
-        for (T[] byParent : byParentTaskId.values()) {
-            assert byParent.length > 0;
-            for (T t : byParent) {
-                assert byTaskValues.contains(t);
-            }
-        }
+        byParentTaskId.values().forEach(byParentMap -> {
+            byParentMap.forEach((requestId, byParentArray) -> {
+                assert byParentArray.length > 0;
+                for (T t : byParentArray) {
+                    assert byTaskValues.contains(t);
+                }
+            });
+        });
 
         return true;
     }

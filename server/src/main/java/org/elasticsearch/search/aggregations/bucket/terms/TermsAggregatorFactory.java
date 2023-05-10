@@ -283,7 +283,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
-            && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            && bucketCountThresholds.getShardSize() == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
@@ -469,7 +469,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
                     &&
                 // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
-                (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
+                    (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
                      * We can use the low cardinality execution mode iff this aggregator:
                      *  - has no sub-aggregator AND

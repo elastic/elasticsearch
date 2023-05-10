@@ -35,7 +35,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     @Nullable
     private String preference;
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
         this.indices = Objects.requireNonNull(indices, "[index] is not specified");

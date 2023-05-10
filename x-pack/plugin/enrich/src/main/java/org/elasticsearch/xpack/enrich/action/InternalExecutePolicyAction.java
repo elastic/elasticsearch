@@ -143,6 +143,11 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                     }
 
                     @Override
+                    public void setRequestId(long requestId) {
+                        request.setRequestId(requestId);
+                    }
+
+                    @Override
                     public TaskId getParentTask() {
                         return request.getParentTask();
                     }

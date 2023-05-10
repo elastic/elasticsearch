@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -75,7 +75,7 @@ public class TotalFeatureImportanceTests extends AbstractBWCSerializationTestCas
     }
 
     @Override
-    protected TotalFeatureImportance mutateInstanceForVersion(TotalFeatureImportance instance, Version version) {
+    protected TotalFeatureImportance mutateInstanceForVersion(TotalFeatureImportance instance, TransportVersion version) {
         return instance;
     }
 }

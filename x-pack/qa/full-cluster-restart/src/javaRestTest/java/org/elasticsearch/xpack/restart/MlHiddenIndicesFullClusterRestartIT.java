@@ -73,6 +73,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93521")
     public void testMlIndicesBecomeHidden() throws Exception {
         if (isRunningAgainstOldCluster()) {
             // trigger ML indices creation

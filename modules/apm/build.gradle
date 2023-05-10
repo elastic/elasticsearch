@@ -18,7 +18,7 @@ dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-semconv:${otelVersion}-alpha"
-  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.33.0"
+  runtimeOnly    "co.elastic.apm:elastic-apm-agent:1.36.0"
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.classification;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -61,7 +61,7 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
     }
 
     @Override
-    protected ValidationLoss mutateInstanceForVersion(ValidationLoss instance, Version version) {
+    protected ValidationLoss mutateInstanceForVersion(ValidationLoss instance, TransportVersion version) {
         return instance;
     }
 

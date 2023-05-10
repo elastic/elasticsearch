@@ -107,7 +107,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.CURRENT.minimumCompatibilityVersion();
+        return TransportVersion.MINIMUM_COMPATIBLE;
     }
 
     @Override

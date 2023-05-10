@@ -156,7 +156,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         Optional<Object> remoteConnectionInfo = getAsMap(restClient, "/_remote/info").values().stream().findFirst();
         if (remoteConnectionInfo.isPresent()) {
             logger.info("Connection info: {}", remoteConnectionInfo);
-            if (((Map<String, Object>) remoteConnectionInfo.get()).get("connected")instanceof Boolean connected) {
+            if (((Map<String, Object>) remoteConnectionInfo.get()).get("connected") instanceof Boolean connected) {
                 return connected;
             }
         }

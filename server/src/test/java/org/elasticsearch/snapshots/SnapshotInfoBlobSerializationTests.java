@@ -8,7 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.AbstractWireTestCase;
@@ -29,7 +29,7 @@ public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<Sna
     }
 
     @Override
-    protected SnapshotInfo copyInstance(SnapshotInfo instance, Version version) throws IOException {
+    protected SnapshotInfo copyInstance(SnapshotInfo instance, TransportVersion version) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         BlobStoreRepository.SNAPSHOT_FORMAT.serialize(instance, "test", randomBoolean(), out);
         return BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -69,9 +68,9 @@ public class TransportClearDeploymentCacheAction extends TransportTasksAction<Tr
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         final TrainedModelAssignmentMetadata assignment = TrainedModelAssignmentMetadata.fromState(clusterState);
-        TrainedModelAssignment trainedModelAssignment = assignment.getModelAssignment(request.getModelId());
+        TrainedModelAssignment trainedModelAssignment = assignment.getDeploymentAssignment(request.getDeploymentId());
         if (trainedModelAssignment == null) {
-            listener.onFailure(new ResourceNotFoundException("assignment for model with id [{}] not found", request.getModelId()));
+            listener.onFailure(ExceptionsHelper.missingModelDeployment(request.getDeploymentId()));
             return;
         }
         String[] nodes = trainedModelAssignment.getNodeRoutingTable()

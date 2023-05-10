@@ -153,7 +153,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
                 repositoryMetadata,
-                BigArrays.NON_RECYCLING_INSTANCE
+                BigArrays.NON_RECYCLING_INSTANCE,
+                null
             )
         ) {
             @Override

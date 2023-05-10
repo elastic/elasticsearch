@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -104,6 +106,7 @@ import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportSearchAction.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportSearchAction.class);
     public static final String FROZEN_INDICES_DEPRECATION_MESSAGE = "Searching frozen indices [{}] is deprecated."
         + " Consider cold or frozen tiers in place of frozen indices. The frozen feature will be removed in a feature release.";
@@ -310,6 +313,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     rewritten,
                     localIndices,
                     clusterState,
+                    SearchResponse.Clusters.EMPTY,
                     searchContext,
                     searchPhaseProvider.apply(listener)
                 );
@@ -320,6 +324,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
+                    // TODO: is localIndices != null sufficient? to indicate local shards are not being searched?
+                    // TODO: could localIndices.indices() be null or have size 0 that should be checked here?
+                    // Notifies the task listener that searches on remote clusters will not report their progress.
+                    task.getProgressListener().notifyMinimizeRoundtrips(localIndices != null, remoteClusterIndices.size());
+                    int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
+                    SearchResponse.Clusters clusterInfo = new SearchResponse.Clusters(totalClusters, 0, 0);
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -336,6 +346,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             r,
                             localIndices,
                             clusterState,
+                            clusterInfo,
                             searchContext,
                             searchPhaseProvider.apply(l)
                         )
@@ -458,7 +469,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchResponse> listener,
         BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
     ) {
-
         if (localIndices == null && remoteIndices.size() == 1) {
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
@@ -516,6 +526,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             });
         } else {
+            logger.warn("MMM {} full", searchRequest.getRequestId());
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,
@@ -526,6 +537,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             int totalClusters = remoteIndices.size() + (localIndices == null ? 0 : 1);
             final CountDown countDown = new CountDown(totalClusters);
             for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
+                logger.warn("MMM {} full; indices: {}: {}", searchRequest.getRequestId(), entry.getKey(), entry.getValue().toString());
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
@@ -548,6 +560,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener
                 );
                 Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+                logger.warn(
+                    "MMM {} full; doing remoteClusterClient.search: {}. remoteClusterClient class: {}",
+                    searchRequest.getRequestId(),
+                    entry.getKey(),
+                    remoteClusterClient.getClass().getSimpleName()
+                );
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
@@ -721,6 +739,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchRequest searchRequest,
         OriginalIndices localIndices,
         ClusterState clusterState,
+        SearchResponse.Clusters clusterInfo,
         SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
@@ -733,7 +752,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             (clusterName, nodeId) -> null,
             clusterState,
             Collections.emptyMap(),
-            SearchResponse.Clusters.EMPTY,
+            clusterInfo,
             searchContext,
             searchPhaseProvider
         );
@@ -872,6 +891,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Nullable SearchContextId searchContext,
         SearchPhaseProvider searchPhaseProvider
     ) {
+        logger.warn("MMM {} full; local executeSearch searchContextId: {}", searchRequest.getRequestId(), searchContext);
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         if (searchRequest.allowPartialSearchResults() == null) {

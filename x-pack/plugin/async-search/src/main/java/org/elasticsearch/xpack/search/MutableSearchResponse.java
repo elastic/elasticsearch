@@ -12,6 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -109,12 +110,36 @@ class MutableSearchResponse {
      * Updates the response with the final {@link SearchResponse} once the
      * search is complete.
      */
-    synchronized void updateFinalResponse(SearchResponse response) {
+    synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
         failIfFrozen();
-        assert response.getTotalShards() == totalShards
-            : "received number of total shards differs from the one " + "notified through onListShards";
-        assert response.getSkippedShards() == skippedShards
-            : "received number of skipped shards differs from the one " + "notified through onListShards";
+
+        if (ccsMinimizeRoundtrips) {
+            assert response.getTotalShards() >= totalShards
+                : Strings.format(
+                    "received number of shards (%d) is less than the value notified via onListShards (%d)",
+                    response.getTotalShards(),
+                    totalShards
+                );
+            assert response.getSkippedShards() >= skippedShards
+                : Strings.format(
+                    "received number of skipped shards (%d) is less than the value notified via onListShards (%d)",
+                    response.getSkippedShards(),
+                    skippedShards
+                );
+        } else {
+            assert response.getTotalShards() == totalShards
+                : Strings.format(
+                    "received number of shards (%d) differs from the one notified via onListShards (%d)",
+                    response.getTotalShards(),
+                    totalShards
+                );
+            assert response.getSkippedShards() == skippedShards
+                : Strings.format(
+                    "received number of skipped shards (%d) differs from the one notified via onListShards (%d)",
+                    response.getSkippedShards(),
+                    skippedShards
+                );
+        }
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
         this.isPartial = false;

@@ -556,6 +556,8 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
+    /// MP: TODO: should there be a test here doing CCSRemoteReduce with localCluster search turned off, requiring Task to ccsRemoteReduce?
+
     public void testCCSRemoteReduce() throws Exception {
         int numClusters = randomIntBetween(1, 10);
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
@@ -588,6 +590,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     ActionListener.wrap(response::set, e -> fail("no failures expected")),
                     latch
                 );
+                SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
                 TransportSearchAction.ccsRemoteReduce(
                     new TaskId("n", 1),
                     searchRequest,

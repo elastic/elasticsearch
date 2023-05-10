@@ -683,6 +683,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
+
+//        results.getNumShards(); // total?
+//        numSuccess; // successful ?
+//        numFailures; // failures ?
+//        // where is skipped?
+
         return new SearchResponse(
             internalSearchResponse,
             scrollId,

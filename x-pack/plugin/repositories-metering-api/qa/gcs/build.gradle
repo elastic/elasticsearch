@@ -49,6 +49,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
+  setting 'xpack.profiling.enabled', 'false'
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/

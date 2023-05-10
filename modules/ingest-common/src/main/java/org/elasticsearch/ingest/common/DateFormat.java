@@ -26,6 +26,7 @@ import java.util.function.Function;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
+import static java.time.temporal.ChronoField.INSTANT_SECONDS;
 import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
@@ -77,7 +78,8 @@ enum DateFormat {
             MINUTE_OF_DAY,
             HOUR_OF_DAY,
             DAY_OF_MONTH,
-            MONTH_OF_YEAR
+            MONTH_OF_YEAR,
+            INSTANT_SECONDS
         );
 
         @Override
@@ -101,7 +103,7 @@ enum DateFormat {
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {
                         if (accessor.isSupported(field)) {
-                            newTime = newTime.with(field, accessor.get(field));
+                            newTime = newTime.with(field, accessor.getLong(field));
                         }
                     }
 

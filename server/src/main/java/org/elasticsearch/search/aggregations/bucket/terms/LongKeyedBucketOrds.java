@@ -25,6 +25,9 @@ import java.util.TreeSet;
 public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Build a {@link LongKeyedBucketOrds} who's values have unknown bounds.
+     *
+     * @param cardinality - This should come from the owning aggregation, and is used as an upper bound on the
+     *                    owning bucket ordinals.
      */
     public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
         return cardinality.map(estimate -> estimate < 2 ? new FromSingle(bigArrays) : new FromMany(bigArrays));
@@ -32,6 +35,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
 
     /**
      * Build a {@link LongKeyedBucketOrds} who's values have known bounds.
+     *
+     * @param cardinality - This should come from the owning aggregation, and is used as an upper bound on the
+     *                    owning bucket ordinals.
+     * @param  min - The minimum key value for this aggregation
+     * @param max - The maximum key value for this aggregation
      */
     public static LongKeyedBucketOrds buildForValueRange(BigArrays bigArrays, CardinalityUpperBound cardinality, long min, long max) {
         return cardinality.map((int cardinalityUpperBound) -> {

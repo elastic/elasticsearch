@@ -237,7 +237,6 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.find(0, 0), equalTo(0L));
             assertThat(ords.find(1, 0), equalTo(1L));
 
-            // And some random values
             Set<OwningBucketOrdAndValue> seen = new HashSet<>();
             seen.add(new OwningBucketOrdAndValue(0, 0));
             seen.add(new OwningBucketOrdAndValue(1, 0));
@@ -248,17 +247,19 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             expected.get(1L).add(0L);
 
             OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
-            long maxOwningBucketOrd = Long.MIN_VALUE;
             for (int i = 0; i < values.length; i++) {
-                long owningBucketOrd = randomLongBetween(0, maxAllowedOwningBucketOrd);
-                long value = randomLongBetween(minValue, maxValue);
-                values[i] = randomValueOtherThanMany(seen::contains, () -> new OwningBucketOrdAndValue(owningBucketOrd, value));
+                values[i] = randomValueOtherThanMany(
+                    seen::contains,
+                    () -> new OwningBucketOrdAndValue(
+                        randomLongBetween(0, maxAllowedOwningBucketOrd),
+                        randomLongBetween(minValue, maxValue)
+                    )
+                );
                 seen.add(values[i]);
-                if (expected.containsKey(owningBucketOrd) == false) {
-                    expected.put(owningBucketOrd, new TreeSet<>());
+                if (expected.containsKey(values[i].owningBucketOrd) == false) {
+                    expected.put(values[i].owningBucketOrd, new TreeSet<>());
                 }
-                expected.get(owningBucketOrd).add(value);
-                maxOwningBucketOrd = Math.max(maxOwningBucketOrd, values[i].owningBucketOrd);
+                expected.get(values[i].owningBucketOrd).add(values[i].value);
             }
             for (int i = 0; i < values.length; i++) {
                 assertThat(ords.find(values[i].owningBucketOrd, values[i].value), equalTo(-1L));
@@ -289,6 +290,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
         long maxValue = randomLongBetween(10000 / maxAllowedOwningBucketOrd, 2 << (16 * 3));
         CardinalityUpperBound cardinality = CardinalityUpperBound.ONE.multiply(maxAllowedOwningBucketOrd);
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.buildForValueRange(bigArrays, cardinality, minValue, maxValue)) {
+            assertTrue(ords instanceof LongKeyedBucketOrds.FromManySmall);
             Map<Long, TreeSet<Long>> expected = new HashMap<>();
             // Test a few explicit values
             assertThat(ords.add(0, 0), equalTo(0L));
@@ -299,7 +301,6 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             assertThat(ords.find(0, 0), equalTo(0L));
             assertThat(ords.find(1, 0), equalTo(1L));
 
-            // And some random values
             Set<OwningBucketOrdAndValue> seen = new HashSet<>();
             seen.add(new OwningBucketOrdAndValue(0, 0));
             seen.add(new OwningBucketOrdAndValue(1, 0));
@@ -310,17 +311,19 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
             expected.get(1L).add(0L);
 
             OwningBucketOrdAndValue[] values = new OwningBucketOrdAndValue[scaledRandomIntBetween(1, 10000)];
-            long maxOwningBucketOrd = Long.MIN_VALUE;
             for (int i = 0; i < values.length; i++) {
-                long owningBucketOrd = randomLongBetween(0, maxAllowedOwningBucketOrd);
-                long value = randomLongBetween(minValue, maxValue);
-                values[i] = randomValueOtherThanMany(seen::contains, () -> new OwningBucketOrdAndValue(owningBucketOrd, value));
+                values[i] = randomValueOtherThanMany(
+                    seen::contains,
+                    () -> new OwningBucketOrdAndValue(
+                        randomLongBetween(0, maxAllowedOwningBucketOrd),
+                        randomLongBetween(minValue, maxValue)
+                    )
+                );
                 seen.add(values[i]);
-                if (expected.containsKey(owningBucketOrd) == false) {
-                    expected.put(owningBucketOrd, new TreeSet<>());
+                if (expected.containsKey(values[i].owningBucketOrd) == false) {
+                    expected.put(values[i].owningBucketOrd, new TreeSet<>());
                 }
-                expected.get(owningBucketOrd).add(value);
-                maxOwningBucketOrd = Math.max(maxOwningBucketOrd, values[i].owningBucketOrd);
+                expected.get(values[i].owningBucketOrd).add(values[i].value);
             }
             for (int i = 0; i < values.length; i++) {
                 assertThat(ords.find(values[i].owningBucketOrd, values[i].value), equalTo(-1L));

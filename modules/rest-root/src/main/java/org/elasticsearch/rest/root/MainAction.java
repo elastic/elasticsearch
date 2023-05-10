@@ -6,10 +6,16 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.rest.main {
-    requires org.elasticsearch.server;
-    requires org.elasticsearch.xcontent;
-    requires org.apache.lucene.core;
+package org.elasticsearch.rest.root;
 
-    exports org.elasticsearch.rest.main;
+import org.elasticsearch.action.ActionType;
+
+public class MainAction extends ActionType<MainResponse> {
+
+    public static final String NAME = "cluster:monitor/main";
+    public static final MainAction INSTANCE = new MainAction();
+
+    public MainAction() {
+        super(NAME, MainResponse::new);
+    }
 }

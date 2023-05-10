@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
-  testImplementation project(':modules:main')
+  testImplementation project(':modules:rest-root')
 }
 
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->

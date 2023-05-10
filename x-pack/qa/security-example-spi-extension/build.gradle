@@ -15,7 +15,7 @@ dependencies {
   javaRestTestImplementation project(':client:rest-high-level')
   // let the javaRestTest see the classpath of main
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
-  javaRestTestImplementation project(':modules:main')
+  javaRestTestImplementation project(':modules:rest-root')
 
 }
 

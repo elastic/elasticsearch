@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.rest.main.MainResponse;
+import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.xcontent.XContentType;

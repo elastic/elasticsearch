@@ -16,6 +16,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -70,6 +71,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -123,6 +125,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final HasPrivilegesCheck hasPrivilegesCheck;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -159,7 +162,6 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    @Inject
     public MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
@@ -169,6 +171,29 @@ public class MetadataIndexTemplateService {
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders
     ) {
+        this(
+            clusterService,
+            metadataCreateIndexService,
+            indicesService,
+            indexScopedSettings,
+            xContentRegistry,
+            systemIndices,
+            indexSettingProviders,
+            new HasPrivilegesCheck.Noop()
+        );
+    }
+
+    @Inject
+    public MetadataIndexTemplateService(
+        ClusterService clusterService,
+        MetadataCreateIndexService metadataCreateIndexService,
+        IndicesService indicesService,
+        IndexScopedSettings indexScopedSettings,
+        NamedXContentRegistry xContentRegistry,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders,
+        HasPrivilegesCheck hasPrivilegesCheck
+    ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
         this.indicesService = indicesService;
@@ -177,6 +202,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.hasPrivilegesCheck = hasPrivilegesCheck;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -566,6 +592,12 @@ public class MetadataIndexTemplateService {
         final boolean validateV2Overlaps
     ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
+        final List<String> indexPatternsToCheck = new ArrayList<>(template.indexPatterns());
+        if (existing != null) {
+            indexPatternsToCheck.addAll(existing.indexPatterns());
+        }
+        runBlockingHasPrivilegesCheck(indexPatternsToCheck);
+
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
@@ -628,15 +660,28 @@ public class MetadataIndexTemplateService {
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
     }
 
+    private void runBlockingHasPrivilegesCheck(List<String> indexPatternsToCheck) throws ExecutionException, InterruptedException {
+        // The blocking action is for sure bad but this doesn't actually work at all
+        // The threadContext is empty when we hit HasPrivilegesCheckWithSecurity.checkPrivileges, so we have no user info to authenticate
+        // and authorize with
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        hasPrivilegesCheck.checkPrivileges(
+            new HasPrivilegesCheck.PrivilegesToCheck(new HasPrivilegesCheck.IndexPrivileges(indexPatternsToCheck, "manage")),
+            future
+        );
+        future.get();
+    }
+
     /**
      * Calculates the conflicting v2 index template overlaps for a given composable index template. Optionally if validate is true
      * we throw an {@link IllegalArgumentException} with information about the conflicting templates.
      * <p>
      * This method doesn't check for conflicting overlaps with v1 templates.
+     *
      * @param currentState the current cluster state
-     * @param name the composable index template name
-     * @param template the full composable index template object we check for overlaps
-     * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
+     * @param name         the composable index template name
+     * @param template     the full composable index template object we check for overlaps
+     * @param validate     should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
     public Map<String, List<String>> v2TemplateOverlaps(
@@ -850,7 +895,7 @@ public class MetadataIndexTemplateService {
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
-     *
+     * <p>
      * Based on the provided checkPriority and priority parameters this aims to report the overlapping
      * index templates regardless of the priority (ie. checkPriority == false) or otherwise overlapping
      * templates with the same priority as the given priority parameter (this is useful when trying to
@@ -1119,14 +1164,13 @@ public class MetadataIndexTemplateService {
      * Finds index templates whose index pattern matched with the given index name. In the case of
      * hidden indices, a template with a match all pattern or global template will not be returned.
      *
-     * @param metadata The {@link Metadata} containing all of the {@link IndexTemplateMetadata} values
+     * @param metadata  The {@link Metadata} containing all of the {@link IndexTemplateMetadata} values
      * @param indexName The name of the index that templates are being found for
-     * @param isHidden Whether or not the index is known to be hidden. May be {@code null} if the index
-     *                 being hidden has not been explicitly requested. When {@code null} if the result
-     *                 of template application results in a hidden index, then global templates will
-     *                 not be returned
+     * @param isHidden  Whether or not the index is known to be hidden. May be {@code null} if the index
+     *                  being hidden has not been explicitly requested. When {@code null} if the result
+     *                  of template application results in a hidden index, then global templates will
+     *                  not be returned
      * @return a list of templates sorted by {@link IndexTemplateMetadata#order()} descending.
-     *
      */
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);

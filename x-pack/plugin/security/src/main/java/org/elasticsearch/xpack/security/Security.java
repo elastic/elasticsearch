@@ -18,7 +18,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
+import org.elasticsearch.cluster.metadata.HasPrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -176,7 +176,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
-import org.elasticsearch.xpack.core.security.authz.dlm.DataLifecyclePrivilegesCheckWithSecurity;
+import org.elasticsearch.xpack.core.security.authz.dlm.HasPrivilegesCheckWithSecurity;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
@@ -995,10 +995,7 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         components.add(
-            new PluginComponentBinding<>(
-                DataLifecyclePrivilegesCheck.class,
-                new DataLifecyclePrivilegesCheckWithSecurity(securityContext.get(), client)
-            )
+            new PluginComponentBinding<>(HasPrivilegesCheck.class, new HasPrivilegesCheckWithSecurity(securityContext.get(), client))
         );
 
         return components;

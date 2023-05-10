@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -33,25 +32,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.core.Strings.format;
 
 public class TransportPutComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     PutComposableIndexTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
-    private final DataLifecyclePrivilegesCheck privilegesCheck;
-
-    public TransportPutComposableIndexTemplateAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        MetadataIndexTemplateService indexTemplateService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
-    ) {
-        this(transportService, clusterService, threadPool, indexTemplateService, actionFilters, indexNameExpressionResolver, null);
-    }
 
     @Inject
     public TransportPutComposableIndexTemplateAction(
@@ -60,8 +46,7 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        DataLifecyclePrivilegesCheck privilegesCheck
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -74,7 +59,6 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
             ThreadPool.Names.SAME
         );
         this.indexTemplateService = indexTemplateService;
-        this.privilegesCheck = privilegesCheck;
     }
 
     @Override
@@ -90,31 +74,15 @@ public class TransportPutComposableIndexTemplateAction extends AcknowledgedTrans
         final ActionListener<AcknowledgedResponse> listener
     ) {
         var indexTemplate = request.indexTemplate();
-        boolean requiresDlmPrivilegesCheck = indexTemplate.hasDataLifecycle()
-            || resolveLifecycle(indexTemplate, state.metadata().componentTemplates()) != null;
-        if (requiresDlmPrivilegesCheck) {
-            privilegesCheck.checkCanConfigure(indexTemplate.indexPatterns().toArray(new String[0]), ActionListener.wrap(ignored -> {
-                verifyIfUsingReservedComponentTemplates(request, state);
-                indexTemplateService.putIndexTemplateV2(
-                    request.cause(),
-                    request.create(),
-                    request.name(),
-                    request.masterNodeTimeout(),
-                    indexTemplate,
-                    listener
-                );
-            }, listener::onFailure));
-        } else {
-            verifyIfUsingReservedComponentTemplates(request, state);
-            indexTemplateService.putIndexTemplateV2(
-                request.cause(),
-                request.create(),
-                request.name(),
-                request.masterNodeTimeout(),
-                indexTemplate,
-                listener
-            );
-        }
+        verifyIfUsingReservedComponentTemplates(request, state);
+        indexTemplateService.putIndexTemplateV2(
+            request.cause(),
+            request.create(),
+            request.name(),
+            request.masterNodeTimeout(),
+            indexTemplate,
+            listener
+        );
     }
 
     public static void verifyIfUsingReservedComponentTemplates(

@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
+import org.elasticsearch.cluster.metadata.HasPrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,7 +34,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
 
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
-    private final DataLifecyclePrivilegesCheck privilegesCheck;
+    private final HasPrivilegesCheck privilegesCheck;
 
     @Inject
     public TransportPutDataLifecycleAction(
@@ -45,7 +45,7 @@ public class TransportPutDataLifecycleAction extends AcknowledgedTransportMaster
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataDataStreamsService metadataDataStreamsService,
         SystemIndices systemIndices,
-        DataLifecyclePrivilegesCheck privilegesCheck
+        HasPrivilegesCheck privilegesCheck
     ) {
         super(
             PutDataLifecycleAction.NAME,

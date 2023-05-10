@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecyclePrivilegesCheck;
+import org.elasticsearch.cluster.metadata.HasPrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -38,7 +38,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
-    private final DataLifecyclePrivilegesCheck privilegesCheck;
+    private final HasPrivilegesCheck privilegesCheck;
 
     public TransportPutComponentTemplateAction(
         TransportService transportService,
@@ -70,7 +70,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        DataLifecyclePrivilegesCheck privilegesCheck
+        HasPrivilegesCheck privilegesCheck
     ) {
         super(
             PutComponentTemplateAction.NAME,

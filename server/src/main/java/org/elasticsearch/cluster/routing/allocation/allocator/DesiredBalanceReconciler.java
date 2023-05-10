@@ -473,9 +473,9 @@ public class DesiredBalanceReconciler {
         OrderedNodesShardsIterator() {
             this.queue = new ArrayDeque<>(routingNodes.size());
             for (var nodeId : moveOrdering.sort(routingNodes.getAllNodeIds())) {
-                final var shards = routingNodes.node(nodeId).copyShards();
-                if (shards.length > 0) {
-                    this.queue.add(new NodeAndShardIterator(nodeId, Iterators.forArray(shards)));
+                var node = routingNodes.node(nodeId);
+                if (node.size() > 0) {
+                    this.queue.add(new NodeAndShardIterator(nodeId, Iterators.forArray(node.copyShards())));
                 }
             }
         }

@@ -167,7 +167,8 @@ GET my-index/_search
 
 The result is the top 10 documents that are closest in meaning to your query 
 text from the `my-index` index sorted by their relevancy. The result also 
-contains the extracted tokens for each of the relevant search results.
+contains the extracted tokens for each of the relevant search results with their 
+weights.
 
 [source,console-result]
 ----

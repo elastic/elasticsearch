@@ -640,7 +640,7 @@ The mustache templating language defines various tag types you can use within te
 === Mustache variables
 Mustache tags are typically enclosed in double curly brackets, A mustache variable : `{{my-variable}}` is a type of mustache tag which checks for a matching `my-variable` key in your search template `params` and replaces template with the value set for `my-variable`
 
-For example, following search template replaces `{{query_string}}` in `message` with `My query string` value passed in `params`
+For example, consider the following search template:
 
 [source,console]
 ----
@@ -656,15 +656,12 @@ PUT _scripts/my-search-template
       },
       "from": "{{from}}",
       "size": "{{size}}"
-    },
-    "params": {
-      "query_string": "My query string"
     }
   }
 }
 ----
 
-Testing `my-search-template` with different `params`:
+Testing the above search template with `params`:
 
 [source,console]
 ----
@@ -680,7 +677,7 @@ POST _render/template
 ----
 // TEST[continued]
 
-When rendered, the template outputs as:
+When rendered, the `{{query_string}}` in `message` is replaced with `hello world` passed in `params`.
 [source,console-result]
 ----
 {
@@ -740,7 +737,7 @@ The following search template shows an example using sections with nested object
 
 [source,console]
 ----
-POST _render/template?pretty
+POST _render/template
 {
   "source":
   """
@@ -760,7 +757,7 @@ POST _render/template?pretty
     "query_message": {
        "query_string": {
          "first_name_section": {"first_name": "John"},
-         "last_name_section": {"last_name": "Kimchy"}
+         "last_name_section": {"last_name": "kimchy"}
        }
     }
   }
@@ -775,7 +772,7 @@ The template renders as:
   "template_output": {
     "query": {
       "match": {
-        "message": "Hello John Kimchy"
+        "message": "Hello John kimchy"
       }
     }
   }
@@ -791,7 +788,7 @@ For example, following search template combines <<search-template-sections,secti
 
 [source,console]
 ----
-PUT _scripts/my-search-template?pretty
+PUT _scripts/my-search-template
 {
   "script": {
     "lang": "mustache",
@@ -801,10 +798,6 @@ PUT _scripts/my-search-template?pretty
           "query": "{{query_string}}",
           "fields": """[{{#text_fields}}{{user_name}},{{/text_fields}}]"""
         }
-      },
-      "params":{
-        "query_string": "My query string",
-        "text_fields": [ { "user_name": "John" }, {"user_name": "kimchy"}]
       }
     }
   }
@@ -815,7 +808,7 @@ Testing the template:
 
 [source,console]
 ----
-POST _render/template?pretty
+POST _render/template
 {
   "id": "my-search-template",
   "params": {
@@ -844,17 +837,6 @@ When rendered, template outputs:
         "query": "My string",
         "fields": "[John,kimchy,]"
       }
-    },
-    "params": {
-      "query_string": "My query string",
-      "text_fields": [
-        {
-          "user_name": "John"
-        },
-        {
-          "user_name": "kimchy"
-        }
-      ]
     }
   }
 }
@@ -866,7 +848,7 @@ For example:
 
 [source,console]
 ----
-PUT _scripts/my-search-template?pretty
+PUT _scripts/my-search-template
 {
   "script": {
     "lang": "mustache",
@@ -876,29 +858,16 @@ PUT _scripts/my-search-template?pretty
           "query": "{{query_string}}",
           "fields": """[{{#text_fields}}{{user_name}}{{^last}},{{/last}}{{/text_fields}}]"""
         }
-      },
-      "params":{
-        "query_string": "My query string",
-        "text_fields": [
-          {
-            "user_name": "John",
-            "last": false
-          },
-          {
-            "user_name": "kimchy",
-            "last": true
-          }
-        ]
       }
     }
   }
 }
 ----
 
-Testing the template again with a variable, `last` to determine it's the last item in the array:
+Testing the `my-search-template` again with a variable: `last` to determine it's the last item in the array:
 [source,console]
 ----
-POST _render/template?pretty
+POST _render/template
 {
   "id": "my-search-template",
   "params": {
@@ -929,19 +898,6 @@ When rendered the template outputs:
         "query": "My string",
         "fields": "[John,kimchy]"
       }
-    },
-    "params": {
-      "query_string": "My query string",
-      "text_fields": [
-        {
-          "user_name": "John",
-          "last": false
-        },
-        {
-          "user_name": "kimchy",
-          "last": true
-        }
-      ]
     }
   }
 }
@@ -970,7 +926,7 @@ For example, in the following search template if `name_exists` is `false`, `mess
 
 [source,console]
 ----
-POST _render/template?pretty
+POST _render/template
 {
   "source": {
     "query": {
@@ -991,7 +947,7 @@ For example, in the following search template, if `name_exists` is `true`, the v
 
 [source,console]
 ----
-POST _render/template?pretty
+POST _render/template
 {
   "source": {
     "query": {
@@ -1027,11 +983,11 @@ When rendered, template output:
 === Set delimiter
 You can change the default delimiter: double curly brackets `{{my-variable}}` to any custom delimiter in your search template.
 
-For example, the following search template changes the default delimiter to a single round bracket `(my-variable)`.
+For example, the following search template changes the default delimiter to a single round bracket `(query_string)`.
 
 [source,console]
 ----
-PUT _scripts/my-search-template?pretty
+PUT _scripts/my-search-template
 {
   "script": {
     "lang": "mustache",
@@ -1046,10 +1002,7 @@ PUT _scripts/my-search-template?pretty
         }
       }
     }
-    """,
-    "params": {
-      "query_string": "Hello"
-    }
+    """
   }
 }
 ----

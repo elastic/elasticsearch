@@ -156,7 +156,7 @@ public class SubjectTests extends ESTestCase {
         }
     }
 
-    public void testGetRoleReferencesForCrossClusterApiKey() {
+    public void testBuildRoleReferenceForCrossClusterApiKey() {
         Map<String, Object> authMetadata = new HashMap<>();
         final String apiKeyId = randomAlphaOfLength(12);
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);

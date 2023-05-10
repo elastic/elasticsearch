@@ -1025,7 +1025,7 @@ public class ApiKeyService {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
-                                validateApiKeyTypeExpiration(apiKeyDoc, credentials, clock, listener);
+                                validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
                                 listener.onResponse(
                                     AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1045,7 +1045,7 @@ public class ApiKeyService {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
-                            validateApiKeyTypeExpiration(apiKeyDoc, credentials, clock, listener);
+                            validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
                             listener.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1057,7 +1057,7 @@ public class ApiKeyService {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                     if (verified) {
                         // move on
-                        validateApiKeyTypeExpiration(apiKeyDoc, credentials, clock, listener);
+                        validateApiKeyTypeAndExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
                         listener.onResponse(
                             AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1089,7 +1089,7 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    static void validateApiKeyTypeExpiration(
+    static void validateApiKeyTypeAndExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,

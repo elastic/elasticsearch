@@ -2197,7 +2197,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getApiKeyAuthCache().keys(), contains(id));
     }
 
-    public void testValidateApiKeyTypeExpiration() throws IOException {
+    public void testValidateApiKeyTypeAndExpiration() throws IOException {
         final var apiKeyId = randomAlphaOfLength(12);
         final var apiKey = randomAlphaOfLength(16);
         final var hasher = getFastStoredHashAlgoForTests();
@@ -2217,7 +2217,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKey.Type expectedType1 = randomValueOtherThan(apiKeyDoc1.type, () -> randomFrom(ApiKey.Type.values()));
         final ApiKeyCredentials apiKeyCredentials1 = getApiKeyCredentials(apiKeyId, apiKey, expectedType1);
         final PlainActionFuture<AuthenticationResult<User>> future1 = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyTypeExpiration(apiKeyDoc1, apiKeyCredentials1, clock, future1);
+        ApiKeyService.validateApiKeyTypeAndExpiration(apiKeyDoc1, apiKeyCredentials1, clock, future1);
         final AuthenticationResult<User> auth1 = future1.actionGet();
         assertThat(auth1.getStatus(), is(AuthenticationResult.Status.TERMINATE));
         assertThat(auth1.getValue(), nullValue());
@@ -2238,7 +2238,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var apiKeyDoc2 = buildApiKeyDoc(hash, pastTime, false, randomAlphaOfLengthBetween(3, 8), Version.CURRENT.id);
         final ApiKeyCredentials apiKeyCredentials2 = getApiKeyCredentials(apiKeyId, apiKey, apiKeyDoc2.type);
         final PlainActionFuture<AuthenticationResult<User>> future2 = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyTypeExpiration(apiKeyDoc2, apiKeyCredentials2, clock, future2);
+        ApiKeyService.validateApiKeyTypeAndExpiration(apiKeyDoc2, apiKeyCredentials2, clock, future2);
         final AuthenticationResult<User> auth2 = future2.actionGet();
         assertThat(auth2.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertThat(auth2.getValue(), nullValue());
@@ -2254,7 +2254,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         );
         final ApiKeyCredentials apiKeyCredentials3 = getApiKeyCredentials(apiKeyId, apiKey, apiKeyDoc3.type);
         final PlainActionFuture<AuthenticationResult<User>> future3 = new PlainActionFuture<>();
-        ApiKeyService.validateApiKeyTypeExpiration(apiKeyDoc3, apiKeyCredentials3, clock, future3);
+        ApiKeyService.validateApiKeyTypeAndExpiration(apiKeyDoc3, apiKeyCredentials3, clock, future3);
         final AuthenticationResult<User> auth3 = future3.actionGet();
         assertThat(auth3.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         assertThat(auth3.getValue(), notNullValue());
@@ -2307,7 +2307,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             PlainActionFuture<AuthenticationResult<User>> authenticationResultFuture = PlainActionFuture.newFuture();
-            ApiKeyService.validateApiKeyTypeExpiration(
+            ApiKeyService.validateApiKeyTypeAndExpiration(
                 apiKeyDoc,
                 new ApiKeyService.ApiKeyCredentials("id", new SecureString(randomAlphaOfLength(16).toCharArray()), ApiKey.Type.REST),
                 Clock.systemUTC(),

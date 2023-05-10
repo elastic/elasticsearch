@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -144,6 +145,44 @@ public class BlockHashTests extends ESTestCase {
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, "cat", "dog");
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+    }
+
+    public void testBytesRefHashWithMultiValuedFields() {
+        var builder = BytesRefBlock.newBlockBuilder(8);
+        builder.appendBytesRef(new BytesRef("foo"));
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef("foo"));
+        builder.appendBytesRef(new BytesRef("bar"));
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef("bar"));
+        builder.appendBytesRef(new BytesRef("bort"));
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef("bort"));
+        builder.appendBytesRef(new BytesRef("bar"));
+        builder.endPositionEntry();
+        builder.appendNull();
+        builder.beginPositionEntry();
+        builder.appendBytesRef(new BytesRef("bort"));
+        builder.appendBytesRef(new BytesRef("bort"));
+        builder.appendBytesRef(new BytesRef("bar"));
+        builder.endPositionEntry();
+
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+        assertThat(ordsAndKeys.description, endsWith("b}"));
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0 },
+            new long[] { 0, 1 },
+            new long[] { 1, 2 },
+            new long[] { 2, 1 },
+            null,
+            new long[] { 2, 1 }
+        );
+        assertKeys(ordsAndKeys.keys, "foo", "bar", "bort");
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
     }
 
     public void testBooleanHashFalseFirst() {
@@ -428,14 +467,24 @@ public class BlockHashTests extends ESTestCase {
     }
 
     private void assertOrds(LongBlock ordsBlock, Long... expectedOrds) {
+        assertOrds(ordsBlock, Arrays.stream(expectedOrds).map(l -> l == null ? null : new long[] { l }).toArray(long[][]::new));
+    }
+
+    private void assertOrds(LongBlock ordsBlock, long[]... expectedOrds) {
         assertEquals(expectedOrds.length, ordsBlock.getPositionCount());
-        for (int i = 0; i < expectedOrds.length; i++) {
-            if (expectedOrds[i] == null) {
-                assertTrue(ordsBlock.isNull(i));
-            } else {
-                assertFalse(ordsBlock.isNull(i));
-                assertEquals("entry " + i, expectedOrds[i].longValue(), ordsBlock.getLong(i));
+        for (int p = 0; p < expectedOrds.length; p++) {
+            if (expectedOrds[p] == null) {
+                assertTrue(ordsBlock.isNull(p));
+                continue;
             }
+            assertFalse(ordsBlock.isNull(p));
+            int start = ordsBlock.getFirstValueIndex(p);
+            int count = ordsBlock.getValueCount(p);
+            long[] actual = new long[count];
+            for (int i = 0; i < count; i++) {
+                actual[i] = ordsBlock.getLong(start + i);
+            }
+            assertThat("position " + p, actual, equalTo(expectedOrds[p]));
         }
     }
 

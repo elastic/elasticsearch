@@ -25,13 +25,22 @@ public final class BlockOrdinalsReader {
     public LongBlock readOrdinals(IntVector docs) throws IOException {
         final int positionCount = docs.getPositionCount();
         LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            int doc = docs.getInt(i);
-            if (sortedSetDocValues.advanceExact(doc)) {
-                builder.appendLong(sortedSetDocValues.nextOrd());
-            } else {
+        for (int p = 0; p < positionCount; p++) {
+            int doc = docs.getInt(p);
+            if (false == sortedSetDocValues.advanceExact(doc)) {
                 builder.appendNull();
+                continue;
             }
+            int count = sortedSetDocValues.docValueCount();
+            if (count == 1) {
+                builder.appendLong(sortedSetDocValues.nextOrd());
+                continue;
+            }
+            builder.beginPositionEntry();
+            for (int i = 0; i < count; i++) {
+                builder.appendLong(sortedSetDocValues.nextOrd());
+            }
+            builder.endPositionEntry();
         }
         return builder.build();
     }

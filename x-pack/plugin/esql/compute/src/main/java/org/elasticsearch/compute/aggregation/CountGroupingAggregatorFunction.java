@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.AggregatorStateVector;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -35,53 +34,72 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void addRawInput(LongVector groupIdVector, Page page) {
-        assert channel >= 0;
-        assert groupIdVector.elementType() == ElementType.LONG;
-        final Block valuesBlock = page.getBlock(channel);
-        final Vector valuesVector = valuesBlock.asVector();
-        if (valuesVector != null) {
-            final int positions = groupIdVector.getPositionCount();
-            for (int i = 0; i < positions; i++) {
-                final int groupId = Math.toIntExact(groupIdVector.getLong(i));
-                state.increment(1, groupId);
-            }
+        Block valuesBlock = page.getBlock(channel);
+        Vector valuesVector = valuesBlock.asVector();
+        if (valuesVector == null) {
+            addRawInput(groupIdVector, valuesBlock);
         } else {
-            // move the cold branch out of this method to keep the optimized case vector/vector as small as possible
-            addRawInputWithBlockValues(groupIdVector, valuesBlock);
+            addRawInput(groupIdVector, valuesVector);
         }
     }
 
     @Override
     public void addRawInput(LongBlock groupIdBlock, Page page) {
-        assert channel >= 0;
-        assert groupIdBlock.elementType() == ElementType.LONG;
-        final Block valuesBlock = page.getBlock(channel);
-        final Vector valuesVector = valuesBlock.asVector();
-        final int positions = groupIdBlock.getPositionCount();
-        if (valuesVector != null) {
-            for (int i = 0; i < positions; i++) {
-                if (groupIdBlock.isNull(i) == false) {
-                    final int groupId = Math.toIntExact(groupIdBlock.getLong(i));
-                    state.increment(1, groupId);
-                }
-            }
+        Block valuesBlock = page.getBlock(channel);
+        Vector valuesVector = valuesBlock.asVector();
+        if (valuesVector == null) {
+            addRawInput(groupIdBlock, valuesBlock);
         } else {
-            for (int i = 0; i < positions; i++) {
-                if (groupIdBlock.isNull(i) == false && valuesBlock.isNull(i) == false) {
-                    final int groupId = Math.toIntExact(groupIdBlock.getLong(i));
-                    state.increment(valuesBlock.getValueCount(i), groupId);  // counts values
-                }
+            addRawInput(groupIdBlock, valuesVector);
+        }
+    }
+
+    private void addRawInput(LongVector groups, Block values) {
+        for (int position = 0; position < groups.getPositionCount(); position++) {
+            int groupId = Math.toIntExact(groups.getLong(position));
+            if (values.isNull(position)) {
+                state.putNull(groupId);
+                continue;
+            }
+            state.increment(values.getValueCount(position), groupId);
+        }
+    }
+
+    private void addRawInput(LongVector groups, Vector values) {
+        for (int position = 0; position < groups.getPositionCount(); position++) {
+            int groupId = Math.toIntExact(groups.getLong(position));
+            state.increment(1, groupId);
+        }
+    }
+
+    private void addRawInput(LongBlock groups, Vector values) {
+        for (int position = 0; position < groups.getPositionCount(); position++) {
+            if (groups.isNull(position)) {
+                continue;
+            }
+            int groupStart = groups.getFirstValueIndex(position);
+            int groupEnd = groupStart + groups.getValueCount(position);
+            for (int g = groupStart; g < groupEnd; g++) {
+                int groupId = Math.toIntExact(groups.getLong(g));
+                state.increment(1, groupId);
             }
         }
     }
 
-    private void addRawInputWithBlockValues(LongVector groupIdVector, Block valuesBlock) {
-        assert groupIdVector.elementType() == ElementType.LONG;
-        final int positions = groupIdVector.getPositionCount();
-        for (int i = 0; i < positions; i++) {
-            if (valuesBlock.isNull(i) == false) {
-                final int groupId = Math.toIntExact(groupIdVector.getLong(i));
-                state.increment(valuesBlock.getValueCount(i), groupId);  // counts values
+    private void addRawInput(LongBlock groups, Block values) {
+        for (int position = 0; position < groups.getPositionCount(); position++) {
+            if (groups.isNull(position)) {
+                continue;
+            }
+            int groupStart = groups.getFirstValueIndex(position);
+            int groupEnd = groupStart + groups.getValueCount(position);
+            for (int g = groupStart; g < groupEnd; g++) {
+                int groupId = Math.toIntExact(groups.getLong(g));
+                if (values.isNull(position)) {
+                    state.putNull(groupId);
+                    continue;
+                }
+                state.increment(values.getValueCount(position), groupId);
             }
         }
     }

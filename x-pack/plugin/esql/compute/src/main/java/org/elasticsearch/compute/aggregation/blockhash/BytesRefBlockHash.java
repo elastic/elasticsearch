@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +21,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.io.IOException;
@@ -37,22 +39,64 @@ final class BytesRefBlockHash extends BlockHash {
     @Override
     public LongBlock add(Page page) {
         BytesRefBlock block = page.getBlock(channel);
-        int positionCount = block.getPositionCount();
         BytesRefVector vector = block.asVector();
-        if (vector != null) {
-            long[] groups = new long[positionCount];
-            for (int i = 0; i < positionCount; i++) {
-                groups[i] = hashOrdToGroup(bytesRefHash.add(vector.getBytesRef(i, bytes)));
-            }
-            return new LongArrayVector(groups, positionCount).asBlock();
+        if (vector == null) {
+            return add(block);
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            if (block.isNull(i)) {
+        return add(vector).asBlock();
+    }
+
+    private LongVector add(BytesRefVector vector) {
+        long[] groups = new long[vector.getPositionCount()];
+        for (int i = 0; i < vector.getPositionCount(); i++) {
+            groups[i] = hashOrdToGroup(bytesRefHash.add(vector.getBytesRef(i, bytes)));
+        }
+        return new LongArrayVector(groups, vector.getPositionCount());
+    }
+
+    private static final long[] EMPTY = new long[0];
+
+    private LongBlock add(BytesRefBlock block) {
+        long[] seen = EMPTY;
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            if (block.isNull(p)) {
                 builder.appendNull();
-            } else {
-                builder.appendLong(hashOrdToGroup(bytesRefHash.add(block.getBytesRef(block.getFirstValueIndex(i), bytes))));
+                continue;
             }
+            int start = block.getFirstValueIndex(p);
+            int count = block.getValueCount(p);
+            if (count == 1) {
+                builder.appendLong(hashOrdToGroup(bytesRefHash.add(block.getBytesRef(start, bytes))));
+                continue;
+            }
+            if (seen.length < count) {
+                seen = new long[ArrayUtil.oversize(count, Long.BYTES)];
+            }
+            builder.beginPositionEntry();
+            // TODO if we know the elements were in sorted order we wouldn't need an array at all.
+            // TODO we could also have an assertion that there aren't any duplicates on the block.
+            // Lucene has them in ascending order without duplicates
+            int end = start + count;
+            int i = 0;
+            value: for (int offset = start; offset < end; offset++) {
+                long ord = bytesRefHash.add(block.getBytesRef(offset, bytes));
+                if (ord < 0) { // already seen
+                    ord = -1 - ord;
+                    /*
+                     * Check if we've seen the value before. This is n^2 on the number of
+                     * values, but we don't expect many of them in each entry.
+                     */
+                    for (int j = 0; j < i; j++) {
+                        if (seen[j] == ord) {
+                            continue value;
+                        }
+                    }
+                }
+                seen[i++] = ord;
+                builder.appendLong(ord);
+            }
+            builder.endPositionEntry();
         }
         return builder.build();
     }

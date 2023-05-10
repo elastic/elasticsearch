@@ -301,8 +301,13 @@ public class OrdinalsGroupingOperator implements Operator {
                     currentReader = new BlockOrdinalsReader(withOrdinals.ordinalsValues(leafReaderContext));
                 }
                 final LongBlock ordinals = currentReader.readOrdinals(docs);
-                for (int i = 0; i < ordinals.getPositionCount(); i++) {
-                    if (ordinals.isNull(i) == false) {
+                for (int p = 0; p < ordinals.getPositionCount(); p++) {
+                    if (ordinals.isNull(p)) {
+                        continue;
+                    }
+                    int start = ordinals.getFirstValueIndex(p);
+                    int end = start + ordinals.getValueCount(p);
+                    for (int i = start; i < end; i++) {
                         long ord = ordinals.getLong(i);
                         visitedOrds.set(ord);
                     }

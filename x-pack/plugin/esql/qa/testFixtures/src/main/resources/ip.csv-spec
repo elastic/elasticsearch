@@ -81,6 +81,8 @@ c:long         |ip:ip
 1              |::1
 4              |127.0.0.1
 5              |fe80::cae2:65ff:fece:feb9
+3              |fe80::cae2:65ff:fece:fec0
+3              |fe80::cae2:65ff:fece:fec1
 2              |fe81::cae2:65ff:fece:feb9
 ;
 

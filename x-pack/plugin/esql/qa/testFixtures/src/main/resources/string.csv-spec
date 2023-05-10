@@ -222,3 +222,14 @@ ROW a=["foo", "bar"]
 ["foo", "bar"] | "bar"
 // end::mv_min-result[]
 ;
+
+groupByMv
+from employees | stats min(salary), max(salary) by job_positions | sort job_positions | limit 5;
+
+min(salary):integer | max(salary):integer | job_positions:keyword
+25976               | 74970               | Accountant
+28941               | 69904               | Architect
+29175               | 58121               | Business Analyst
+25945               | 74999               | Data Scientist
+25324               | 58715               | Head Human Resources
+;

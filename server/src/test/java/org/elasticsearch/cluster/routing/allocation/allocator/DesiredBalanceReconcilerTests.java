@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -106,9 +105,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var clusterState = ClusterState.builder(DesiredBalanceComputerTests.createInitialClusterState(3))
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(
-                        TestDiscoveryNode.create("master", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNodeRole.MASTER_ROLE))
-                    )
+                    .add(newNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)))
                     .localNodeId("master")
                     .masterNodeId("master")
                     .build()
@@ -1021,7 +1018,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                     // data-node-1 left the cluster
                     .localNodeId("data-node-2")
                     .masterNodeId("data-node-2")
-                    .add(TestDiscoveryNode.create("data-node-2"))
+                    .add(newNode("data-node-2"))
             )
             .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(
@@ -1230,15 +1227,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static DiscoveryNodes discoveryNodes(int nodeCount) {
         final var discoveryNodes = DiscoveryNodes.builder();
         for (var i = 0; i < nodeCount; i++) {
-            discoveryNodes.add(
-                TestDiscoveryNode.create(
-                    "node-" + i,
-                    "node-" + i,
-                    buildNewFakeTransportAddress(),
-                    Map.of(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-                )
-            );
+            discoveryNodes.add(newNode("node-" + i, "node-" + i, Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)));
         }
         discoveryNodes.masterNodeId("node-0").localNodeId("node-0");
         return discoveryNodes.build();

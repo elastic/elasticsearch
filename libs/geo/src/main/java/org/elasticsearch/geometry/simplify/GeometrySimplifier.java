@@ -23,6 +23,26 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * The geometry simplifier can simplify any geometry, and does so by internally making use of the StreamingGeometrySimplifier,
+ * to minimize memory usages. When simplifying a complex geometry, for example a Polygon with holes, with the simplification threshold
+ * <code>k=1000</code>, the memory usage should be:
+ * <ul>
+ *     <li>Original complete geometry (in this example, one shell and several holes)</li>
+ *     <li>Internal memory for simplifying the shell is <code>O(k)</code>,
+ *     so an array of 1000 objects containing x, y and an estimated error.</li>
+ *     <li>Internal memory for simplifying each hole, which is a scaled down <code>k</code> based on the relative size of the hole.
+ *     For example, if the shell is 100k points, and a hole is 1k points, we will scale the hole k to just 10 points.</li>
+ *     <li>The finally simplified geometry, which occupies a similar amount of memory to the simplification algorithm,
+ *     in other words <code>O(k)</code></li>
+ * </ul>
+ * This approach of limiting the algorithms to some deterministic linear function of the simplification threshold k is used for all
+ * complex geometries, even <code>GeometryCollection</code>.
+ * <p>
+ * If the incoming data is a stream of points, or x and y coordinates, it is even more memory efficient to directly use the
+ * <code>StreamingGeometrySimplifier</code> which will only maintain the single array of length <code>k</code>, and produce a final
+ * geometry of <code>O(k)</code> at the end, so the total size of the original geometry is not a factor.
+ */
 public abstract class GeometrySimplifier<T extends Geometry> {
     protected final int maxPoints;
     protected final SimplificationErrorCalculator calculator;

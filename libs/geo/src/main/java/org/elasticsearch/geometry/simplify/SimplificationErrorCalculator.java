@@ -10,6 +10,8 @@ package org.elasticsearch.geometry.simplify;
 
 import java.util.Locale;
 
+import static java.lang.Math.min;
+
 public interface SimplificationErrorCalculator {
     double calculateError(PointLike left, PointLike middle, PointLike right);
 
@@ -22,7 +24,7 @@ public interface SimplificationErrorCalculator {
     SimplificationErrorCalculator CARTESIAN_TRIANGLE_AREA = new CartesianTriangleAreaCalculator();
     SimplificationErrorCalculator TRIANGLE_AREA = new TriangleAreaCalculator();
     SimplificationErrorCalculator TRIANGLE_HEIGHT = new TriangleHeightCalculator();
-    SimplificationErrorCalculator HEIGHT_AND_BACKPATH_DISTANCE = new HeightAndBackpathDistanceCalculator();
+    SimplificationErrorCalculator HEIGHT_AND_BACKPATH_DISTANCE = new CartesianHeightAndBackpathDistanceCalculator();
 
     static SimplificationErrorCalculator byName(String calculatorName) {
         return switch (calculatorName.toLowerCase(Locale.ROOT)) {
@@ -130,7 +132,7 @@ public interface SimplificationErrorCalculator {
      * a good enough approximation of the original line. This restriction is currently true of all the
      * calculations implemented so far.
      */
-    class HeightAndBackpathDistanceCalculator implements SimplificationErrorCalculator {
+    class CartesianHeightAndBackpathDistanceCalculator implements SimplificationErrorCalculator {
 
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {
@@ -151,7 +153,7 @@ public interface SimplificationErrorCalculator {
                 assert Math.abs(rightYrotated) < 1e-10;
                 assert Math.abs(rightXrotated - len) < len / 1e10;
                 double height = Math.abs(middleYrotated);
-                double deltaL = -Math.min(0, middleXrotated);
+                double deltaL = -min(0, middleXrotated);
                 double deltaR = Math.max(0, middleXrotated - rightXrotated);
                 double backDistance = Math.max(deltaR, deltaL);
                 return Math.max(height, backDistance);

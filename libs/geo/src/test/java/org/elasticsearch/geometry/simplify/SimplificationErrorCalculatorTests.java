@@ -10,6 +10,7 @@ package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static java.lang.Math.toRadians;
 import static org.hamcrest.Matchers.closeTo;
 
 public class SimplificationErrorCalculatorTests extends ESTestCase {
@@ -23,7 +24,7 @@ public class SimplificationErrorCalculatorTests extends ESTestCase {
     }
 
     public void testFrechetCalculation() {
-        var calculator = new SimplificationErrorCalculator.HeightAndBackpathDistanceCalculator();
+        var calculator = new SimplificationErrorCalculator.CartesianHeightAndBackpathDistanceCalculator();
         var ao = new TestPoint(0, 0);
         var co = new TestPoint(1, 0);
         for (double degrees = 0; degrees < 360; degrees += 45) {
@@ -81,7 +82,7 @@ public class SimplificationErrorCalculatorTests extends ESTestCase {
 
     /** Note that this rotation is only accurate in cartesian coordinates, take that into account when testing */
     private static TestPoint rotateCCW(double degrees, TestPoint origin, TestPoint point) {
-        double radians = Math.toRadians(degrees);
+        double radians = toRadians(degrees);
         double cos = Math.cos(radians);
         double sin = Math.sin(radians);
         double x = (point.x - origin.x);

@@ -120,7 +120,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
+        return randomBoolean() ? DataLifecycle.NULL : new DataLifecycle(randomMillisUpToYear9999());
     }
 
     private static Map<String, Object> randomMeta() {
@@ -260,7 +260,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataLifecycle lifecycle = randomLifecycle();
+        DataLifecycle lifecycle = new DataLifecycle(randomMillisUpToYear9999());
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle),
             randomNonNegativeLong(),

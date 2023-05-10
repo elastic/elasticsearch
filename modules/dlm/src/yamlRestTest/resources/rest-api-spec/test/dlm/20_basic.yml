@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.7.99"
-      reason: "data lifecycles only supported in 8.8+"
+      version: " - 8.8.99"
+      reason: "data lifecycles only supported in 8.9+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"

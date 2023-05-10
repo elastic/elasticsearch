@@ -93,7 +93,12 @@ public class NodeSeenServiceTests extends ESTestCase {
                 this.getTestName(),
                 createClusterState(
                     new NodesShutdownMetadata(
-                        Map.of(another.getId(), sigtermShutdown(another.getId(), 0, 1L), other.getId(), sigtermShutdown(other.getId(), 20L, 1L))
+                        Map.of(
+                            another.getId(),
+                            sigtermShutdown(another.getId(), 0, 1L),
+                            other.getId(),
+                            sigtermShutdown(other.getId(), 20L, 1L)
+                        )
                     ),
                     master,
                     other,

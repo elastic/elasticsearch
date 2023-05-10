@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,6 +31,7 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchR
 
 @ServerlessScope(Scope.PUBLIC)
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestSubmitAsyncSearchAction.class);
     static final String TYPED_KEYS_PARAM = "typed_keys";
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
@@ -52,9 +55,10 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
-        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll,
-        // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
+        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll
+        // and pre_filter_shard_size get set to the search request although the REST spec don't list
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
+        // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
             parser -> parseSearchRequest(
                 submit.getSearchRequest(),
@@ -75,6 +79,11 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         if (request.hasParam("keep_on_completion")) {
             submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
+        logger.warn(
+            "MMM {} : RestSubmitAsyncSearchAction execute with ccs_minimize_roundtrips={}",
+            request.getRequestId(),
+            submit.isCcsMinimizeRoundtrips()
+        );
         return channel -> {
             RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

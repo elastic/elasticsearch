@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
@@ -53,6 +55,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    private static final Logger logger = LogManager.getLogger(SearchResponse.class);
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -84,7 +87,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 shardFailures[i] = readShardSearchFailure(in);
             }
         }
+
         clusters = new Clusters(in);
+
+        /// MP DEBUG
+        try {
+            if (clusters.getTotal() == 3) {
+                if (successfulShards == 1) {
+                    throw new RuntimeException("III: SearchResponse(StreamInput)");
+                } else if (successfulShards == 3) {
+                    throw new RuntimeException("FFF: SearchResponse(StreamInput)");
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.warn(e.getMessage());
+            logger.warn(e.getMessage().substring(0, 4) + " ABC stack trace", e);
+        }
+        /// MP END DEBUG
+
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
@@ -122,12 +142,34 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
-        this.clusters = clusters;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+
+        // this cluster has completed
+        if (clusters != null && totalShards == (successfulShards + skippedShards + shardFailures.length)) {
+            this.clusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
+        } else {
+            this.clusters = clusters;
+        }
+
+        /// MP DEBUG
+        try {
+            if (clusters.getTotal() == 3) {
+                if (successfulShards == 1) {
+                    throw new RuntimeException("III: SearchResponse ABC");
+                } else if (successfulShards == 3) {
+                    throw new RuntimeException("FFF: SearchResponse ABC");
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.warn(e.getMessage());
+            logger.warn(e.getMessage().substring(0, 4) + " ABC stack trace", e);
+        }
+        /// MP END DEBUG
+
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
@@ -483,8 +525,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert successful <= total && skipped == total - successful
-                : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;

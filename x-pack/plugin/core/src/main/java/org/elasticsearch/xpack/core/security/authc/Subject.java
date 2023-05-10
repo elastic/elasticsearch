@@ -271,7 +271,7 @@ public class Subject {
     }
 
     // Package private for testing
-    RoleReference.ApiKeyRoleReference buildRoleReferencesForCrossClusterApiKey() {
+    RoleReference.ApiKeyRoleReference buildRoleReferenceForCrossClusterApiKey() {
         assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
@@ -313,7 +313,7 @@ public class Subject {
                 roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), roleDescriptorsBytes));
             }
         }
-        roleReferences.add(buildRoleReferencesForCrossClusterApiKey());
+        roleReferences.add(buildRoleReferenceForCrossClusterApiKey());
         return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 

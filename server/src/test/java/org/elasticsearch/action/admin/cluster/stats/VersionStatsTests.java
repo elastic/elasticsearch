@@ -15,7 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -120,7 +120,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             null
         );
         ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse(
-            new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT),
+            TestDiscoveryNode.create("id"),
             ClusterHealthStatus.GREEN,
             null,
             null,

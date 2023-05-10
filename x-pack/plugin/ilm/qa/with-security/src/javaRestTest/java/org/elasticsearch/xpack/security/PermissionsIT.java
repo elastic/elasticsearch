@@ -144,7 +144,7 @@ public class PermissionsIT extends ESRestTestCase {
                                 + " for user [test_ilm]"
                                 + " with effective roles [ilm]"
                                 + " on indices [not-ilm],"
-                                + " this action is granted by the index privileges [monitor,manage,all]"
+                                + " this action is granted by the index privileges [monitor,cross_cluster_replication,manage,all]"
                         )
                     );
                 }

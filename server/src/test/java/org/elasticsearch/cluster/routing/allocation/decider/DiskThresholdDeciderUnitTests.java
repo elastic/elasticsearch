@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
@@ -78,19 +79,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
+        DiscoveryNode node_0 = TestDiscoveryNode.create(
             "node_0",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
-        DiscoveryNode node_1 = new DiscoveryNode(
+        DiscoveryNode node_1 = TestDiscoveryNode.create(
             "node_1",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -162,19 +161,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
+        DiscoveryNode node_0 = TestDiscoveryNode.create(
             "node_0",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
-        DiscoveryNode node_1 = new DiscoveryNode(
+        DiscoveryNode node_1 = TestDiscoveryNode.create(
             "node_1",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -263,19 +260,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
         Map<ClusterInfo.NodeAndShard, String> shardRoutingMap = new HashMap<>();
 
-        DiscoveryNode node_0 = new DiscoveryNode(
+        DiscoveryNode node_0 = TestDiscoveryNode.create(
             "node_0",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
-        DiscoveryNode node_1 = new DiscoveryNode(
+        DiscoveryNode node_1 = TestDiscoveryNode.create(
             "node_1",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
 
         Metadata metadata = Metadata.builder()
@@ -508,7 +503,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         RoutingNode node = RoutingNodesHelper.routingNode(
             "node1",
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
             test_0,
             test_1.getTargetRelocatingShard(),
             test_2
@@ -543,7 +538,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         node = RoutingNodesHelper.routingNode(
             "node1",
-            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+            TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
             test_0,
             test_1.getTargetRelocatingShard(),
             test_2,
@@ -612,14 +607,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             }
         }
 
-        DiscoveryNode node = new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode anotherNode = new DiscoveryNode(
-            anotherNodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode node = TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode anotherNode = TestDiscoveryNode.create(anotherNodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(
@@ -902,19 +891,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
+        DiscoveryNode node_0 = TestDiscoveryNode.create(
             "node_0",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
-        DiscoveryNode node_1 = new DiscoveryNode(
+        DiscoveryNode node_1 = TestDiscoveryNode.create(
             "node_1",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -981,19 +968,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
             ShardRouting.Role.DEFAULT
         );
-        DiscoveryNode node_0 = new DiscoveryNode(
+        DiscoveryNode node_0 = TestDiscoveryNode.create(
             "node_0",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
-        DiscoveryNode node_1 = new DiscoveryNode(
+        DiscoveryNode node_1 = TestDiscoveryNode.create(
             "node_1",
             buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(DiscoveryNodeRole.roles()),
-            Version.CURRENT
+            emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles())
         );
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

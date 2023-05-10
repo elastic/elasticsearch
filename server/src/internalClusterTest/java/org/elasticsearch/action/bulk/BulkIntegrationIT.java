@@ -154,10 +154,9 @@ public class BulkIntegrationIT extends ESIntegTestCase {
             .endArray()
             .endObject();
 
-        AcknowledgedResponse acknowledgedResponse = client().admin()
-            .cluster()
-            .putPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON))
-            .get();
+        AcknowledgedResponse acknowledgedResponse = clusterAdmin().putPipeline(
+            new PutPipelineRequest(pipelineId, BytesReference.bytes(pipeline), XContentType.JSON)
+        ).get();
 
         assertTrue(acknowledgedResponse.isAcknowledged());
     }

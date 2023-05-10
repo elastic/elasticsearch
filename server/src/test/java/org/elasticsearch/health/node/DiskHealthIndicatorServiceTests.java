@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -510,16 +511,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testMissingHealthInfo() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         Set<DiscoveryNode> discoveryNodesInClusterState = new HashSet<>(discoveryNodes);
-        discoveryNodesInClusterState.add(
-            new DiscoveryNode(
-                randomAlphaOfLength(30),
-                UUID.randomUUID().toString(),
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                DiscoveryNodeRole.roles(),
-                Version.CURRENT
-            )
-        );
+        discoveryNodesInClusterState.add(TestDiscoveryNode.create(randomAlphaOfLength(30), UUID.randomUUID().toString()));
         ClusterService clusterService = createClusterService(discoveryNodesInClusterState, false);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         {
@@ -1000,13 +992,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> discoveryNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
             discoveryNodes.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     randomAlphaOfLength(30),
                     UUID.randomUUID().toString(),
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    roles,
-                    Version.CURRENT
+                    roles
                 )
             );
         }

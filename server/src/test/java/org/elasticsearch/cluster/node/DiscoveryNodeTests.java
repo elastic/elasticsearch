@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
@@ -40,13 +39,11 @@ public class DiscoveryNodeTests extends ESTestCase {
 
     public void testRolesAreSorted() {
         final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
-        final DiscoveryNode node = TestDiscoveryNode.create(
-            "name",
-            "id",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-            emptyMap(),
-            roles
-        );
+        final DiscoveryNode node = TestDiscoveryNode.builder("id")
+            .name("name")
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+            .roles(roles)
+            .build();
         DiscoveryNodeRole previous = null;
         for (final DiscoveryNodeRole current : node.getRoles()) {
             if (previous != null) {
@@ -62,7 +59,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             ? InetAddress.getByName("192.0.2.1")
             : InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", transportAddress, emptyMap(), emptySet());
+        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").address(transportAddress).roles(emptySet()).build();
         assertEquals(transportAddress.address().getHostString(), node.getHostName());
         assertEquals(transportAddress.getAddress(), node.getHostAddress());
     }
@@ -70,7 +67,7 @@ public class DiscoveryNodeTests extends ESTestCase {
     public void testDiscoveryNodeSerializationKeepsHost() throws Exception {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", transportAddress, emptyMap(), emptySet());
+        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").address(transportAddress).roles(emptySet()).build();
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         streamOutput.setTransportVersion(TransportVersion.CURRENT);
@@ -91,7 +88,11 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true);
 
-        DiscoveryNode node = TestDiscoveryNode.create("name1", "id1", transportAddress, emptyMap(), Collections.singleton(customRole));
+        DiscoveryNode node = TestDiscoveryNode.builder("id1")
+            .name("name1")
+            .address(transportAddress)
+            .roles(Collections.singleton(customRole))
+            .build();
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();

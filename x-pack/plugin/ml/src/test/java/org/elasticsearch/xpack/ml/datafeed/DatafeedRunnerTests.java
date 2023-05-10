@@ -94,13 +94,11 @@ public class DatafeedRunnerTests extends ESTestCase {
         PersistentTasksCustomMetadata tasks = tasksBuilder.build();
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
-                    "node_name",
-                    "node_id",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    Collections.emptyMap(),
-                    Collections.emptySet()
-                )
+                TestDiscoveryNode.builder("node_id")
+                    .name("node_name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .roles(Collections.emptySet())
+                    .build()
             )
             .build();
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("cluster_name"))

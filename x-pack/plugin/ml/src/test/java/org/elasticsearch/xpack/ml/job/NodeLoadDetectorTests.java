@@ -67,40 +67,36 @@ public class NodeLoadDetectorTests extends ESTestCase {
         );
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
-                    "_node_name1",
-                    "_node_id1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE)
-                )
+                TestDiscoveryNode.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "_node_name2",
-                    "_node_id2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE)
-                )
+                TestDiscoveryNode.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "_node_name3",
-                    "_node_id3",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE)
-                )
+                TestDiscoveryNode.builder("_node_id3")
+                    .name("_node_name3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9302))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "_node_name4",
-                    "_node_id4",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9303),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE)
-                )
+                TestDiscoveryNode.builder("_node_id4")
+                    .name("_node_name4")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9303))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
             )
             .build();
 

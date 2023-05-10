@@ -487,13 +487,11 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         discoveredNodes.set(
             Stream.of(
                 TestDiscoveryNode.create(otherNode1.getName(), randomAlphaOfLength(10), emptyMap(), Set.of(DiscoveryNodeRole.MASTER_ROLE)),
-                TestDiscoveryNode.create(
-                    "yet-another-node",
-                    randomAlphaOfLength(10),
-                    otherNode1.getAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                )
+                TestDiscoveryNode.builder(randomAlphaOfLength(10))
+                    .name("yet-another-node")
+                    .address(otherNode1.getAddress())
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                    .build()
             ).toList()
         );
 

@@ -757,13 +757,11 @@ public class ModelLoadingServiceTests extends ESTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        TestDiscoveryNode.create(
-                            "node_name",
-                            "node_id",
-                            new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                            Collections.emptyMap(),
-                            isIngestNode ? Collections.singleton(DiscoveryNodeRole.INGEST_ROLE) : Collections.emptySet()
-                        )
+                        TestDiscoveryNode.builder("node_id")
+                            .name("node_name")
+                            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                            .roles(isIngestNode ? Collections.singleton(DiscoveryNodeRole.INGEST_ROLE) : Collections.emptySet())
+                            .build()
                     )
                     .localNodeId("node_id")
                     .build()

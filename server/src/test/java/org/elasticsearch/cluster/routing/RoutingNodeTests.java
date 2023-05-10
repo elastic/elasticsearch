@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -45,7 +44,7 @@ public class RoutingNodeTests extends ESTestCase {
         super.setUp();
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("name1", "node-1", transportAddress, emptyMap(), emptySet());
+        DiscoveryNode discoveryNode = TestDiscoveryNode.builder("node-1").name("name1").address(transportAddress).roles(emptySet()).build();
         routingNode = RoutingNodesHelper.routingNode("node1", discoveryNode, unassignedShard0, initializingShard0, relocatingShard0);
     }
 

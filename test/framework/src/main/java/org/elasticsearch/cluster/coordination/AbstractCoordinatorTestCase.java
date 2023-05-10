@@ -1196,13 +1196,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 Settings settings
             ) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
-                final DiscoveryNode newLocalNode = TestDiscoveryNode.create(
-                    localNode.getName(),
-                    localNode.getId(),
-                    address,
-                    Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet()
-                );
+                final DiscoveryNode newLocalNode = TestDiscoveryNode.builder(localNode.getId())
+                    .name(localNode.getName())
+                    .address(address)
+                    .roles(localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
+                    .build();
                 try {
                     return new ClusterNode(
                         nodeIndex,

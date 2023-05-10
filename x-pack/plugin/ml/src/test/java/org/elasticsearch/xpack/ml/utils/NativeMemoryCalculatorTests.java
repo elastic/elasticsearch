@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ml.autoscaling.MlMemoryAutoscalingCapacity;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
 import java.net.InetAddress;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -531,29 +530,28 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             if (i < numMlNodes) {
                 // ML node
                 builder.add(
-                    TestDiscoveryNode.create(
-                        nodeName,
-                        nodeId,
-                        ta,
-                        Map.of(
-                            MACHINE_MEMORY_NODE_ATTR,
-                            String.valueOf(mlMachineMemory),
-                            MAX_JVM_SIZE_NODE_ATTR,
-                            String.valueOf(mlMachineMemory / 20)
-                        ),
-                        Set.of(DiscoveryNodeRole.ML_ROLE)
-                    )
+                    TestDiscoveryNode.builder(nodeId)
+                        .name(nodeName)
+                        .address(ta)
+                        .attributes(
+                            Map.of(
+                                MACHINE_MEMORY_NODE_ATTR,
+                                String.valueOf(mlMachineMemory),
+                                MAX_JVM_SIZE_NODE_ATTR,
+                                String.valueOf(mlMachineMemory / 20)
+                            )
+                        )
+                        .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                        .build()
                 );
             } else {
                 // Not an ML node
                 builder.add(
-                    TestDiscoveryNode.create(
-                        nodeName,
-                        nodeId,
-                        ta,
-                        Collections.emptyMap(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE)
-                    )
+                    TestDiscoveryNode.builder(nodeId)
+                        .name(nodeName)
+                        .address(ta)
+                        .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE))
+                        .build()
                 );
             }
         }

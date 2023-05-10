@@ -372,13 +372,11 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         final var discoveryNodes = DiscoveryNodes.builder();
         for (var i = 0; i < nodeCount; i++) {
             final var transportAddress = buildNewFakeTransportAddress();
-            final var discoveryNode = TestDiscoveryNode.create(
-                "node-" + i,
-                "node-" + i,
-                transportAddress,
-                Map.of(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
-            );
+            final var discoveryNode = TestDiscoveryNode.builder("node-" + i)
+                .name("node-" + i)
+                .address(transportAddress)
+                .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+                .build();
             discoveryNodes.add(discoveryNode);
         }
         discoveryNodes.masterNodeId("node-0").localNodeId("node-0");

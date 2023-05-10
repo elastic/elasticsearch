@@ -849,14 +849,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     static DiscoveryNode newDataNode(DiscoveryNodeRole role, String nodeName) {
-        return TestDiscoveryNode.create(
-            nodeName,
-            nodeName,
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            Set.of(role),
-            UUIDs.randomBase64UUID()
-        );
+        return TestDiscoveryNode.builder(nodeName).name(nodeName).roles(Set.of(role)).externalId(UUIDs.randomBase64UUID()).build();
     }
 
     private static String randomNodeId(RoutingNodes routingNodes, DiscoveryNodeRole role) {

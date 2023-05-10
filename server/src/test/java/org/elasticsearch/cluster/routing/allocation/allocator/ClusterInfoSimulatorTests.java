@@ -342,7 +342,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
     }
 
     private static DiscoveryNode createDiscoveryNode(String id, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create(id, id, buildNewFakeTransportAddress(), Map.of(), roles, UUIDs.randomBase64UUID(random()));
+        return TestDiscoveryNode.builder(id).name(id).roles(roles).externalId(UUIDs.randomBase64UUID(random())).build();
     }
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {

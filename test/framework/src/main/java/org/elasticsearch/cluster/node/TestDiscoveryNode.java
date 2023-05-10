@@ -62,39 +62,8 @@ public class TestDiscoveryNode {
         return builder(id).attributes(attributes).roles(roles).version(version).build();
     }
 
-    public static DiscoveryNode create(
-        String id,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        Version version
-    ) {
-        return builder(id).address(address).attributes(attributes).roles(roles).version(version).build();
-    }
-
     public static DiscoveryNode create(String nodeName, String nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         return builder(nodeId).name(nodeName).attributes(attributes).roles(roles).build();
-    }
-
-    public static DiscoveryNode create(
-        String nodeName,
-        String nodeId,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles
-    ) {
-        return builder(nodeId).name(nodeName).address(address).attributes(attributes).roles(roles).build();
-    }
-
-    public static DiscoveryNode create(
-        String nodeName,
-        String nodeId,
-        TransportAddress address,
-        Map<String, String> attributes,
-        Set<DiscoveryNodeRole> roles,
-        String externalId
-    ) {
-        return builder(nodeId).name(nodeName).address(address).attributes(attributes).roles(roles).externalId(externalId).build();
     }
 
     private static String newEphemeralId() {

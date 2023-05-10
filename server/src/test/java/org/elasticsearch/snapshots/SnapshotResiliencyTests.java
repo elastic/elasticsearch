@@ -2143,7 +2143,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleSoon(() -> {
                     try {
                         final TestClusterNode restartedNode = new TestClusterNode(
-                            TestDiscoveryNode.create(node.getName(), node.getId(), node.getAddress(), emptyMap(), node.getRoles())
+                            TestDiscoveryNode.builder(node.getId())
+                                .name(node.getName())
+                                .address(node.getAddress())
+                                .roles(node.getRoles())
+                                .build()
                         );
                         nodes.put(node.getName(), restartedNode);
                         restartedNode.start(oldState);

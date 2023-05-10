@@ -27,7 +27,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class TransportServiceLifecycleTests extends ESTestCase {
@@ -141,13 +140,11 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 tcpTransport,
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                boundTransportAddress -> TestDiscoveryNode.create(
-                    nodeName,
-                    nodeName,
-                    tcpTransport.boundAddress().publishAddress(),
-                    emptyMap(),
-                    emptySet()
-                ),
+                boundTransportAddress -> TestDiscoveryNode.builder(nodeName)
+                    .name(nodeName)
+                    .address(tcpTransport.boundAddress().publishAddress())
+                    .roles(emptySet())
+                    .build(),
                 null,
                 emptySet()
             );

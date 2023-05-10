@@ -88,7 +88,12 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         attributes.put("non-ml-attribute", "should be filtered out");
         TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9000);
 
-        DiscoveryNode node = TestDiscoveryNode.create("df-node-name", "df-node-id", transportAddress, attributes, Set.of());
+        DiscoveryNode node = TestDiscoveryNode.builder("df-node-id")
+            .name("df-node-name")
+            .address(transportAddress)
+            .attributes(attributes)
+            .roles(Set.of())
+            .build();
 
         DatafeedTimingStats timingStats = new DatafeedTimingStats(
             "my-job-id",

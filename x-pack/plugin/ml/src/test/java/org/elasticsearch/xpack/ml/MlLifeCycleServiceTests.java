@@ -189,31 +189,23 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
-                    "node-1-name",
-                    "node-1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles()
-                )
+                TestDiscoveryNode.builder("node-1")
+                    .name("node-1-name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .roles(DiscoveryNodeRole.roles())
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "node-2-name",
-                    "node-2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles()
-                )
+                TestDiscoveryNode.builder("node-2")
+                    .name("node-2-name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "node-3-name",
-                    "node-3",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles()
-                )
+                TestDiscoveryNode.builder("node-3")
+                    .name("node-3-name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9302))
+                    .build()
             )
             .masterNodeId("node-1")
             .localNodeId("node-2");
@@ -251,31 +243,22 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         // Local node is node-2 here
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder()
             .add(
-                TestDiscoveryNode.create(
-                    "node-1-name",
-                    "node-1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles()
-                )
+                TestDiscoveryNode.builder("node-1")
+                    .name("node-1-name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "node-2-name",
-                    "node-2",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles()
-                )
+                TestDiscoveryNode.builder("node-2")
+                    .name("node-2-name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .build()
             )
             .add(
-                TestDiscoveryNode.create(
-                    "node-3-name",
-                    "node-3",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
-                    Collections.emptyMap(),
-                    DiscoveryNodeRole.roles()
-                )
+                TestDiscoveryNode.builder("node-3")
+                    .name("node-3-name")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9302))
+                    .build()
             )
             .masterNodeId("node-1")
             .localNodeId("node-2");

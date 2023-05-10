@@ -69,13 +69,11 @@ public class NodesDeprecationCheckResponseTests extends AbstractWireSerializingT
         );
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        return TestDiscoveryNode.create(
-            randomAlphaOfLength(5),
-            randomAlphaOfLength(5),
-            transportAddress,
-            Collections.emptyMap(),
-            Collections.emptySet()
-        );
+        return TestDiscoveryNode.builder(randomAlphaOfLength(5))
+            .name(randomAlphaOfLength(5))
+            .address(transportAddress)
+            .roles(Collections.emptySet())
+            .build();
     }
 
     private static NodesDeprecationCheckAction.NodeResponse randomNodeResponse() {

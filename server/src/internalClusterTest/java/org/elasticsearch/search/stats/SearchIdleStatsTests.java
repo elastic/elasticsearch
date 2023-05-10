@@ -32,9 +32,8 @@ public class SearchIdleStatsTests extends ESSingleNodeTestCase {
             client().admin()
                 .indices()
                 .updateSettings(
-                    new UpdateSettingsRequest(
-                        Settings.builder().put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), (searchIdleAfter + "ms")).build(),
-                        index
+                    new UpdateSettingsRequest().settings(
+                        Settings.builder().put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), (searchIdleAfter + "ms"))
                     )
                 )
                 .actionGet()

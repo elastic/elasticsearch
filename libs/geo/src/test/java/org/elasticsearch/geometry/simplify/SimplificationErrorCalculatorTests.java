@@ -23,7 +23,7 @@ public class SimplificationErrorCalculatorTests extends ESTestCase {
     }
 
     public void testFrechetCalculation() {
-        var calculator = new SimplificationErrorCalculator.SimpleFrechetErrorCalculator();
+        var calculator = new SimplificationErrorCalculator.HeightAndBackpathDistanceCalculator();
         var ao = new TestPoint(0, 0);
         var co = new TestPoint(1, 0);
         for (double degrees = 0; degrees < 360; degrees += 45) {

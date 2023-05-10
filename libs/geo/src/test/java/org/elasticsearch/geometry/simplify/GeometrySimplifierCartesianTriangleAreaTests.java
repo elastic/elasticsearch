@@ -11,11 +11,9 @@ package org.elasticsearch.geometry.simplify;
 import org.elasticsearch.geometry.Line;
 
 public class GeometrySimplifierCartesianTriangleAreaTests extends GeometrySimplifierTests {
-    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.CartesianTriangleAreaCalculator();
-
     @Override
     protected SimplificationErrorCalculator calculator() {
-        return calculator;
+        return SimplificationErrorCalculator.CARTESIAN_TRIANGLE_AREA;
     }
 
     protected void assertLineWithNarrowSpikes(Line simplified, int spikeCount) {

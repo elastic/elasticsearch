@@ -8,9 +8,6 @@
 
 package org.elasticsearch.geometry.simplify;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 
 public interface SimplificationErrorCalculator {
@@ -22,41 +19,19 @@ public interface SimplificationErrorCalculator {
         double y();
     }
 
-    class Registry {
-        static ArrayList<String> names = new ArrayList<>();
-        static HashMap<String, SimplificationErrorCalculator> map = new HashMap<>();
-
-        static {
-            add("cartesiantrianglearea", new CartesianTriangleAreaCalculator());
-            add("trianglearea", new TriangleAreaCalculator());
-            add("triangleheight", new TriangleHeightCalculator());
-            add("simplefrecheterror", new SimpleFrechetErrorCalculator());
-        }
-
-        static void add(String name, SimplificationErrorCalculator calculator) {
-            String key = name.toLowerCase(Locale.ROOT);
-            if (map.containsKey(key)) {
-                throw new IllegalArgumentException("Duplicate calculator name key: " + key);
-            }
-            map.put(key, calculator);
-            names.add(key);
-        }
-
-        static SimplificationErrorCalculator get(String calculatorName) {
-            SimplificationErrorCalculator calculator = map.get(calculatorName.toLowerCase(Locale.ROOT));
-            if (calculator == null) {
-                throw new IllegalArgumentException("Unknown geometry simplification error calculator: " + calculatorName);
-            }
-            return calculator;
-        }
-    }
-
-    static List<String> names() {
-        return Registry.names;
-    }
+    SimplificationErrorCalculator CARTESIAN_TRIANGLE_AREA = new CartesianTriangleAreaCalculator();
+    SimplificationErrorCalculator TRIANGLE_AREA = new TriangleAreaCalculator();
+    SimplificationErrorCalculator TRIANGLE_HEIGHT = new TriangleHeightCalculator();
+    SimplificationErrorCalculator HEIGHT_AND_BACKPATH_DISTANCE = new HeightAndBackpathDistanceCalculator();
 
     static SimplificationErrorCalculator byName(String calculatorName) {
-        return Registry.get(calculatorName);
+        return switch (calculatorName.toLowerCase(Locale.ROOT)) {
+            case "cartesiantrianglearea" -> CARTESIAN_TRIANGLE_AREA;
+            case "trianglearea" -> TRIANGLE_AREA;
+            case "triangleheight" -> TRIANGLE_HEIGHT;
+            case "heightandbackpathdistance" -> HEIGHT_AND_BACKPATH_DISTANCE;
+            default -> throw new IllegalArgumentException("Unknown simplification error calculator: " + calculatorName);
+        };
     }
 
     /**
@@ -155,7 +130,7 @@ public interface SimplificationErrorCalculator {
      * a good enough approximation of the original line. This restriction is currently true of all the
      * calculations implemented so far.
      */
-    class SimpleFrechetErrorCalculator implements SimplificationErrorCalculator {
+    class HeightAndBackpathDistanceCalculator implements SimplificationErrorCalculator {
 
         @Override
         public double calculateError(PointLike left, PointLike middle, PointLike right) {

@@ -11,11 +11,9 @@ package org.elasticsearch.geometry.simplify;
 import org.elasticsearch.geometry.Line;
 
 public class GeometrySimplifierTriangleHeightTests extends GeometrySimplifierTests {
-    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.TriangleHeightCalculator();
-
     @Override
     protected SimplificationErrorCalculator calculator() {
-        return calculator;
+        return SimplificationErrorCalculator.TRIANGLE_HEIGHT;
     }
 
     protected void assertLineWithNarrowSpikes(Line simplified, int spikeCount) {

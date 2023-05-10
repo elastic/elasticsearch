@@ -41,7 +41,7 @@ import java.util.zip.GZIPInputStream;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
 public class GeometrySimplificationBenchmark {
-    @Param({ "cartesiantrianglearea", "triangleArea", "triangleheight", "simplefrechetError" })
+    @Param({ "cartesiantrianglearea", "triangleArea", "triangleheight", "heightandbackpathdistance" })
     public String calculatorName;
 
     @Param({ "10", "100", "1000", "10000", "20000" })

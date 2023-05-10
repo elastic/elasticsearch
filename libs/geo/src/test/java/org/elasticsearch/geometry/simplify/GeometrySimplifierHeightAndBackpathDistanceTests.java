@@ -10,12 +10,10 @@ package org.elasticsearch.geometry.simplify;
 
 import org.elasticsearch.geometry.Line;
 
-public class GeometrySimplifierFrechetTests extends GeometrySimplifierTests {
-    private SimplificationErrorCalculator calculator = new SimplificationErrorCalculator.SimpleFrechetErrorCalculator();
-
+public class GeometrySimplifierHeightAndBackpathDistanceTests extends GeometrySimplifierTests {
     @Override
     protected SimplificationErrorCalculator calculator() {
-        return calculator;
+        return SimplificationErrorCalculator.HEIGHT_AND_BACKPATH_DISTANCE;
     }
 
     protected void assertLineWithNarrowSpikes(Line simplified, int spikeCount) {

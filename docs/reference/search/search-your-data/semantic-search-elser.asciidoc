@@ -23,7 +23,7 @@ search on your data.
 
 To perform semantic search by using ELSER, you must have the NLP model deployed 
 in your cluster. Refer to the 
-{ml-docs}ml-nlp-elser.asciidoc[ELSER documentation] to learn how to download and 
+{ml-docs}/ml-nlp-elser.asciidoc[ELSER documentation] to learn how to download and 
 deploy the model.
 
 
@@ -207,11 +207,11 @@ weights.
    (...)
 ]
 ----
-
+//NOTCONSOLE
 
 [discrete]
 [[further-reading]]
 === Further reading
 
-* {ml-docs}ml-nlp-elser.asciidoc[How to download and deploy ELSER]
+* {ml-docs}/ml-nlp-elser.asciidoc[How to download and deploy ELSER]
 // TO DO: refer to the ELSER blog post

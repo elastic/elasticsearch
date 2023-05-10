@@ -16,11 +16,13 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpConstants;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.AsciiString;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
+import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -39,6 +42,7 @@ import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpHeadersWithAuthenticationContext;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,6 +54,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -65,6 +70,7 @@ import static org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNe
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -353,7 +359,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         }
     }
 
-    public void testHttpHeaderAuthnFaultyHeaderValidator() throws Exception {
+    public void testHttpHeaderAuthnBypassHeaderValidator() throws Exception {
         final Settings settings = Settings.builder().put(env.settings()).build();
         final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
         try (
@@ -373,10 +379,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         ) {
             final ChannelHandler handler = transport.configureServerChannelHandler();
             final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            // remove these pipeline handlers as they interfere in the test scenario
             for (String pipelineHandlerName : ch.pipeline().names()) {
-                if (pipelineHandlerName.equals("decoder")
-                    || pipelineHandlerName.equals("header_validator") // ALSO REMOVE VALIDATOR so requests are not "validatable"
+                // remove the decoder AND the header_validator
+                if (pipelineHandlerName.equals("decoder") || pipelineHandlerName.equals("header_validator")
+                // remove these pipeline handlers as they interfere in the test scenario
                     || pipelineHandlerName.equals("encoder")
                     || pipelineHandlerName.equals("encoder_compress")
                     || pipelineHandlerName.equals("chunked_writer")) {
@@ -436,6 +442,83 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
             assertThat(responseContentString, containsString("\"type\":\"exception\",\"reason\":\"Boom\""));
+        } finally {
+            testThreadPool.shutdownNow();
+        }
+    }
+
+    public void testHttpHeaderAuthnBypassDecoder() throws Exception {
+        final Settings settings = Settings.builder().put(env.settings()).build();
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                logger.error("--> Unexpected good request dispatch [" + FakeRestRequest.requestToString(channel.request()) + "]");
+                throw new AssertionError("Unexpected good request dispatch");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                assertThat(cause, instanceOf(HttpHeadersValidationException.class));
+                try {
+                    channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+        final ThreadPool testThreadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
+        try (
+            Netty4HttpServerTransport transport = Security.getHttpServerTransportWithHeadersValidator(
+                settings,
+                new NetworkService(List.of()),
+                testThreadPool,
+                xContentRegistry(),
+                dispatcher,
+                randomClusterSettings(),
+                new SharedGroupFactory(settings),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                (httpPreRequest, channel, listener) -> listener.onResponse(null)
+            )
+        ) {
+            final ChannelHandler handler = transport.configureServerChannelHandler();
+            final EmbeddedChannel ch = new EmbeddedChannel(handler);
+            // replace the decoder with the vanilla one that does no wrapping and will trip the header validator
+            ch.pipeline().replace("decoder", "decoder", new HttpRequestDecoder());
+            // remove these pipeline handlers as they interfere in the test scenario
+            for (String pipelineHandlerName : ch.pipeline().names()) {
+                if (pipelineHandlerName.equals("encoder")
+                    || pipelineHandlerName.equals("encoder_compress")
+                    || pipelineHandlerName.equals("chunked_writer")) {
+                    ch.pipeline().remove(pipelineHandlerName);
+                }
+            }
+            // tests requests that are not wrapped by the "decoder" and so cannot be authenticated
+            testThreadPool.generic().submit(() -> {
+                ch.writeInbound(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_full_request"));
+                ch.flushInbound();
+            }).get();
+            ch.flushOutbound();
+            Netty4HttpResponse response = ch.readOutbound();
+            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+            var responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+            assertThat(
+                responseContentString,
+                containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
+            );
+            testThreadPool.generic().submit(() -> {
+                ch.writeInbound(new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/unwrapped_request"));
+                ch.flushInbound();
+            }).get();
+            ch.flushOutbound();
+            response = ch.readOutbound();
+            assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
+            responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
+            assertThat(
+                responseContentString,
+                containsString("\"type\":\"illegal_state_exception\",\"reason\":\"Cannot authenticate unwrapped requests\"")
+            );
         } finally {
             testThreadPool.shutdownNow();
         }

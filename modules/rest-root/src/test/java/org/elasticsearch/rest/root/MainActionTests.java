@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.main;
+package org.elasticsearch.rest.root;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -86,7 +86,7 @@ public class MainActionTests extends ESTestCase {
         );
         TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<MainResponse>() {
+        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<>() {
             @Override
             public void onResponse(MainResponse mainResponse) {
                 responseRef.set(mainResponse);

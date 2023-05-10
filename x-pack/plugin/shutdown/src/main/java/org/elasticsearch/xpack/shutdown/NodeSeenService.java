@@ -157,6 +157,9 @@ public class NodeSeenService implements ClusterStateListener {
     }
 
     record RemoveSigtermShutdownTaskExecutor(LongSupplier timeSupplier) implements ClusterStateTaskExecutor<RemoveSigtermShutdownTask> {
+
+        public static final int MAX_NEGATIVE_CLOCK_SKEW_MS = 60_000;
+
         RemoveSigtermShutdownTaskExecutor(LongSupplier timeSupplier) {
             this.timeSupplier = Objects.requireNonNull(timeSupplier);
         }
@@ -192,8 +195,8 @@ public class NodeSeenService implements ClusterStateListener {
         }
 
         /**
-         * The {@link SingleNodeShutdownMetadata} is stale if the target node still exists, or the shutdown has been running for less time
-         * than the grace period (plus safety factor).
+         * The {@link SingleNodeShutdownMetadata} is stale if the target node does not exists, or the shutdown has been running for more
+         * time than the grace period (plus safety factor).
          */
         static boolean isSigtermShutdownStale(SingleNodeShutdownMetadata shutdown, long nowMillis, Predicate<String> nodeExists) {
             if (shutdown.getType() != SingleNodeShutdownMetadata.Type.SIGTERM) {
@@ -209,7 +212,7 @@ public class NodeSeenService implements ClusterStateListener {
             }
 
             long timeRunning = nowMillis - shutdown.getStartedAtMillis();
-            if (timeRunning < -1 * 60_000) {
+            if (timeRunning < -1 * MAX_NEGATIVE_CLOCK_SKEW_MS) {
                 return true; // clock skew too big
             }
             long cleanupGrace = grace.millis() + (grace.millis() / 10);

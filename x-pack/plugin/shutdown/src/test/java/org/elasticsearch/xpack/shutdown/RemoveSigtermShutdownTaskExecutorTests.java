@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -25,25 +23,11 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import static org.elasticsearch.xpack.shutdown.NodeSeenService.RemoveSigtermShutdownTaskExecutor;
 
-public class ShutdownTests extends ESTestCase {
+public class RemoveSigtermShutdownTaskExecutorTests extends ESTestCase {
     public static final DiscoveryNode localNode = TestDiscoveryNode.create("localNode");
     public static final DiscoveryNode otherNode = TestDiscoveryNode.create("otherNode");
     public static final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-        .version(1L)
         .nodes(DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId(localNode.getId()).build())
-        .metadata(
-            Metadata.builder()
-                .clusterUUID("clusteruuid")
-                .coordinationMetadata(
-                    CoordinationMetadata.builder()
-                        .term(2)
-                        .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG)
-                        .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.EMPTY_CONFIG)
-                        .build()
-                )
-                .build()
-        )
-        .stateUUID("stateuuid")
         .build();
 
     public static final long now = 123_000;

@@ -22,7 +22,6 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -62,41 +61,18 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
-                API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessCcrApiKey());
+                API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessApiKey("""
+                    {
+                      "replication": [
+                        {
+                           "names": ["leader-index", "leader-alias", "metrics-*"]
+                        }
+                      ]
+                    }"""));
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .user("ccr_user", PASS.toString(), "ccr_user_role")
             .build();
-    }
-
-    // Create an API Key specifically for CCR access
-    private static Map<String, Object> createCrossClusterAccessCcrApiKey() {
-        initFulfillingClusterClient();
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
-        createApiKeyRequest.setJsonEntity(Strings.format("""
-            {
-              "name": "cross_cluster_access_key",
-              "role_descriptors": {
-                "role": {
-                  "cluster": [
-                    "cross_cluster_replication"
-                  ],
-                  "index": [
-                    {
-                       "names": ["leader-index", "leader-alias", "metrics-*"],
-                       "privileges": ["cross_cluster_replication", "cross_cluster_replication_internal"]
-                    }
-                  ]
-                }
-              }
-            }"""));
-        try {
-            final Response createApiKeyResponse = performRequestWithAdminUser(fulfillingClusterClient, createApiKeyRequest);
-            assertOK(createApiKeyResponse);
-            return responseAsMap(createApiKeyResponse);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     @ClassRule

@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.remotecluster;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -41,7 +43,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.PASS;
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.USER;
@@ -52,9 +53,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestCase {
-
-    private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster testCluster = ElasticsearchCluster.local()
@@ -72,32 +71,7 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
         .user(USER, PASS.toString())
         .build();
 
-    // Create an API Key specifically for CCR access
-    private static Map<String, Object> createCrossClusterAccessCcrApiKey() {
-        return createCrossClusterAccessApiKey(adminClient(), """
-            {
-              "role": {
-                "cluster": [
-                  "cross_cluster_replication"
-                ],
-                "index": [
-                  {
-                     "names": ["leader-index*"],
-                     "privileges": ["cross_cluster_replication", "cross_cluster_replication_internal"]
-                  }
-                ]
-              }
-            }""");
-    }
-
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        initClient();
-        API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessCcrApiKey());
-    }
 
     @Override
     protected String getTestRestCluster() {
@@ -117,6 +91,15 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
     }
 
     public void testIndicesPrivilegesAreEnforcedForCcrRestoreSessionActions() throws IOException {
+        final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
+            {
+              "replication": [
+                {
+                   "names": ["leader-index*"]
+                }
+              ]
+            }""");
+
         final String leaderIndex1UUID;
         final String leaderIndex2UUID;
         final String privateIndexUUID;
@@ -143,7 +126,7 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
         }
 
         // Simulate QC behaviours by directly connecting to the FC using a transport service
-        try (MockTransportService service = startTransport("node", threadPool)) {
+        try (MockTransportService service = startTransport("node", threadPool, (String) crossClusterApiKeyMap.get("encoded"))) {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
             assertThat(remoteConnectionInfos, hasSize(1));
@@ -163,7 +146,7 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
                 containsString(
                     "action [indices:internal/admin/ccr/restore/session/put] towards remote cluster is unauthorized "
                         + "for user [_cross_cluster_access] with assigned roles [] authenticated by API key id ["
-                        + API_KEY_MAP_REF.get().get("id")
+                        + crossClusterApiKeyMap.get("id")
                         + "] of user [test_user] on indices [private-index], this action is granted by the index privileges "
                         + "[cross_cluster_replication_internal,all]"
                 )
@@ -271,7 +254,33 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
         }
     }
 
-    private static MockTransportService startTransport(final String nodeName, final ThreadPool threadPool) {
+    public void testRestApiKeyIsNotAllowedOnRemoteClusterPort() throws IOException {
+        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        createApiKeyRequest.setJsonEntity("""
+            {
+              "name": "rest_api_key"
+            }""");
+        final Response createApiKeyResponse = adminClient().performRequest(createApiKeyRequest);
+        assertOK(createApiKeyResponse);
+        final Map<String, Object> apiKeyMap = responseAsMap(createApiKeyResponse);
+        try (MockTransportService service = startTransport("node", threadPool, (String) apiKeyMap.get("encoded"))) {
+            final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            final Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, "my_remote_cluster");
+
+            final ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> remoteClusterClient.execute(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.Request.INSTANCE).actionGet()
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "authentication expected API key type of [cross_cluster], but API key [" + apiKeyMap.get("id") + "] has type [rest]"
+                )
+            );
+        }
+    }
+
+    private static MockTransportService startTransport(final String nodeName, final ThreadPool threadPool, String encodedApiKey) {
         final String remoteClusterServerEndpoint = testCluster.getRemoteClusterServerEndpoint(0);
 
         final Settings.Builder builder = Settings.builder()
@@ -279,7 +288,7 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
             .put("xpack.security.remote_cluster_client.ssl.enabled", "false");
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote_cluster.credentials", (String) API_KEY_MAP_REF.get().get("encoded"));
+        secureSettings.setString("cluster.remote.my_remote_cluster.credentials", encodedApiKey);
         builder.setSecureSettings(secureSettings);
         if (randomBoolean()) {
             builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
@@ -302,7 +311,7 @@ public class RemoteClusterSecurityCcrFcActionAuthorizationIT extends ESRestTestC
                 final ThreadContext threadContext = threadPool.getThreadContext();
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     new CrossClusterAccessHeaders(
-                        "ApiKey " + API_KEY_MAP_REF.get().get("encoded"),
+                        "ApiKey " + encodedApiKey,
                         CrossClusterAccessUser.subjectInfo(TransportVersion.CURRENT, nodeName)
                     ).writeToContext(threadContext);
                     connection.sendRequest(requestId, action, request, options);

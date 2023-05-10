@@ -1170,7 +1170,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 DateHistogramAggregationBuilder aggregationBuilder = new DateHistogramAggregationBuilder("_name");

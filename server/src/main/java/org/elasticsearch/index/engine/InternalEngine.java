@@ -143,6 +143,12 @@ public class InternalEngine extends Engine {
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap;
     private final LiveVersionMapArchive liveVersionMapArchive;
+    // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
+    // generation it is safe to rely on the LiveVersionMap for a real-time get.
+    // TODO: move the following two to the stateless plugin
+    private final AtomicLong lastUnsafeSegmentGenerationForGets = new AtomicLong(-1);
+    // Records the segment generation for the currently ongoing commit if any, or the last finished commit otherwise.
+    private final AtomicLong preCommitSegmentGeneration = new AtomicLong(-1);
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
@@ -753,63 +759,101 @@ public class InternalEngine extends Engine {
         DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     ) {
-        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        assert assertGetUsesIdField(get);
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
-                final VersionValue versionValue;
-                try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
-                    // we need to lock here to access the version map to do this truly in RT
-                    versionValue = getVersionFromMap(get.uid().bytes());
-                }
-                if (versionValue != null) {
-                    if (versionValue.isDelete()) {
-                        return GetResult.NOT_EXISTS;
-                    }
-                    if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
-                        throw new VersionConflictEngineException(
-                            shardId,
-                            "[" + get.id() + "]",
-                            get.versionType().explainConflictForReads(versionValue.version, get.version())
-                        );
-                    }
-                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                        && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
-                        throw new VersionConflictEngineException(
-                            shardId,
-                            get.id(),
-                            get.getIfSeqNo(),
-                            get.getIfPrimaryTerm(),
-                            versionValue.seqNo,
-                            versionValue.term
-                        );
-                    }
-                    if (get.isReadFromTranslog()) {
-                        // this is only used for updates - API _GET calls will always read form a reader for consistency
-                        // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
-                        if (versionValue.getLocation() != null) {
-                            try {
-                                final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
-                                if (operation != null) {
-                                    return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
-                                }
-                            } catch (IOException e) {
-                                maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
-                                throw new EngineException(shardId, "failed to read operation from translog", e);
-                            }
-                        } else {
-                            trackTranslogLocation.set(true);
-                        }
-                    }
-                    assert versionValue.seqNo >= 0 : versionValue;
-                    refreshIfNeeded("realtime_get", versionValue.seqNo);
-                }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+                var result = realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, true);
+                assert result != null : "real-time get result must not be null";
+                return result;
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
                 return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
             }
         }
+    }
+
+    @Override
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        assert assertGetUsesIdField(get);
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return realtimeGetUnderLock(get, mappingLookup, documentParser, searcherWrapper, false);
+        }
+    }
+
+    /**
+     * @param getFromSearcher indicates whether we also try the internal searcher if not found in translog. In the case where
+     * we just started tracking locations in the translog, we always use the internal searcher.
+     */
+    protected GetResult realtimeGetUnderLock(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper,
+        boolean getFromSearcher
+    ) {
+        assert readLock.isHeldByCurrentThread();
+        assert get.realtime();
+        final VersionValue versionValue;
+        try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
+            // we need to lock here to access the version map to do this truly in RT
+            versionValue = getVersionFromMap(get.uid().bytes());
+        }
+        boolean getFromSearcherIfNotInTranslog = getFromSearcher;
+        if (versionValue != null) {
+            if (versionValue.isDelete()) {
+                return GetResult.NOT_EXISTS;
+            }
+            if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
+                throw new VersionConflictEngineException(
+                    shardId,
+                    "[" + get.id() + "]",
+                    get.versionType().explainConflictForReads(versionValue.version, get.version())
+                );
+            }
+            if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                && (get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term)) {
+                throw new VersionConflictEngineException(
+                    shardId,
+                    get.id(),
+                    get.getIfSeqNo(),
+                    get.getIfPrimaryTerm(),
+                    versionValue.seqNo,
+                    versionValue.term
+                );
+            }
+            if (get.isReadFromTranslog()) {
+                if (versionValue.getLocation() != null) {
+                    try {
+                        final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                        if (operation != null) {
+                            return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
+                        }
+                    } catch (IOException e) {
+                        maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
+                        throw new EngineException(shardId, "failed to read operation from translog", e);
+                    }
+                } else {
+                    trackTranslogLocation.set(true);
+                    // We need to start tracking translog locations in the live version map. Refresh and
+                    // serve all the real-time gets with a missing translog location from the internal searcher
+                    // (until a flush happens) even if we're supposed to only get from translog.
+                    getFromSearcherIfNotInTranslog = true;
+                }
+            }
+            assert versionValue.seqNo >= 0 : versionValue;
+            refreshIfNeeded("realtime_get", versionValue.seqNo);
+        }
+        if (getFromSearcherIfNotInTranslog) {
+            return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
+        }
+        return null;
     }
 
     /**
@@ -915,6 +959,7 @@ public class InternalEngine extends Engine {
                 // but we only need to do this once since the last operation per ID is to add to the version
                 // map so once we pass this point we can safely lookup from the version map.
                 if (versionMap.isUnsafe()) {
+                    lastUnsafeSegmentGenerationForGets.set(lastCommittedSegmentInfos.getGeneration() + 1);
                     refresh("unsafe_version_map", SearcherScope.INTERNAL, true);
                 }
                 versionMap.enforceSafeAccess();
@@ -2058,6 +2103,12 @@ public class InternalEngine extends Engine {
                         translog.rollGeneration();
                         logger.trace("starting commit for flush; commitTranslog=true");
                         long lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong();
+                        // Pre-emptively recording the upcoming segment generation so that the live version map archive records
+                        // the correct segment generation for doc IDs that go to the archive while a flush is happening. Otherwise,
+                        // if right after committing the IndexWriter new docs get indexed/updated and a refresh moves them to the archive,
+                        // we clear them from the archive once we see that segment generation on the search shards, but those changes
+                        // were not included in the commit since they happened right after it.
+                        preCommitSegmentGeneration.set(lastCommittedSegmentInfos.getGeneration() + 1);
                         commitIndexWriter(indexWriter, translog);
                         logger.trace("finished commit for flush");
                         // we need to refresh in order to clear older version values
@@ -3174,6 +3225,10 @@ public class InternalEngine extends Engine {
         }
     }
 
+    public long getLastUnsafeSegmentGenerationForGets() {
+        return lastUnsafeSegmentGenerationForGets.get();
+    }
+
     protected LiveVersionMapArchive createLiveVersionMapArchive() {
         return LiveVersionMapArchive.NOOP_ARCHIVE;
     }
@@ -3185,5 +3240,14 @@ public class InternalEngine extends Engine {
     // Visible for testing purposes only
     public LiveVersionMap getLiveVersionMap() {
         return versionMap;
+    }
+
+    private static boolean assertGetUsesIdField(Get get) {
+        assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
+        return true;
+    }
+
+    protected long getPreCommitSegmentGeneration() {
+        return preCommitSegmentGeneration.get();
     }
 }

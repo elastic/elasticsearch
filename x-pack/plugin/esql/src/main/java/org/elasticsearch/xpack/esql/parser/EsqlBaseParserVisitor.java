@@ -254,6 +254,27 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
   /**
+   * Visit a parse tree produced by the {@code numericArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code booleanArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code stringArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -325,6 +346,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#numericValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNumericValue(EsqlBaseParser.NumericValueContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#decimalValue}.
    * @param ctx the parse tree

@@ -226,6 +226,19 @@ emp_no:integer | salary_change.int:integer | salary_change:integer
 10015          |[12, 14]                   |12             
 ;
 
+mvMinSimple
+// tag::mv_min[]
+ROW a=[2, 1]
+| EVAL min_a = MV_MIN(a)
+// end::mv_min[]
+;
+
+// tag::mv_min-result[]
+a:integer | min_a:integer
+   [2, 1] | 1
+// end::mv_min-result[]
+;
+
 mvSum
 from employees | where emp_no > 10008 | eval salary_change = mv_sum(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
 

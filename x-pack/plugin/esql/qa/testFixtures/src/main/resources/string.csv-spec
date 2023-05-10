@@ -209,3 +209,16 @@ words:keyword | word:keyword
 foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
 // end::split-result[]
 ;
+
+mvMin
+// tag::mv_min[]
+ROW a=["foo", "bar"]
+| EVAL min_a = MV_MIN(a)
+// end::mv_min[]
+;
+
+// tag::mv_min-result[]
+     a:keyword | min_a:keyword
+["foo", "bar"] | "bar"
+// end::mv_min-result[]
+;

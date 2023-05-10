@@ -111,8 +111,17 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Literal lit) {
-            if (lit.value() != null && lit.value() instanceof String s) {
+            if (lit.value() == null) {
+                return lit;
+            }
+            if (lit.value() instanceof String s) {
                 return Literal.of(lit, new BytesRef(s));
+            }
+            if (lit.value() instanceof List<?> l) {
+                if (l.isEmpty() || false == l.get(0) instanceof String) {
+                    return lit;
+                }
+                return Literal.of(lit, l.stream().map(v -> new BytesRef((String) v)).toList());
             }
             return lit;
         }

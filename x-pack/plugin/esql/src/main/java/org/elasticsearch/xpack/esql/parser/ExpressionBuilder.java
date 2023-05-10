@@ -51,6 +51,7 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
@@ -113,6 +114,39 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             val = Integer.valueOf((int) value);
         }
         return new Literal(source, val, type);
+    }
+
+    @Override
+    public Object visitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) {
+        Source source = source(ctx);
+        List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.DOUBLE)) {
+            return new Literal(source, mapNumbers(numbers, Number::doubleValue), DataTypes.DOUBLE);
+        }
+        if (numbers.stream().anyMatch(l -> l.dataType() == DataTypes.LONG)) {
+            return new Literal(source, mapNumbers(numbers, Number::longValue), DataTypes.LONG);
+        }
+        return new Literal(source, mapNumbers(numbers, Number::intValue), DataTypes.INTEGER);
+    }
+
+    private List<Object> mapNumbers(List<Literal> numbers, Function<Number, Object> map) {
+        return numbers.stream().map(l -> map.apply((Number) l.value())).toList();
+    }
+
+    @Override
+    public Object visitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx) {
+        return visitArrayLiteral(ctx, ctx.booleanValue(), DataTypes.BOOLEAN);
+    }
+
+    @Override
+    public Object visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) {
+        return visitArrayLiteral(ctx, ctx.string(), DataTypes.KEYWORD);
+    }
+
+    private Object visitArrayLiteral(ParserRuleContext ctx, List<? extends ParserRuleContext> contexts, DataType dataType) {
+        Source source = source(ctx);
+        List<Literal> literals = visitList(this, contexts, Literal.class);
+        return new Literal(source, literals.stream().map(Literal::value).toList(), dataType);
     }
 
     @Override

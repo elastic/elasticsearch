@@ -2,7 +2,7 @@ lexer grammar EsqlBaseLexer;
 
 DISSECT : 'dissect' -> pushMode(EXPRESSION);
 EVAL : 'eval' -> pushMode(EXPRESSION);
-EXPLAIN : 'explain' -> pushMode(EXPRESSION);
+EXPLAIN : 'explain' -> pushMode(EXPLAIN_MODE);
 FROM : 'from' -> pushMode(SOURCE_IDENTIFIERS);
 INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION);
 GROK : 'grok' -> pushMode(EXPRESSION);
@@ -30,6 +30,12 @@ WS
     ;
 
 
+mode EXPLAIN_MODE;
+EXPLAIN_OPENING_BRACKET : '[' -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
+EXPLAIN_PIPE : '|' -> type(PIPE), popMode;
+EXPLAIN_WS : WS -> channel(HIDDEN);
+EXPLAIN_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
+EXPLAIN_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
 
 mode EXPRESSION;
 
@@ -83,8 +89,6 @@ FALSE : 'false';
 FIRST : 'first';
 LAST : 'last';
 LP : '(';
-OPENING_BRACKET : '[' -> pushMode(DEFAULT_MODE);
-CLOSING_BRACKET : ']' -> popMode, popMode; // pop twice, once to clear mode of current cmd and once to exit DEFAULT_MODE
 LIKE: 'like';
 NOT : 'not';
 NULL : 'null';
@@ -108,6 +112,15 @@ MINUS : '-';
 ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
+
+// Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
+// way is to start in an explain command which then shifts us to expression
+// mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
+// the start of a multivalued field constant. To line up with the double pop
+// the explain mode needs, we double push when we see that.
+OPENING_BRACKET : '[' -> pushMode(EXPRESSION), pushMode(EXPRESSION);
+CLOSING_BRACKET : ']' -> popMode, popMode;
+
 
 UNQUOTED_IDENTIFIER
     : LETTER (LETTER | DIGIT | '_')*

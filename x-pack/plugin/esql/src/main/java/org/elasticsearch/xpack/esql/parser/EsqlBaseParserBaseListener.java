@@ -461,6 +461,42 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLimitCommand(EsqlBaseParser.LimitCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -600,6 +636,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitBooleanValue(EsqlBaseParser.BooleanValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterNumericValue(EsqlBaseParser.NumericValueContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNumericValue(EsqlBaseParser.NumericValueContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -420,6 +420,42 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
   /**
+   * Enter a parse tree produced by the {@code numericArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code numericArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code booleanArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code booleanArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code stringArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code stringArrayLiteral}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    */
@@ -539,6 +575,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitBooleanValue(EsqlBaseParser.BooleanValueContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#numericValue}.
+   * @param ctx the parse tree
+   */
+  void enterNumericValue(EsqlBaseParser.NumericValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#numericValue}.
+   * @param ctx the parse tree
+   */
+  void exitNumericValue(EsqlBaseParser.NumericValueContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#decimalValue}.
    * @param ctx the parse tree

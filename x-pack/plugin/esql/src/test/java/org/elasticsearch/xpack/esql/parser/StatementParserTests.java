@@ -38,14 +38,16 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -73,6 +75,70 @@ public class StatementParserTests extends ESTestCase {
             ),
             statement("row 1, 2, c = 3")
         );
+    }
+
+    public void testRowCommandLong() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLong(2147483648L)))), statement("row c = 2147483648"));
+    }
+
+    public void testRowCommandHugeInt() {
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(9223372036854775808.0)))),
+            statement("row c = 9223372036854775808")
+        );
+    }
+
+    public void testRowCommandDouble() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDouble(1.0)))), statement("row c = 1.0"));
+    }
+
+    public void testRowCommandMultivalueInt() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", integers(1, 2)))), statement("row c = [1, 2]"));
+    }
+
+    public void testRowCommandMultivalueLong() {
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 2147483649L)))),
+            statement("row c = [2147483648, 2147483649]")
+        );
+    }
+
+    public void testRowCommandMultivalueLongAndInt() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalLongs(2147483648L, 1L)))), statement("row c = [2147483648, 1]"));
+    }
+
+    public void testRowCommandMultivalueHugeInts() {
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(9223372036854775808.0, 9223372036854775809.0)))),
+            statement("row c = [9223372036854775808, 9223372036854775809]")
+        );
+    }
+
+    public void testRowCommandMultivalueHugeIntAndNormalInt() {
+        assertEquals(
+            new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(9223372036854775808.0, 1.0)))),
+            statement("row c = [9223372036854775808, 1]")
+        );
+    }
+
+    public void testRowCommandMultivalueDouble() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalDoubles(1.0, 2.0)))), statement("row c = [1.0, 2.0]"));
+    }
+
+    public void testRowCommandBoolean() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBoolean(false)))), statement("row c = false"));
+    }
+
+    public void testRowCommandMultivalueBoolean() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalBooleans(false, true)))), statement("row c = [false, true]"));
+    }
+
+    public void testRowCommandString() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalString("chicken")))), statement("row c = \"chicken\""));
+    }
+
+    public void testRowCommandMultivalueString() {
+        assertEquals(new Row(EMPTY, List.of(new Alias(EMPTY, "c", literalStrings("cat", "dog")))), statement("row c = [\"cat\", \"dog\"]"));
     }
 
     public void testRowCommandWithEscapedFieldName() {
@@ -554,7 +620,47 @@ public class StatementParserTests extends ESTestCase {
     }
 
     private static Literal integer(int i) {
-        return new Literal(EMPTY, i, INTEGER);
+        return new Literal(EMPTY, i, DataTypes.INTEGER);
+    }
+
+    private static Literal integers(int... ints) {
+        return new Literal(EMPTY, Arrays.stream(ints).boxed().toList(), DataTypes.INTEGER);
+    }
+
+    private static Literal literalLong(long i) {
+        return new Literal(EMPTY, i, DataTypes.LONG);
+    }
+
+    private static Literal literalLongs(long... longs) {
+        return new Literal(EMPTY, Arrays.stream(longs).boxed().toList(), DataTypes.LONG);
+    }
+
+    private static Literal literalDouble(double d) {
+        return new Literal(EMPTY, d, DataTypes.DOUBLE);
+    }
+
+    private static Literal literalDoubles(double... doubles) {
+        return new Literal(EMPTY, Arrays.stream(doubles).boxed().toList(), DataTypes.DOUBLE);
+    }
+
+    private static Literal literalBoolean(boolean b) {
+        return new Literal(EMPTY, b, DataTypes.BOOLEAN);
+    }
+
+    private static Literal literalBooleans(boolean... booleans) {
+        List<Boolean> v = new ArrayList<>(booleans.length);
+        for (boolean b : booleans) {
+            v.add(b);
+        }
+        return new Literal(EMPTY, v, DataTypes.BOOLEAN);
+    }
+
+    private static Literal literalString(String s) {
+        return new Literal(EMPTY, s, DataTypes.KEYWORD);
+    }
+
+    private static Literal literalStrings(String... strings) {
+        return new Literal(EMPTY, Arrays.asList(strings), DataTypes.KEYWORD);
     }
 
     private void expectError(String query, String errorMessage) {

@@ -136,7 +136,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     assertThat(scorer.score(), equalTo(3f));
                 }
             };
-            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(
+                weight.scorer(leaf),
+                bitSet
+            );
             bulkScorer.score(leafCollector, null);
         }
         {
@@ -147,7 +150,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     assertThat(doc, equalTo(1));
                 }
             };
-            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(
+                weight.scorer(leaf),
+                bitSet
+            );
             bulkScorer.score(leafCollector, null);
         }
         {
@@ -158,7 +164,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     fail("docId [" + doc + "] should have been deleted");
                 }
             };
-            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(
+                weight.scorer(leaf),
+                bitSet
+            );
             bulkScorer.score(leafCollector, null);
         }
         {
@@ -169,7 +178,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     assertThat(doc, equalTo(3));
                 }
             };
-            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(
+                weight.scorer(leaf),
+                bitSet
+            );
             bulkScorer.score(leafCollector, null);
         }
 

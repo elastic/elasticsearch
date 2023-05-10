@@ -9,6 +9,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PoolArenaMetric;
@@ -51,6 +52,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
@@ -77,6 +79,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -94,6 +97,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -649,6 +653,57 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
     }
 
+    public void testLargeRequestIsNeverDispatched() throws Exception {
+        final String uri = "/"
+            + randomAlphaOfLengthBetween(4, 8)
+            + "?X-"
+            + randomAlphaOfLengthBetween(4, 8)
+            + "="
+            + randomAlphaOfLengthBetween(4, 8);
+        final Settings settings = createBuilderWithPort().put(HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), "1mb")
+            .build();
+        final String requestString = randomAlphaOfLength(2 * 1024 * 1024); // request size is twice the limit
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                throw new AssertionError("Request dispatched but shouldn't");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                throw new AssertionError("Request dispatched but shouldn't");
+            }
+        };
+        final HttpValidator httpValidator = (httpRequest, channel, validationListener) -> {
+            // assert that the validator sees the request unaltered
+            assertThat(httpRequest.uri(), is(uri));
+            if (randomBoolean()) {
+                validationListener.onResponse(null);
+            } else {
+                validationListener.onFailure(new ElasticsearchException("Boom"));
+            }
+        };
+        try (
+            Netty4HttpServerTransport transport = getTestNetty4HttpServerTransport(
+                settings,
+                dispatcher,
+                httpValidator,
+                (restRequest, threadContext) -> { throw new AssertionError("Request dispatched but shouldn't"); }
+            )
+        ) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                Collection<FullHttpResponse> response = client.post(
+                    remoteAddress.address(),
+                    Collections.singletonList(Tuple.tuple(uri, requestString))
+                );
+                assertThat(response, hasSize(1));
+                assertThat(response.stream().findFirst().get().status(), is(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE));
+            }
+        }
+    }
+
     public void testHttpHeadersFailedValidation() throws InterruptedException {
         final AtomicReference<HttpMethod> httpMethodReference = new AtomicReference<>();
         final AtomicReference<String> urlReference = new AtomicReference<>();
@@ -668,6 +723,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().uri(), is(urlReference.get()));
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
+                // assert content is dropped
+                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new BytesRestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {
@@ -710,10 +767,12 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 );
                 validationResultExceptionReference.set(new ElasticsearchSecurityException("Boom", UNAUTHORIZED));
                 try (Netty4HttpClient client = new Netty4HttpClient()) {
+                    ByteBuf content = Unpooled.copiedBuffer(randomAlphaOfLengthBetween(1, 32), StandardCharsets.UTF_8);
                     FullHttpRequest request = new DefaultFullHttpRequest(
                         HttpVersion.HTTP_1_1,
                         httpMethodReference.get(),
-                        urlReference.get()
+                        urlReference.get(),
+                        content
                     );
                     // submit the request with some header custom header
                     headerReference.set("X-" + randomAlphaOfLengthBetween(4, 8));

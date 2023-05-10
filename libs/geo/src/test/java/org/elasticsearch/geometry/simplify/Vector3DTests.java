@@ -220,7 +220,7 @@ public class Vector3DTests extends ESTestCase {
         var nb = b.rotate(rotationAxis, rotationAngle);
         var nc = c.rotate(rotationAxis, rotationAngle);
         // TODO: fix
-        //assertThat("A rotated to x-Axis", na, samePoint(xAxis));
+        // assertThat("A rotated to x-Axis", na, samePoint(xAxis));
         double nab = na.angleTo(nb);
         double nbc = nb.angleTo(nc);
         double nca = nc.angleTo(na);

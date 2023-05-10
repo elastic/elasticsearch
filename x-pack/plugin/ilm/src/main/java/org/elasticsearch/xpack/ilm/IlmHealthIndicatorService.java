@@ -27,12 +27,14 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
@@ -63,6 +65,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
+    public static final List<HealthIndicatorImpact> AUTOMATION_DISABLED_IMPACT = Collections.singletonList(
+        new HealthIndicatorImpact(
+            NAME,
+            AUTOMATION_DISABLED_IMPACT_ID,
+            3,
+            "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
+                + "could be impacted.",
+            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+        )
+    );
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -97,21 +109,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 Collections.emptyList()
             );
         } else if (currentMode != OperationMode.RUNNING) {
-            List<HealthIndicatorImpact> impacts = Collections.singletonList(
-                new HealthIndicatorImpact(
-                    NAME,
-                    AUTOMATION_DISABLED_IMPACT_ID,
-                    3,
-                    "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
-                        + "could be impacted.",
-                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
-                )
-            );
             return createIndicator(
                 YELLOW,
                 "Index Lifecycle Management is not running",
                 createDetails(verbose, ilmMetadata, currentMode),
-                impacts,
+                AUTOMATION_DISABLED_IMPACT,
                 List.of(ILM_NOT_RUNNING)
             );
         } else {
@@ -119,19 +121,33 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
+    private HealthIndicatorDetails createDetails(boolean verbose, IndexLifecycleMetadata ilmMetadata, OperationMode currentMode) {
+        return createDetails(verbose, ilmMetadata, currentMode, List.of());
+    }
+
     private HealthIndicatorResult calculateIndicator(boolean verbose, IndexLifecycleMetadata ilmMetadata, OperationMode currentMode) {
-        findIndices().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::evaluate);
+        var indicesState = findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
+
+        if (indicesState.isEmpty()) {
+            return createIndicator(
+                GREEN,
+                "Index Lifecycle Management is running",
+                createDetails(verbose, ilmMetadata, currentMode, indicesState),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
+        }
 
         return createIndicator(
-            GREEN,
-            "Index Lifecycle Management is running",
-            createDetails(verbose, ilmMetadata, currentMode),
-            Collections.emptyList(),
-            Collections.emptyList()
+            YELLOW,
+            "Some indices have been stuck on the same action longer than expected.",
+            createDetails(verbose, ilmMetadata, currentMode, indicesState),
+            AUTOMATION_DISABLED_IMPACT,
+            List.of()
         );
     }
 
-    private Stream<CurrentState> findIndices() {
+    private Stream<CurrentState> findIndicesManagedByIlm() {
         var concreteIndices = indexNameExpressionResolver.concreteIndices(
             clusterService.state(),
             IndicesOptions.STRICT_EXPAND_OPEN,
@@ -156,35 +172,44 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         });
     }
 
-    private static HealthIndicatorDetails createDetails(boolean verbose, IndexLifecycleMetadata metadata, OperationMode mode) {
-        if (verbose) {
-            return new SimpleHealthIndicatorDetails(Map.of("ilm_status", mode, "policies", metadata.getPolicies().size()));
-        } else {
+    private static HealthIndicatorDetails createDetails(
+        boolean verbose,
+        IndexLifecycleMetadata metadata,
+        OperationMode mode,
+        List<CurrentState> indicesState
+    ) {
+        if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
         }
+
+        var details = new HashMap<String, Object>();
+
+        details.put("ilm_status", mode);
+        details.put("policies", metadata.getPolicies().size());
+
+        var indicesStuckByAction = indicesState.stream()
+            .collect(Collectors.groupingBy(CurrentState::action, Collectors.mapping(CurrentState::indexName, toSet())));
+
+        details.put("indices_stuck_by_action", indicesStuckByAction);
+
+        return new SimpleHealthIndicatorDetails(details);
     }
 
     static class IlmRuleEvaluator {
 
-        public static final Duration ONE_DAY = Duration.ofDays(1);
-
-        private static final IlmRuleEvaluator ILM_RULE_EVALUATOR = new IlmRuleEvaluator(List.of(
-        ));
+        private static final IlmRuleEvaluator ILM_RULE_EVALUATOR = new IlmRuleEvaluator(
+            List.of()
+        );
         private final List<Predicate<CurrentState>> rules;
 
         IlmRuleEvaluator(List<Predicate<CurrentState>> rules) {
             this.rules = rules;
         }
 
-        public boolean evaluate(CurrentState currentState) {
-            for (var rule : rules) {
-                if (rule.test(currentState)) return true;
-            }
-            return false;
+        public boolean isStuck(CurrentState currentState) {
+            return rules.stream().anyMatch(r -> r.test(currentState));
         }
     }
-
-    static class Predicates {}
 
     private record CurrentState(
         String indexName,

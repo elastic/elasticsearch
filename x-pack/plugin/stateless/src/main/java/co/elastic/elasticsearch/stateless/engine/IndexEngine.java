@@ -31,6 +31,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -213,6 +214,15 @@ public class IndexEngine extends InternalEngine {
     public void close() throws IOException {
         cancellableFlushTask.cancel();
         super.close();
+    }
+
+    @Override
+    public LiveVersionMapArchive createLiveVersionMapArchive() {
+        return new StatelessLiveVersionMapArchive(this::getPreCommitSegmentGeneration);
+    }
+
+    public void commitSuccess(long generation) {
+        ((StatelessLiveVersionMapArchive) getLiveVersionMapArchive()).afterUnpromotablesRefreshed(generation);
     }
 
     @Override

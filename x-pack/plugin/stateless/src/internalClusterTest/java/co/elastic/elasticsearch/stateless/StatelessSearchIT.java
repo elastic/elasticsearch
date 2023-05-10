@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -78,6 +79,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -680,6 +682,48 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             IndicesRequestCacheUtils.cleanCache(indicesRequestCache);
             assertThat(Iterables.size(IndicesRequestCacheUtils.cachedKeys(indicesRequestCache)), equalTo(0L));
         }
+    }
+
+    // TODO: update this IT once we have a `TransportGetFromTranslogAction` to assert Archive functionality using
+    // higher level checks.
+    public void testLiveVersionMapArchive() throws Exception {
+        startMasterOnlyNode();
+        final int numberOfShards = 1;
+        var indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false)
+                    .put(IndexEngine.INDEX_FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            ).get()
+        );
+        ensureGreen(indexName);
+        var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        var indexShard = indexService.getShard(shardId.id());
+        assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
+        var map = indexEngine.getLiveVersionMap();
+        var bulkResponse = client().prepareBulk()
+            .add(new IndexRequest(indexName).id("1").source("k1", "v1"))
+            .setRefreshPolicy("false")
+            .get();
+        assertNoFailures(bulkResponse);
+        assertNotNull(get(map, "1"));
+        indexEngine.refresh("test");
+        assertNotNull(get(map, "1"));
+        // An explicit refresh would also flush
+        client().admin().indices().refresh(new RefreshRequest(indexName)).get();
+        // For now use assertBusy to wait for the flush to get propagated to the unpromotables
+        // TODO: replace if this part stays the same when updating the test
+        assertBusy(() -> assertNull(get(map, "1")));
     }
 
     public void testIndexSort() {

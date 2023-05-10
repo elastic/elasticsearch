@@ -21,7 +21,7 @@ Test default logs-*-* pipeline:
               {
                 "set" : {
                   "field": "custom_timestamp",
-                  "value": "{{{_ingest.timestamp}}}"
+                  "copy_from": "_ingest.timestamp"
                 }
               }
             ]

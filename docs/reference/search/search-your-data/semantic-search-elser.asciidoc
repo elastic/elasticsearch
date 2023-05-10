@@ -7,7 +7,7 @@
 :keywords: {ml-init}, {stack}, {nlp}, ELSER
 :description: ELSER is a learned sparse ranking model trained by Elastic.
 
-Elastic Learned Sparse EncodeR - or ELSER - is an NLP model trained by Elstic 
+Elastic Learned Sparse EncodeR - or ELSER - is an NLP model trained by Elastic 
 that enables you to perform semantic search by using sparse vector 
 representation. Instead of literal matching on search terms, semantic search 
 retrieves results based on the intent and the contextual meaning of a search 
@@ -67,7 +67,7 @@ that is being ingested in the pipeline.
 
 [source,console]
 ----
-PUT _ingest/pipeline/elser
+PUT _ingest/pipeline/elser-v1-test
 {
   "processors": [
     {
@@ -79,7 +79,7 @@ PUT _ingest/pipeline/elser
         },
         "inference_config": {
           "text_expansion": { <1>
-            "results_field": "tokens"
+            "results_field": "ml.tokens"
           }
         }
       }
@@ -89,7 +89,7 @@ PUT _ingest/pipeline/elser
 ----
 // TEST[skip:TBD]
 <1> The `text_expansion` inference type needs to be used in the {infer} ingest 
-pipeline.
+processor.
 
 
 [discrete]
@@ -131,7 +131,7 @@ POST _reindex?wait_for_completion=false
   },
   "dest": {
     "index": "my-index",
-    "pipeline": "elser"
+    "pipeline": "elser-v1-test"
   }
 }
 ----

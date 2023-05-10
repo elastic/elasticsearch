@@ -174,6 +174,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW TRANSPORT VERSIONS
      * Detached transport versions added below here.
      */
+    public static final TransportVersion V_8_500_000 = registerTransportVersion(8_500_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
 
     static {
         // see comment on IDS field
@@ -185,7 +186,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = V_8_9_0;
+    public static final TransportVersion CURRENT = V_8_500_000;
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.

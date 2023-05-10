@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.benchmark.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -72,14 +71,17 @@ public final class Allocators {
     }
 
     public static AllocationService createAllocationService(Settings settings) {
+        return createAllocationService(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    public static AllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings) {
         return new AllocationService(
-            defaultAllocationDeciders(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            defaultAllocationDeciders(settings, clusterSettings),
             NoopGatewayAllocator.INSTANCE,
             new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
-            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
-            System::nanoTime
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 
@@ -92,12 +94,12 @@ public final class Allocators {
 
     public static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
         return new DiscoveryNode(
-            "",
+            null,
             nodeId,
             new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet()),
             attributes,
             Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            null
         );
     }
 }

@@ -78,7 +78,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                         throw new UnsupportedOperationException("cannot explain");
                     }
                 }
-            }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, System::nanoTime)
+            }, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
         );
 
         assertEquals(shard.currentNodeId(), cae.getCurrentNode().getId());

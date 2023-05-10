@@ -115,6 +115,11 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     indicesAndAliases,
                     concreteIndexNames
                 );
+                if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
+                    GroupShardsIterator<SearchShardIterator> shardIts = GroupShardsIterator.sortAndCreate(shardIterators);
+                    listener.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
+                    return;
+                }
                 var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                     assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                     return transportService.getConnection(clusterState.nodes().get(node));

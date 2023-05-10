@@ -91,6 +91,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             searchShards.add(new SearchShard(null, new ShardId("index", "uuid", i)));
         }
+        searchProgressListener.notifyMinimizeRoundtrips(true, 1);
         searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false);
 
         SearchRequest searchRequest = new SearchRequest("index");
@@ -135,6 +136,11 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         private final AtomicInteger onQueryResult = new AtomicInteger(0);
         private final AtomicInteger onPartialReduce = new AtomicInteger(0);
         private final AtomicInteger onFinalReduce = new AtomicInteger(0);
+
+        @Override
+        protected void onMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         protected void onListShards(

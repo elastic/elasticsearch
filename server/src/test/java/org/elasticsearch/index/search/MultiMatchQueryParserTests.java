@@ -20,10 +20,8 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -53,7 +51,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -116,14 +113,18 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             throw new UnsupportedOperationException();
         }, null, emptyMap());
         searchExecutionContext.setAllowUnmappedFields(true);
-        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("Har", "name.first", "name.last",
-            "name.nickname");
+        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("Har", "name.first", "name.last", "name.nickname");
         multiMatchQueryBuilder.type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX);
         Query query = multiMatchQueryBuilder.toQuery(searchExecutionContext);
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        Set<Term> expectedTerms = new HashSet<>(Arrays.asList(new Term("name.first._index_prefix", "har"),
-            new Term("name.last._index_prefix", "har"), new Term("name.nickname._index_prefix", "Har")));
+        Set<Term> expectedTerms = new HashSet<>(
+            Arrays.asList(
+                new Term("name.first._index_prefix", "har"),
+                new Term("name.last._index_prefix", "har"),
+                new Term("name.nickname._index_prefix", "Har")
+            )
+        );
         for (Query disjunct : disjunctionMaxQuery.getDisjuncts()) {
             assertThat(disjunct, instanceOf(SynonymQuery.class));
             SynonymQuery synonymQuery = (SynonymQuery) disjunct;

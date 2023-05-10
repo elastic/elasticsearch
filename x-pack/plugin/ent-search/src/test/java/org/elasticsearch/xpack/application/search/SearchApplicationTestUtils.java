@@ -58,7 +58,15 @@ public final class SearchApplicationTestUtils {
             }
             """, paramName);
         final Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap(paramName, paramValue));
-        return new SearchApplicationTemplate(script);
+        String paramValidationSource = String.format(Locale.ROOT, """
+            {
+                "%s": {
+                    "type": "string"
+                }
+            }
+            """, paramName);
+        final TemplateParamValidator templateParamValidator = new TemplateParamValidator(paramValidationSource);
+        return new SearchApplicationTemplate(script, templateParamValidator);
     }
 
     public static Map<String, Object> randomSearchApplicationQueryParams() {

@@ -13,7 +13,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -64,7 +63,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         // intentionally not writing any docs
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
         testCase(new MatchAllDocsQuery(), newIndexSearcher(indexReader), childrenToParent -> {
             assertEquals(0, childrenToParent.getDocCount());
@@ -85,7 +84,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         final Map<String, Tuple<Integer, Integer>> expectedParentChildRelations = setupIndex(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+        DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
@@ -152,7 +151,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             return o1.getKey().compareTo(o2.getKey());
         });
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+        DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );
@@ -195,7 +194,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             sortedValues.put(value.v2(), l + 1);
         }
 
-        IndexReader indexReader = ElasticsearchDirectoryReader.wrap(
+        DirectoryReader indexReader = ElasticsearchDirectoryReader.wrap(
             DirectoryReader.open(directory),
             new ShardId(new Index("foo", "_na_"), 1)
         );

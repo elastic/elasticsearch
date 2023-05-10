@@ -673,6 +673,43 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testPreCommitRecordedSegmentGeneration() throws IOException {
+        engine.close();
+        final AtomicLong preCommitGen = new AtomicLong(-1);
+        final AtomicLong lastSegmentInfoGenUponCommit = new AtomicLong(-1);
+        final AtomicLong postFlushSegmentInfoGen = new AtomicLong(-1);
+        engine = new InternalEngine(engine.config()) {
+
+            @Override
+            protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                preCommitGen.set(getPreCommitSegmentGeneration());
+                lastSegmentInfoGenUponCommit.set(getLastCommittedSegmentInfos().getGeneration());
+                super.commitIndexWriter(writer, translog);
+            }
+
+            @Override
+            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+                super.flush(force, waitIfOngoing, listener);
+                postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
+                assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
+            }
+        };
+        if (randomBoolean()) {
+            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        } else {
+            engine.skipTranslogRecovery();
+        }
+        engine.ensureCanFlush(); // recovered already
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+        assertThat(preCommitGen.get(), greaterThan(-1L));
+        assertThat(lastSegmentInfoGenUponCommit.get(), greaterThan(-1L));
+        assertThat(postFlushSegmentInfoGen.get(), greaterThan(-1L));
+        assertThat(preCommitGen.get(), equalTo(lastSegmentInfoGenUponCommit.get() + 1));
+        assertThat(preCommitGen.get(), equalTo(postFlushSegmentInfoGen.get()));
+    }
+
     public void testTranslogRecoveryWithMultipleGenerations() throws IOException {
         final int docs = randomIntBetween(1, 4096);
         final List<Long> seqNos = LongStream.range(0, docs).boxed().collect(Collectors.toCollection(ArrayList::new));

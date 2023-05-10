@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
@@ -22,6 +21,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.readSafe;
@@ -32,7 +32,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
     /**
      * Specific IOContext used for prewarming the cache. This context allows to write
      * a complete part of the {@link #fileInfo} at once in the cache and should not be
-     * used for anything else than what the {@link #prefetchPart(int)} method does.
+     * used for anything else than what the {@link #prefetchPart(int, Supplier)} method does.
      */
     public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
 
@@ -129,19 +129,26 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
-     * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
+     *
+     * @param part the index of the part to prewarm
+     * @param isCancelled a {@link Supplier<Boolean>} that allows to check if prewarming must be cancelled
+     *
+     * @return the number of bytes that has been read from the blob store when prewarming the part,
+     * or {@code -1} if the prewarming was cancelled
      */
-    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
+    public long prefetchPart(final int part, Supplier<Boolean> isCancelled) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
+        }
+        if (isCancelled.get()) {
+            return -1L;
         }
         final ByteRange partRange = computeRange(IntStream.range(0, part).mapToLong(fileInfo::partBytes).sum());
         assert assertRangeIsAlignedWithPart(partRange);
 
         try {
             final CacheFile cacheFile = cacheFileReference.get();
-
             final ByteRange range = cacheFile.getAbsentRangeWithin(partRange);
             if (range == null) {
                 logger.trace(
@@ -151,9 +158,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                     partRange.end(),
                     cacheFileReference
                 );
-                return Tuple.tuple(cacheFile.getInitialLength(), 0L);
+                return 0L;
             }
-
             logger.trace(
                 "prefetchPart: prewarming part [{}] bytes [{}-{}] by fetching bytes [{}-{}] for cache file [{}]",
                 part,
@@ -172,8 +178,10 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 while (remainingBytes > 0L) {
                     assert totalBytesRead + remainingBytes == range.length();
                     copyBuffer.clear();
+                    if (isCancelled.get()) {
+                        return -1L;
+                    }
                     final int bytesRead = readSafe(input, copyBuffer, range.start(), remainingBytes, cacheFileReference);
-
                     // The range to prewarm in cache
                     final long readStart = range.start() + totalBytesRead;
                     final ByteRange rangeToWrite = ByteRange.of(readStart, readStart + bytesRead);
@@ -204,7 +212,7 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
                 stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
             assert totalBytesRead == range.length();
-            return Tuple.tuple(cacheFile.getInitialLength(), range.length());
+            return totalBytesRead;
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }

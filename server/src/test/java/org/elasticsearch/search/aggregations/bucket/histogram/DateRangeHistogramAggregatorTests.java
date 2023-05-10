@@ -1081,7 +1081,7 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 InternalDateHistogram histogram = searchAndReduce(

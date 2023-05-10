@@ -19,11 +19,9 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 public class HtmlSanitizer {
@@ -50,33 +48,22 @@ public class HtmlSanitizer {
         "hr" };
     static final String[] BLOCK_TAGS = new String[] { "p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote" };
     static final String[] TABLE_TAGS = new String[] { "table", "th", "tr", "td", "caption", "col", "colgroup", "thead", "tbody", "tfoot" };
-    static final List<String> DEFAULT_ALLOWED = Arrays.asList(
-        "body",
-        "head",
-        "_tables",
-        "_links",
-        "_blocks",
-        "_formatting",
-        "img:embedded"
-    );
+    static final List<String> DEFAULT_ALLOWED = List.of("body", "head", "_tables", "_links", "_blocks", "_formatting", "img:embedded");
 
-    private static Setting<Boolean> SETTING_SANITIZATION_ENABLED = Setting.boolSetting(
+    private static final Setting<Boolean> SETTING_SANITIZATION_ENABLED = Setting.boolSetting(
         "xpack.notification.email.html.sanitization.enabled",
         true,
         Property.NodeScope
     );
 
-    private static Setting<List<String>> SETTING_SANITIZATION_ALLOW = Setting.listSetting(
+    private static final Setting<List<String>> SETTING_SANITIZATION_ALLOW = Setting.stringListSetting(
         "xpack.notification.email.html.sanitization.allow",
         DEFAULT_ALLOWED,
-        Function.identity(),
         Property.NodeScope
     );
 
-    private static Setting<List<String>> SETTING_SANITIZATION_DISALLOW = Setting.listSetting(
+    private static final Setting<List<String>> SETTING_SANITIZATION_DISALLOW = Setting.stringListSetting(
         "xpack.notification.email.html.sanitization.disallow",
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
     private static final MethodHandle sanitizeHandle;

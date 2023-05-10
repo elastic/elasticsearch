@@ -453,9 +453,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 currentDoc = iterator.advance(min);
             }
             while (currentDoc < max) {
-                if (acceptDocs == null || acceptDocs.get(currentDoc)) {
-                    collector.collect(currentDoc);
-                }
+                collector.collect(currentDoc);
                 currentDoc = iterator.nextDoc();
             }
             return currentDoc;

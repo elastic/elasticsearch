@@ -26,7 +26,6 @@ public class TemplateIndexPrivilegesIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        // Note: This user is defined in build.gradle, and assigned the role "manage_dlm". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_dlm", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }

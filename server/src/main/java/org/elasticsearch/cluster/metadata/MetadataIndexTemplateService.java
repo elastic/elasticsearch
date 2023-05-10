@@ -282,7 +282,12 @@ public class MetadataIndexTemplateService {
         // Collect all the composable (index) templates that use this component template, we'll use
         // this for validating that they're still going to be valid after this component template
         // has been updated
-        final Map<String, ComposableIndexTemplate> templatesUsingComponent = getTemplatesUsingComponent(currentState, name);
+        final Map<String, ComposableIndexTemplate> templatesUsingComponent = currentState.metadata()
+            .templatesV2()
+            .entrySet()
+            .stream()
+            .filter(e1 -> e1.getValue().composedOf().contains(name))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
         if (create == false && finalSettings != null) {
@@ -366,15 +371,6 @@ public class MetadataIndexTemplateService {
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
             .build();
-    }
-
-    public Map<String, ComposableIndexTemplate> getTemplatesUsingComponent(ClusterState currentState, String name) {
-        return currentState.metadata()
-            .templatesV2()
-            .entrySet()
-            .stream()
-            .filter(e -> e.getValue().composedOf().contains(name))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Nullable
@@ -679,9 +675,9 @@ public class MetadataIndexTemplateService {
      * This method doesn't check for conflicting overlaps with v1 templates.
      *
      * @param currentState the current cluster state
-     * @param name         the composable index template name
-     * @param template     the full composable index template object we check for overlaps
-     * @param validate     should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
+     * @param name the composable index template name
+     * @param template the full composable index template object we check for overlaps
+     * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
     public Map<String, List<String>> v2TemplateOverlaps(
@@ -895,7 +891,7 @@ public class MetadataIndexTemplateService {
     /**
      * Return a map of v2 template names to their index patterns for v2 templates that would overlap
      * with the given template's index patterns.
-     * <p>
+     *
      * Based on the provided checkPriority and priority parameters this aims to report the overlapping
      * index templates regardless of the priority (ie. checkPriority == false) or otherwise overlapping
      * templates with the same priority as the given priority parameter (this is useful when trying to
@@ -1164,9 +1160,9 @@ public class MetadataIndexTemplateService {
      * Finds index templates whose index pattern matched with the given index name. In the case of
      * hidden indices, a template with a match all pattern or global template will not be returned.
      *
-     * @param metadata  The {@link Metadata} containing all of the {@link IndexTemplateMetadata} values
+     * @param metadata The {@link Metadata} containing all of the {@link IndexTemplateMetadata} values
      * @param indexName The name of the index that templates are being found for
-     * @param isHidden  Whether or not the index is known to be hidden. May be {@code null} if the index
+     * @param isHidden Whether or not the index is known to be hidden. May be {@code null} if the index
      *                  being hidden has not been explicitly requested. When {@code null} if the result
      *                  of template application results in a hidden index, then global templates will
      *                  not be returned

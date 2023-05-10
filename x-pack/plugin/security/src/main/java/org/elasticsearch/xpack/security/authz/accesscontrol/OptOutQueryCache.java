@@ -9,25 +9,9 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.PointInSetQuery;
-import org.apache.lucene.search.PointRangeQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.SynonymQuery;
-import org.apache.lucene.search.TermInSetQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -37,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
@@ -45,22 +28,6 @@ import java.util.Set;
 public final class OptOutQueryCache extends IndexQueryCache {
 
     private static final Logger logger = LogManager.getLogger(IndexQueryCache.class);
-    private static final Set<Class<?>> cacheableQueryTypes = Set.of(
-        BooleanQuery.class,
-        DisjunctionMaxQuery.class,
-        SpanTermQuery.class,
-        TermQuery.class,
-        SynonymQuery.class,
-        PhraseQuery.class,
-        MultiPhraseQuery.class,
-        PointRangeQuery.class,
-        PointInSetQuery.class,
-        FieldExistsQuery.class,
-        IndexOrDocValuesQuery.class,
-        TermInSetQuery.class,
-        MatchAllDocsQuery.class,
-        MatchNoDocsQuery.class
-    );
     private final ThreadContext context;
 
     public OptOutQueryCache(final Index index, final IndicesQueryCache indicesQueryCache, final ThreadContext context) {
@@ -99,19 +66,6 @@ public final class OptOutQueryCache extends IndexQueryCache {
         try {
             weight.getQuery().visit(new QueryVisitor() {
                 @Override
-                public void consumeTerms(org.apache.lucene.search.Query query, Term... terms) {
-                    if (cacheableQueryTypes.contains(query.getClass()) == false) {
-                        throw new FLSQueryNotCacheable("Query type not supported");
-                    }
-                }
-
-                public void visitLeaf(Query query) {
-                    if (cacheableQueryTypes.contains(query.getClass()) == false) {
-                        throw new FLSQueryNotCacheable("Query type not supported");
-                    }
-                }
-
-                @Override
                 public QueryVisitor getSubVisitor(BooleanClause.Occur occur, org.apache.lucene.search.Query parent) {
                     return this; // we want to use the same visitor for must_not clauses too
                 }
@@ -133,8 +87,7 @@ public final class OptOutQueryCache extends IndexQueryCache {
     }
 
     private static class FLSQueryNotCacheable extends RuntimeException {
-
-        public FLSQueryNotCacheable(String message) {
+        FLSQueryNotCacheable(String message) {
             // don't waste time filling in the stacktrace
             super(message, null, false, false);
         }

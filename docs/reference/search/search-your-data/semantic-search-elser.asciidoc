@@ -97,6 +97,9 @@ pipeline.
 In this step, you load the data that you later use in the {infer} ingest 
 pipeline to extract tokens from it.
 
+NOTE: Only the first 512 extracted tokens of the ingested docs are considered 
+during semantic search.
+
 Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS 
 MACRO Passage Ranking data set. It consists of 200 queries, each accompanied by 
 a list of relevant text passages. All unique passages, along with their IDs, 
@@ -170,7 +173,7 @@ text from the `my-index` index sorted by their relevancy. The result also
 contains the extracted tokens for each of the relevant search results with their 
 weights.
 
-[source,console-result]
+[source,js]
 ----
 "hits":[
    {
@@ -207,7 +210,7 @@ weights.
    (...)
 ]
 ----
-//NOTCONSOLE
+
 
 [discrete]
 [[further-reading]]

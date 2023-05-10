@@ -1,5 +1,5 @@
 pr: 95971
-summary: "[Logs+] Default pipeline for logs data streams"
+summary: "Set `@timestamp` for documents in logs data streams if missing and add support for custom pipeline"
 area: Data streams
 type: enhancement
 issues:

@@ -20,7 +20,6 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -268,7 +267,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        weight = wrapWeight(weight);
         collector.setWeight(weight);
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
@@ -296,6 +294,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (liveDocsBitSet == null) {
             BulkScorer bulkScorer = weight.bulkScorer(ctx);
             if (bulkScorer != null) {
+                if (cancellable.isEnabled()) {
+                    bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
+                }
                 try {
                     bulkScorer.score(leafCollector, liveDocs);
                 } catch (CollectionTerminatedException e) {
@@ -319,44 +320,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                     // continue with the following leaf
                 }
             }
-        }
-    }
-
-    private Weight wrapWeight(Weight weight) {
-        if (cancellable.isEnabled()) {
-            return new Weight(weight.getQuery()) {
-                @Override
-                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public boolean isCacheable(LeafReaderContext ctx) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    return weight.scorer(context);
-                }
-
-                @Override
-                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                    BulkScorer in = weight.bulkScorer(context);
-                    if (in != null) {
-                        return new CancellableBulkScorer(in, cancellable::checkCancelled);
-                    } else {
-                        return null;
-                    }
-                }
-
-                @Override
-                public int count(LeafReaderContext context) throws IOException {
-                    return weight.count(context);
-                }
-            };
-        } else {
-            return weight;
         }
     }
 

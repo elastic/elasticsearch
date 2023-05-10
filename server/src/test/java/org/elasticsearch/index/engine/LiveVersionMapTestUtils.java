@@ -21,8 +21,8 @@ import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 
 public class LiveVersionMapTestUtils {
 
-    public static LiveVersionMap newLiveVersionMap(LiveVersionMapArchive archiver) {
-        return new LiveVersionMap(archiver);
+    public static LiveVersionMap newLiveVersionMap(LiveVersionMapArchive archive) {
+        return new LiveVersionMap(archive);
     }
 
     public static DeleteVersionValue newDeleteVersionValue(long version, long seqNo, long term, long time) {
@@ -67,7 +67,7 @@ public class LiveVersionMapTestUtils {
         }
     }
 
-    public static int VersionLookupSize(LiveVersionMap.VersionLookup lookup) {
+    public static int versionLookupSize(LiveVersionMap.VersionLookup lookup) {
         return lookup.size();
     }
 
@@ -77,5 +77,13 @@ public class LiveVersionMapTestUtils {
 
     public static BytesRef uid(String id) {
         return new Term(IdFieldMapper.NAME, Uid.encodeId(id)).bytes();
+    }
+
+    public static boolean isUnsafe(LiveVersionMap map) {
+        return map.isUnsafe();
+    }
+
+    public static boolean isSafeAccessRequired(LiveVersionMap map) {
+        return map.isSafeAccessRequired();
     }
 }

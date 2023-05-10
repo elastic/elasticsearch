@@ -154,7 +154,7 @@ GET /_search
     "range": {
       "timestamp": {
         "gte": "now-1d/d",
-        "lt": "now/d"
+        "lte": "now/d"
       }
     }
   }

@@ -236,9 +236,7 @@ public class RedactProcessorTests extends ESTestCase {
             config.put("field", "to_redact");
             config.put("patterns", List.of("foo"));
             config.put("ignore_missing", false); // usually, this would throw, but here it doesn't because of the license check
-            if (randomBoolean()) {
-                config.put("skip_if_unlicensed", true); // set the value to true (versus just using the default, also true)
-            }
+            config.put("skip_if_unlicensed", true); // set the value to true (versus using the default, which is false)
             var processor = new RedactProcessor.Factory(notAllowed, MatcherWatchdog.noop()).create(null, "t", "d", config);
             assertThat(processor.getSkipIfUnlicensed(), equalTo(true));
             var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));

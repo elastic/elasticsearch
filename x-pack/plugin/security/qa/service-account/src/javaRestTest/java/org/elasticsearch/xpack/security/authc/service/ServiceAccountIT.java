@@ -214,6 +214,7 @@ public class ServiceAccountIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .module("analysis-common")
+        .module("rest-root")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")

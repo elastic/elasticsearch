@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.utils;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -532,30 +531,28 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
             if (i < numMlNodes) {
                 // ML node
                 builder.add(
-                    new DiscoveryNode(
+                    TestDiscoveryNode.create(
                         nodeName,
                         nodeId,
                         ta,
                         Map.of(
-                            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                            MACHINE_MEMORY_NODE_ATTR,
                             String.valueOf(mlMachineMemory),
                             MAX_JVM_SIZE_NODE_ATTR,
                             String.valueOf(mlMachineMemory / 20)
                         ),
-                        Set.of(DiscoveryNodeRole.ML_ROLE),
-                        Version.CURRENT
+                        Set.of(DiscoveryNodeRole.ML_ROLE)
                     )
                 );
             } else {
                 // Not an ML node
                 builder.add(
-                    new DiscoveryNode(
+                    TestDiscoveryNode.create(
                         nodeName,
                         nodeId,
                         ta,
                         Collections.emptyMap(),
-                        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE),
-                        Version.CURRENT
+                        Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE)
                     )
                 );
             }

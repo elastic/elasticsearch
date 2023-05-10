@@ -237,7 +237,7 @@ public final class TransformNodes {
         // does the transform require a remote and remote is enabled?
         if (requiresRemote && node.isRemoteClusterClient() == false) {
             if (explain != null) {
-                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
+                explain.put(node.getId(), "transform requires a remote connection but the node is not remote cluster client");
             }
             return false;
         }

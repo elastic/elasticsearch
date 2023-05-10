@@ -83,13 +83,13 @@ final class ElasticServiceAccounts {
                     .indices("traces-apm.sampled-*")
                     .privileges("read", "monitor", "maintenance")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".fleet-secrets*").privileges("read").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
                     // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".secrets*").privileges("read").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("synthetics-*")
                     // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs

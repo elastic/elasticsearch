@@ -161,7 +161,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("value"));
 
-        request = new Request("GET", ".secrets-7/_mapping");
+        request = new Request("GET", ".fleet-secrets-7/_mapping");
         response = client().performRequest(request);
         responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("value"));

@@ -36,7 +36,7 @@ public class FleetTests extends ESTestCase {
                 ".fleet-policies-leader*",
                 ".fleet-enrollment-api-keys*",
                 ".fleet-artifacts*",
-                ".secrets*"
+                ".fleet-secrets*"
             )
         );
 

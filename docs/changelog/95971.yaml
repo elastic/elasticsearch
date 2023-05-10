@@ -1,0 +1,7 @@
+pr: 95971
+summary: "[Logs+] Default pipeline for logs data streams"
+area: Data streams
+type: enhancement
+issues:
+ - 95537
+ - 95551

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -72,18 +73,20 @@ public class ShutdownTests extends ESTestCase {
     }
 
     public void testKeepIfNodeExists() {
+        TimeValue grace = new TimeValue(1_000);
         Stream.of(localNode, otherNode).forEach(node -> {
             var shutdown = SingleNodeShutdownMetadata.builder()
                 .setNodeId(node.getId())
                 .setType(Type.SIGTERM)
                 .setStartedAtMillis(start)
+                .setGracePeriod(grace)
                 .setReason("my reason")
                 .build();
             assertFalse(
                 Strings.format("existing node [%s] is not stale", node),
                 RemoveSigtermShutdownTaskExecutor.isSigtermShutdownStale(
                     shutdown,
-                    start + (2 * shutdown.getGracePeriod().millis()), // would otherwise be cleaned up
+                    start + (2 * grace.millis()), // would otherwise be cleaned up
                     state.nodes()::nodeExists
                 )
             );
@@ -97,6 +100,7 @@ public class ShutdownTests extends ESTestCase {
                     .setNodeId("anotherNode")
                     .setType(Type.SIGTERM)
                     .setStartedAtMillis(start)
+                    .setGracePeriod(new TimeValue(1_000))
                     .setReason("my reason")
                     .build(),
                 start - 120_000,
@@ -112,6 +116,7 @@ public class ShutdownTests extends ESTestCase {
                     .setNodeId("anotherNode")
                     .setType(Type.SIGTERM)
                     .setStartedAtMillis(start)
+                    .setGracePeriod(new TimeValue(1))
                     .setReason("my reason")
                     .build(),
                 start - 1_000,
@@ -121,13 +126,15 @@ public class ShutdownTests extends ESTestCase {
     }
 
     public void testGraceSafety() {
+        long graceMs = 60 * 60 * 1_000;
+        TimeValue grace = new TimeValue(graceMs);
         SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
             .setNodeId("anotherNode")
             .setType(Type.SIGTERM)
             .setStartedAtMillis(start)
+            .setGracePeriod(grace)
             .setReason("my reason")
             .build();
-        long graceMs = shutdown.getGracePeriod().millis();
         Predicate<String> nodeExists = state.nodes()::nodeExists;
         assertFalse(RemoveSigtermShutdownTaskExecutor.isSigtermShutdownStale(shutdown, start + graceMs - 1, nodeExists));
         assertFalse(RemoveSigtermShutdownTaskExecutor.isSigtermShutdownStale(shutdown, start + graceMs, nodeExists));

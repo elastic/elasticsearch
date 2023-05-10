@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
@@ -63,7 +64,11 @@ public class NodeSeenServiceTests extends ESTestCase {
         nodeSeenService.clusterChanged(
             new ClusterChangedEvent(
                 this.getTestName(),
-                createClusterState(new NodesShutdownMetadata(Map.of(another.getId(), createShutdown(another.getId(), 0))), master, other),
+                createClusterState(
+                    new NodesShutdownMetadata(Map.of(another.getId(), sigtermShutdown(another.getId(), 0, 1L))),
+                    master,
+                    other
+                ),
                 createClusterState(null, master, other, another)
             )
         );
@@ -88,7 +93,7 @@ public class NodeSeenServiceTests extends ESTestCase {
                 this.getTestName(),
                 createClusterState(
                     new NodesShutdownMetadata(
-                        Map.of(another.getId(), createShutdown(another.getId(), 0), other.getId(), createShutdown(other.getId(), 20L))
+                        Map.of(another.getId(), sigtermShutdown(another.getId(), 0, 1L), other.getId(), sigtermShutdown(other.getId(), 20L, 1L))
                     ),
                     master,
                     other,
@@ -103,7 +108,7 @@ public class NodeSeenServiceTests extends ESTestCase {
 
     public void testExecutorRemoveStale() {
         long now = 100_000L;
-        long grace = getDefaultGrace();
+        long grace = 120_000L;
         var master = TestDiscoveryNode.create("master1", randomNodeId());
         var notTermNode = TestDiscoveryNode.create("notTerm2", randomNodeId()); // not term
         var stillExistingNode = TestDiscoveryNode.create("stillExisting3", randomNodeId()); // exists
@@ -119,15 +124,15 @@ public class NodeSeenServiceTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
         var shutdownsMap = Map.of(
             notTermNode.getId(),
-            startShutdown(notTermNode.getId(), Type.REPLACE, now - 2 * grace).setTargetNodeName(notTermNode.getId()).build(),
+            replaceShutdown(notTermNode.getId(), now - 2 * grace),
             stillExistingNode.getId(),
-            startShutdown(stillExistingNode.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            replaceShutdown(stillExistingNode.getId(), now - 2 * grace),
             withinGraceNode.getId(),
-            startShutdown(withinGraceNode.getId(), Type.SIGTERM, now - grace).build(),
+            sigtermShutdown(withinGraceNode.getId(), now - grace, grace),
             outOfGrace2XNode.getId(),
-            startShutdown(outOfGrace2XNode.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            sigtermShutdown(outOfGrace2XNode.getId(), now - 2 * grace, grace),
             justOutOfGraceNode.getId(),
-            startShutdown(justOutOfGraceNode.getId(), Type.SIGTERM, now - (grace + grace / 10) - 1).build()
+            sigtermShutdown(justOutOfGraceNode.getId(), now - (grace + grace / 10) - 1, grace)
         );
         metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownsMap));
         var state = ClusterState.builder(new ClusterName("test-cluster"))
@@ -153,7 +158,7 @@ public class NodeSeenServiceTests extends ESTestCase {
 
     public void testExecutorInitialStateIfFresh() {
         long now = 100_000L;
-        long grace = getDefaultGrace();
+        long grace = 120_000L;
         var master = TestDiscoveryNode.create("master1", randomNodeId());
         var other = TestDiscoveryNode.create("other2", randomNodeId()); // not term
         var another = TestDiscoveryNode.create("another3", randomNodeId()); // exists
@@ -167,11 +172,11 @@ public class NodeSeenServiceTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
         var shutdownsMap = Map.of(
             other.getId(),
-            startShutdown(other.getId(), Type.REPLACE, now - 2 * grace).setTargetNodeName(other.getId()).build(),
+            replaceShutdown(other.getId(), now - 2 * grace),
             another.getId(),
-            startShutdown(another.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            sigtermShutdown(another.getId(), now - 2 * grace, grace),
             yetAnother.getId(),
-            startShutdown(yetAnother.getId(), Type.SIGTERM, now - grace).build()
+            sigtermShutdown(yetAnother.getId(), now - grace, grace)
         );
         metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownsMap));
         var state = ClusterState.builder(new ClusterName("test-cluster"))
@@ -185,28 +190,24 @@ public class NodeSeenServiceTests extends ESTestCase {
         assertThat(state, sameInstance(update));
     }
 
-    static SingleNodeShutdownMetadata.Builder startShutdown(String id, Type type, long startedAt) {
-        return SingleNodeShutdownMetadata.builder().setNodeId(id).setType(type).setReason("test " + id).setStartedAtMillis(startedAt);
-    }
-
-    private static SingleNodeShutdownMetadata createShutdown(String name, long startedAt) {
+    static SingleNodeShutdownMetadata replaceShutdown(String id, long startedAt) {
         return SingleNodeShutdownMetadata.builder()
-            .setNodeId(name)
-            .setType(Type.SIGTERM)
-            .setReason("test")
+            .setNodeId(id)
+            .setType(Type.REPLACE)
+            .setTargetNodeName(id)
+            .setReason("test " + id)
             .setStartedAtMillis(startedAt)
             .build();
     }
 
-    private long getDefaultGrace() {
+    private static SingleNodeShutdownMetadata sigtermShutdown(String name, long startedAt, long grace) {
         return SingleNodeShutdownMetadata.builder()
-            .setNodeId("")
-            .setReason("")
+            .setNodeId(name)
             .setType(Type.SIGTERM)
-            .setStartedAtMillis(0)
-            .build()
-            .getGracePeriod()
-            .millis();
+            .setReason("test")
+            .setGracePeriod(new TimeValue(grace))
+            .setStartedAtMillis(startedAt)
+            .build();
     }
 
     private static ClusterState createClusterState(NodesShutdownMetadata shutdown, DiscoveryNode masterNode, DiscoveryNode... nodes) {

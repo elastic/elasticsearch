@@ -75,7 +75,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
         var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
         var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
-        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
+        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName, null);
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);

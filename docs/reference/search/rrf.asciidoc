@@ -3,10 +3,11 @@
 
 preview::[]
 
-Reciprocal rank fusion (RRF) is a method for combining results from
-multiple queries with different relevance indicators into a single
-result set where there is no requirement the relevance indicators for
-each query are related to each other in order to achieve high-quality results.
+https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
+is a method for combining multiple result sets with different relevance
+indicators into a single result set. RRF requires no tuning, and the different
+relevance indicators do not have to related to each other to achieve high-quality
+results.
 
 RRF uses the following formula to determine the score for ranking each document:
 
@@ -31,7 +32,7 @@ return score
 ==== Reciprocal rank fusion API
 
 You can use RRF as part of a <<search-search, search>> to combine and rank
-documents using result sets from
+documents using multiple result sets from
 
 * 1 query and 1 or more kNN searches
 * 2 or more kNN searches

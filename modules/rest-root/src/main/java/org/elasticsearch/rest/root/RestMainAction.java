@@ -6,11 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rest.action;
+package org.elasticsearch.rest.root;
 
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.MainRequest;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -18,6 +15,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;

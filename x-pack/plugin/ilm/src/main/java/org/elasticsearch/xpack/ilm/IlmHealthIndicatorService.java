@@ -21,8 +21,16 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.DeleteStep;
+import org.elasticsearch.xpack.core.ilm.DownsampleAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -197,8 +205,19 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     static class IlmRuleEvaluator {
 
+        public static final Duration ONE_DAY = Duration.ofDays(1);
+
         private static final IlmRuleEvaluator ILM_RULE_EVALUATOR = new IlmRuleEvaluator(
-            List.of()
+            List.of(
+                cs -> RolloverAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> MigrateAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> SearchableSnapshotAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> DeleteStep.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> ShrinkAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> AllocateAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> ForceMergeAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
+                cs -> DownsampleAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0
+            )
         );
         private final List<Predicate<CurrentState>> rules;
 

@@ -1245,7 +1245,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Waits for the cluster state updates to have been processed, so that no cluster
      * state updates are still in-progress when the next test starts.
      */
-    private void waitForClusterStateUpdatesToFinish() throws Exception {
+    protected final void waitForClusterStateUpdatesToFinish() throws Exception {
         assertBusy(() -> {
             try {
                 Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));

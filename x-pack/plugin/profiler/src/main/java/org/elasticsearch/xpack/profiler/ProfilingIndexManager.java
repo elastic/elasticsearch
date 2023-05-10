@@ -176,6 +176,12 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
                                 index,
                                 ClientHelper.PROFILING_ORIGIN
                             );
+                        } else if (response.isShardsAcknowledged() == false) {
+                            logger.warn(
+                                "adding index [{}] for [{}], shards were not acknowledged",
+                                index,
+                                ClientHelper.PROFILING_ORIGIN
+                            );
                         }
                     }
 

@@ -193,7 +193,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         // Remove the snapshots, if a previous test failed to delete them. This is
         // useful for third party tests that runs the test against a real external service.
         deleteSnapshot(SNAPSHOT_NAME, true);
-
+        waitForClusterStateUpdatesToFinish();
         logger.info("creating snapshot [{}]", SNAPSHOT_NAME);
         createSnapshot(WRITE_REPOSITORY_NAME, SNAPSHOT_NAME, true);
 

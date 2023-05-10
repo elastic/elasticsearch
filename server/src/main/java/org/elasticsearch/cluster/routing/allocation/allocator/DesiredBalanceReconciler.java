@@ -297,7 +297,7 @@ public class DesiredBalanceReconciler {
         return () -> {
             if (shard.primary() && isThrottled.get() == false) {
                 var fallbackNodeIds = allocation.routingNodes().getAllNodeIds();
-                logger.trace("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
+                logger.debug("Shard [{}] assignment is temporary not possible. Falling back to {}", shard.shardId(), fallbackNodeIds);
                 return allocationOrdering.sort(fallbackNodeIds).iterator();
             } else {
                 return Collections.emptyIterator();

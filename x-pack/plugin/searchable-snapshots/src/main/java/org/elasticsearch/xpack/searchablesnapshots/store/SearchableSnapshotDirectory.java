@@ -506,10 +506,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                     final AtomicLong prefetchedBytes = new AtomicLong(0L);
                     try (var fileListener = new RefCountingListener(ActionListener.runBefore(completionListener.acquire().map(v -> {
-                        if (prefetchedBytes.get() == 0L) {
+                        // we can't report a file as being partially recovered from disk and partially from the blob store, but this is
+                        // something that can happen for fully mounted searchable snapshots. So we make a choice here: if less than 50%
+                        // of the file is prewarmed from the blob store then it is marked as reused from cache.
+                        if ((prefetchedBytes.get() / (double) file.length()) < 0.5d) {
                             recoveryState.markIndexFileAsReused(file.physicalName());
                         } else {
-                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), prefetchedBytes.get());
+                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.length());
                         }
                         return v;
                     }), () -> IOUtils.closeWhileHandlingException(input)))) {

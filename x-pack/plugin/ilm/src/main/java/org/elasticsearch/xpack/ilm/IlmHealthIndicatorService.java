@@ -73,13 +73,25 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
-    public static final List<HealthIndicatorImpact> AUTOMATION_DISABLED_IMPACT = Collections.singletonList(
+    public static final String INDEX_STUCK_IMPACT_ID = "index_stuck";
+    public static final List<HealthIndicatorImpact> AUTOMATION_DISABLED_IMPACT = List.of(
         new HealthIndicatorImpact(
             NAME,
             AUTOMATION_DISABLED_IMPACT_ID,
             3,
             "Automatic index lifecycle and data retention management is disabled. The performance and stability of the cluster "
                 + "could be impacted.",
+            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+        )
+    );
+
+    public static final List<HealthIndicatorImpact> INDEX_STUCK_IMPACT = List.of(
+        new HealthIndicatorImpact(
+            NAME,
+            INDEX_STUCK_IMPACT_ID,
+            3,
+            "Some indices have been longer than expected on the same Index Lifecycle Management action. The performance and stability of " +
+                "the cluster could be impacted.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
@@ -134,13 +146,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     private HealthIndicatorResult calculateIndicator(boolean verbose, IndexLifecycleMetadata ilmMetadata, OperationMode currentMode) {
-        var indicesState = findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
+        var stuckIndices = findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
 
-        if (indicesState.isEmpty()) {
+        if (stuckIndices.isEmpty()) {
             return createIndicator(
                 GREEN,
                 "Index Lifecycle Management is running",
-                createDetails(verbose, ilmMetadata, currentMode, indicesState),
+                createDetails(verbose, ilmMetadata, currentMode, stuckIndices),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -148,9 +160,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
         return createIndicator(
             YELLOW,
-            "Some indices have been stuck on the same action longer than expected.",
-            createDetails(verbose, ilmMetadata, currentMode, indicesState),
-            AUTOMATION_DISABLED_IMPACT,
+            (stuckIndices.size() > 1 ? "Some indices have" : "An index has") + " been stuck on the same action longer than expected.",
+            createDetails(verbose, ilmMetadata, currentMode, stuckIndices),
+            INDEX_STUCK_IMPACT,
             List.of()
         );
     }

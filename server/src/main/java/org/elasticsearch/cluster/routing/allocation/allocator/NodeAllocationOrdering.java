@@ -25,7 +25,7 @@ public class NodeAllocationOrdering {
 
     private final AtomicLong order = new AtomicLong(0);
     private final Map<String, Long> recentAllocations = new HashMap<>();
-    private final Comparator<String> nodeIdsComparator = Comparator.comparing(nodeId -> recentAllocations.getOrDefault(nodeId, 0L));
+    private final Comparator<String> comparator = Comparator.comparing(nodeId -> recentAllocations.getOrDefault(nodeId, 0L));
 
     public void recordAllocation(String nodeId) {
         recentAllocations.put(nodeId, order.incrementAndGet());
@@ -33,7 +33,7 @@ public class NodeAllocationOrdering {
 
     public List<String> sort(Collection<String> nodeIds) {
         var list = new ArrayList<>(nodeIds);
-        list.sort(nodeIdsComparator);
+        list.sort(comparator);
         return list;
     }
 

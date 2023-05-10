@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -18,8 +20,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
@@ -174,7 +174,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final ElasticsearchSecurityException e1 = expectThrows(
             ElasticsearchSecurityException.class,
             () -> client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
-                .execute(MainAction.INSTANCE, new MainRequest())
+                .execute(NodesInfoAction.INSTANCE, new NodesInfoRequest())
                 .actionGet()
         );
         assertThat(e1.status().getStatus(), equalTo(403));

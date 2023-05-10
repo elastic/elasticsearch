@@ -181,10 +181,7 @@ public class SubjectTests extends ESTestCase {
             authMetadata
         );
 
-        final RoleReferenceIntersection roleReferenceIntersection = subject.buildRoleReferencesForCrossClusterApiKey();
-        final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
-        assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class)));
-        final ApiKeyRoleReference roleReference = (ApiKeyRoleReference) roleReferences.get(0);
+        final ApiKeyRoleReference roleReference = subject.buildRoleReferencesForCrossClusterApiKey();
         assertThat(roleReference.getApiKeyId(), equalTo(apiKeyId));
         assertThat(roleReference.getRoleDescriptorsBytes(), equalTo(authMetadata.get(API_KEY_ROLE_DESCRIPTORS_KEY)));
     }

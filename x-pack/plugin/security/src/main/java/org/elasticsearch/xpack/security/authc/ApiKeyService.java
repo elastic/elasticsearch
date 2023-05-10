@@ -995,17 +995,6 @@ public class ApiKeyService {
             listener.onResponse(
                 AuthenticationResult.unsuccessful("document [" + docId + "] is [" + apiKeyDoc.docType + "] not an api key", null)
             );
-        } else if (apiKeyDoc.type != credentials.expectedType) {
-            listener.onResponse(
-                AuthenticationResult.terminate(
-                    Strings.format(
-                        "authentication expected API key type of [%s], but API key [%s] has type [%s]",
-                        credentials.expectedType.value(),
-                        credentials.getId(),
-                        apiKeyDoc.type.value()
-                    )
-                )
-            );
         } else if (apiKeyDoc.invalidated == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("api key document is missing invalidated field", null));
         } else if (apiKeyDoc.invalidated) {
@@ -1036,7 +1025,7 @@ public class ApiKeyService {
                         if (result.success) {
                             if (result.verify(credentials.getKey())) {
                                 // move on
-                                validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                                validateApiKeyTypeExpiration(apiKeyDoc, credentials, clock, listener);
                             } else {
                                 listener.onResponse(
                                     AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1056,7 +1045,7 @@ public class ApiKeyService {
                         listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
                         if (verified) {
                             // move on
-                            validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                            validateApiKeyTypeExpiration(apiKeyDoc, credentials, clock, listener);
                         } else {
                             listener.onResponse(
                                 AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1068,7 +1057,7 @@ public class ApiKeyService {
                 verifyKeyAgainstHash(apiKeyDoc.hash, credentials, ActionListener.wrap(verified -> {
                     if (verified) {
                         // move on
-                        validateApiKeyExpiration(apiKeyDoc, credentials, clock, listener);
+                        validateApiKeyTypeExpiration(apiKeyDoc, credentials, clock, listener);
                     } else {
                         listener.onResponse(
                             AuthenticationResult.unsuccessful("invalid credentials for API key [" + credentials.getId() + "]", null)
@@ -1100,12 +1089,26 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    static void validateApiKeyExpiration(
+    static void validateApiKeyTypeExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
         ActionListener<AuthenticationResult<User>> listener
     ) {
+        if (apiKeyDoc.type != credentials.expectedType) {
+            listener.onResponse(
+                AuthenticationResult.terminate(
+                    Strings.format(
+                        "authentication expected API key type of [%s], but API key [%s] has type [%s]",
+                        credentials.expectedType.value(),
+                        credentials.getId(),
+                        apiKeyDoc.type.value()
+                    )
+                )
+            );
+            return;
+        }
+
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
             final String principal = Objects.requireNonNull((String) apiKeyDoc.creator.get("principal"));
             final String fullName = (String) apiKeyDoc.creator.get("full_name");
@@ -2091,7 +2094,12 @@ public class ApiKeyService {
             @Nullable BytesReference metadataFlattened
         ) {
             this.docType = docType;
-            this.type = type == null ? ApiKey.Type.REST : type;
+            if (type == null) {
+                logger.trace("API key document with [null] type defaults to [rest] type");
+                this.type = ApiKey.Type.REST;
+            } else {
+                this.type = type;
+            }
             this.creationTime = creationTime;
             this.expirationTime = expirationTime;
             this.invalidated = invalidated;

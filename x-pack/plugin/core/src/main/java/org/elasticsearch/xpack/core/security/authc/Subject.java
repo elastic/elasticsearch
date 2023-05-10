@@ -271,7 +271,7 @@ public class Subject {
     }
 
     // Package private for testing
-    RoleReferenceIntersection buildRoleReferencesForCrossClusterApiKey() {
+    RoleReference.ApiKeyRoleReference buildRoleReferencesForCrossClusterApiKey() {
         assert version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR);
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
         assert ApiKey.Type.CROSS_CLUSTER == getApiKeyType() : "cross cluster access must use cross-cluster API keys";
@@ -282,9 +282,7 @@ public class Subject {
         final BytesReference limitedByRoleDescriptorsBytes = (BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
         assert isEmptyRoleDescriptorsBytes(limitedByRoleDescriptorsBytes)
             : "cross cluster API keys must have empty limited-by role descriptors";
-        return new RoleReferenceIntersection(
-            new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED)
-        );
+        return new RoleReference.ApiKeyRoleReference(apiKeyId, roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED);
     }
 
     private RoleReferenceIntersection buildRoleReferencesForCrossClusterAccess() {
@@ -315,7 +313,7 @@ public class Subject {
                 roleReferences.add(new RoleReference.CrossClusterAccessRoleReference(innerUser.principal(), roleDescriptorsBytes));
             }
         }
-        roleReferences.addAll(buildRoleReferencesForCrossClusterApiKey().getRoleReferences());
+        roleReferences.add(buildRoleReferencesForCrossClusterApiKey());
         return new RoleReferenceIntersection(List.copyOf(roleReferences));
     }
 

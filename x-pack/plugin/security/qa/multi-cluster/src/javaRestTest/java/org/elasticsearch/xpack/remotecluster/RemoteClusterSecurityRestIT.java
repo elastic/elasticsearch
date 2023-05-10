@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -318,7 +319,35 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
             );
             assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception4.getMessage(), containsString("unable to authenticate user "));
+            assertThat(
+                exception4.getMessage(),
+                allOf(containsString("unable to authenticate user "), containsString("unable to find apikey"))
+            );
+
+            // check that REST API key is not supported by cross cluster access
+            updateClusterSettings(
+                randomBoolean()
+                    ? Settings.builder()
+                        .put("cluster.remote.wrong_api_key_type.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+                    : Settings.builder()
+                        .put("cluster.remote.wrong_api_key_type.mode", "proxy")
+                        .put("cluster.remote.wrong_api_key_type.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .build()
+            );
+            final ResponseException exception5 = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(new Request("GET", "/wrong_api_key_type:*/_search"))
+            );
+            assertThat(exception5.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+            assertThat(
+                exception5.getMessage(),
+                containsString(
+                    "authentication expected API key type of [cross_cluster], but API key ["
+                        + REST_API_KEY_MAP_REF.get().get("id")
+                        + "] has type [rest]"
+                )
+            );
         }
     }
 
@@ -342,25 +371,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final String publishAddress = ObjectPath.eval("remote_cluster_server.publish_address", node);
             assertThat(publishAddress, notNullValue());
         });
-    }
-
-    public void testRestApiKeyIsNotSupportedForCrossClusterAccess() throws IOException {
-        updateClusterSettings(
-            randomBoolean()
-                ? Settings.builder()
-                    .put("cluster.remote.wrong_api_key_type.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                    .build()
-                : Settings.builder()
-                    .put("cluster.remote.wrong_api_key_type.mode", "proxy")
-                    .put("cluster.remote.wrong_api_key_type.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                    .build()
-        );
-        final ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> performRequestWithRemoteSearchUser(new Request("GET", "/wrong_api_key_type:*/_search"))
-        );
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-        assertThat(e.getMessage(), containsString("unable to authenticate user "));
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

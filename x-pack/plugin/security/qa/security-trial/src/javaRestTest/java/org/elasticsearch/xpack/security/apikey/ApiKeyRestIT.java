@@ -710,17 +710,35 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String apiKeyId = createResponse.evaluate("id");
 
         // Cross cluster API key cannot be used on the REST interface
-        final Request authenticateRequest = new Request("GET", "/_security/_authenticate");
-        authenticateRequest.setOptions(
-            authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        final Request authenticateRequest1 = new Request("GET", "/_security/_authenticate");
+        authenticateRequest1.setOptions(
+            authenticateRequest1.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + createResponse.evaluate("encoded"))
         );
-        final ResponseException authenticateError = expectThrows(
+        final ResponseException authenticateError1 = expectThrows(
             ResponseException.class,
-            () -> client().performRequest(authenticateRequest)
+            () -> client().performRequest(authenticateRequest1)
         );
-        assertThat(authenticateError.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(authenticateError1.getResponse().getStatusLine().getStatusCode(), equalTo(401));
         assertThat(
-            authenticateError.getMessage(),
+            authenticateError1.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
+        // Not allowed as secondary authentication on the REST interface either
+        final Request authenticateRequest2 = new Request("GET", "/_security/_authenticate");
+        setUserForRequest(authenticateRequest2, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        authenticateRequest2.setOptions(
+            authenticateRequest2.getOptions()
+                .toBuilder()
+                .addHeader("es-secondary-authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        );
+        final ResponseException authenticateError2 = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(authenticateRequest2)
+        );
+        assertThat(authenticateError2.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(
+            authenticateError2.getMessage(),
             containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
         );
 

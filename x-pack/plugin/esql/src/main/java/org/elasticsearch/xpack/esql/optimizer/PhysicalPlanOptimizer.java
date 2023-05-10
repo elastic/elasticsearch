@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
@@ -521,6 +522,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                 return canPushToSource(bl.left()) && canPushToSource(bl.right());
             } else if (exp instanceof RegexMatch<?> rm) {
                 return rm.field() instanceof FieldAttribute;
+            } else if (exp instanceof Not not) {
+                return canPushToSource(not.field());
             }
             return false;
         }

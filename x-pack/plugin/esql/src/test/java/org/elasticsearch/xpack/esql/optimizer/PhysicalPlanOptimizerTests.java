@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -72,6 +73,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer:TRACE", reason = "debug")
@@ -994,6 +996,169 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             """));
     }
 
+    /* Expected:
+       LimitExec[10000[INTEGER]]
+       \_ExchangeExec[REMOTE_SOURCE]
+         \_ExchangeExec[REMOTE_SINK]
+           \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
+             \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
+               \_EsQueryExec[test], query[{"bool":{"must_not":[{"bool":{"should":[{"term":{"emp_no":{"value":10010}}},
+                                    {"term":{"emp_no":{"value":10011}}}],"boost":1.0}}],"boost":1.0}}][_doc{f}#10], limit[10000], sort[]
+     */
+    public void testPushDownNegatedDisjunction() {
+        var plan = physicalPlan("""
+            from test
+            | where not (emp_no == 10010 or emp_no == 10011)
+            """);
+
+        assertThat("Expected to find an EsSourceExec", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        List<QueryBuilder> mustNot = boolQuery.mustNot();
+        assertThat(mustNot.size(), is(1));
+        assertThat(mustNot.get(0), instanceOf(BoolQueryBuilder.class));
+        query = mustNot.get(0);
+
+        List<QueryBuilder> shouldClauses = ((BoolQueryBuilder) query).should();
+        assertEquals(2, shouldClauses.size());
+        assertTrue(shouldClauses.get(0) instanceof TermQueryBuilder);
+        assertThat(shouldClauses.get(0).toString(), containsString("""
+                "emp_no" : {
+                  "value" : 10010
+            """));
+        assertTrue(shouldClauses.get(1) instanceof TermQueryBuilder);
+        assertThat(shouldClauses.get(1).toString(), containsString("""
+                "emp_no" : {
+                  "value" : 10011
+            """));
+    }
+
+    /* Expected:
+       LimitExec[10000[INTEGER]]
+       \_ExchangeExec[REMOTE_SOURCE]
+         \_ExchangeExec[REMOTE_SINK]
+           \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
+             \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
+               \_EsQueryExec[test], query[{"bool":{"must_not":[{"bool":{"must":[{"term":{"emp_no":{"value":10010}}},
+                                {"term":{"first_name":{"value":"Parto"}}}],"boost":1.0}}],"boost":1.0}}][_doc{f}#10], limit[10000], sort[]
+     */
+    public void testPushDownNegatedConjunction() {
+        var plan = physicalPlan("""
+            from test
+            | where not (emp_no == 10010 and first_name == "Parto")
+            """);
+
+        assertThat("Expected to find an EsSourceExec", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        List<QueryBuilder> mustNot = boolQuery.mustNot();
+        assertThat(mustNot.size(), is(1));
+        assertThat(mustNot.get(0), instanceOf(BoolQueryBuilder.class));
+        query = mustNot.get(0);
+
+        List<QueryBuilder> mustClauses = ((BoolQueryBuilder) query).must();
+        assertEquals(2, mustClauses.size());
+        assertTrue(mustClauses.get(0) instanceof TermQueryBuilder);
+        assertThat(mustClauses.get(0).toString(), containsString("""
+                "emp_no" : {
+                  "value" : 10010
+            """));
+        assertTrue(mustClauses.get(1) instanceof TermQueryBuilder);
+        assertThat(mustClauses.get(1).toString(), containsString("""
+                "first_name" : {
+                  "value" : "Parto"
+            """));
+    }
+
+    /* Expected:
+       LimitExec[10000[INTEGER]]
+       \_ExchangeExec[REMOTE_SOURCE]
+         \_ExchangeExec[REMOTE_SINK]
+           \_ProjectExec[[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, !gender, languages{f}#5, last_name{f}#6, salary{f}#7]]
+             \_FieldExtractExec[_meta_field{f}#8, emp_no{f}#2, first_name{f}#3, !ge..]
+               \_EsQueryExec[test], query[{"bool":{"must_not":[{"term":{"emp_no":{"value":10010}}}],"boost":1.0}}][_doc{f}#9],
+                                          limit[10000], sort[]
+
+     */
+    public void testPushDownNegatedEquality() {
+        var plan = physicalPlan("""
+            from test
+            | where not emp_no == 10010
+            """);
+
+        assertThat("Expected to find an EsSourceExec", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        List<QueryBuilder> mustNot = boolQuery.mustNot();
+        assertThat(mustNot.size(), is(1));
+        assertThat(mustNot.get(0), instanceOf(TermQueryBuilder.class));
+        var termQuery = (TermQueryBuilder) mustNot.get(0);
+        assertThat(termQuery.fieldName(), is("emp_no"));
+        assertThat(termQuery.value(), is(10010));
+    }
+
+    /* Expected:
+       LimitExec[10000[INTEGER]]
+       \_ExchangeExec[REMOTE_SOURCE]
+         \_ExchangeExec[REMOTE_SINK]
+           \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
+             \_FieldExtractExec[_meta_field{f}#9, first_name{f}#4, !gender, last_na..]
+               \_LimitExec[10000[INTEGER]]
+                 \_FilterExec[NOT(emp_no{f}#3 == languages{f}#6)]
+                   \_FieldExtractExec[emp_no{f}#3, languages{f}#6]
+                     \_EsQueryExec[test], query[][_doc{f}#10], limit[], sort[]
+     */
+    public void testDontPushDownNegatedEqualityBetweenAttributes() {
+        var plan = physicalPlan("""
+            from test
+            | where not emp_no == languages
+            """);
+
+        assertThat("Expected to find an EsSourceExec", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var localLimit = as(extractRest.child(), LimitExec.class);
+        var filterExec = as(localLimit.child(), FilterExec.class);
+        assertThat(filterExec.condition(), instanceOf(Not.class));
+        var extractForFilter = as(filterExec.child(), FieldExtractExec.class);
+        var source = source(extractForFilter.child());
+        assertNull(source.query());
+    }
+
     public void testEvalLike() {
         var plan = physicalPlan("""
             from test
@@ -1036,23 +1201,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertEquals("*foo*", wildcard.value());
     }
 
-    public void testNotLike() {
+    public void testPushDownNotLike() {
         var plan = physicalPlan("""
             from test
             | where not first_name like "%foo%"
             """);
 
-        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+        assertThat("Expected to find an EsSourceExec", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
         var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
-        var limit = as(extractRest.child(), LimitExec.class);
-        var filter = as(limit.child(), FilterExec.class);
-        var fieldExtract = as(filter.child(), FieldExtractExec.class);
-        assertEquals(EsQueryExec.class, fieldExtract.child().getClass());
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        List<QueryBuilder> mustNot = boolQuery.mustNot();
+        assertThat(mustNot.size(), is(1));
+        assertThat(mustNot.get(0), instanceOf(TermQueryBuilder.class));
+        var termQuery = (TermQueryBuilder) mustNot.get(0);
+        assertThat(termQuery.fieldName(), is("first_name"));
+        assertThat(termQuery.value(), is("%foo%"));
     }
 
     public void testEvalRLike() {
@@ -1097,23 +1270,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertEquals(".*foo.*", wildcard.value());
     }
 
-    public void testNotRLike() {
+    public void testPushDownNotRLike() {
         var plan = physicalPlan("""
             from test
             | where not first_name rlike ".*foo.*"
             """);
 
-        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+        assertThat("Expected to find an EsSourceExec", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
 
         var optimized = optimizedPlan(plan);
         var topLimit = as(optimized, LimitExec.class);
         var exchange = asRemoteExchange(topLimit.child());
         var project = as(exchange.child(), ProjectExec.class);
         var extractRest = as(project.child(), FieldExtractExec.class);
-        var limit = as(extractRest.child(), LimitExec.class);
-        var filter = as(limit.child(), FilterExec.class);
-        var fieldExtract = as(filter.child(), FieldExtractExec.class);
-        assertEquals(EsQueryExec.class, fieldExtract.child().getClass());
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        var boolQuery = (BoolQueryBuilder) query;
+        List<QueryBuilder> mustNot = boolQuery.mustNot();
+        assertThat(mustNot.size(), is(1));
+        assertThat(mustNot.get(0), instanceOf(RegexpQueryBuilder.class));
+        var regexpQuery = (RegexpQueryBuilder) mustNot.get(0);
+        assertThat(regexpQuery.fieldName(), is("first_name"));
+        assertThat(regexpQuery.value(), is(".*foo.*"));
     }
 
     public void testTopNNotPushedDownOnOverlimit() {

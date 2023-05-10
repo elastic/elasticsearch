@@ -42,8 +42,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -63,6 +65,7 @@ public class StatelessCommitService {
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
     private final ConcurrentHashMap<ShardId, ShardCommitState> fileToBlobFile = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ShardId, Consumer<Long>> commitNotificationSuccessListeners = new ConcurrentHashMap<>();
 
     public StatelessCommitService(ObjectStoreService objectStoreService, ClusterService clusterService, Client client) {
         this(
@@ -94,7 +97,9 @@ public class StatelessCommitService {
     }
 
     public void onCommitCreation(StatelessCommitRef reference) {
-        logger.debug("{} uploading commit [{}][{}]", reference.getShardId(), reference.getSegmentsFileName(), reference.getGeneration());
+        var shardId = reference.getShardId();
+        var generation = reference.getGeneration();
+        logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
 
         ShardCommitState commitState = getSafe(fileToBlobFile, reference.getShardId());
         commitState.markNewCommit(reference.getCommitFiles(), reference.getAdditionalFiles());
@@ -102,7 +107,17 @@ public class StatelessCommitService {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
                 NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRouting.apply(commit.shardId()), commit);
-                client.execute(TransportNewCommitNotificationAction.TYPE, request);
+                client.execute(
+                    TransportNewCommitNotificationAction.TYPE,
+                    request,
+                    ActionListener.wrap(
+                        r -> commitNotificationSuccessListeners.get(shardId).accept(generation),
+                        e -> logger.warn(
+                            () -> format("%s failed to notify unpromotables after upload of commit [%s]", shardId, generation),
+                            e
+                        )
+                    )
+                );
             }
 
             @Override
@@ -476,5 +491,16 @@ public class StatelessCommitService {
 
         @Override
         protected void closeInternal() {}
+    }
+
+    public void registerNewCommitSuccessListener(ShardId shardId, Consumer<Long> listener) {
+        var previous = commitNotificationSuccessListeners.put(shardId, listener);
+        // For now only the LiveVersionMapArchive uses this
+        assert previous == null;
+    }
+
+    public void unregisterNewCommitSuccessListener(ShardId shardId) {
+        var removed = commitNotificationSuccessListeners.remove(shardId);
+        assert removed != null;
     }
 }

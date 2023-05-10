@@ -282,6 +282,24 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 public void afterIndexShardCreated(IndexShard indexShard) {
                     statelessCommitService.register(indexShard.shardId());
                     localTranslogReplicator.register(indexShard.shardId());
+                    // We are pruning the archive for a given generation, only once we know all search shards are
+                    // aware of that generation.
+                    // TODO: In the context of real-time GET, this might be an overkill and in case of misbehaving
+                    // search shards, this might lead to higher memory consumption on the indexing shards. Depending on
+                    // how we respond to get requests that are not in the live version map (what generation we send back
+                    // for the search shard to wait for), it could be safe to trigger the pruning earlier, e.g., once the
+                    // commit upload is successful.
+                    statelessCommitService.registerNewCommitSuccessListener(
+                        indexShard.shardId(),
+                        (gen) -> ((IndexEngine) indexShard.getEngineOrNull()).commitSuccess(gen)
+                    );
+                }
+
+                @Override
+                public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+                    if (indexShard != null) {
+                        statelessCommitService.unregisterNewCommitSuccessListener(shardId);
+                    }
                 }
 
                 @Override

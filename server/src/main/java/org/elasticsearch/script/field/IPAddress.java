@@ -8,6 +8,9 @@
 
 package org.elasticsearch.script.field;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,7 +23,7 @@ import java.net.InetAddress;
 /**
  * IP address for use in scripting.
  */
-public class IPAddress implements ToXContentObject {
+public class IPAddress implements ToXContentObject, Writeable {
     protected final InetAddress address;
 
     IPAddress(InetAddress address) {
@@ -29,6 +32,14 @@ public class IPAddress implements ToXContentObject {
 
     public IPAddress(String address) {
         this.address = InetAddresses.forString(address);
+    }
+
+    public IPAddress(StreamInput input) throws IOException {
+        this(input.readString());
+    }
+
+    public void writeTo(StreamOutput output) throws IOException {
+        output.writeString(toString());
     }
 
     public boolean isV4() {

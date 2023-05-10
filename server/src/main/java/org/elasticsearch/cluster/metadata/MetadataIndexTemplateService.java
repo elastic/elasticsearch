@@ -286,7 +286,7 @@ public class MetadataIndexTemplateService {
             .templatesV2()
             .entrySet()
             .stream()
-            .filter(e1 -> e1.getValue().composedOf().contains(name))
+            .filter(e -> e.getValue().composedOf().contains(name))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         // if we're updating a component template, let's check if it's part of any V2 template that will yield the CT update invalid
@@ -1166,6 +1166,7 @@ public class MetadataIndexTemplateService {
      *                 of template application results in a hidden index, then global templates will
      *                 not be returned
      * @return a list of templates sorted by {@link IndexTemplateMetadata#order()} descending.
+     *
      */
     public static List<IndexTemplateMetadata> findV1Templates(Metadata metadata, String indexName, @Nullable Boolean isHidden) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);

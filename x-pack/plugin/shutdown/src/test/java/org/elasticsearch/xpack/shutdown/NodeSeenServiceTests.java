@@ -105,29 +105,29 @@ public class NodeSeenServiceTests extends ESTestCase {
         long now = 100_000L;
         long grace = getDefaultGrace();
         var master = TestDiscoveryNode.create("master1", randomNodeId());
-        var other = TestDiscoveryNode.create("other2", randomNodeId()); // not term
-        var another = TestDiscoveryNode.create("another3", randomNodeId()); // exists
-        var yetAnother = TestDiscoveryNode.create("yetAnother4", randomNodeId()); // within grace
-        var oneMore = TestDiscoveryNode.create("oneMore5", randomNodeId()); // out of grace
-        var lastOne = TestDiscoveryNode.create("lastOne6", randomNodeId()); // also out of grace
+        var notTermNode = TestDiscoveryNode.create("notTerm2", randomNodeId()); // not term
+        var stillExistingNode = TestDiscoveryNode.create("stillExisting3", randomNodeId()); // exists
+        var withinGraceNode = TestDiscoveryNode.create("withinGrace4", randomNodeId()); // within grace
+        var outOfGrace2XNode = TestDiscoveryNode.create("outOfGrace2X5", randomNodeId()); // out of grace
+        var justOutOfGraceNode = TestDiscoveryNode.create("justOutOfGrace6", randomNodeId()); // also out of grace
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         nodesBuilder.masterNodeId(master.getId());
         nodesBuilder.localNodeId(master.getId());
         nodesBuilder.add(master);
-        nodesBuilder.add(another);
+        nodesBuilder.add(stillExistingNode);
         Metadata.Builder metadataBuilder = Metadata.builder();
         var shutdownsMap = Map.of(
-            other.getId(),
-            startShutdown(other.getId(), Type.REPLACE, now - 2 * grace).setTargetNodeName(other.getId()).build(),
-            another.getId(),
-            startShutdown(another.getId(), Type.SIGTERM, now - 2 * grace).build(),
-            yetAnother.getId(),
-            startShutdown(yetAnother.getId(), Type.SIGTERM, now - grace).build(),
-            oneMore.getId(),
-            startShutdown(oneMore.getId(), Type.SIGTERM, now - 2 * grace).build(),
-            lastOne.getId(),
-            startShutdown(lastOne.getId(), Type.SIGTERM, now - (grace + grace / 10) - 1).build()
+            notTermNode.getId(),
+            startShutdown(notTermNode.getId(), Type.REPLACE, now - 2 * grace).setTargetNodeName(notTermNode.getId()).build(),
+            stillExistingNode.getId(),
+            startShutdown(stillExistingNode.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            withinGraceNode.getId(),
+            startShutdown(withinGraceNode.getId(), Type.SIGTERM, now - grace).build(),
+            outOfGrace2XNode.getId(),
+            startShutdown(outOfGrace2XNode.getId(), Type.SIGTERM, now - 2 * grace).build(),
+            justOutOfGraceNode.getId(),
+            startShutdown(justOutOfGraceNode.getId(), Type.SIGTERM, now - (grace + grace / 10) - 1).build()
         );
         metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownsMap));
         var state = ClusterState.builder(new ClusterName("test-cluster"))
@@ -140,12 +140,12 @@ public class NodeSeenServiceTests extends ESTestCase {
 
         assertThat(
             Map.of(
-                other.getId(),
-                shutdownsMap.get(other.getId()),
-                another.getId(),
-                shutdownsMap.get(another.getId()),
-                yetAnother.getId(),
-                shutdownsMap.get(yetAnother.getId())
+                notTermNode.getId(),
+                shutdownsMap.get(notTermNode.getId()),
+                stillExistingNode.getId(),
+                shutdownsMap.get(stillExistingNode.getId()),
+                withinGraceNode.getId(),
+                shutdownsMap.get(withinGraceNode.getId())
             ),
             equalTo(update.getMetadata().nodeShutdowns())
         );

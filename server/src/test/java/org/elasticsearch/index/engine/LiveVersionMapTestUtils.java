@@ -67,7 +67,7 @@ public class LiveVersionMapTestUtils {
         }
     }
 
-    public static int VersionLookupSize(LiveVersionMap.VersionLookup lookup) {
+    public static int versionLookupSize(LiveVersionMap.VersionLookup lookup) {
         return lookup.size();
     }
 

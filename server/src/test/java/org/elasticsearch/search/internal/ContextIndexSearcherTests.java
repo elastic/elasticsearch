@@ -76,7 +76,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
@@ -121,49 +120,58 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
         LeafReaderContext leaf = directoryReader.leaves().get(0);
 
-        CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
-        LeafCollector leafCollector = new LeafBucketCollector() {
-            Scorable scorer;
+        {
+            CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value1"), leaf.reader().getLiveDocs());
+            LeafCollector leafCollector = new LeafBucketCollector() {
+                Scorable scorer;
 
-            @Override
-            public void setScorer(Scorable scorer) throws IOException {
-                this.scorer = scorer;
-            }
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {
+                    this.scorer = scorer;
+                }
 
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assertThat(doc, equalTo(0));
-                assertThat(scorer.score(), equalTo(3f));
-            }
-        };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
-
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
-        leafCollector = new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assertThat(doc, equalTo(1));
-            }
-        };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
-
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
-        leafCollector = new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                fail("docId [" + doc + "] should have been deleted");
-            }
-        };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
-
-        bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
-        leafCollector = new LeafBucketCollector() {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                assertThat(doc, equalTo(3));
-            }
-        };
-        intersectScorerAndBitSet(weight.scorer(leaf), bitSet, leafCollector, () -> {});
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    assertThat(doc, equalTo(0));
+                    assertThat(scorer.score(), equalTo(3f));
+                }
+            };
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            bulkScorer.score(leafCollector, null);
+        }
+        {
+            CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value2"), leaf.reader().getLiveDocs());
+            LeafCollector leafCollector = new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    assertThat(doc, equalTo(1));
+                }
+            };
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            bulkScorer.score(leafCollector, null);
+        }
+        {
+            CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value3"), leaf.reader().getLiveDocs());
+            LeafCollector leafCollector = new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    fail("docId [" + doc + "] should have been deleted");
+                }
+            };
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            bulkScorer.score(leafCollector, null);
+        }
+        {
+            CombinedBitSet bitSet = new CombinedBitSet(query(leaf, "field1", "value4"), leaf.reader().getLiveDocs());
+            LeafCollector leafCollector = new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    assertThat(doc, equalTo(3));
+                }
+            };
+            ContextIndexSearcher.BitSetIntersectBulkScorer bulkScorer = new ContextIndexSearcher.BitSetIntersectBulkScorer(weight.scorer(leaf), bitSet);
+            bulkScorer.score(leafCollector, null);
+        }
 
         directoryReader.close();
         directory.close();

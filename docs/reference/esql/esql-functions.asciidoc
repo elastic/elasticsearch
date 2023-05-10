@@ -15,6 +15,7 @@ these functions:
 * <<esql-is_nan>>
 * <<esql-is_null>>
 * <<esql-length>>
+* <<esql-mv_min>>
 * <<esql-pow>>
 * <<esql-round>>
 * <<esql-split>>
@@ -160,6 +161,8 @@ FROM employees
 | PROJECT first_name, last_name, height
 | EVAL fn_length = LENGTH(first_name)
 ----
+
+include::functions/mv_min.asciidoc[]
 
 [[esql-pow]]
 === `POW`

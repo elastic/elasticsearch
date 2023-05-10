@@ -44,4 +44,9 @@ abstract class AbstractVectorBlock extends AbstractBlock {
     public boolean areAllValuesNull() {
         return false;
     }
+
+    @Override
+    public final MvOrdering mvOrdering() {
+        return MvOrdering.UNORDERED;
+    }
 }

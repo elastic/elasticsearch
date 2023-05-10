@@ -14,12 +14,12 @@ import java.util.BitSet;
  * Block implementation that stores an array of long.
  * This class is generated. Do not edit it.
  */
-public final class LongArrayBlock extends AbstractBlock implements LongBlock {
+public final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     private final long[] values;
 
-    public LongArrayBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
-        super(positionCount, firstValueIndexes, nulls);
+    public LongArrayBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
         this.values = values;
     }
 
@@ -58,6 +58,13 @@ public final class LongArrayBlock extends AbstractBlock implements LongBlock {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        return getClass().getSimpleName()
+            + "[positions="
+            + getPositionCount()
+            + ", mvOrdering="
+            + mvOrdering()
+            + ", values="
+            + Arrays.toString(values)
+            + ']';
     }
 }

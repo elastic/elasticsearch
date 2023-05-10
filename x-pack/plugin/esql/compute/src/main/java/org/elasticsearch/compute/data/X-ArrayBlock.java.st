@@ -20,7 +20,7 @@ import java.util.BitSet;
  * Block implementation that stores an array of $type$.
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayBlock extends AbstractBlock implements $Type$Block {
+public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -30,11 +30,11 @@ $else$
 $endif$
 
 $if(BytesRef)$
-    public $Type$ArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
+    public $Type$ArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
 $else$
-    public $Type$ArrayBlock($type$[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
+    public $Type$ArrayBlock($type$[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
 $endif$
-        super(positionCount, firstValueIndexes, nulls);
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
         this.values = values;
     }
 
@@ -78,9 +78,18 @@ $endif$
 
     @Override
     public String toString() {
+        return getClass().getSimpleName()
+            + "[positions="
+            + getPositionCount()
+            + ", mvOrdering="
+            + mvOrdering()
 $if(BytesRef)$
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
+            + ", values="
+            + values.size()
 $else$
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
-$endif$    }
+            + ", values="
+            + Arrays.toString(values)
+$endif$
+            + ']';
+    }
 }

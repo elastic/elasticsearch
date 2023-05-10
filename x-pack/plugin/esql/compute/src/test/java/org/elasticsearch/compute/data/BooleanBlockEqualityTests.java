@@ -30,8 +30,20 @@ public class BooleanBlockEqualityTests extends ESTestCase {
     public void testEmptyBlock() {
         // all these "empty" vectors should be equivalent
         List<BooleanBlock> blocks = List.of(
-            new BooleanArrayBlock(new boolean[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
-            new BooleanArrayBlock(new boolean[] { randomBoolean() }, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
+            new BooleanArrayBlock(
+                new boolean[] {},
+                0,
+                new int[] {},
+                BitSet.valueOf(new byte[] { 0b00 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new BooleanArrayBlock(
+                new boolean[] { randomBoolean() },
+                0,
+                new int[] {},
+                BitSet.valueOf(new byte[] { 0b00 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             BooleanBlock.newConstantBlockWith(randomBoolean(), 0),
             BooleanBlock.newBlockBuilder(0).build(),
             BooleanBlock.newBlockBuilder(0).appendBoolean(randomBoolean()).build().filter(),
@@ -107,12 +119,19 @@ public class BooleanBlockEqualityTests extends ESTestCase {
         // all these blocks should be equivalent
         List<BooleanBlock> blocks = List.of(
             new BooleanArrayVector(new boolean[] { true, false, true }, 3).asBlock(),
-            new BooleanArrayBlock(new boolean[] { true, false, true }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b000 })),
+            new BooleanArrayBlock(
+                new boolean[] { true, false, true },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new BooleanArrayBlock(
                 new boolean[] { true, false, true, false },
                 3,
                 new int[] { 0, 1, 2, 3 },
-                BitSet.valueOf(new byte[] { 0b1000 })
+                BitSet.valueOf(new byte[] { 0b1000 }),
+                randomFrom(Block.MvOrdering.values())
             ),
             new BooleanArrayVector(new boolean[] { true, false, true }, 3).filter(0, 1, 2).asBlock(),
             new BooleanArrayVector(new boolean[] { true, false, true, false }, 3).filter(0, 1, 2).asBlock(),
@@ -140,8 +159,20 @@ public class BooleanBlockEqualityTests extends ESTestCase {
         // all these constant-like blocks should be equivalent
         List<BooleanBlock> moreBlocks = List.of(
             new BooleanArrayVector(new boolean[] { true, true }, 2).asBlock(),
-            new BooleanArrayBlock(new boolean[] { true, true }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new BooleanArrayBlock(new boolean[] { true, true, false }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b100 })),
+            new BooleanArrayBlock(
+                new boolean[] { true, true },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new BooleanArrayBlock(
+                new boolean[] { true, true, false },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b100 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new BooleanArrayVector(new boolean[] { true, true }, 2).filter(0, 1).asBlock(),
             new BooleanArrayVector(new boolean[] { true, true, false }, 2).filter(0, 1).asBlock(),
             new BooleanArrayVector(new boolean[] { true, true, false }, 3).filter(0, 1).asBlock(),

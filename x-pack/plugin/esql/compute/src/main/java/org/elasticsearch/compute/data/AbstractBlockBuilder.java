@@ -25,6 +25,8 @@ abstract class AbstractBlockBuilder {
 
     protected boolean hasNonNullValue;
 
+    protected Block.MvOrdering mvOrdering = Block.MvOrdering.UNORDERED;
+
     protected AbstractBlockBuilder() {}
 
     public AbstractBlockBuilder appendNull() {

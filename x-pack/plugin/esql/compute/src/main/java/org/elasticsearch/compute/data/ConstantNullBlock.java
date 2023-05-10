@@ -79,6 +79,11 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
+    public MvOrdering mvOrdering() {
+        return MvOrdering.UNORDERED;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj instanceof ConstantNullBlock that) {
             return this.getPositionCount() == that.getPositionCount();

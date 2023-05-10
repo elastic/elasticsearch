@@ -28,28 +28,44 @@ import static org.hamcrest.Matchers.is;
 public class BasicBlockTests extends ESTestCase {
 
     public void testEmpty() {
-        assertThat(new IntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(
+            new IntArrayBlock(new int[] {}, 0, new int[] {}, new BitSet(), randomFrom(Block.MvOrdering.values())).getPositionCount(),
+            is(0)
+        );
         assertThat(IntBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
         assertThat(new IntArrayVector(new int[] {}, 0).getPositionCount(), is(0));
         assertThat(IntVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
-        assertThat(new LongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(
+            new LongArrayBlock(new long[] {}, 0, new int[] {}, new BitSet(), randomFrom(Block.MvOrdering.values())).getPositionCount(),
+            is(0)
+        );
         assertThat(LongBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
         assertThat(new LongArrayVector(new long[] {}, 0).getPositionCount(), is(0));
         assertThat(LongVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
-        assertThat(new DoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(
+            new DoubleArrayBlock(new double[] {}, 0, new int[] {}, new BitSet(), randomFrom(Block.MvOrdering.values())).getPositionCount(),
+            is(0)
+        );
         assertThat(DoubleBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
         assertThat(new DoubleArrayVector(new double[] {}, 0).getPositionCount(), is(0));
         assertThat(DoubleVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
         var emptyArray = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
-        assertThat(new BytesRefArrayBlock(emptyArray, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(
+            new BytesRefArrayBlock(emptyArray, 0, new int[] {}, new BitSet(), randomFrom(Block.MvOrdering.values())).getPositionCount(),
+            is(0)
+        );
         assertThat(BytesRefBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
         assertThat(new BytesRefArrayVector(emptyArray, 0).getPositionCount(), is(0));
         assertThat(BytesRefVector.newVectorBuilder(0).build().getPositionCount(), is(0));
 
-        assertThat(new BooleanArrayBlock(new boolean[] {}, 0, new int[] {}, new BitSet()).getPositionCount(), is(0));
+        assertThat(
+            new BooleanArrayBlock(new boolean[] {}, 0, new int[] {}, new BitSet(), randomFrom(Block.MvOrdering.values()))
+                .getPositionCount(),
+            is(0)
+        );
         assertThat(BooleanBlock.newBlockBuilder(0).build().getPositionCount(), is(0));
         assertThat(new BooleanArrayVector(new boolean[] {}, 0).getPositionCount(), is(0));
         assertThat(BooleanVector.newVectorBuilder(0).build().getPositionCount(), is(0));

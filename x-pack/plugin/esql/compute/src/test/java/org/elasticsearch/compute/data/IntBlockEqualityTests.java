@@ -31,8 +31,8 @@ public class IntBlockEqualityTests extends ESTestCase {
     public void testEmptyBlock() {
         // all these "empty" vectors should be equivalent
         List<IntBlock> blocks = List.of(
-            new IntArrayBlock(new int[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
-            new IntArrayBlock(new int[] { 0 }, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
+            new IntArrayBlock(new int[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 }), randomFrom(Block.MvOrdering.values())),
+            new IntArrayBlock(new int[] { 0 }, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 }), randomFrom(Block.MvOrdering.values())),
             IntBlock.newConstantBlockWith(0, 0),
             IntBlock.newBlockBuilder(0).build(),
             IntBlock.newBlockBuilder(0).appendInt(1).build().filter(),
@@ -80,8 +80,20 @@ public class IntBlockEqualityTests extends ESTestCase {
         // all these blocks should be equivalent
         List<IntBlock> blocks = List.of(
             new IntArrayVector(new int[] { 1, 2, 3 }, 3).asBlock(),
-            new IntArrayBlock(new int[] { 1, 2, 3 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new IntArrayBlock(new int[] { 1, 2, 3, 4 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b1000 })),
+            new IntArrayBlock(
+                new int[] { 1, 2, 3 },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new IntArrayBlock(
+                new int[] { 1, 2, 3, 4 },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b1000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new IntArrayVector(new int[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
             new IntArrayVector(new int[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
             new IntArrayVector(new int[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
@@ -96,8 +108,20 @@ public class IntBlockEqualityTests extends ESTestCase {
         // all these constant-like blocks should be equivalent
         List<IntBlock> moreBlocks = List.of(
             new IntArrayVector(new int[] { 9, 9 }, 2).asBlock(),
-            new IntArrayBlock(new int[] { 9, 9 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new IntArrayBlock(new int[] { 9, 9, 4 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b100 })),
+            new IntArrayBlock(
+                new int[] { 9, 9 },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new IntArrayBlock(
+                new int[] { 9, 9, 4 },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b100 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new IntArrayVector(new int[] { 9, 9 }, 2).filter(0, 1).asBlock(),
             new IntArrayVector(new int[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
             new IntArrayVector(new int[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),

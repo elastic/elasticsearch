@@ -14,12 +14,12 @@ import java.util.BitSet;
  * Block implementation that stores an array of double.
  * This class is generated. Do not edit it.
  */
-public final class DoubleArrayBlock extends AbstractBlock implements DoubleBlock {
+public final class DoubleArrayBlock extends AbstractArrayBlock implements DoubleBlock {
 
     private final double[] values;
 
-    public DoubleArrayBlock(double[] values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
-        super(positionCount, firstValueIndexes, nulls);
+    public DoubleArrayBlock(double[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
         this.values = values;
     }
 
@@ -58,6 +58,13 @@ public final class DoubleArrayBlock extends AbstractBlock implements DoubleBlock
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
+        return getClass().getSimpleName()
+            + "[positions="
+            + getPositionCount()
+            + ", mvOrdering="
+            + mvOrdering()
+            + ", values="
+            + Arrays.toString(values)
+            + ']';
     }
 }

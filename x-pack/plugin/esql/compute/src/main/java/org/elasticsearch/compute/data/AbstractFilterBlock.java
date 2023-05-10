@@ -86,6 +86,11 @@ abstract class AbstractFilterBlock implements Block {
         return block.getFirstValueIndex(mapPosition(position));
     }
 
+    @Override
+    public MvOrdering mvOrdering() {
+        return block.mvOrdering();
+    }
+
     private int mapPosition(int position) {
         assert assertPosition(position);
         return positions[position];

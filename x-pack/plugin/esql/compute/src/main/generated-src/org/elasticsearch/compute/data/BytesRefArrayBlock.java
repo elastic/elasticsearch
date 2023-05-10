@@ -16,12 +16,12 @@ import java.util.BitSet;
  * Block implementation that stores an array of BytesRef.
  * This class is generated. Do not edit it.
  */
-public final class BytesRefArrayBlock extends AbstractBlock implements BytesRefBlock {
+public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
     private final BytesRefArray values;
 
-    public BytesRefArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls) {
-        super(positionCount, firstValueIndexes, nulls);
+    public BytesRefArrayBlock(BytesRefArray values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
         this.values = values;
     }
 
@@ -60,6 +60,13 @@ public final class BytesRefArrayBlock extends AbstractBlock implements BytesRefB
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "[positions=" + getPositionCount() + ']';
+        return getClass().getSimpleName()
+            + "[positions="
+            + getPositionCount()
+            + ", mvOrdering="
+            + mvOrdering()
+            + ", values="
+            + values.size()
+            + ']';
     }
 }

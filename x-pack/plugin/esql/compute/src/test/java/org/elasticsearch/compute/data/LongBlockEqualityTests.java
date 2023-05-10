@@ -31,8 +31,14 @@ public class LongBlockEqualityTests extends ESTestCase {
     public void testEmptyBlock() {
         // all these "empty" vectors should be equivalent
         List<LongBlock> blocks = List.of(
-            new LongArrayBlock(new long[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
-            new LongArrayBlock(new long[] { 0 }, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
+            new LongArrayBlock(new long[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 }), randomFrom(Block.MvOrdering.values())),
+            new LongArrayBlock(
+                new long[] { 0 },
+                0,
+                new int[] {},
+                BitSet.valueOf(new byte[] { 0b00 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             LongBlock.newConstantBlockWith(0, 0),
             LongBlock.newBlockBuilder(0).build(),
             LongBlock.newBlockBuilder(0).appendLong(1).build().filter(),
@@ -80,8 +86,20 @@ public class LongBlockEqualityTests extends ESTestCase {
         // all these blocks should be equivalent
         List<LongBlock> blocks = List.of(
             new LongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock(),
-            new LongArrayBlock(new long[] { 1, 2, 3 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new LongArrayBlock(new long[] { 1, 2, 3, 4 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b1000 })),
+            new LongArrayBlock(
+                new long[] { 1, 2, 3 },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new LongArrayBlock(
+                new long[] { 1, 2, 3, 4 },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b1000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new LongArrayVector(new long[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
             new LongArrayVector(new long[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
             new LongArrayVector(new long[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
@@ -96,8 +114,20 @@ public class LongBlockEqualityTests extends ESTestCase {
         // all these constant-like blocks should be equivalent
         List<LongBlock> moreBlocks = List.of(
             new LongArrayVector(new long[] { 9, 9 }, 2).asBlock(),
-            new LongArrayBlock(new long[] { 9, 9 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new LongArrayBlock(new long[] { 9, 9, 4 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b100 })),
+            new LongArrayBlock(
+                new long[] { 9, 9 },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new LongArrayBlock(
+                new long[] { 9, 9, 4 },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b100 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new LongArrayVector(new long[] { 9, 9 }, 2).filter(0, 1).asBlock(),
             new LongArrayVector(new long[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
             new LongArrayVector(new long[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),

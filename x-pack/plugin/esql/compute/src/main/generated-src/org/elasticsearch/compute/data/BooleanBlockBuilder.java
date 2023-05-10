@@ -113,6 +113,17 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
         }
     }
 
+    /**
+     * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
+     * and operators can use it to optimize themselves. This order isn't checked so don't
+     * set it to anything other than {@link Block.MvOrdering#UNORDERED} unless you are sure
+     * of the ordering.
+     */
+    public BooleanBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+        this.mvOrdering = mvOrdering;
+        return this;
+    }
+
     @Override
     public BooleanBlock build() {
         finish();
@@ -125,7 +136,7 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
             if (isDense() && singleValued()) {
                 return new BooleanArrayVector(values, positionCount).asBlock();
             } else {
-                return new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
+                return new BooleanArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
             }
         }
     }

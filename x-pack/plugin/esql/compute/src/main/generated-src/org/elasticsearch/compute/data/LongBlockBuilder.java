@@ -113,6 +113,17 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
         }
     }
 
+    /**
+     * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
+     * and operators can use it to optimize themselves. This order isn't checked so don't
+     * set it to anything other than {@link Block.MvOrdering#UNORDERED} unless you are sure
+     * of the ordering.
+     */
+    public LongBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+        this.mvOrdering = mvOrdering;
+        return this;
+    }
+
     @Override
     public LongBlock build() {
         finish();
@@ -125,7 +136,7 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
             if (isDense() && singleValued()) {
                 return new LongArrayVector(values, positionCount).asBlock();
             } else {
-                return new LongArrayBlock(values, positionCount, firstValueIndexes, nullsMask);
+                return new LongArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
             }
         }
     }

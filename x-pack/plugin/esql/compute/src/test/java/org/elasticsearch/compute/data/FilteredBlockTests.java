@@ -85,7 +85,7 @@ public class FilteredBlockTests extends ESTestCase {
         if (randomBoolean()) {
             var nulls = new BitSet();
             nulls.set(1);
-            block = new IntArrayBlock(new int[] { 10, 0, 30, 40 }, 4, null, nulls);
+            block = new IntArrayBlock(new int[] { 10, 0, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         } else {
             var blockBuilder = IntBlock.newBlockBuilder(4);
             blockBuilder.appendInt(10);
@@ -111,7 +111,7 @@ public class FilteredBlockTests extends ESTestCase {
         if (randomBoolean()) {
             var nulls = new BitSet();
             nulls.set(0, 4);
-            block = new IntArrayBlock(new int[] { 0, 0, 0, 0 }, 4, null, nulls);
+            block = new IntArrayBlock(new int[] { 0, 0, 0, 0 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         } else {
             var blockBuilder = IntBlock.newBlockBuilder(4);
             blockBuilder.appendNull();
@@ -159,7 +159,13 @@ public class FilteredBlockTests extends ESTestCase {
         BitSet nulls = BitSet.valueOf(new byte[] { 0x08 });  // any non-empty bitset, that does not affect the filter, should suffice
 
         var boolVector = new BooleanArrayVector(new boolean[] { true, false, false, true }, 4);
-        var boolBlock = new BooleanArrayBlock(new boolean[] { true, false, false, true }, 4, null, nulls);
+        var boolBlock = new BooleanArrayBlock(
+            new boolean[] { true, false, false, true },
+            4,
+            null,
+            nulls,
+            randomFrom(Block.MvOrdering.values())
+        );
         for (Object obj : List.of(boolVector.filter(0, 2), boolVector.asBlock().filter(0, 2), boolBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[true, false]"));
@@ -167,7 +173,7 @@ public class FilteredBlockTests extends ESTestCase {
         }
 
         var intVector = new IntArrayVector(new int[] { 10, 20, 30, 40 }, 4);
-        var intBlock = new IntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls);
+        var intBlock = new IntArrayBlock(new int[] { 10, 20, 30, 40 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         for (Object obj : List.of(intVector.filter(0, 2), intVector.asBlock().filter(0, 2), intBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[10, 30]"));
@@ -175,7 +181,7 @@ public class FilteredBlockTests extends ESTestCase {
         }
 
         var longVector = new LongArrayVector(new long[] { 100L, 200L, 300L, 400L }, 4);
-        var longBlock = new LongArrayBlock(new long[] { 100L, 200L, 300L, 400L }, 4, null, nulls);
+        var longBlock = new LongArrayBlock(new long[] { 100L, 200L, 300L, 400L }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         for (Object obj : List.of(longVector.filter(0, 2), longVector.asBlock().filter(0, 2), longBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[100, 300]"));
@@ -183,7 +189,7 @@ public class FilteredBlockTests extends ESTestCase {
         }
 
         var doubleVector = new DoubleArrayVector(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4);
-        var doubleBlock = new DoubleArrayBlock(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4, null, nulls);
+        var doubleBlock = new DoubleArrayBlock(new double[] { 1.1, 2.2, 3.3, 4.4 }, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
         for (Object obj : List.of(doubleVector.filter(0, 2), doubleVector.asBlock().filter(0, 2), doubleBlock.filter(0, 2))) {
             String s = obj.toString();
             assertThat(s, containsString("[1.1, 3.3]"));
@@ -193,7 +199,7 @@ public class FilteredBlockTests extends ESTestCase {
         assert new BytesRef("1a").toString().equals("[31 61]") && new BytesRef("3c").toString().equals("[33 63]");
         try (var bytesRefArray = arrayOf("1a", "2b", "3c", "4d")) {
             var bytesRefVector = new BytesRefArrayVector(bytesRefArray, 4);
-            var bytesRefBlock = new BytesRefArrayBlock(bytesRefArray, 4, null, nulls);
+            var bytesRefBlock = new BytesRefArrayBlock(bytesRefArray, 4, null, nulls, randomFrom(Block.MvOrdering.values()));
             for (Object obj : List.of(bytesRefVector.filter(0, 2), bytesRefVector.asBlock().filter(0, 2), bytesRefBlock.filter(0, 2))) {
                 String s = obj.toString();
                 assertThat(s, containsString("[[31 61], [33 63]]"));

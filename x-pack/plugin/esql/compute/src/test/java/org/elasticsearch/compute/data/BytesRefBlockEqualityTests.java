@@ -43,8 +43,20 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
         // all these "empty" vectors should be equivalent
         try (var bytesRefArray1 = new BytesRefArray(0, bigArrays); var bytesRefArray2 = new BytesRefArray(1, bigArrays)) {
             List<BytesRefBlock> blocks = List.of(
-                new BytesRefArrayBlock(bytesRefArray1, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
-                new BytesRefArrayBlock(bytesRefArray2, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
+                new BytesRefArrayBlock(
+                    bytesRefArray1,
+                    0,
+                    new int[] {},
+                    BitSet.valueOf(new byte[] { 0b00 }),
+                    randomFrom(Block.MvOrdering.values())
+                ),
+                new BytesRefArrayBlock(
+                    bytesRefArray2,
+                    0,
+                    new int[] {},
+                    BitSet.valueOf(new byte[] { 0b00 }),
+                    randomFrom(Block.MvOrdering.values())
+                ),
                 BytesRefBlock.newConstantBlockWith(new BytesRef(), 0),
                 BytesRefBlock.newBlockBuilder(0).build(),
                 BytesRefBlock.newBlockBuilder(0).appendBytesRef(new BytesRef()).build().filter(),
@@ -144,8 +156,20 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
         try (var bytesRefArray1 = arrayOf("1", "2", "3"); var bytesRefArray2 = arrayOf("1", "2", "3", "4")) {
             List<BytesRefBlock> blocks = List.of(
                 new BytesRefArrayVector(bytesRefArray1, 3).asBlock(),
-                new BytesRefArrayBlock(bytesRefArray1, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b000 })),
-                new BytesRefArrayBlock(bytesRefArray2, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b1000 })),
+                new BytesRefArrayBlock(
+                    bytesRefArray1,
+                    3,
+                    new int[] { 0, 1, 2, 3 },
+                    BitSet.valueOf(new byte[] { 0b000 }),
+                    randomFrom(Block.MvOrdering.values())
+                ),
+                new BytesRefArrayBlock(
+                    bytesRefArray2,
+                    3,
+                    new int[] { 0, 1, 2, 3 },
+                    BitSet.valueOf(new byte[] { 0b1000 }),
+                    randomFrom(Block.MvOrdering.values())
+                ),
                 new BytesRefArrayVector(bytesRefArray1, 3).filter(0, 1, 2).asBlock(),
                 new BytesRefArrayVector(bytesRefArray2, 3).filter(0, 1, 2).asBlock(),
                 new BytesRefArrayVector(bytesRefArray2, 4).filter(0, 1, 2).asBlock(),
@@ -182,8 +206,20 @@ public class BytesRefBlockEqualityTests extends ESTestCase {
         try (var bytesRefArray1 = arrayOf("9", "9"); var bytesRefArray2 = arrayOf("9", "9", "4")) {
             List<BytesRefBlock> moreBlocks = List.of(
                 new BytesRefArrayVector(bytesRefArray1, 2).asBlock(),
-                new BytesRefArrayBlock(bytesRefArray1, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b000 })),
-                new BytesRefArrayBlock(bytesRefArray2, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b100 })),
+                new BytesRefArrayBlock(
+                    bytesRefArray1,
+                    2,
+                    new int[] { 0, 1, 2 },
+                    BitSet.valueOf(new byte[] { 0b000 }),
+                    randomFrom(Block.MvOrdering.values())
+                ),
+                new BytesRefArrayBlock(
+                    bytesRefArray2,
+                    2,
+                    new int[] { 0, 1, 2 },
+                    BitSet.valueOf(new byte[] { 0b100 }),
+                    randomFrom(Block.MvOrdering.values())
+                ),
                 new BytesRefArrayVector(bytesRefArray1, 2).filter(0, 1).asBlock(),
                 new BytesRefArrayVector(bytesRefArray2, 2).filter(0, 1).asBlock(),
                 new BytesRefArrayVector(bytesRefArray2, 3).filter(0, 1).asBlock(),

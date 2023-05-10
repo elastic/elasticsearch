@@ -31,8 +31,20 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testEmptyBlock() {
         // all these "empty" vectors should be equivalent
         List<DoubleBlock> blocks = List.of(
-            new DoubleArrayBlock(new double[] {}, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
-            new DoubleArrayBlock(new double[] { 0 }, 0, new int[] {}, BitSet.valueOf(new byte[] { 0b00 })),
+            new DoubleArrayBlock(
+                new double[] {},
+                0,
+                new int[] {},
+                BitSet.valueOf(new byte[] { 0b00 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new DoubleArrayBlock(
+                new double[] { 0 },
+                0,
+                new int[] {},
+                BitSet.valueOf(new byte[] { 0b00 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             DoubleBlock.newConstantBlockWith(0, 0),
             DoubleBlock.newBlockBuilder(0).build(),
             DoubleBlock.newBlockBuilder(0).appendDouble(1).build().filter(),
@@ -108,8 +120,20 @@ public class DoubleBlockEqualityTests extends ESTestCase {
         // all these blocks should be equivalent
         List<DoubleBlock> blocks = List.of(
             new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
-            new DoubleArrayBlock(new double[] { 1, 2, 3 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new DoubleArrayBlock(new double[] { 1, 2, 3, 4 }, 3, new int[] { 0, 1, 2, 3 }, BitSet.valueOf(new byte[] { 0b1000 })),
+            new DoubleArrayBlock(
+                new double[] { 1, 2, 3 },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new DoubleArrayBlock(
+                new double[] { 1, 2, 3, 4 },
+                3,
+                new int[] { 0, 1, 2, 3 },
+                BitSet.valueOf(new byte[] { 0b1000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
             new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
             new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
@@ -124,8 +148,20 @@ public class DoubleBlockEqualityTests extends ESTestCase {
         // all these constant-like blocks should be equivalent
         List<DoubleBlock> moreBlocks = List.of(
             new DoubleArrayVector(new double[] { 9, 9 }, 2).asBlock(),
-            new DoubleArrayBlock(new double[] { 9, 9 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b000 })),
-            new DoubleArrayBlock(new double[] { 9, 9, 4 }, 2, new int[] { 0, 1, 2 }, BitSet.valueOf(new byte[] { 0b100 })),
+            new DoubleArrayBlock(
+                new double[] { 9, 9 },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b000 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
+            new DoubleArrayBlock(
+                new double[] { 9, 9, 4 },
+                2,
+                new int[] { 0, 1, 2 },
+                BitSet.valueOf(new byte[] { 0b100 }),
+                randomFrom(Block.MvOrdering.values())
+            ),
             new DoubleArrayVector(new double[] { 9, 9 }, 2).filter(0, 1).asBlock(),
             new DoubleArrayVector(new double[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
             new DoubleArrayVector(new double[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),

@@ -87,6 +87,21 @@ public interface Block extends NamedWriteable {
     Block filter(int... positions);
 
     /**
+     * How are multivalued fields ordered?
+     * <p>Note that there isn't a {@code DESCENDING} because we don't have
+     * anything that makes descending fields.</p>
+     */
+    enum MvOrdering {
+        ASCENDING,
+        UNORDERED;
+    }
+
+    /**
+     * How are multivalued fields ordered?
+     */
+    MvOrdering mvOrdering();
+
+    /**
      * {@return a constant null block with the given number of positions}.
      */
     static Block constantNullBlock(int positions) {

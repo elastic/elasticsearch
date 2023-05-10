@@ -868,7 +868,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
             aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
-            localShardIterators = getLocalShardsIterator(clusterState, searchRequest, indicesAndAliases, concreteLocalIndices);
+            localShardIterators = getLocalShardsIterator(
+                clusterState,
+                searchRequest,
+                searchRequest.getLocalClusterAlias(),
+                indicesAndAliases,
+                concreteLocalIndices
+            );
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -1043,6 +1049,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     shardIterators,
                     timeProvider,
                     task,
+                    true,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     ActionListener.wrap(iters -> {
                         SearchPhase action = newSearchPhase(
@@ -1334,6 +1341,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     List<SearchShardIterator> getLocalShardsIterator(
         ClusterState clusterState,
         SearchRequest searchRequest,
+        String clusterAlias,
         Set<String> indicesAndAliases,
         String[] concreteIndices
     ) {
@@ -1356,7 +1364,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return StreamSupport.stream(shardRoutings.spliterator(), false).map(it -> {
             OriginalIndices finalIndices = originalIndices.get(it.shardId().getIndex().getName());
             assert finalIndices != null;
-            return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
+            return new SearchShardIterator(clusterAlias, it.shardId(), it.getShardRoutings(), finalIndices);
         }).toList();
     }
 }

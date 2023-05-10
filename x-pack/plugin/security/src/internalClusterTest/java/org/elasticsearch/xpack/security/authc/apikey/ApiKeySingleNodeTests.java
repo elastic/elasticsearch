@@ -20,6 +20,7 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -30,12 +31,15 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -52,6 +56,8 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -73,6 +79,8 @@ import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -408,6 +416,69 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         // Invalidate it again won't change the timestamp
         client().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, true)).actionGet();
         assertThat((long) getApiKeyDocument(apiKeyId).get("invalidation_time"), equalTo(invalidationTime));
+    }
+
+    public void testCreateCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final var request = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """
+            {
+              "search": [ {"names": ["logs"]} ]
+            }""");
+
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        client().execute(CreateCrossClusterApiKeyAction.INSTANCE, request, future);
+        final CreateApiKeyResponse createApiKeyResponse = future.actionGet();
+
+        final String apiKeyId = createApiKeyResponse.getId();
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+
+        // cross cluster API key cannot be used for regular actions
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
+                .execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+                .actionGet()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
+        final Map<String, Object> document = client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
+            .actionGet()
+            .getSource();
+
+        assertThat(document.get("type"), equalTo("cross_cluster"));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> roleDescriptors = (Map<String, Object>) document.get("role_descriptors");
+        assertThat(roleDescriptors.keySet(), contains("cross_cluster"));
+        @SuppressWarnings("unchecked")
+        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parse(
+            "cross_cluster",
+            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
+            false,
+            XContentType.JSON
+        );
+
+        assertThat(
+            actualRoleDescriptor,
+            equalTo(
+                new RoleDescriptor(
+                    "cross_cluster",
+                    new String[] { "cross_cluster_search" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder()
+                            .indices("logs")
+                            .privileges("read", "read_cross_cluster", "view_index_metadata")
+                            .build() },
+                    null
+                )
+            )
+        );
+        assertThat((Map<?, ?>) document.get("limited_by_role_descriptors"), anEmptyMap());
     }
 
     private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {

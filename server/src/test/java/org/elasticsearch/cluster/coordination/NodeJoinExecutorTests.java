@@ -189,9 +189,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public static Settings.Builder randomCompatibleVersionSettings() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            builder.put(IndexMetadata.SETTING_VERSION_CREATED, getRandomCompatibleVersion());
+            Version createdVersion = getRandomCompatibleVersion();
+            builder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
             if (randomBoolean()) {
-                builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, getRandomCompatibleVersion());
+                builder.put(
+                    IndexMetadata.SETTING_VERSION_COMPATIBILITY,
+                    VersionUtils.randomVersionBetween(random(), createdVersion, Version.CURRENT)
+                );
             }
         } else {
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, randomFrom(Version.fromString("5.0.0"), Version.fromString("6.0.0")));
@@ -443,13 +447,12 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final var executor = new NodeJoinExecutor(allocationService, rerouteService);
 
         final var masterNode = TestDiscoveryNode.create(UUIDs.randomBase64UUID(random()));
-        final var otherNode = new DiscoveryNode(
+        final var otherNode = TestDiscoveryNode.create(
             UUIDs.randomBase64UUID(random()),
             UUIDs.randomBase64UUID(random()),
             buildNewFakeTransportAddress(),
             Map.of(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
         );
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)

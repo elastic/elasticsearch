@@ -76,9 +76,9 @@ public class TDigestSerializationTest {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static <T> T deserialize(byte[] objectData) throws IOException {
         try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(objectData))) {
-            //noinspection unchecked
             return (T) in.readObject();
         } catch (ClassCastException | ClassNotFoundException | IOException e) {
             throw new IOException(e);

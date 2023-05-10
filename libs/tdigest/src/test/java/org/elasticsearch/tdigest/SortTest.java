@@ -28,6 +28,8 @@ package org.elasticsearch.tdigest;
 import org.apache.lucene.search.Multiset;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 import static org.junit.Assert.assertEquals;
@@ -417,9 +419,9 @@ public class SortTest {
 
     private void checkOrder(int[] order, double[] values) {
         double previous = -Double.MAX_VALUE;
-        Multiset<Integer> counts = new Multiset<>();
+        Map<Integer, Integer> counts = new HashMap<Integer, Integer>();
         for (int i = 0; i < values.length; i++) {
-            counts.add(i);
+            counts.put(i, counts.getOrDefault(i, 0) + 1);
             double v = values[order[i]];
             if (v < previous) {
                 throw new IllegalArgumentException("Values out of order at %d");
@@ -428,9 +430,8 @@ public class SortTest {
         }
 
         assertEquals(order.length, counts.size());
-
-        for (Integer count : counts) {
-            assertEquals(1, counts.(count));
+        for (var entry : counts.entrySet()) {
+            assertEquals(1, entry.getValue().intValue());
         }
     }
 }

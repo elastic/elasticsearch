@@ -34,14 +34,7 @@ public final class EmptyTDigestState extends TDigestState {
     }
 
     @Override
-    public void add(double x, int w, List<Double> data) {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
-
-    @Override
-    public void compress() {
-        throw new UnsupportedOperationException("Immutable Empty TDigest");
-    }
+    public void compress() {}
 
     @Override
     public void add(double x) {

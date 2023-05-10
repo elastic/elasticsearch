@@ -8,34 +8,34 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 
-import java.io.IOException;
+public class DisruptibleHeartbeatStore implements HeartbeatStore {
 
-public abstract class DisruptibleHeartbeatStore implements HeartbeatStore {
+    private static final Logger logger = LogManager.getLogger(DisruptibleHeartbeatStore.class);
+
     private final HeartbeatStore delegate;
+    private final AbstractCoordinatorTestCase.DisruptibleRegisterConnection disruptibleRegisterConnection;
 
-    protected DisruptibleHeartbeatStore(HeartbeatStore delegate) {
+    public DisruptibleHeartbeatStore(
+        HeartbeatStore delegate,
+        AbstractCoordinatorTestCase.DisruptibleRegisterConnection disruptibleRegisterConnection
+    ) {
         this.delegate = delegate;
+        this.disruptibleRegisterConnection = disruptibleRegisterConnection;
     }
-
-    protected abstract boolean isDisrupted();
 
     @Override
     public final void writeHeartbeat(Heartbeat newHeartbeat, ActionListener<Void> listener) {
-        if (isDisrupted()) {
-            listener.onFailure(new IOException("simulating disrupted access to shared store"));
-        } else {
-            delegate.writeHeartbeat(newHeartbeat, listener);
-        }
+        disruptibleRegisterConnection.runDisrupted(listener, l -> delegate.writeHeartbeat(newHeartbeat, l));
     }
 
     @Override
     public final void readLatestHeartbeat(ActionListener<Heartbeat> listener) {
-        if (isDisrupted()) {
-            listener.onFailure(new IOException("simulating disrupted access to shared store"));
-        } else {
-            delegate.readLatestHeartbeat(listener);
-        }
+        // only used when triggering a new election, so can just drop requests if disrupted
+        disruptibleRegisterConnection.runDisruptedOrDrop(listener, delegate::readLatestHeartbeat);
     }
 }

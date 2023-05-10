@@ -181,7 +181,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     }
 
     public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        remoteNode = TestDiscoveryNode.create("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";
 

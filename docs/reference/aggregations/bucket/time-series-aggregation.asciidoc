@@ -1,0 +1,103 @@
+[[search-aggregations-bucket-time-series-aggregation]]
+=== Time series aggregation
+++++
+<titleabbrev>Time series</titleabbrev>
+++++
+
+preview::[]
+
+The time series aggregation queries data created using a time series index. This is typically data such as metrics
+or other data streams with a time component, and requires creating an index using the time series mode.
+
+//////////////////////////
+
+Creating a time series mapping
+
+To create an index with the time series mapping, specify "mode" as "time_series" in the index settings,
+"routing_path" specifying the a list of time series fields, and a start and end time for the series. Each of the
+"routing_path" fields must be keyword fields with "time_series_dimension" set to true. Additionally, add a
+date field used as the timestamp.
+
+[source,js]
+--------------------------------------------------
+PUT /my-time-series-index
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 3,
+      "number_of_replicas": 2,
+      "mode": "time_series",
+      "routing_path": ["key"],
+      "time_series": {
+        "start_time": "2022-01-01T00:00:00Z",
+        "end_time": "2023-01-01T00:00:00Z"
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+        "key": {
+            "type": "keyword",
+            "time_series_dimension": true
+        },
+        "@timestamp": {
+          "type": "date"
+        }
+    }
+  }
+}
+-------------------------------------------------
+// NOTCONSOLE
+
+//////////////////////////
+
+Data can be added to the time series index like other indices:
+
+[source,js]
+--------------------------------------------------
+PUT /my-time-series-index-0/_bulk
+{ "index": {} }
+{ "key": "a", "val": 1, "@timestamp": "2022-01-01T00:00:10Z" }
+{ "index": {}}
+{ "key": "a", "val": 2, "@timestamp": "2022-01-02T00:00:00Z" }
+{ "index": {} }
+{ "key": "b", "val": 2, "@timestamp": "2022-01-01T00:00:10Z" }
+{ "index": {}}
+{ "key": "b", "val": 3, "@timestamp": "2022-01-02T00:00:00Z" }
+--------------------------------------------------
+// NOTCONSOLE
+
+//////////////////////////
+
+To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed"
+is true, each bucket is given a unique key.
+
+[source,js,id=time-series-aggregation-example]
+--------------------------------------------------
+GET /_search
+{
+  "aggs": {
+    "ts": {
+      "time_series": { "keyed": false }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+//////////////////////////
+
+This will return all results in the time series, however a more typical query will use sub aggregations to reduce the
+date returned to something more relevant.
+
+[[search-aggregations-bucket-time-series-aggregation-size]]
+==== Size
+
+By default, `time series` aggregations return 10000 results. The "size" parameter can be used to limit the results
+further. Alternatively, using sub aggregations can limit the amount of values returned as a time series aggregation.
+
+[[search-aggregations-bucket-time-series-aggregation-keyed]]
+==== Keyed
+
+The `keyed` parameter determines if buckets are returned as a map with unique keys per bucket. By default with `keyed`
+set to false, buckets are returned as an array.

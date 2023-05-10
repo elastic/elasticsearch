@@ -28,6 +28,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomTranslogLocation;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -438,18 +440,6 @@ public class LiveVersionMapTests extends ESTestCase {
                     assertThat(versionMap.getUnderLock(uid), equalTo(latestVersion));
                 }
             }
-        }
-    }
-
-    IndexVersionValue randomIndexVersionValue() {
-        return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-    }
-
-    Translog.Location randomTranslogLocation() {
-        if (randomBoolean()) {
-            return null;
-        } else {
-            return new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
         }
     }
 }

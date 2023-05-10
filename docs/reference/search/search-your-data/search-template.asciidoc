@@ -1,14 +1,5 @@
 [[search-template]]
 
-/////
-[source,console]
---------------------------------------------------
-DELETE _scripts/my-search-template
---------------------------------------------------
-// TEST
-// TEARDOWN
-/////
-
 == Search templates
 
 A search template is a stored search you can run with different variables.
@@ -689,6 +680,7 @@ POST _render/template
   }
 }
 ----
+// TEST[continued]
 
 When rendered, the template outputs as:
 [source,console-result]
@@ -721,6 +713,7 @@ POST _render/template
   }
 }
 ----
+// TEST[continued]
 
 When rendered, template outputs as:
 
@@ -840,6 +833,8 @@ POST _render/template?pretty
   }
 }
 ----
+// TEST[continued]
+
 When rendered, template outputs:
 
 [source,console-result]
@@ -923,6 +918,7 @@ POST _render/template?pretty
   }
 }
 ----
+// TEST[continued]
 
 When rendered the template outputs:
 
@@ -1071,6 +1067,7 @@ POST _render/template
   }
 }
 ----
+// TEST[continued]
 
 When rendered, template outputs:
 

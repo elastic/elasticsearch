@@ -11,7 +11,6 @@ package org.elasticsearch.get;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction.Response;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -21,6 +20,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -40,36 +40,47 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        GetRequest getRequest1 = client().prepareGet(indexOrAlias(), "1").request();
-        Response getResponse1 = getFromTranslog(getRequest1);
-        assertNull(getResponse1.getResult());
-        assertThat(getResponse1.segmentGeneration(), greaterThan(0L));
+        var response = getFromTranslog(indexOrAlias(), "1");
+        assertNull(response.getResult());
+        // There hasn't been any switches from unsafe to safe map
+        assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
-
-        var getResponse2 = getFromTranslog(getRequest1);
-        assertNotNull(getResponse2.getResult());
-        assertThat(getResponse2.getResult().isExists(), equalTo(true));
-        assertThat(getResponse2.segmentGeneration(), equalTo(-1L));
+        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(RefreshPolicy.NONE).get();
+        response = getFromTranslog(indexOrAlias(), "1");
+        assertNotNull(response.getResult());
+        assertThat(response.getResult().isExists(), equalTo(true));
+        assertThat(response.segmentGeneration(), equalTo(-1L));
+        // Get followed by a delete should still return a result
+        client().prepareDelete("test", "1").get();
+        response = getFromTranslog(indexOrAlias(), "1");
+        assertNotNull(response.getResult());
+        assertThat(response.getResult().isExists(), equalTo(false));
+        assertThat(response.segmentGeneration(), equalTo(-1L));
 
         var indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
-        var getRequest2 = client().prepareGet(indexOrAlias(), indexResponse.getId()).request();
-        var getResponse3 = getFromTranslog(getRequest2);
-        assertNotNull(getResponse3.getResult());
-        assertThat(getResponse3.getResult().isExists(), equalTo(true));
-        assertThat(getResponse3.segmentGeneration(), equalTo(-1L));
-
+        response = getFromTranslog(indexOrAlias(), indexResponse.getId());
+        assertNotNull(response.getResult());
+        assertThat(response.getResult().isExists(), equalTo(true));
+        assertThat(response.segmentGeneration(), equalTo(-1L));
+        // After a refresh we should not be able to get from translog
         client().admin().indices().refresh(new RefreshRequest("test")).get();
-
-        var getResponse4 = getFromTranslog(getRequest1);
-        assertNull(getResponse4.getResult());
-        assertThat(getResponse4.segmentGeneration(), greaterThan(0L));
-        var getResponse5 = getFromTranslog(getRequest2);
-        assertNull(getResponse5.getResult());
-        assertThat(getResponse5.segmentGeneration(), greaterThan(0L));
+        response = getFromTranslog(indexOrAlias(), indexResponse.getId());
+        assertNull(response.getResult());
+        assertThat(response.segmentGeneration(), equalTo(-1L));
+        // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
+        // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
+        client().prepareIndex("test").setSource("field1", "value3").get();
+        client().admin().indices().refresh(new RefreshRequest("test")).get();
+        client().admin().indices().refresh(new RefreshRequest("test")).get();
+        // An optimized index operation marks the maps as unsafe
+        client().prepareIndex("test").setSource("field1", "value4").get();
+        response = getFromTranslog(indexOrAlias(), "non-existent");
+        assertNull(response.getResult());
+        assertThat(response.segmentGeneration(), greaterThan(0L));
     }
 
-    private Response getFromTranslog(GetRequest getRequest) throws Exception {
+    private Response getFromTranslog(String index, String id) throws Exception {
+        var getRequest = client().prepareGet(index, id).request();
         var shardRouting = randomFrom(clusterService().state().routingTable().allShards("test"));
         var node = clusterService().state().nodes().get(shardRouting.currentNodeId());
         assertNotNull(node);

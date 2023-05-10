@@ -21,8 +21,8 @@ setup:
   - do:
       indices.stats: { level: shards }
 
-  - is_false: indices.test.shards.0.0.search.is_search_idle
-  - gte: { indices.test.shards.0.0.search.search_idle_time: 0 }
+  - is_false: indices.test.shards.0.0.is_search_idle
+  - gte: { indices.test.shards.0.0.search_idle_time: 0 }
 
-  - is_false: indices.test.shards.1.0.search.is_search_idle
-  - gte: { indices.test.shards.1.0.search.search_idle_time: 0 }
+  - is_false: indices.test.shards.1.0.is_search_idle
+  - gte: { indices.test.shards.1.0.search_idle_time: 0 }

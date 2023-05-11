@@ -470,7 +470,6 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
      * @return a {@link Engine.IndexCommitListener}
      */
     protected Engine.IndexCommitListener createIndexCommitListener() {
-        final ObjectStoreService service = getObjectStoreService();
         final StatelessCommitService statelessCommitService = commitService.get();
         return new Engine.IndexCommitListener() {
             @Override
@@ -481,33 +480,20 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
                 Engine.IndexCommitRef indexCommitRef,
                 Set<String> additionalFiles
             ) {
-                store.incRef();
-                final IndexCommit indexCommit = indexCommitRef.getIndexCommit();
-                final Collection<String> commitFiles;
-                try {
-                    commitFiles = indexCommit.getFileNames();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } finally {
-                    store.decRef();
-                }
-
                 statelessCommitService.onCommitCreation(
-                    new StatelessCommitRef(shardId, indexCommitRef, commitFiles, additionalFiles, primaryTerm)
+                    new StatelessCommitRef(
+                        shardId,
+                        indexCommitRef,
+                        getIndexCommitFileNames(indexCommitRef.getIndexCommit()),
+                        additionalFiles,
+                        primaryTerm
+                    )
                 );
             }
 
             @Override
             public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {
-                final Collection<String> commitFileNames;
-                try {
-                    commitFileNames = deletedCommit.getFileNames();
-                } catch (IOException e) {
-                    // TODO: Exception handling? Although this should never happen. As far as I can tell, none of the Lucene implementations
-                    // throw this.
-                    throw new UncheckedIOException(e);
-                }
-                statelessCommitService.markCommitDeleted(shardId, commitFileNames);
+                statelessCommitService.markCommitDeleted(shardId, getIndexCommitFileNames(deletedCommit));
             }
         };
     }
@@ -600,6 +586,15 @@ public class Stateless extends Plugin implements EnginePlugin, ActionPlugin, Clu
             throw new IllegalArgumentException(
                 NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
             );
+        }
+    }
+
+    private static Collection<String> getIndexCommitFileNames(IndexCommit commit) {
+        try {
+            return commit.getFileNames();
+        } catch (IOException e) {
+            assert false : e; // should never happen, none of the Lucene implementations throw this.
+            throw new UncheckedIOException(e);
         }
     }
 }

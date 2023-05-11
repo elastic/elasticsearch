@@ -646,12 +646,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     connection = remoteClusterService.getConnection(clusterAlias);
                 } catch (NoSuchRemoteClusterException ex) {
                     // attempt to reconnect but don't wait
-                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
+                    if (skipUnavailable) {
+                        remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
+                    }
                     throw ex;
                 }
                 final String[] indices = entry.getValue().indices();
                 // TODO: support point-in-time
-                if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+                if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
                     SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                         indices,
                         indicesOptions,

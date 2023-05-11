@@ -23,6 +23,8 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollection;
+import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionResolver;
 import org.elasticsearch.xpack.application.search.action.ListSearchApplicationAction;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -33,6 +35,8 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.application.EnterpriseSearchFeatureSetUsage;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
@@ -79,34 +83,54 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
             EnterpriseSearchFeatureSetUsage usage = new EnterpriseSearchFeatureSetUsage(
                 LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
                 enabled,
+                Collections.emptyMap(),
                 Collections.emptyMap()
             );
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
         }
 
-        try {
-            ListSearchApplicationAction.Response resp = clientWithOrigin.execute(
-                ListSearchApplicationAction.INSTANCE,
-                new ListSearchApplicationAction.Request(null, new PageParams(0, 0))
-            ).get();
-            listener.onResponse(
-                new XPackUsageFeatureResponse(
-                    new EnterpriseSearchFeatureSetUsage(
-                        enabled,
-                        LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                        Map.of("count", resp.queryPage().count())
-                    )
+        Map<String, Object> searchApplicationsUsage = new HashMap<>();
+        Map<String, Object> analyticsCollectionsUsage = new HashMap<>();
+
+        addAnalyticsCollectionsUsage(state, analyticsCollectionsUsage);
+
+        ActionListener<ListSearchApplicationAction.Response> searchApplicationsCountListener = ActionListener.wrap(response -> {
+            addSearchApplicationsUsage(response, searchApplicationsUsage);
+            listener.onResponse(new XPackUsageFeatureResponse(
+                new EnterpriseSearchFeatureSetUsage(
+                    LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                    enabled,
+                    searchApplicationsUsage,
+                    analyticsCollectionsUsage
                 )
-            );
-        } catch (Exception e) {
-            logger.warn("Failed to get search application count to include in Enterprise Search usage", e);
-            EnterpriseSearchFeatureSetUsage usage = new EnterpriseSearchFeatureSetUsage(
-                LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
-                enabled,
-                Collections.emptyMap()
-            );
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+            ));
+        }, e -> {
+            listener.onResponse(new XPackUsageFeatureResponse(
+                new EnterpriseSearchFeatureSetUsage(
+                    LicenseUtils.LICENSED_ENT_SEARCH_FEATURE.checkWithoutTracking(licenseState),
+                    enabled,
+                    Collections.emptyMap(),
+                    analyticsCollectionsUsage
+                )
+            ));
+        });
+
+        ListSearchApplicationAction.Request searchApplicationsCountRequest =
+            new ListSearchApplicationAction.Request("*", new PageParams(0, 0));
+
+        clientWithOrigin.execute(ListSearchApplicationAction.INSTANCE, searchApplicationsCountRequest, searchApplicationsCountListener);
+    }
+
+    private void addSearchApplicationsUsage(ListSearchApplicationAction.Response response, Map<String, Object> searchApplicationsUsage) {
+        searchApplicationsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, response.queryPage().count());
+    }
+
+    private void addAnalyticsCollectionsUsage(ClusterState clusterState, Map<String, Object> analyticsCollectionsUsage) {
+        AnalyticsCollectionResolver analyticsCollectionResolver =
+            new AnalyticsCollectionResolver(indexNameExpressionResolver, clusterService);
+        List<AnalyticsCollection> analyticsCollections = analyticsCollectionResolver.collections(clusterState, "*");
+
+        analyticsCollectionsUsage.put(EnterpriseSearchFeatureSetUsage.COUNT, analyticsCollections.size());
     }
 }

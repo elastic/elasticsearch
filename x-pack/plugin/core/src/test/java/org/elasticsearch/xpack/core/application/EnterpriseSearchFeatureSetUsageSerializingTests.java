@@ -25,7 +25,7 @@ public class EnterpriseSearchFeatureSetUsageSerializingTests extends AbstractWir
 
     @Override
     protected EnterpriseSearchFeatureSetUsage mutateInstance(EnterpriseSearchFeatureSetUsage instance) throws IOException {
-        long searchApplicationsCount = (long) instance.getSearchApplicationsStats().get("count");
+        long searchApplicationsCount = (long) instance.getSearchApplicationsUsage().get("count");
         searchApplicationsCount = randomValueOtherThan(searchApplicationsCount, () -> randomLongBetween(0, 100000));
 
         Map<String, Object> searchApplicationsStats = new HashMap<>();

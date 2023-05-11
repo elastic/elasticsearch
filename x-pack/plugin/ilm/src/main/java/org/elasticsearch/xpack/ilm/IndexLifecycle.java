@@ -274,7 +274,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
         ilmHealthIndicatorService.set(
-            new IlmHealthIndicatorService(clusterService, expressionResolver, System::currentTimeMillis)
+            new IlmHealthIndicatorService(
+                clusterService,
+                new IlmHealthIndicatorService.StuckIndicesFinder(expressionResolver, clusterService, System::currentTimeMillis)
+            )
         );
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
         reservedLifecycleAction.set(new ReservedLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));

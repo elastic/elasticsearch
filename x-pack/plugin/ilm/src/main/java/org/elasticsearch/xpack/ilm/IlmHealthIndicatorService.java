@@ -143,17 +143,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         );
 
     private final ClusterService clusterService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LongSupplier nowSupplier;
+    private final StuckIndicesFinder stuckIndicesFinder;
 
-    public IlmHealthIndicatorService(
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        LongSupplier nowSupplier
-    ) {
+    public IlmHealthIndicatorService(ClusterService clusterService, StuckIndicesFinder stuckIndicesFinder) {
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.nowSupplier = nowSupplier;
+        this.stuckIndicesFinder = stuckIndicesFinder;
     }
 
     @Override
@@ -197,7 +191,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         OperationMode currentMode,
         int maxAffectedResourcesCount
     ) {
-        var stuckIndices = findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
+        var stuckIndices = stuckIndicesFinder.getIndices();
 
         if (stuckIndices.isEmpty()) {
             return createIndicator(
@@ -218,7 +212,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         );
     }
 
-    private List<Diagnosis> createDiagnoses(List<CurrentState> stuckIndices, int maxAffectedResourcesCount) {
+    private List<Diagnosis> createDiagnoses(List<IndexIlmState> stuckIndices, int maxAffectedResourcesCount) {
         return stuckIndices.stream()
             .collect(groupingBy(cs -> Tuple.tuple(cs.action, cs.policyName)))
             .entrySet()
@@ -237,36 +231,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             .toList();
     }
 
-    private Stream<CurrentState> findIndicesManagedByIlm() {
-        var concreteIndices = indexNameExpressionResolver.concreteIndices(
-            clusterService.state(),
-            IndicesOptions.STRICT_EXPAND_OPEN,
-            true,
-            "*"
-        );
-        var metadata = clusterService.state().metadata();
-
-        return Arrays.stream(concreteIndices).map(metadata::index).filter(metadata::isIndexManagedByILM).map(indexMetadata -> {
-            var ilmExecutionState = indexMetadata.getLifecycleExecutionState();
-            var now = nowSupplier.getAsLong();
-            return new CurrentState(
-                indexMetadata.getIndex().getName(),
-                indexMetadata.getLifecyclePolicyName(),
-                ilmExecutionState.phase(),
-                ilmExecutionState.action(),
-                ilmExecutionState.actionTime() != null ? TimeValue.timeValueMillis(now - ilmExecutionState.actionTime()) : TimeValue.ZERO,
-                ilmExecutionState.step(),
-                ilmExecutionState.stepTime() != null ? TimeValue.timeValueMillis(now - ilmExecutionState.stepTime()) : TimeValue.ZERO,
-                ilmExecutionState.failedStepRetryCount()
-            );
-        });
-    }
-
     private static HealthIndicatorDetails createDetails(
         boolean verbose,
         IndexLifecycleMetadata metadata,
         OperationMode mode,
-        List<CurrentState> stuckIndices
+        List<IndexIlmState> stuckIndices
     ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
@@ -278,7 +247,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         details.put("policies", metadata.getPolicies().size());
         details.put("stuck_indices", stuckIndices.size());
 
-        var indicesStuckPerAction = stuckIndices.stream().collect(groupingBy(CurrentState::action, counting()));
+        var indicesStuckPerAction = stuckIndices.stream().collect(groupingBy(IndexIlmState::action, counting()));
 
         if (indicesStuckPerAction.isEmpty() == false) {
             RULES_BY_ACTION_CONFIG.forEach((action, value) -> indicesStuckPerAction.putIfAbsent(action, 0L));
@@ -288,9 +257,57 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         return new SimpleHealthIndicatorDetails(details);
     }
 
+    static class StuckIndicesFinder {
+
+        private final IndexNameExpressionResolver indexNameExpressionResolver;
+        private final ClusterService clusterService;
+        private final LongSupplier nowSupplier;
+
+        StuckIndicesFinder(
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            ClusterService clusterService,
+            LongSupplier nowSupplier
+        ) {
+            this.indexNameExpressionResolver = indexNameExpressionResolver;
+            this.clusterService = clusterService;
+            this.nowSupplier = nowSupplier;
+        }
+
+        public List<IndexIlmState> getIndices() {
+            return findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
+        }
+
+        private Stream<IndexIlmState> findIndicesManagedByIlm() {
+            var concreteIndices = indexNameExpressionResolver.concreteIndices(
+                clusterService.state(),
+                IndicesOptions.STRICT_EXPAND_OPEN,
+                true,
+                "*"
+            );
+            var metadata = clusterService.state().metadata();
+
+            return Arrays.stream(concreteIndices).map(metadata::index).filter(metadata::isIndexManagedByILM).map(indexMetadata -> {
+                var ilmExecutionState = indexMetadata.getLifecycleExecutionState();
+                var now = nowSupplier.getAsLong();
+                return new IndexIlmState(
+                    indexMetadata.getIndex().getName(),
+                    indexMetadata.getLifecyclePolicyName(),
+                    ilmExecutionState.phase(),
+                    ilmExecutionState.action(),
+                    ilmExecutionState.actionTime() != null
+                        ? TimeValue.timeValueMillis(now - ilmExecutionState.actionTime())
+                        : TimeValue.ZERO,
+                    ilmExecutionState.step(),
+                    ilmExecutionState.stepTime() != null ? TimeValue.timeValueMillis(now - ilmExecutionState.stepTime()) : TimeValue.ZERO,
+                    ilmExecutionState.failedStepRetryCount()
+                );
+            });
+        }
+    }
+
     static class IlmRuleEvaluator {
 
-        private static Predicate<CurrentState> actionAndMaxTimeOn(String action) {
+        private static Predicate<IndexIlmState> actionAndMaxTimeOn(String action) {
             assert RULES_BY_ACTION_CONFIG.get(action) != null;
             return cs -> action.equals(cs.action) && RULES_BY_ACTION_CONFIG.get(action).maxTimeOn.compareTo(cs.timeOnAction) < 0;
         }
@@ -307,20 +324,20 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 actionAndMaxTimeOn(DownsampleAction.NAME)
             )
         );
-        private final List<Predicate<CurrentState>> rules;
+        private final List<Predicate<IndexIlmState>> rules;
 
-        IlmRuleEvaluator(List<Predicate<CurrentState>> rules) {
+        IlmRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
             this.rules = rules;
         }
 
-        public boolean isStuck(CurrentState currentState) {
-            return rules.stream().anyMatch(r -> r.test(currentState));
+        public boolean isStuck(IndexIlmState indexIlmState) {
+            return rules.stream().anyMatch(r -> r.test(indexIlmState));
         }
     }
 
     private record RuleConfig(TimeValue maxTimeOn, long maxRetries) {}
 
-    private record CurrentState(
+    record IndexIlmState(
         String indexName,
         String policyName,
         String phase,

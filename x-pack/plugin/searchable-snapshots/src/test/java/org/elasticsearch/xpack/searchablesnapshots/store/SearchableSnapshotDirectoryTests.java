@@ -662,7 +662,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, f);
+                    final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, store::isClosing, f);
                     try {
                         f.get();
                     } catch (ExecutionException e) {
@@ -767,7 +767,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
-                final boolean loaded = directory.loadSnapshot(recoveryState, f);
+                final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, f);
                 f.get();
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", directory.snapshot(), sameInstance(snapshot));

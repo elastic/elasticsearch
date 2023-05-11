@@ -6,7 +6,7 @@ preview::[]
 https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf[Reciprocal rank fusion (RRF)]
 is a method for combining multiple result sets with different relevance
 indicators into a single result set. RRF requires no tuning, and the different
-relevance indicators do not have to related to each other to achieve high-quality
+relevance indicators do not have to be related to each other to achieve high-quality
 results.
 
 RRF uses the following formula to determine the score for ranking each document:
@@ -81,10 +81,10 @@ GET example-index/_search
 ----
 // TEST[skip:example fragment]
 
-In the above example, we first execute the knn search to get its global top 50 results.
+In the above example, we first execute the kNN search to get its global top 50 results.
 Then we execute the query to get its global top 50 results. Afterwards, on a coordinating
-node, we combine the the knn search results with the query results and rank them based on the
-rrf method to get the final top 10 results.
+node, we combine the knn search results with the query results and rank them based on the
+RRF method to get the final top 10 results.
 
 Note that if `k` from a knn search is larger than `window_size`, the results are
 truncated to `window_size`. If `k` is smaller than `window_size`, the results are
@@ -95,20 +95,23 @@ truncated to `window_size`. If `k` is smaller than `window_size`, the results ar
 
 RRF does support:
 
-* from
-* aggregations
+* <<search-from-param, from>>
+* <<search-aggregations, aggregations>>
 
 RRF does not currently support:
 
-* scrolling
-* point in time queries
-* sorting
-* rescoring
-* suggestions
-* highlighting
-* collapsable fields
-* explain
-* profile
+* <<search-api-scroll-query-param, scroll>>
+* <<search-api-pit, point in time>>
+* <<search-sort-param, sort>>
+* <<rescore, rescore>>
+* <<search-suggesters, suggesters>>
+* <<highlighting, highlighting>>
+* <<collapse-search-results, collapse>>
+* <<request-body-search-explain, explain>>
+* <<profiling-queries, profiling>>
+
+Using unsupported features as part of a search using RRF will result
+in an exception.
 
 [[rrf-full-example]]
 ==== Reciprocal rank fusion full example
@@ -213,9 +216,9 @@ GET example-index/_search
 ----
 // TEST[continued]
 
-And we receive the response with ranked `hits` and the
-terms aggregation result. Note that `_score` is replaced by
-`_rank`.
+And we receive the response with ranked `hits` and the terms
+aggregation result. Note that `_score` is `null`, and we instead
+use `_rank` to show our top-ranked documents.
 
 [source,console-response]
 ----
@@ -421,3 +424,4 @@ truncating the bottom `2` docs in our RRF result set with a `size` of `3`.
 We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and
 `_id: 4` as `_rank: 3`. This ranking matches the result set from the
 original RRF search as expected.
+

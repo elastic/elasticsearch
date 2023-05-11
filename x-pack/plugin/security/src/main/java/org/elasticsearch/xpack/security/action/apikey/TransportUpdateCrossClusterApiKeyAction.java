@@ -14,26 +14,27 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.util.List;
 import java.util.Set;
 
-public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<
-    BulkUpdateApiKeyRequest,
-    BulkUpdateApiKeyResponse> {
+public final class TransportUpdateCrossClusterApiKeyAction extends TransportBaseUpdateApiKeyAction<
+    UpdateCrossClusterApiKeyRequest,
+    UpdateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
-    private final ApiKeyUserRoleDescriptorResolver resolver;
 
     @Inject
-    public TransportBulkUpdateApiKeyAction(
+    public TransportUpdateCrossClusterApiKeyAction(
         final TransportService transportService,
         final ActionFilters actionFilters,
         final ApiKeyService apiKeyService,
@@ -42,31 +43,40 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final NamedXContentRegistry xContentRegistry
     ) {
         super(
-            BulkUpdateApiKeyAction.NAME,
+            UpdateCrossClusterApiKeyAction.NAME,
             transportService,
             actionFilters,
-            BulkUpdateApiKeyRequest::new,
+            UpdateCrossClusterApiKeyRequest::new,
             context,
             rolesStore,
             xContentRegistry
         );
         this.apiKeyService = apiKeyService;
-        this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }
 
     @Override
     void resolveUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
-        resolver.resolveUserRoleDescriptors(authentication, listener);
+        listener.onResponse(Set.of());
     }
 
     @Override
     void doExecuteUpdate(
         final Task task,
-        final BulkUpdateApiKeyRequest request,
+        final UpdateCrossClusterApiKeyRequest request,
         final Authentication authentication,
         final Set<RoleDescriptor> roleDescriptors,
-        final ActionListener<BulkUpdateApiKeyResponse> listener
+        final ActionListener<UpdateApiKeyResponse> listener
     ) {
-        apiKeyService.updateApiKeys(authentication, request, roleDescriptors, listener);
+        apiKeyService.updateApiKeys(
+            authentication,
+            new BaseBulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata()) {
+                @Override
+                public ApiKey.Type getType() {
+                    return ApiKey.Type.CROSS_CLUSTER;
+                }
+            },
+            Set.of(),
+            ActionListener.wrap(bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)), listener::onFailure)
+        );
     }
 }

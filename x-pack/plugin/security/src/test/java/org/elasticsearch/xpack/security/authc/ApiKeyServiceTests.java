@@ -1833,12 +1833,28 @@ public class ApiKeyServiceTests extends ESTestCase {
             new Authentication.RealmRef("realm1", "realm_type1", "node")
         );
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithNullName));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> apiKeyService.validateForUpdate(apiKeyId, apiKeyDocWithNullName.type, auth, apiKeyDocWithNullName)
+        );
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
-        ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> apiKeyService.validateForUpdate(apiKeyId, apiKeyDocWithEmptyName.type, auth, apiKeyDocWithEmptyName)
+        );
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
+
+        final ApiKeyDoc apiKeyDoc = buildApiKeyDoc(hash, -1, false, randomAlphaOfLengthBetween(3, 8), Version.CURRENT.id);
+        final ApiKey.Type expectedType = randomValueOtherThan(apiKeyDoc.type, () -> randomFrom(ApiKey.Type.values()));
+        ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, expectedType, auth, apiKeyDoc));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "cannot update API key of type [" + apiKeyDoc.type.value() + "] while expected type is [" + expectedType.value() + "]"
+            )
+        );
     }
 
     public void testMaybeBuildUpdatedDocument() throws IOException {

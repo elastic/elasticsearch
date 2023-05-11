@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -70,6 +71,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -577,7 +579,7 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComposableIndexTemplate template
     ) throws Exception {
-        return addIndexTemplateV2(currentState, create, name, template, null);
+        return addIndexTemplateV2(currentState, create, name, template, (ignored) -> {});
     }
 
     public ClusterState addIndexTemplateV2(
@@ -585,7 +587,7 @@ public class MetadataIndexTemplateService {
         final boolean create,
         final String name,
         final ComposableIndexTemplate template,
-        final Function<HasPrivilegesCheck.PrivilegesToCheck, Exception> privilegeCheck
+        final Consumer<HasPrivilegesCheck.PrivilegesToCheck> privilegeCheck
     ) throws Exception {
         return addIndexTemplateV2(currentState, create, name, template, true, privilegeCheck);
     }
@@ -597,7 +599,7 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps
     ) throws Exception {
-        return addIndexTemplateV2(currentState, create, name, template, validateV2Overlaps, null);
+        return addIndexTemplateV2(currentState, create, name, template, validateV2Overlaps, (ignored) -> {});
     }
 
     public ClusterState addIndexTemplateV2(
@@ -606,17 +608,19 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps,
-        final Function<HasPrivilegesCheck.PrivilegesToCheck, Exception> privilegeCheck
+        final Consumer<HasPrivilegesCheck.PrivilegesToCheck> privilegeCheck
     ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
-        if (privilegeCheck != null) {
-            var ex = privilegeCheck.apply(
-                new HasPrivilegesCheck.PrivilegesToCheck(new HasPrivilegesCheck.IndexPrivileges(template.indexPatterns(), "manage"))
-            );
-            if (ex != null) {
-                throw ex;
-            }
-        }
+        privilegeCheck.accept(
+            new HasPrivilegesCheck.PrivilegesToCheck(
+                new HasPrivilegesCheck.IndexPrivileges(
+                    existing == null
+                        ? template.indexPatterns()
+                        : CollectionUtils.concatLists(template.indexPatterns(), existing.indexPatterns()),
+                    "manage" // Just an example; in the final implementation this will be `manage_index_templates`
+                )
+            )
+        );
 
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");

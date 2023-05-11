@@ -97,7 +97,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -521,11 +523,20 @@ public class RBACEngine implements AuthorizationEngine {
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
         ActionListener<PrivilegesCheckResult> originalListener
     ) {
+        try {
+            originalListener.onResponse(checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivileges));
+        } catch (Exception e) {
+            originalListener.onFailure(e);
+        }
+    }
+
+    private PrivilegesCheckResult checkPrivileges(
+        AuthorizationInfo authorizationInfo,
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges
+    ) throws ExecutionException {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-            originalListener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
-            );
-            return;
+            throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
@@ -536,10 +547,9 @@ public class RBACEngine implements AuthorizationEngine {
             )
         );
 
-        final ActionListener<PrivilegesCheckResult> listener;
         if (userRole instanceof SimpleRole simpleRole) {
-            final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
-            if (result != null) {
+            final PrivilegesCheckResult cachedResult = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
+            if (cachedResult != null) {
                 logger.debug(
                     () -> format(
                         "role [%s] has privileges check result in cache for check: [%s]",
@@ -547,24 +557,29 @@ public class RBACEngine implements AuthorizationEngine {
                         privilegesToCheck
                     )
                 );
-                originalListener.onResponse(result);
-                return;
+                return cachedResult;
             }
-            listener = originalListener.delegateFailure((delegateListener, privilegesCheckResult) -> {
-                try {
-                    simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
-                } catch (Exception e) {
-                    logger.error("Failed to cache check result for [{}]", privilegesToCheck);
-                    delegateListener.onFailure(e);
-                    return;
-                }
-                delegateListener.onResponse(privilegesCheckResult);
-            });
+
+            final PrivilegesCheckResult result = checkPrivileges(simpleRole, privilegesToCheck, applicationPrivileges);
+
+            try {
+                simpleRole.cacheHasPrivileges(settings, privilegesToCheck, result);
+                return result;
+            } catch (Exception e) {
+                logger.error("Failed to cache check result for [{}]", privilegesToCheck);
+                throw e;
+            }
         } else {
             // caching of check result unsupported
-            listener = originalListener;
+            return checkPrivileges(userRole, privilegesToCheck, applicationPrivileges);
         }
+    }
 
+    private PrivilegesCheckResult checkPrivileges(
+        Role userRole,
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges
+    ) {
         boolean allMatch = true;
 
         final Map<String, Boolean> clusterPrivilegesCheckResults = new HashMap<>();
@@ -574,8 +589,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (privilegesToCheck.runDetailedCheck()) {
                 clusterPrivilegesCheckResults.put(checkAction, privilegeGranted);
             } else if (false == allMatch) {
-                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
-                return;
+                return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
             }
         }
 
@@ -592,8 +606,7 @@ public class RBACEngine implements AuthorizationEngine {
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
                 assert combineIndicesResourcePrivileges == null;
-                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
-                return;
+                return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
             }
         }
 
@@ -618,8 +631,7 @@ public class RBACEngine implements AuthorizationEngine {
                     );
                     allMatch = allMatch && privilegesGranted;
                     if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
-                        listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
-                        return;
+                        return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
                     }
                 }
             }
@@ -633,47 +645,33 @@ public class RBACEngine implements AuthorizationEngine {
 
         if (privilegesToCheck.runDetailedCheck()) {
             assert combineIndicesResourcePrivileges != null;
-            listener.onResponse(
-                new PrivilegesCheckResult(
-                    allMatch,
-                    new PrivilegesCheckResult.Details(
-                        clusterPrivilegesCheckResults,
-                        combineIndicesResourcePrivileges.build().getResourceToResourcePrivileges(),
-                        privilegesByApplication
-                    )
+            return new PrivilegesCheckResult(
+                allMatch,
+                new PrivilegesCheckResult.Details(
+                    clusterPrivilegesCheckResults,
+                    combineIndicesResourcePrivileges.build().getResourceToResourcePrivileges(),
+                    privilegesByApplication
                 )
             );
         } else {
             assert allMatch;
-            listener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
+            return PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
         }
     }
 
     @Override
-    public void getCheckPrivilegesPredicate(AuthorizationInfo authorizationInfo, ActionListener<Predicate<PrivilegesToCheck>> listener) {
+    public void getPrivilegesCheck(
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Function<PrivilegesToCheck, PrivilegesCheckResult>> listener
+    ) {
         listener.onResponse(privilegesToCheck -> {
-            if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-                listener.onFailure(
-                    new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
-                );
-                return false;
+            try {
+                assert privilegesToCheck.application().length == 0;
+                return checkPrivileges(authorizationInfo, privilegesToCheck, Collections.emptySet());
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
             }
-            final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            final ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = privilegesToCheck.runDetailedCheck()
-                ? ResourcePrivilegesMap.builder()
-                : null;
-            for (RoleDescriptor.IndicesPrivileges check : privilegesToCheck.index()) {
-                boolean privilegesGranted = userRole.checkIndicesPrivileges(
-                    Sets.newHashSet(check.getIndices()),
-                    check.allowRestrictedIndices(),
-                    Sets.newHashSet(check.getPrivileges()),
-                    combineIndicesResourcePrivileges
-                );
-                if (privilegesGranted == false) {
-                    return false;
-                }
-            }
-            return true;
         });
     }
 

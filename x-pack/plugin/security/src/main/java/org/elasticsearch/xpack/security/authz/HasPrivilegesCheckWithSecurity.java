@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 public class HasPrivilegesCheckWithSecurity implements HasPrivilegesCheck {
     private final AuthorizationService authorizationService;
@@ -29,13 +29,13 @@ public class HasPrivilegesCheckWithSecurity implements HasPrivilegesCheck {
     }
 
     @Override
-    public void getPrivilegesCheck(ActionListener<Function<PrivilegesToCheck, Exception>> listener) {
+    public void getPrivilegesCheck(ActionListener<Consumer<PrivilegesToCheck>> listener) {
         Objects.requireNonNull(securityContext.getAuthentication());
-        authorizationService.getCheckPrivilegesPredicate(
+        authorizationService.getPrivilegesCheck(
             securityContext.getAuthentication().getEffectiveSubject(),
-            ActionListener.wrap(privilegesToCheckPredicate -> {
+            ActionListener.wrap(privilegesCheck -> {
                 listener.onResponse(privilegesToCheck -> {
-                    RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = privilegesToCheck.indexPrivileges()
+                    final RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = privilegesToCheck.indexPrivileges()
                         .stream()
                         .map(
                             it -> RoleDescriptor.IndicesPrivileges.builder()
@@ -44,18 +44,17 @@ public class HasPrivilegesCheckWithSecurity implements HasPrivilegesCheck {
                                 .build()
                         )
                         .toArray(RoleDescriptor.IndicesPrivileges[]::new);
-                    String[] clusterPrivilegesToCheck = privilegesToCheck.clusterPrivileges().toArray(new String[0]);
-                    if (privilegesToCheckPredicate.test(
+                    final String[] clusterPrivilegesToCheck = privilegesToCheck.clusterPrivileges().toArray(new String[0]);
+                    final AuthorizationEngine.PrivilegesCheckResult checkResult = privilegesCheck.apply(
                         new AuthorizationEngine.PrivilegesToCheck(
                             clusterPrivilegesToCheck,
                             indicesPrivilegesToCheck,
                             new RoleDescriptor.ApplicationResourcePrivileges[0],
                             false
                         )
-                    )) {
-                        return null;
-                    } else {
-                        return Exceptions.authorizationError("insufficient privileges");
+                    );
+                    if (false == checkResult.allChecksSuccess()) {
+                        throw Exceptions.authorizationError("insufficient privileges");
                     }
                 });
             }, listener::onFailure)

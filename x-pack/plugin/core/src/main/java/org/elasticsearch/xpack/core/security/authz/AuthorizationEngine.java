@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -231,7 +231,12 @@ public interface AuthorizationEngine {
         ActionListener<PrivilegesCheckResult> listener
     );
 
-    void getCheckPrivilegesPredicate(AuthorizationInfo authorizationInfo, ActionListener<Predicate<PrivilegesToCheck>> listener);
+    default void getPrivilegesCheck(
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Function<PrivilegesToCheck, PrivilegesCheckResult>> listener
+    ) {
+        throw new UnsupportedOperationException("not supported by this engine");
+    }
 
     /**
      * Retrieve the privileges, from the provided authorization information, in a standard format that can be rendered via an

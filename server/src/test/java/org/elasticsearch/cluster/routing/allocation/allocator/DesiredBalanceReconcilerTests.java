@@ -1086,9 +1086,9 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var allocationOrdering = new NodeAllocationOrdering();
         var moveOrdering = new NodeAllocationOrdering();
 
-        var totalMoves = new HashMap<String, AtomicInteger>();
+        var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
-            totalMoves.put("node-" + i, new AtomicInteger());
+            totalOutgoingMoves.put("node-" + i, new AtomicInteger());
         }
 
         while (true) {
@@ -1101,18 +1101,18 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 break;
             }
             for (ShardRouting shardRouting : initializing) {
-                totalMoves.get(shardRouting.relocatingNodeId()).incrementAndGet();
+                totalOutgoingMoves.get(shardRouting.relocatingNodeId()).incrementAndGet();
                 allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), 0L);
             }
 
-            var summary = totalMoves.values().stream().mapToInt(AtomicInteger::get).summaryStatistics();
+            var summary = totalOutgoingMoves.values().stream().mapToInt(AtomicInteger::get).summaryStatistics();
             assertThat(
-                "Every node expect to have similar amount of outgoing rebalances: " + totalMoves,
+                "Every node expect to have similar amount of outgoing rebalances: " + totalOutgoingMoves,
                 summary.getMax() - summary.getMin(),
                 lessThanOrEqualTo(1)
             );
 
-            totalMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
+            totalOutgoingMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
             clusterState = ClusterState.builder(clusterState)
                 .routingTable(RoutingTable.of(allocation.routingTable().version(), allocation.routingNodes()))
                 .build();

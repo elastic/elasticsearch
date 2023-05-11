@@ -39,10 +39,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
@@ -90,9 +90,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             NAME,
             INDEX_STUCK_IMPACT_ID,
             3,
-            "Some indices have been longer than expected on the same Index Lifecycle Management action. The performance and stability of " +
-                "the cluster could be impacted.",
-            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
+            "Some indices have been longer than expected on the same Index Lifecycle Management action. The performance and stability of "
+                + "the cluster could be impacted.",
+            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
         )
     );
 
@@ -184,9 +184,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 indexMetadata.getLifecyclePolicyName(),
                 ilmExecutionState.phase(),
                 ilmExecutionState.action(),
-                Duration.ofMillis(now - ilmExecutionState.actionTime()),
+                ilmExecutionState.actionTime() != null ? Duration.ofMillis(now - ilmExecutionState.actionTime()) : Duration.ZERO,
                 ilmExecutionState.step(),
-                Duration.ofMillis(now - ilmExecutionState.stepTime()),
+                ilmExecutionState.stepTime() != null ? Duration.ofMillis(now - ilmExecutionState.stepTime()) : Duration.ZERO,
                 ilmExecutionState.failedStepRetryCount()
             );
         });
@@ -196,7 +196,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         boolean verbose,
         IndexLifecycleMetadata metadata,
         OperationMode mode,
-        List<CurrentState> indicesState
+        List<CurrentState> stuckIndices
     ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
@@ -206,18 +206,32 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
         details.put("ilm_status", mode);
         details.put("policies", metadata.getPolicies().size());
+        details.put("stuck_indices", stuckIndices.size());
 
-        var indicesStuckByAction = indicesState.stream()
-            .collect(Collectors.groupingBy(CurrentState::action, Collectors.mapping(CurrentState::indexName, toSet())));
+        var indicesStuckPerAction = stuckIndices.stream().collect(groupingBy(CurrentState::action, counting()));
 
-        details.put("indices_stuck_by_action", indicesStuckByAction);
+        if (indicesStuckPerAction.isEmpty() == false) {
+            ACTIONS.forEach(action -> indicesStuckPerAction.putIfAbsent(action, 0L));
+            details.put("stuck_indices_per_action", indicesStuckPerAction);
+        }
 
         return new SimpleHealthIndicatorDetails(details);
     }
 
+    private static final List<String> ACTIONS = List.of(
+        RolloverAction.NAME,
+        MigrateAction.NAME,
+        SearchableSnapshotAction.NAME,
+        DeleteStep.NAME,
+        ShrinkAction.NAME,
+        AllocateAction.NAME,
+        ForceMergeAction.NAME,
+        DownsampleAction.NAME
+    );
+
     static class IlmRuleEvaluator {
 
-        public static final Duration ONE_DAY = Duration.ofDays(1);
+        public static final Duration ONE_DAY = Duration.ofSeconds(1);
 
         private static final IlmRuleEvaluator ILM_RULE_EVALUATOR = new IlmRuleEvaluator(
             List.of(

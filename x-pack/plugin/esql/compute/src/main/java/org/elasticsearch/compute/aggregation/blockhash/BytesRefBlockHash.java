@@ -58,7 +58,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     private LongBlock add(BytesRefBlock block) {
         long[] seen = EMPTY;
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getPositionCount());
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getTotalValueCount());
         for (int p = 0; p < block.getPositionCount(); p++) {
             if (block.isNull(p)) {
                 builder.appendNull();
@@ -78,27 +78,32 @@ final class BytesRefBlockHash extends BlockHash {
             // TODO we could also have an assertion that there aren't any duplicates on the block.
             // Lucene has them in ascending order without duplicates
             int end = start + count;
-            int i = 0;
-            value: for (int offset = start; offset < end; offset++) {
+            int nextSeen = 0;
+            for (int offset = start; offset < end; offset++) {
                 long ord = bytesRefHash.add(block.getBytesRef(offset, bytes));
-                if (ord < 0) { // already seen
-                    ord = -1 - ord;
-                    /*
-                     * Check if we've seen the value before. This is n^2 on the number of
-                     * values, but we don't expect many of them in each entry.
-                     */
-                    for (int j = 0; j < i; j++) {
-                        if (seen[j] == ord) {
-                            continue value;
-                        }
-                    }
-                }
-                seen[i++] = ord;
-                builder.appendLong(ord);
+                nextSeen = addOrd(builder, seen, nextSeen, ord);
             }
             builder.endPositionEntry();
         }
         return builder.build();
+    }
+
+    protected static int addOrd(LongBlock.Builder builder, long[] seen, int nextSeen, long ord) {
+        if (ord < 0) { // already seen
+            ord = -1 - ord;
+            /*
+             * Check if we've seen the value before. This is n^2 on the number of
+             * values, but we don't expect many of them in each entry.
+             */
+            for (int j = 0; j < nextSeen; j++) {
+                if (seen[j] == ord) {
+                    return nextSeen;
+                }
+            }
+        }
+        seen[nextSeen] = ord;
+        builder.appendLong(ord);
+        return nextSeen + 1;
     }
 
     @Override

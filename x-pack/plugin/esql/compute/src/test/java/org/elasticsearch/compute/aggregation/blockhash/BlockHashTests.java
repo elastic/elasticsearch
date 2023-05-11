@@ -63,6 +63,43 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
     }
 
+    public void testIntHashWithMultiValuedFields() {
+        var builder = IntBlock.newBlockBuilder(8);
+        builder.appendInt(1);
+        builder.beginPositionEntry();
+        builder.appendInt(1);
+        builder.appendInt(2);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendInt(3);
+        builder.appendInt(1);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendInt(3);
+        builder.appendInt(3);
+        builder.endPositionEntry();
+        builder.appendNull();
+        builder.beginPositionEntry();
+        builder.appendInt(3);
+        builder.appendInt(2);
+        builder.appendInt(1);
+        builder.endPositionEntry();
+
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("IntBlockHash{channel=0, entries=3}"));
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0 },
+            new long[] { 0, 1 },
+            new long[] { 2, 0 },
+            new long[] { 2 },
+            null,
+            new long[] { 2, 1, 0 }
+        );
+        assertKeys(ordsAndKeys.keys, 1, 2, 3);
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+    }
+
     public void testLongHash() {
         long[] values = new long[] { 2, 1, 4, 2, 4, 1, 3, 4 };
         LongBlock block = new LongArrayVector(values, values.length).asBlock();
@@ -88,6 +125,43 @@ public class BlockHashTests extends ESTestCase {
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
     }
 
+    public void testLongHashWithMultiValuedFields() {
+        var builder = LongBlock.newBlockBuilder(8);
+        builder.appendLong(1);
+        builder.beginPositionEntry();
+        builder.appendLong(1);
+        builder.appendLong(2);
+        builder.appendLong(3);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendLong(1);
+        builder.appendLong(1);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendLong(3);
+        builder.endPositionEntry();
+        builder.appendNull();
+        builder.beginPositionEntry();
+        builder.appendLong(3);
+        builder.appendLong(2);
+        builder.appendLong(1);
+        builder.endPositionEntry();
+
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("LongBlockHash{channel=0, entries=3}"));
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0 },
+            new long[] { 0, 1, 2 },
+            new long[] { 0 },
+            new long[] { 2 },
+            null,
+            new long[] { 2, 1, 0 }
+        );
+        assertKeys(ordsAndKeys.keys, 1L, 2L, 3L);
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
+    }
+
     public void testDoubleHash() {
         double[] values = new double[] { 2.0, 1.0, 4.0, 2.0, 4.0, 1.0, 3.0, 4.0 };
         DoubleBlock block = new DoubleArrayVector(values, values.length).asBlock();
@@ -111,6 +185,42 @@ public class BlockHashTests extends ESTestCase {
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
         assertKeys(ordsAndKeys.keys, 0.0, 2.0);
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+    }
+
+    public void testDoubleHashWithMultiValuedFields() {
+        var builder = DoubleBlock.newBlockBuilder(8);
+        builder.appendDouble(1);
+        builder.beginPositionEntry();
+        builder.appendDouble(2);
+        builder.appendDouble(3);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendDouble(3);
+        builder.appendDouble(2);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendDouble(1);
+        builder.endPositionEntry();
+        builder.appendNull();
+        builder.beginPositionEntry();
+        builder.appendDouble(1);
+        builder.appendDouble(1);
+        builder.appendDouble(2);
+        builder.endPositionEntry();
+
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("DoubleBlockHash{channel=0, entries=3}"));
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0 },
+            new long[] { 1, 2 },
+            new long[] { 2, 1 },
+            new long[] { 0 },
+            null,
+            new long[] { 0, 1 }
+        );
+        assertKeys(ordsAndKeys.keys, 1.0, 2.0, 3.0);
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 3)));
     }
 
     public void testBasicBytesRefHash() {
@@ -239,6 +349,42 @@ public class BlockHashTests extends ESTestCase {
         OrdsAndKeys ordsAndKeys = hash(false, builder.build());
         assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true}"));
         assertOrds(ordsAndKeys.ords, 0L, null, 1L, null);
+        assertKeys(ordsAndKeys.keys, false, true);
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
+    }
+
+    public void testBooleanHashWithMultiValuedFields() {
+        var builder = BooleanBlock.newBlockBuilder(8);
+        builder.appendBoolean(false);
+        builder.beginPositionEntry();
+        builder.appendBoolean(false);
+        builder.appendBoolean(true);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendBoolean(true);
+        builder.appendBoolean(false);
+        builder.endPositionEntry();
+        builder.beginPositionEntry();
+        builder.appendBoolean(true);
+        builder.endPositionEntry();
+        builder.appendNull();
+        builder.beginPositionEntry();
+        builder.appendBoolean(true);
+        builder.appendBoolean(true);
+        builder.appendBoolean(false);
+        builder.endPositionEntry();
+
+        OrdsAndKeys ordsAndKeys = hash(false, builder.build());
+        assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true}"));
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0 },
+            new long[] { 0, 1 },
+            new long[] { 1, 0 },
+            new long[] { 1 },
+            null,
+            new long[] { 1, 0 }
+        );
         assertKeys(ordsAndKeys.keys, false, true);
         assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
     }

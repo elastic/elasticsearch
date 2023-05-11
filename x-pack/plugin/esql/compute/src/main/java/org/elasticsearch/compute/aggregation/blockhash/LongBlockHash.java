@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.data.IntVector;
@@ -27,24 +28,63 @@ final class LongBlockHash extends BlockHash {
     @Override
     public LongBlock add(Page page) {
         LongBlock block = page.getBlock(channel);
-        int positionCount = block.getPositionCount();
         LongVector vector = block.asVector();
-        if (vector != null) {
-            long[] groups = new long[positionCount];
-            for (int i = 0; i < positionCount; i++) {
-                groups[i] = BlockHash.hashOrdToGroup(longHash.add(block.getLong(i)));
-            }
-            return new LongArrayVector(groups, positionCount).asBlock();
+        if (vector == null) {
+            return add(block);
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            if (block.isNull(i)) {
+        return add(vector).asBlock();
+    }
+
+    private LongVector add(LongVector vector) {
+        long[] groups = new long[vector.getPositionCount()];
+        for (int i = 0; i < vector.getPositionCount(); i++) {
+            groups[i] = hashOrdToGroup(longHash.add(vector.getLong(i)));
+        }
+        return new LongArrayVector(groups, groups.length);
+    }
+
+    private static final long[] EMPTY = new long[0];
+
+    private LongBlock add(LongBlock block) {
+        long[] seen = EMPTY;
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getTotalValueCount());
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            if (block.isNull(p)) {
                 builder.appendNull();
-            } else {
-                builder.appendLong(hashOrdToGroup(longHash.add(block.getLong(block.getFirstValueIndex(i)))));
+                continue;
             }
+            int start = block.getFirstValueIndex(p);
+            int count = block.getValueCount(p);
+            if (count == 1) {
+                builder.appendLong(hashOrdToGroup(longHash.add(block.getLong(start))));
+                continue;
+            }
+            if (seen.length < count) {
+                seen = new long[ArrayUtil.oversize(count, Long.BYTES)];
+            }
+            builder.beginPositionEntry();
+            // TODO if we know the elements were in sorted order we wouldn't need an array at all.
+            // TODO we could also have an assertion that there aren't any duplicates on the block.
+            // Lucene has them in ascending order without duplicates
+            int end = start + count;
+            int nextSeen = 0;
+            for (int offset = start; offset < end; offset++) {
+                nextSeen = add(builder, seen, nextSeen, block.getLong(offset));
+            }
+            builder.endPositionEntry();
         }
         return builder.build();
+    }
+
+    protected int add(LongBlock.Builder builder, long[] seen, int nextSeen, long value) {
+        for (int j = 0; j < nextSeen; j++) {
+            if (seen[j] == value) {
+                return nextSeen;
+            }
+        }
+        seen[nextSeen] = value;
+        builder.appendLong(hashOrdToGroup(longHash.add(value)));
+        return nextSeen + 1;
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 
 /**
@@ -31,22 +32,62 @@ final class BooleanBlockHash extends BlockHash {
     @Override
     public LongBlock add(Page page) {
         BooleanBlock block = page.getBlock(channel);
-        int positionCount = block.getPositionCount();
         BooleanVector vector = block.asVector();
-        if (vector != null) {
-            long[] groups = new long[positionCount];
-            for (int i = 0; i < positionCount; i++) {
-                groups[i] = ord(vector.getBoolean(i));
-            }
-            return new LongArrayVector(groups, positionCount).asBlock();
+        if (vector == null) {
+            return add(block);
         }
-        LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-        for (int i = 0; i < positionCount; i++) {
-            if (block.isNull(i)) {
+        return add(vector).asBlock();
+    }
+
+    private LongVector add(BooleanVector vector) {
+        long[] groups = new long[vector.getPositionCount()];
+        for (int i = 0; i < vector.getPositionCount(); i++) {
+            groups[i] = ord(vector.getBoolean(i));
+        }
+        return new LongArrayVector(groups, groups.length);
+    }
+
+    private LongBlock add(BooleanBlock block) {
+        boolean seenTrueThisPosition = false;
+        boolean seenFalseThisPosition = false;
+        LongBlock.Builder builder = LongBlock.newBlockBuilder(block.getTotalValueCount());
+        for (int p = 0; p < block.getPositionCount(); p++) {
+            if (block.isNull(p)) {
                 builder.appendNull();
-            } else {
-                builder.appendLong(ord(block.getBoolean(block.getFirstValueIndex(i))));
+                continue;
             }
+            int start = block.getFirstValueIndex(p);
+            int count = block.getValueCount(p);
+            if (count == 1) {
+                builder.appendLong(ord(block.getBoolean(start)));
+                continue;
+            }
+            seenTrueThisPosition = false;
+            seenFalseThisPosition = false;
+            builder.beginPositionEntry();
+            int end = start + count;
+            for (int offset = start; offset < end; offset++) {
+                if (block.getBoolean(offset)) {
+                    if (false == seenTrueThisPosition) {
+                        builder.appendLong(1);
+                        seenTrueThisPosition = true;
+                        seenTrue = true;
+                        if (seenFalseThisPosition) {
+                            break;
+                        }
+                    }
+                } else {
+                    if (false == seenFalseThisPosition) {
+                        builder.appendLong(0);
+                        seenFalseThisPosition = true;
+                        seenFalse = true;
+                        if (seenTrueThisPosition) {
+                            break;
+                        }
+                    }
+                }
+            }
+            builder.endPositionEntry();
         }
         return builder.build();
     }

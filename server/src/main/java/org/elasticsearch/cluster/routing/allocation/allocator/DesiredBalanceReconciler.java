@@ -23,18 +23,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -309,7 +304,7 @@ public class DesiredBalanceReconciler {
         // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
         // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
         // offloading the shards.
-        for (final var iterator = createOrderedNodesShardsIterator(); iterator.hasNext();) {
+        for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
             final var shardRouting = iterator.next();
 
             if (shardRouting.started() == false) {
@@ -364,7 +359,7 @@ public class DesiredBalanceReconciler {
         // Iterate over the started shards interleaving between nodes, and try to move any which are on undesired nodes. In the presence of
         // throttling shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
         // offloading the shards.
-        for (final var iterator = createOrderedNodesShardsIterator(); iterator.hasNext();) {
+        for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
             final var shardRouting = iterator.next();
 
             if (shardRouting.started() == false) {
@@ -461,51 +456,4 @@ public class DesiredBalanceReconciler {
         assert target != null : "Target node is not found";
         return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
     }
-
-    private OrderedNodesShardsIterator createOrderedNodesShardsIterator() {
-        return new OrderedNodesShardsIterator();
-    }
-
-    private class OrderedNodesShardsIterator implements Iterator<ShardRouting> {
-
-        private final ArrayDeque<NodeAndShardIterator> queue;
-
-        OrderedNodesShardsIterator() {
-            this.queue = new ArrayDeque<>(routingNodes.size());
-            for (var nodeId : moveOrdering.sort(routingNodes.getAllNodeIds())) {
-                var node = routingNodes.node(nodeId);
-                if (node.size() > 0) {
-                    this.queue.add(new NodeAndShardIterator(nodeId, Iterators.forArray(node.copyShards())));
-                }
-            }
-        }
-
-        @Override
-        public boolean hasNext() {
-            return queue.isEmpty() == false;
-        }
-
-        @Override
-        public ShardRouting next() {
-            if (queue.isEmpty()) {
-                throw new NoSuchElementException();
-            }
-            var entry = queue.peek();
-            assert entry.iterator.hasNext();
-            final var nextShard = entry.iterator.next();
-            if (entry.iterator.hasNext() == false) {
-                queue.poll();
-            }
-            return nextShard;
-        }
-
-        public void dePrioritizeNode(String nodeId) {
-            var entry = queue.peek();
-            if (entry != null && Objects.equals(nodeId, entry.nodeId)) {
-                queue.offer(queue.poll());
-            }
-        }
-    }
-
-    private record NodeAndShardIterator(String nodeId, Iterator<ShardRouting> iterator) {}
 }

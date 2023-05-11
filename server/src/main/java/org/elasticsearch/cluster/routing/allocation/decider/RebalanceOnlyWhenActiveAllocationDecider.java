@@ -21,12 +21,12 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
     static final Decision YES_ALL_REPLICAS_ACTIVE = Decision.single(
         Decision.Type.YES,
         NAME,
-        "rebalancing is allowed as all replicas are active in the cluster"
+        "rebalancing is allowed as all replicas of this index are active"
     );
     static final Decision NO_SOME_REPLICAS_INACTIVE = Decision.single(
         Decision.Type.NO,
         NAME,
-        "rebalancing is not allowed until all replicas in the cluster are active"
+        "rebalancing is not allowed until all replicas of this index are active"
     );
 
     @Override

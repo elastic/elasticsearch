@@ -383,10 +383,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         int active = 0;
         for (ShardRouting shard : shards) {
-            if (shard.active() && shard.isRelocationTarget() == false) {
+            if (shard.active()) {
                 active++;
             }
         }
+        assert active <= shardCopies;
         return active == shardCopies;
     }
 

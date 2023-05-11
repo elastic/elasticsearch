@@ -34,6 +34,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RebalanceAfterActiveTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(RebalanceAfterActiveTests.class);
@@ -74,6 +75,8 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
             assertThat(clusterState.routingTable().index("test").shard(i).size(), equalTo(2));
             assertThat(clusterState.routingTable().index("test").shard(i).shard(0).state(), equalTo(UNASSIGNED));
             assertThat(clusterState.routingTable().index("test").shard(i).shard(1).state(), equalTo(UNASSIGNED));
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(0).currentNodeId(), nullValue());
+            assertThat(clusterState.routingTable().index("test").shard(i).shard(1).currentNodeId(), nullValue());
         }
 
         logger.info("start two nodes and fully start the shards");
@@ -125,9 +128,6 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         logger.info("start the replica shards, rebalancing should start");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        // both primary and replica should not be rebalanced at once so 5 replicas should start moving
-        // unless we computed the balance where one of the indices already have both primary and replica on desired nodes
-        // in such case only 4 shards are immediately relocating
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED), hasSize(2));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING), hasSize(8));
 

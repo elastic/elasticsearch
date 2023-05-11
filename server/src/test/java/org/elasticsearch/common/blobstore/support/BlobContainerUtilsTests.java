@@ -30,10 +30,7 @@ public class BlobContainerUtilsTests extends ESTestCase {
         assertEquals(content, getRegisterUsingConsistentRead(content.streamInput(), "", ""));
 
         final var invalidContent = randomBytesReference(MAX_REGISTER_CONTENT_LENGTH + 1);
-        expectThrows(
-            IllegalStateException.class,
-            () -> getRegisterUsingConsistentRead(invalidContent.streamInput(), "", "")
-        );
+        expectThrows(IllegalStateException.class, () -> getRegisterUsingConsistentRead(invalidContent.streamInput(), "", ""));
     }
 
 }

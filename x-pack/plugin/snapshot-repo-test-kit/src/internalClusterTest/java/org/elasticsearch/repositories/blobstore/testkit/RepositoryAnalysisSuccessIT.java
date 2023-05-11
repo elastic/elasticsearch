@@ -272,7 +272,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
-        private final Map<String, AtomicReference<BytesReference>> registers = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
 
         AssertingBlobContainer(
@@ -417,9 +417,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                 // only fail the first read, we must not fail the final check
                 listener.onResponse(OptionalBytesReference.EMPTY);
             } else if (randomBoolean()) {
-                listener.onResponse(
-                    OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new AtomicReference<>(BytesArray.EMPTY)).get())
-                );
+                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
             } else {
                 final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
                 compareAndExchangeRegister(key, bogus, bogus, listener);
@@ -440,8 +438,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             } else {
                 listener.onResponse(
                     OptionalBytesReference.of(
-                        registers.computeIfAbsent(key, ignored -> new AtomicReference<>(BytesArray.EMPTY))
-                            .compareAndExchange(expected, updated)
+                        registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated)
                     )
                 );
             }

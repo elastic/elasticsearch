@@ -17,7 +17,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -302,11 +301,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
 
             @Override
-            public BytesReference onCompareAndExchange(
-                AtomicReference<BytesReference> register,
-                BytesReference expected,
-                BytesReference updated
-            ) {
+            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (registerWasCorrupted.compareAndSet(false, true)) {
                     register.updateAndGet(bytes -> RegisterAnalyzeAction.bytesFromLong(RegisterAnalyzeAction.longFromBytes(bytes) + 1));
                 }
@@ -323,11 +318,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
         blobStore.setDisruption(new Disruption() {
             @Override
-            public BytesReference onCompareAndExchange(
-                AtomicReference<BytesReference> register,
-                BytesReference expected,
-                BytesReference updated
-            ) {
+            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
                     final var currentValue = RegisterAnalyzeAction.longFromBytes(register.get());
                     if (currentValue == expectedMax) {
@@ -463,11 +454,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default BytesReference onCompareAndExchange(
-            AtomicReference<BytesReference> register,
-            BytesReference expected,
-            BytesReference updated
-        ) {
+        default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
             return register.compareAndExchange(expected, updated);
         }
     }
@@ -478,7 +465,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final Consumer<DisruptableBlobContainer> deleteContainer;
         private final Disruption disruption;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
-        private final Map<String, AtomicReference<BytesReference>> registers = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
 
         DisruptableBlobContainer(BlobPath path, Consumer<DisruptableBlobContainer> deleteContainer, Disruption disruption) {
             this.path = path;
@@ -617,7 +604,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             BytesReference updated,
             ActionListener<OptionalBytesReference> listener
         ) {
-            final var register = registers.computeIfAbsent(key, ignored -> new AtomicReference<>(BytesArray.EMPTY));
+            final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
             listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
         }
     }

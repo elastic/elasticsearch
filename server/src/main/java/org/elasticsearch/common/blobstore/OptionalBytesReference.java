@@ -8,8 +8,12 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+
+import java.io.IOException;
 
 /**
  * A potentially-missing {@link BytesReference}, used to represent the contents of a blobstore register along with the possibility that the
@@ -45,5 +49,32 @@ public final class OptionalBytesReference {
             throw new IllegalStateException("cannot get bytesReference() on OptionalBytesReference#MISSING");
         }
         return bytesReference;
+    }
+
+    @Override
+    public String toString() {
+        if (bytesReference == null) {
+            return "OptionalBytesReference[MISSING]";
+        }
+
+        final var stringBuilder = new StringBuilder("OptionalBytesReference[");
+        final var iterator = bytesReference.iterator();
+        BytesRef bytesRef;
+        boolean first = true;
+        try {
+            while ((bytesRef = iterator.next()) != null) {
+                for (int i = 0; i < bytesRef.length; i++) {
+                    if (first) {
+                        first = false;
+                    } else {
+                        stringBuilder.append(' ');
+                    }
+                    stringBuilder.append(Strings.format("%02x", bytesRef.bytes[bytesRef.offset + i]));
+                }
+            }
+            return stringBuilder.append(']').toString();
+        } catch (IOException e) {
+            return e.getMessage();
+        }
     }
 }

@@ -1083,7 +1083,7 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("should not be called");
             }
-        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, System::nanoTime);
+        }, clusterInfoService, snapshotsInfoService, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new NoOpExistingShardsAllocator()));
         return allocationService;
     }
@@ -1147,13 +1147,12 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
         final var discoveryNodes = DiscoveryNodes.builder();
         for (var i = 0; i < nodeCount; i++) {
             discoveryNodes.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "node-" + i,
                     "node-" + i,
                     buildNewFakeTransportAddress(),
                     Map.of(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)
                 )
             );
         }

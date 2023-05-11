@@ -6,11 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rest.action;
+package org.elasticsearch.rest.root;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;

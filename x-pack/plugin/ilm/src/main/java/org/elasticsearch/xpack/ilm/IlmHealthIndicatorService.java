@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -184,9 +184,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 indexMetadata.getLifecyclePolicyName(),
                 ilmExecutionState.phase(),
                 ilmExecutionState.action(),
-                ilmExecutionState.actionTime() != null ? Duration.ofMillis(now - ilmExecutionState.actionTime()) : Duration.ZERO,
+                ilmExecutionState.actionTime() != null ? TimeValue.timeValueMillis(now - ilmExecutionState.actionTime()) : TimeValue.ZERO,
                 ilmExecutionState.step(),
-                ilmExecutionState.stepTime() != null ? Duration.ofMillis(now - ilmExecutionState.stepTime()) : Duration.ZERO,
+                ilmExecutionState.stepTime() != null ? TimeValue.timeValueMillis(now - ilmExecutionState.stepTime()) : TimeValue.ZERO,
                 ilmExecutionState.failedStepRetryCount()
             );
         });
@@ -261,9 +261,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         String policyName,
         String phase,
         String action,
-        Duration timeOnAction,
+        TimeValue timeOnAction,
         String step,
-        Duration timeOnStep,
+        TimeValue timeOnStep,
         Integer stepRetries
     ) {}
 

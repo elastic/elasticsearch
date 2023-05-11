@@ -79,7 +79,7 @@ PUT _ingest/pipeline/elser-v1-test
         },
         "inference_config": {
           "text_expansion": { <1>
-            "results_field": "ml.tokens"
+            "results_field": "tokens"
           }
         }
       }

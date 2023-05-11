@@ -99,7 +99,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
-        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null;
+        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER
+            ? randomUniquelyNamedRoleDescriptors(1, 3)
+            : null;
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
             Collections.singletonList(
                 new ApiKey(
@@ -226,7 +228,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "realm-1",
             ApiKeyTests.randomMetadata(),
             randomUniquelyNamedRoleDescriptors(0, 3),
-            withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null
+            withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final ApiKey apiKey2 = new ApiKey(
             "api-key-name-2",
@@ -239,7 +241,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "realm-1",
             ApiKeyTests.randomMetadata(),
             randomUniquelyNamedRoleDescriptors(0, 3),
-            withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null
+            withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));

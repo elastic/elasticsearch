@@ -52,7 +52,9 @@ public class ApiKeyTests extends ESTestCase {
         final String realmName = randomAlphaOfLengthBetween(3, 8);
         final Map<String, Object> metadata = randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3);
-        final List<RoleDescriptor> limitedByRoleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
+        final List<RoleDescriptor> limitedByRoleDescriptors = type == ApiKey.Type.CROSS_CLUSTER
+            ? null
+            : randomUniquelyNamedRoleDescriptors(0, 3);
 
         final ApiKey apiKey = new ApiKey(
             name,

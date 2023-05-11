@@ -106,7 +106,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
             realm_name,
             metadata,
             roleDescriptors,
-            randomUniquelyNamedRoleDescriptors(1, 3)
+            type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
         );
     }
 

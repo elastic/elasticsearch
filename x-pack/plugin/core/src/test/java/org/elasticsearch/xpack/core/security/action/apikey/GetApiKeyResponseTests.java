@@ -37,10 +37,11 @@ public class GetApiKeyResponseTests extends ESTestCase {
     public void testSerialization() throws IOException {
         boolean withApiKeyName = randomBoolean();
         boolean withExpiration = randomBoolean();
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         ApiKey apiKeyInfo = createApiKeyInfo(
             (withApiKeyName) ? randomAlphaOfLength(4) : null,
             randomAlphaOfLength(5),
-            randomFrom(ApiKey.Type.values()),
+            type,
             Instant.now(),
             (withExpiration) ? Instant.now() : null,
             false,
@@ -48,7 +49,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             randomAlphaOfLength(5),
             randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
             randomBoolean() ? null : randomUniquelyNamedRoleDescriptors(0, 3),
-            randomUniquelyNamedRoleDescriptors(1, 3)
+            type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
         );
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
 

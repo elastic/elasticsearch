@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -37,8 +37,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.counting;
@@ -96,6 +99,49 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         )
     );
 
+    // TODO fix this value
+    public static final TimeValue ONE_DAY = TimeValue.timeValueSeconds(2);
+
+    private static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
+        RolloverAction.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        MigrateAction.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        SearchableSnapshotAction.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        DeleteStep.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        ShrinkAction.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        AllocateAction.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        ForceMergeAction.NAME,
+        new RuleConfig(ONE_DAY, 100),
+        DownsampleAction.NAME,
+        new RuleConfig(ONE_DAY, 100)
+    );
+
+    private static final Map<String, Function<String, Diagnosis.Definition>> ACTION_STUCK_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
+        .stream()
+        .collect(
+            Collectors.toUnmodifiableMap(
+                Map.Entry::getKey,
+                entry -> ilmPolicyName -> new Diagnosis.Definition(
+                    NAME,
+                    "stuck_action:" + entry.getKey(),
+                    "Some indices managed by the policy ["
+                        + ilmPolicyName
+                        + "] have been stuck on the action ["
+                        + entry.getKey()
+                        + "] longer than the expected time [time spent in action: "
+                        + entry.getValue().maxTimeOn()
+                        + "].",
+                    "Check the current status of the Index Lifecycle Management service using the [/_ilm/explain] API.",
+                    "https://ela.st/ilm-explain"
+                )
+            )
+        );
+
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
@@ -117,9 +163,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        final ClusterState currentState = clusterService.state();
+        final var currentState = clusterService.state();
         var ilmMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        final OperationMode currentMode = currentILMMode(currentState);
+        final var currentMode = currentILMMode(currentState);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
@@ -137,7 +183,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 List.of(ILM_NOT_RUNNING)
             );
         } else {
-            return calculateIndicator(verbose, ilmMetadata, currentMode);
+            return calculateIndicator(verbose, ilmMetadata, currentMode, maxAffectedResourcesCount);
         }
     }
 
@@ -145,7 +191,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         return createDetails(verbose, ilmMetadata, currentMode, List.of());
     }
 
-    private HealthIndicatorResult calculateIndicator(boolean verbose, IndexLifecycleMetadata ilmMetadata, OperationMode currentMode) {
+    private HealthIndicatorResult calculateIndicator(
+        boolean verbose,
+        IndexLifecycleMetadata ilmMetadata,
+        OperationMode currentMode,
+        int maxAffectedResourcesCount
+    ) {
         var stuckIndices = findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
 
         if (stuckIndices.isEmpty()) {
@@ -163,8 +214,27 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             (stuckIndices.size() > 1 ? "Some indices have" : "An index has") + " been stuck on the same action longer than expected.",
             createDetails(verbose, ilmMetadata, currentMode, stuckIndices),
             INDEX_STUCK_IMPACT,
-            List.of()
+            createDiagnoses(stuckIndices, maxAffectedResourcesCount)
         );
+    }
+
+    private List<Diagnosis> createDiagnoses(List<CurrentState> stuckIndices, int maxAffectedResourcesCount) {
+        return stuckIndices.stream()
+            .collect(groupingBy(cs -> Tuple.tuple(cs.action, cs.policyName)))
+            .entrySet()
+            .stream()
+            .map(actionPolicyTuple -> {
+                var affectedResources = actionPolicyTuple.getValue()
+                    .stream()
+                    .map(c -> c.indexName)
+                    .limit(Math.min(maxAffectedResourcesCount, actionPolicyTuple.getValue().size()))
+                    .toList();
+                return new Diagnosis(
+                    ACTION_STUCK_DEFINITIONS.get(actionPolicyTuple.getKey().v1()).apply(actionPolicyTuple.getKey().v2()),
+                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedResources))
+                );
+            })
+            .toList();
     }
 
     private Stream<CurrentState> findIndicesManagedByIlm() {
@@ -211,23 +281,12 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         var indicesStuckPerAction = stuckIndices.stream().collect(groupingBy(CurrentState::action, counting()));
 
         if (indicesStuckPerAction.isEmpty() == false) {
-            ACTIONS.forEach(action -> indicesStuckPerAction.putIfAbsent(action, 0L));
+            RULES_BY_ACTION_CONFIG.forEach((action, value) -> indicesStuckPerAction.putIfAbsent(action, 0L));
             details.put("stuck_indices_per_action", indicesStuckPerAction);
         }
 
         return new SimpleHealthIndicatorDetails(details);
     }
-
-    private static final List<String> ACTIONS = List.of(
-        RolloverAction.NAME,
-        MigrateAction.NAME,
-        SearchableSnapshotAction.NAME,
-        DeleteStep.NAME,
-        ShrinkAction.NAME,
-        AllocateAction.NAME,
-        ForceMergeAction.NAME,
-        DownsampleAction.NAME
-    );
 
     static class IlmRuleEvaluator {
 
@@ -259,7 +318,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private record Rule(TimeValue maxTimeOn, long maxRetries) {}
+    private record RuleConfig(TimeValue maxTimeOn, long maxRetries) {}
 
     private record CurrentState(
         String indexName,

@@ -714,7 +714,14 @@ public class AzureBlobStore implements BlobStore {
         @Override
         public int read() throws IOException {
             byte[] b = new byte[1];
-            return read(b, 0, 1);
+            var bytesRead = read(b, 0, 1);
+            if (bytesRead > 0) {
+                return b[0] & 0xFF;
+            } else if (bytesRead == 0) {
+                throw new IOException("Stream returned unexpected number of bytes");
+            } else {
+                return -1;
+            }
         }
 
         @Override

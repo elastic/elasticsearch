@@ -516,8 +516,9 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        // TODO this might be better placed inside the update task, to avoid dirty reads but that breaks existing tests
+        validateV2TemplateRequest(clusterService.state().metadata(), name, template);
         hasPrivilegesCheck.getPrivilegesCheck(ActionListener.wrap(privilegesCheck -> {
-            validateV2TemplateRequest(clusterService.state().metadata(), name, template);
             taskQueue.submitTask(
                 "create-index-template-v2 [" + name + "], cause [" + cause + "]",
                 new TemplateClusterStateUpdateTask(listener) {

@@ -247,6 +247,7 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -1610,8 +1611,6 @@ public class Node implements Closeable {
     // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
-        Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
-
         synchronized (lifecycle) {
             if (lifecycle.started()) {
                 stop();
@@ -1689,6 +1688,18 @@ public class Node implements Closeable {
         }
         IOUtils.close(toClose);
         logger.info("closed");
+    }
+
+    /**
+     * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
+     * gracefully from the underlying operating system, before system resources are closed. This method will block
+     * until the node is ready to shut down.
+     *
+     * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
+     * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
+     */
+    public void prepareForClose() {
+        Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
     }
 
     /**

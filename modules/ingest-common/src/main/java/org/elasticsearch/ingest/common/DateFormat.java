@@ -26,7 +26,6 @@ import java.util.function.Function;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
 import static java.time.temporal.ChronoField.HOUR_OF_DAY;
-import static java.time.temporal.ChronoField.INSTANT_SECONDS;
 import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
@@ -78,8 +77,7 @@ enum DateFormat {
             MINUTE_OF_DAY,
             HOUR_OF_DAY,
             DAY_OF_MONTH,
-            MONTH_OF_YEAR,
-            INSTANT_SECONDS
+            MONTH_OF_YEAR
         );
 
         @Override
@@ -98,12 +96,13 @@ enum DateFormat {
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
                     && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
-                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false) {
+                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false
+                    && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {
                         if (accessor.isSupported(field)) {
-                            newTime = newTime.with(field, accessor.getLong(field));
+                            newTime = newTime.with(field, accessor.get(field));
                         }
                     }
 

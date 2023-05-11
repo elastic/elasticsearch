@@ -1,6 +1,6 @@
 pr: 96015
 summary: Check shard availability before including in stats
-area: Other
+area: Distributed 
 type: bug
 issues:
  - 96000

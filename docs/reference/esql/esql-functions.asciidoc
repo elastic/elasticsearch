@@ -1,5 +1,11 @@
 [[esql-functions]]
-== Functions
+== ESQL functions
+
+++++
+<titleabbrev>Functions</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, functions
+:description: ESQL supports various functions for calculating values. 
 
 <<esql-row,`ROW`>>, <<esql-eval,`EVAL`>> and <<esql-where,`WHERE`>> support
 these functions:
@@ -25,218 +31,23 @@ these functions:
 * <<esql-starts_with>>
 * <<esql-substring>>
 
-[[esql-abs]]
-=== `ABS`
-Returns the absolute value.
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL abs_height = ABS(0.0 - height)
-----
-
-[[esql-case]]
-=== `CASE`
-
-Accepts pairs of conditions and values. The function returns the value that
-belongs to the first condition that evaluates to `true`. If the number of
-arguments is odd, the last argument is the default value which is returned when
-no condition matches.
-
-[source,esql]
-----
-FROM employees
-| EVAL type = CASE(
-    languages <= 1, "monolingual",
-    languages <= 2, "bilingual",
-     "polyglot")
-| PROJECT first_name, last_name, type
-----
-
-[[esql-cidr_match]]
-=== `CIDR_MATCH`
-
-Returns `true` if the provided IP is contained in one of the provided CIDR
-blocks.
-
-`CIDR_MATCH` accepts two or more arguments. The first argument is the IP
-address of type `ip` (both IPv4 and IPv6 are supported). Subsequent arguments
-are the CIDR blocks to test the IP against.
-
-[source,esql]
-----
-FROM hosts
-| WHERE CIDR_MATCH(ip, "127.0.0.2/32", "127.0.0.3/32")
-----
-
-[[esql-concat]]
-=== `CONCAT`
-Concatenates two or more strings.
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL fullname = CONCAT(first_name, " ", last_name)
-----
-
-[[esql-date_format]]
-=== `DATE_FORMAT`
-Returns a string representation of a date in the provided format. If no format
-is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, hire_date
-| EVAL hired = DATE_FORMAT(hire_date, "YYYY-MM-dd")
-----
-
-[[esql-date_trunc]]
-=== `DATE_TRUNC`
-Rounds down a date to the closest interval. Intervals can be expressed using the
-<<esql-timespan-literals,timespan literal syntax>>.
-
-[source,esql]
-----
-FROM employees
-| EVAL year_hired = DATE_TRUNC(hire_date, 1 year)
-| STATS count(emp_no) BY year_hired
-| SORT year_hired
-----
-
-[[esql-is_finite]]
-=== `IS_FINITE`
-Returns a boolean that indicates whether its input is a finite number.
-
-[source,esql]
-----
-ROW d = 1.0
-| EVAL s = IS_FINITE(d/0)
-----
-
-[[esql-is_infinite]]
-=== `IS_INFINITE`
-Returns a boolean that indicates whether its input is infinite.
-
-[source,esql]
-----
-ROW d = 1.0
-| EVAL s = IS_INFINITE(d/0)
-----
-
-[[esql-is_nan]]
-=== `IS_NAN`
-Returns a boolean that indicates whether its input is not a number.
-
-[source,esql]
-----
-ROW d = 1.0
-| EVAL s = IS_NAN(d)
-----
-
-[[esql-is_null]]
-=== `IS_NULL`
-Returns a boolean than indicates whether its input is `null`.
-
-[source,esql]
-----
-FROM employees
-| WHERE IS_NULL(first_name)
-----
-
-Combine this function with `NOT` to filter out any `null` data:
-
-[source,esql]
-----
-FROM employees
-| WHERE NOT IS_NULL(first_name)
-----
-
-[[esql-length]]
-=== `LENGTH`
-Returns the character length of a string.
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL fn_length = LENGTH(first_name)
-----
-
+include::functions/abs.asciidoc[]
+include::functions/case.asciidoc[]
+include::functions/cidr_match.asciidoc[]
+include::functions/concat.asciidoc[]
+include::functions/date_format.asciidoc[]
+include::functions/date_trunc.asciidoc[]
+include::functions/is_finite.asciidoc[]
+include::functions/is_infinite.asciidoc[]
+include::functions/is_nan.asciidoc[]
+include::functions/is_null.asciidoc[]
+include::functions/length.asciidoc[]
 include::functions/mv_avg.asciidoc[]
 include::functions/mv_max.asciidoc[]
 include::functions/mv_min.asciidoc[]
 include::functions/mv_sum.asciidoc[]
-
-[[esql-pow]]
-=== `POW`
-Returns the the value of a base (first argument) raised to a power (second
-argument).
-
-[source,esql]
-----
-ROW base = 2.0, exponent = 2.0
-| EVAL s = POW(base, exponent)
-----
-
-[[esql-round]]
-=== `ROUND`
-Rounds a number to the closest number with the specified number of digits.
-Defaults to 0 digits if no number of digits is provided. If the specified number
-of digits is negative, rounds to the number of digits left of the decimal point.
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL height = ROUND(height * 3.281, 1)
-----
-
+include::functions/pow.asciidoc[]
+include::functions/round.asciidoc[]
 include::functions/split.asciidoc[]
-
-
-[[esql-starts_with]]
-=== `STARTS_WITH`
-Returns a boolean that indicates whether a keyword string starts with another
-string:
-
-[source,esql]
-----
-FROM employees
-| PROJECT first_name, last_name, height
-| EVAL ln_S = STARTS_WITH(last_name, "S")
-----
-
-[[esql-substring]]
-=== `SUBSTRING`
-Returns a substring of a string, specified by a start position and an optional
-length. This example returns the first three characters of every last name:
-
-[source,esql]
-----
-FROM employees
-| PROJECT last_name
-| EVAL ln_sub = SUBSTRING(last_name, 1, 3)
-----
-
-A negative start position is interpreted as being relative to the end of the
-string. This example returns the last three characters of of every last name:
-
-[source,esql]
-----
-FROM employees
-| PROJECT last_name
-| EVAL ln_sub = SUBSTRING(last_name, -3, 3)
-----
-
-If length is omitted, substring returns the remainder of the string. This
-example returns all characters except for the first:
-
-[source,esql]
-----
-FROM employees
-| PROJECT last_name
-| EVAL ln_sub = SUBSTRING(last_name, 2)
-----
+include::functions/starts_with.asciidoc[]
+include::functions/substring.asciidoc[]

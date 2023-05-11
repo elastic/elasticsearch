@@ -1,5 +1,11 @@
 [[esql-source-commands]]
-== Source commands
+== ESQL source commands
+
+++++
+<titleabbrev>Source commands</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, source commands
+:description: An ESQL source command produces a table, typically with data from {es}. 
 
 An ESQL source command produces a table, typically with data from {es}. 
 
@@ -50,6 +56,13 @@ that you specify. This can be useful for testing.
 [source,esql]
 ----
 ROW a = 1, b = "two", c = null
+----
+
+Use angle brackets to create multi-value columns:
+
+[source,esql]
+----
+ROW a = [2, 1]
 ----
 
 `ROW` supports the use of <<esql-functions,functions>>:

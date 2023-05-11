@@ -650,6 +650,34 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
+    public void getCheckPrivilegesPredicate(AuthorizationInfo authorizationInfo, ActionListener<Predicate<PrivilegesToCheck>> listener) {
+        listener.onResponse(privilegesToCheck -> {
+            if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
+                listener.onFailure(
+                    new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+                );
+                return false;
+            }
+            final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            final ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = privilegesToCheck.runDetailedCheck()
+                ? ResourcePrivilegesMap.builder()
+                : null;
+            for (RoleDescriptor.IndicesPrivileges check : privilegesToCheck.index()) {
+                boolean privilegesGranted = userRole.checkIndicesPrivileges(
+                    Sets.newHashSet(check.getIndices()),
+                    check.allowRestrictedIndices(),
+                    Sets.newHashSet(check.getPrivileges()),
+                    combineIndicesResourcePrivileges
+                );
+                if (privilegesGranted == false) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    @Override
     public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(

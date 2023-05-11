@@ -13,10 +13,11 @@ import org.elasticsearch.common.inject.Inject;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public interface HasPrivilegesCheck {
 
-    void checkPrivileges(PrivilegesToCheck privilegesToCheck, ActionListener<Void> listener);
+    void getPrivilegesCheck(ActionListener<Function<PrivilegesToCheck, Exception>> listener);
 
     record IndexPrivileges(List<String> indices, List<String> privileges) {
         IndexPrivileges(List<String> indices, String privilege) {
@@ -37,8 +38,8 @@ public interface HasPrivilegesCheck {
         public Noop() {}
 
         @Override
-        public void checkPrivileges(PrivilegesToCheck privilegesToCheck, ActionListener<Void> listener) {
-            listener.onResponse(null);
+        public void getPrivilegesCheck(ActionListener<Function<PrivilegesToCheck, Exception>> listener) {
+            listener.onResponse(ignored -> null);
         }
     }
 }

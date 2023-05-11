@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -229,6 +230,8 @@ public interface AuthorizationEngine {
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         ActionListener<PrivilegesCheckResult> listener
     );
+
+    void getCheckPrivilegesPredicate(AuthorizationInfo authorizationInfo, ActionListener<Predicate<PrivilegesToCheck>> listener);
 
     /**
      * Retrieve the privileges, from the provided authorization information, in a standard format that can be rendered via an

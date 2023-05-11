@@ -42,6 +42,12 @@ public class TemplateIndexPrivilegesIT extends ESRestTestCase {
                 "index_patterns": ["test-*"],
                 "data_stream": { }
             }"""), true);
+
+        makeRequest(client(), requestWithBody("PUT", "/_index_template/test_template", """
+            {
+                "index_patterns": ["other-*"],
+                "data_stream": { }
+            }"""), false);
     }
 
     private Request requestWithBody(String method, String endpoint, String jsonBody) {

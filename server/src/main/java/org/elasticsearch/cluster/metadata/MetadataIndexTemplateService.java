@@ -16,7 +16,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -71,7 +70,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -516,17 +514,19 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        validateV2TemplateRequest(clusterService.state().metadata(), name, template);
-        taskQueue.submitTask(
-            "create-index-template-v2 [" + name + "], cause [" + cause + "]",
-            new TemplateClusterStateUpdateTask(listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    return addIndexTemplateV2(currentState, create, name, template);
-                }
-            },
-            masterTimeout
-        );
+        hasPrivilegesCheck.getPrivilegesCheck(ActionListener.wrap(privilegesCheck -> {
+            validateV2TemplateRequest(clusterService.state().metadata(), name, template);
+            taskQueue.submitTask(
+                "create-index-template-v2 [" + name + "], cause [" + cause + "]",
+                new TemplateClusterStateUpdateTask(listener) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return addIndexTemplateV2(currentState, create, name, template, privilegesCheck);
+                    }
+                },
+                masterTimeout
+            );
+        }, listener::onFailure));
     }
 
     public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
@@ -577,7 +577,17 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComposableIndexTemplate template
     ) throws Exception {
-        return addIndexTemplateV2(currentState, create, name, template, true);
+        return addIndexTemplateV2(currentState, create, name, template, null);
+    }
+
+    public ClusterState addIndexTemplateV2(
+        final ClusterState currentState,
+        final boolean create,
+        final String name,
+        final ComposableIndexTemplate template,
+        final Function<HasPrivilegesCheck.PrivilegesToCheck, Exception> privilegeCheck
+    ) throws Exception {
+        return addIndexTemplateV2(currentState, create, name, template, true, privilegeCheck);
     }
 
     public ClusterState addIndexTemplateV2(
@@ -587,12 +597,26 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps
     ) throws Exception {
+        return addIndexTemplateV2(currentState, create, name, template, validateV2Overlaps, null);
+    }
+
+    public ClusterState addIndexTemplateV2(
+        final ClusterState currentState,
+        final boolean create,
+        final String name,
+        final ComposableIndexTemplate template,
+        final boolean validateV2Overlaps,
+        final Function<HasPrivilegesCheck.PrivilegesToCheck, Exception> privilegeCheck
+    ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
-        final List<String> indexPatternsToCheck = new ArrayList<>(template.indexPatterns());
-        if (existing != null) {
-            indexPatternsToCheck.addAll(existing.indexPatterns());
+        if (privilegeCheck != null) {
+            var ex = privilegeCheck.apply(
+                new HasPrivilegesCheck.PrivilegesToCheck(new HasPrivilegesCheck.IndexPrivileges(template.indexPatterns(), "manage"))
+            );
+            if (ex != null) {
+                throw ex;
+            }
         }
-        runBlockingHasPrivilegesCheck(indexPatternsToCheck);
 
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
@@ -654,18 +678,6 @@ public class MetadataIndexTemplateService {
             template.indexPatterns()
         );
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
-    }
-
-    private void runBlockingHasPrivilegesCheck(List<String> indexPatternsToCheck) throws ExecutionException, InterruptedException {
-        // The blocking action is bad but this doesn't actually work at all
-        // The threadContext is empty when we hit HasPrivilegesCheckWithSecurity.checkPrivileges, so we have no user info to authenticate
-        // and authorize with
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        hasPrivilegesCheck.checkPrivileges(
-            new HasPrivilegesCheck.PrivilegesToCheck(new HasPrivilegesCheck.IndexPrivileges(indexPatternsToCheck, "manage")),
-            future
-        );
-        future.get();
     }
 
     /**

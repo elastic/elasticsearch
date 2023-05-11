@@ -92,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -197,6 +198,17 @@ public class AuthorizationService {
                     )
                 ),
                 threadContext
+            )
+        );
+    }
+
+    public void getCheckPrivilegesPredicate(Subject subject, ActionListener<Predicate<AuthorizationEngine.PrivilegesToCheck>> listener) {
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            ActionListener.wrap(
+                authorizationInfo -> authorizationEngine.getCheckPrivilegesPredicate(authorizationInfo, listener),
+                listener::onFailure
             )
         );
     }

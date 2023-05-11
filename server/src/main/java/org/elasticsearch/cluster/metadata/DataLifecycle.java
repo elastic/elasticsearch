@@ -86,8 +86,8 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     /**
      * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
-     * meaning that they keys present on the latest lifecycle will override the ones of the others. If a key is missing
-     * then it keeps the value of the previous lifecycles. For example: if we have the following two lifecycles:
+     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
+     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
      * [
      *   {
      *     "lifecycle": {

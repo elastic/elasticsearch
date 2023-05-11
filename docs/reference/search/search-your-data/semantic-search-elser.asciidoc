@@ -100,7 +100,7 @@ In this step, you load the data that you later use in the {infer} ingest
 pipeline to extract tokens from it.
 
 NOTE: Only the first 512 extracted tokens of the ingested docs are considered 
-during semantic search.
+during semantic search with ELSER v1.
 
 Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS 
 MACRO Passage Ranking data set. It consists of 200 queries, each accompanied by 

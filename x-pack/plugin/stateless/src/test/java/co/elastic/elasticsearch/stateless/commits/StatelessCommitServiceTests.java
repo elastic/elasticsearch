@@ -8,6 +8,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
@@ -50,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
@@ -246,6 +248,58 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 files,
                 hasItems(secondCommit.getCommitFiles().toArray(String[]::new))
             );
+        }
+    }
+
+    public void testRecoveredCommitIsNotUploadedAgain() throws Exception {
+        Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        try (var testHarness = createNode(fileCapture(uploadedFiles), fileCapture(uploadedFiles))) {
+
+            StatelessCommitRef commitRef = generateIndexCommits(testHarness, 1).get(0);
+
+            List<String> commitFiles = commitRef.getCommitFiles()
+                .stream()
+                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                .toList();
+
+            testHarness.commitService.onCommitCreation(commitRef);
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
+            future.actionGet();
+
+            assertThat(
+                "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItems(commitFiles.toArray(String[]::new))
+            );
+
+            assertThat(
+                "Expected that the compound commit file "
+                    + StatelessCompoundCommit.NAME
+                    + commitRef.getGeneration()
+                    + " has been uploaded "
+                    + uploadedFiles,
+                uploadedFiles,
+                hasItems(StatelessCompoundCommit.NAME + commitRef.getGeneration())
+            );
+
+            uploadedFiles.clear();
+
+            StatelessCompoundCommit commit = ObjectStoreService.findSearchShardFiles(
+                testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm)
+            );
+
+            testHarness.commitService.unregister(testHarness.shardId);
+
+            testHarness.commitService.register(testHarness.shardId);
+            testHarness.commitService.markRecoveredCommit(testHarness.shardId, commit);
+
+            testHarness.commitService.onCommitCreation(commitRef);
+            PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+            testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future2);
+            future2.actionGet();
+
+            assertThat(uploadedFiles, empty());
         }
     }
 

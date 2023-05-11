@@ -52,13 +52,14 @@ public class OrdinalsGroupingOperator implements Operator {
     public record OrdinalsGroupingOperatorFactory(
         List<ValueSourceInfo> sources,
         int docChannel,
+        String groupingField,
         List<GroupingAggregatorFactory> aggregators,
         BigArrays bigArrays
     ) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            return new OrdinalsGroupingOperator(sources, docChannel, aggregators, bigArrays);
+            return new OrdinalsGroupingOperator(sources, docChannel, groupingField, aggregators, bigArrays);
         }
 
         @Override
@@ -69,6 +70,7 @@ public class OrdinalsGroupingOperator implements Operator {
 
     private final List<ValueSourceInfo> sources;
     private final int docChannel;
+    private final String groupingField;
 
     private final List<GroupingAggregatorFactory> aggregatorFactories;
     private final Map<SegmentID, OrdinalSegmentAggregator> ordinalAggregators;
@@ -82,6 +84,7 @@ public class OrdinalsGroupingOperator implements Operator {
     public OrdinalsGroupingOperator(
         List<ValueSourceInfo> sources,
         int docChannel,
+        String groupingField,
         List<GroupingAggregatorFactory> aggregatorFactories,
         BigArrays bigArrays
     ) {
@@ -94,6 +97,7 @@ public class OrdinalsGroupingOperator implements Operator {
         }
         this.sources = sources;
         this.docChannel = docChannel;
+        this.groupingField = groupingField;
         this.aggregatorFactories = aggregatorFactories;
         this.ordinalAggregators = new HashMap<>();
         this.bigArrays = bigArrays;
@@ -145,7 +149,7 @@ public class OrdinalsGroupingOperator implements Operator {
         } else {
             if (valuesAggregator == null) {
                 int channelIndex = page.getBlockCount(); // extractor will append a new block at the end
-                valuesAggregator = new ValuesAggregator(sources, docChannel, channelIndex, aggregatorFactories, bigArrays);
+                valuesAggregator = new ValuesAggregator(sources, docChannel, groupingField, channelIndex, aggregatorFactories, bigArrays);
             }
             valuesAggregator.addInput(page);
         }
@@ -367,11 +371,12 @@ public class OrdinalsGroupingOperator implements Operator {
         ValuesAggregator(
             List<ValueSourceInfo> sources,
             int docChannel,
+            String groupingField,
             int channelIndex,
             List<GroupingAggregatorFactory> aggregatorFactories,
             BigArrays bigArrays
         ) {
-            this.extractor = new ValuesSourceReaderOperator(sources, docChannel);
+            this.extractor = new ValuesSourceReaderOperator(sources, docChannel, groupingField);
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,
                 () -> BlockHash.build(List.of(new HashAggregationOperator.GroupSpec(channelIndex, sources.get(0).elementType())), bigArrays)

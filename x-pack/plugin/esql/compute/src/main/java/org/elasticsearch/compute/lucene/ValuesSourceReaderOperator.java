@@ -36,9 +36,29 @@ import java.util.TreeMap;
  */
 @Experimental
 public class ValuesSourceReaderOperator implements Operator {
+    /**
+     * Creates a new extractor that uses ValuesSources load data
+     * @param sources the value source, type and index readers to use for extraction
+     * @param docChannel the channel containing the shard, leaf/segment and doc id
+     * @param field the lucene field being loaded
+     */
+    public record ValuesSourceReaderOperatorFactory(List<ValueSourceInfo> sources, int docChannel, String field)
+        implements
+            OperatorFactory {
+        @Override
+        public Operator get() {
+            return new ValuesSourceReaderOperator(sources, docChannel, field);
+        }
+
+        @Override
+        public String describe() {
+            return "ValuesSourceReaderOperator[field = " + field + "]";
+        }
+    }
 
     private final List<ValueSourceInfo> sources;
     private final int docChannel;
+    private final String field;
 
     private BlockDocValuesReader lastReader;
     private int lastShard = -1;
@@ -52,33 +72,15 @@ public class ValuesSourceReaderOperator implements Operator {
     boolean finished;
 
     /**
-     * Creates a new extractor that uses ValuesSources load data
-     * @param sources the value source, type and index readers to use for extraction
-     * @param docChannel the channel containing the shard, leaf/segment and doc id
-     * @param field the lucene field to use
-     */
-    public record ValuesSourceReaderOperatorFactory(List<ValueSourceInfo> sources, int docChannel, String field)
-        implements
-            OperatorFactory {
-        @Override
-        public Operator get() {
-            return new ValuesSourceReaderOperator(sources, docChannel);
-        }
-
-        @Override
-        public String describe() {
-            return "ValuesSourceReaderOperator[field = " + field + "]";
-        }
-    }
-
-    /**
      * Creates a new extractor
      * @param sources the value source, type and index readers to use for extraction
      * @param docChannel the channel containing the shard, leaf/segment and doc id
+     * @param field the lucene field being loaded
      */
-    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, int docChannel) {
+    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, int docChannel, String field) {
         this.sources = sources;
         this.docChannel = docChannel;
+        this.field = field;
     }
 
     @Override
@@ -166,7 +168,7 @@ public class ValuesSourceReaderOperator implements Operator {
 
     @Override
     public String toString() {
-        return "ValuesSourceReaderOperator";
+        return "ValuesSourceReaderOperator[field = " + field + "]";
     }
 
     @Override

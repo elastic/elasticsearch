@@ -122,7 +122,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                     luceneSources++;
                     continue;
                 }
-                if (o.operator().equals("ValuesSourceReaderOperator")) {
+                if (o.operator().equals("ValuesSourceReaderOperator[field = pause_me]")) {
                     ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
                     assertThat(oStatus.readersBuilt(), equalTo(Map.of("LongValuesReader", 1)));
                     assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));

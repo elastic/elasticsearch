@@ -8,11 +8,9 @@
 package org.elasticsearch.compute;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -45,7 +43,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -68,12 +65,9 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.TopNOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -172,7 +166,8 @@ public class OperatorTests extends ESTestCase {
                         List.of(
                             new ValuesSourceReaderOperator(
                                 List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                0
+                                0,
+                                fieldName
                             ),
                             new TopNOperator(limit, List.of(new TopNOperator.SortOrder(1, true, true)))
                         ),
@@ -222,7 +217,8 @@ public class OperatorTests extends ESTestCase {
                                 List.of(
                                     new ValuesSourceReaderOperator(
                                         List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                        0
+                                        0,
+                                        fieldName
                                     )
                                 ),
                                 new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())),
@@ -256,105 +252,6 @@ public class OperatorTests extends ESTestCase {
         w.commit();
 
         return w;
-    }
-
-    public void testValuesSourceReaderOperatorWithNulls() throws IOException {  // TODO move to ValuesSourceReaderOperatorTests
-        final int numDocs = 100_000;
-        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            Document doc = new Document();
-            NumericDocValuesField intField = new NumericDocValuesField("i", 0);
-            NumericDocValuesField longField = new NumericDocValuesField("j", 0);
-            NumericDocValuesField doubleField = new DoubleDocValuesField("d", 0);
-            String kwFieldName = "kw";
-            for (int i = 0; i < numDocs; i++) {
-                doc.clear();
-                intField.setLongValue(i);
-                doc.add(intField);
-                if (i % 100 != 0) { // Do not set field for every 100 values
-                    longField.setLongValue(i);
-                    doc.add(longField);
-                    doubleField.setDoubleValue(i);
-                    doc.add(doubleField);
-                    doc.add(new SortedDocValuesField(kwFieldName, new BytesRef("kw=" + i)));
-                }
-                w.addDocument(doc);
-            }
-            w.commit();
-
-            ValuesSource intVs = new ValuesSource.Numeric.FieldData(
-                new SortedNumericIndexFieldData(
-                    intField.name(),
-                    IndexNumericFieldData.NumericType.INT,
-                    IndexNumericFieldData.NumericType.INT.getValuesSourceType(),
-                    null
-                )
-            );
-            ValuesSource longVs = new ValuesSource.Numeric.FieldData(
-                new SortedNumericIndexFieldData(
-                    longField.name(),
-                    IndexNumericFieldData.NumericType.LONG,
-                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
-                    null
-                )
-            );
-            ValuesSource doubleVs = new ValuesSource.Numeric.FieldData(
-                new SortedDoublesIndexFieldData(
-                    doubleField.name(),
-                    IndexNumericFieldData.NumericType.DOUBLE,
-                    IndexNumericFieldData.NumericType.DOUBLE.getValuesSourceType(),
-                    null
-                )
-            );
-            var breakerService = new NoneCircuitBreakerService();
-            var cache = new IndexFieldDataCache.None();
-            ValuesSource keywordVs = new ValuesSource.Bytes.FieldData(
-                new SortedSetOrdinalsIndexFieldData(cache, kwFieldName, CoreValuesSourceType.KEYWORD, breakerService, null)
-            );
-
-            try (IndexReader reader = w.getReader()) {
-                // implements cardinality on value field
-                Driver driver = new Driver(
-                    new LuceneSourceOperator(reader, 0, new MatchAllDocsQuery()),
-                    List.of(
-                        new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, intVs, ElementType.INT, reader)),
-                            0
-                        ),
-                        new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, longVs, ElementType.LONG, reader)),
-                            0
-                        ),
-                        new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, doubleVs, ElementType.DOUBLE, reader)),
-                            0
-                        ),
-                        new ValuesSourceReaderOperator(
-                            List.of(new ValueSourceInfo(CoreValuesSourceType.KEYWORD, keywordVs, ElementType.BYTES_REF, reader)),
-                            0
-                        )
-                    ),
-                    new PageConsumerOperator(page -> {
-                        logger.debug("New page: {}", page);
-                        IntBlock intValuesBlock = page.getBlock(1);
-                        LongBlock longValuesBlock = page.getBlock(2);
-                        DoubleBlock doubleValuesBlock = page.getBlock(3);
-                        BytesRefBlock keywordValuesBlock = page.getBlock(4);
-
-                        for (int i = 0; i < page.getPositionCount(); i++) {
-                            assertFalse(intValuesBlock.isNull(i));
-                            long j = intValuesBlock.getInt(i);
-                            // Every 100 documents we set fields to null
-                            boolean fieldIsEmpty = j % 100 == 0;
-                            assertEquals(fieldIsEmpty, longValuesBlock.isNull(i));
-                            assertEquals(fieldIsEmpty, doubleValuesBlock.isNull(i));
-                            assertEquals(fieldIsEmpty, keywordValuesBlock.isNull(i));
-                        }
-                    }),
-                    () -> {}
-                );
-                driver.run();
-            }
-        }
     }
 
     public void testQueryOperator() throws IOException {
@@ -461,7 +358,8 @@ public class OperatorTests extends ESTestCase {
                         List.of(
                             new ValuesSourceReaderOperator(
                                 List.of(new ValueSourceInfo(CoreValuesSourceType.NUMERIC, vs, ElementType.LONG, reader)),
-                                0
+                                0,
+                                fieldName
                             ),
                             new HashAggregationOperator(
                                 List.of(
@@ -603,6 +501,7 @@ public class OperatorTests extends ESTestCase {
                                 )
                             ),
                             0,
+                            gField,
                             List.of(
                                 new GroupingAggregator.GroupingAggregatorFactory(bigArrays, GroupingAggregatorFunction.COUNT, INITIAL, 1)
                             ),

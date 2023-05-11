@@ -156,6 +156,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 LocalExecutionPlanner.toElementType(attrSource.dataType())
             ),
             docChannel,
+            attrSource.name(),
             aggregatorFactories,
             BigArrays.NON_RECYCLING_INSTANCE
         );

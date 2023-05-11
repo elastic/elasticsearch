@@ -176,7 +176,7 @@ public class ValuesSourceReaderBenchmark {
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
-        ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(List.of(info(reader, name)), 0);
+        ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(List.of(info(reader, name)), 0, name);
         long sum = 0;
         for (Page page : pages) {
             op.addInput(page);

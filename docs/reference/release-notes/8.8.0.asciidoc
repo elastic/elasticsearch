@@ -47,6 +47,10 @@ Engine::
 Geo::
 * Fix bug where `geo_line` does not respect `sort_order` {es-pull}94734[#94734] (issue: {es-issue}94733[#94733])
 
+ILM+SLM::
+* Strip disallowed chars from generated snapshot name {es-pull}95767[#95767] (issue: {es-issue}95593[#95593])
+* [ILM] Fix the migrate to tiers service and migrate action tiers configuration {es-pull}95934[#95934]
+
 Infra/Core::
 * Fix race condition in `NodeEnvironment.close()` {es-pull}94677[#94677] (issue: {es-issue}94672[#94672])
 * Use double wildcards for filtered excludes properly {es-pull}94195[#94195] (issue: {es-issue}92632[#92632])
@@ -81,6 +85,8 @@ Search::
 * Support search template api explain query string argument {es-pull}94832[#94832] (issue: {es-issue}83363[#83363])
 
 Snapshot/Restore::
+* Cancel cold cache prewarming tasks if store is closing {es-pull}95891[#95891] (issue: {es-issue}95504[#95504])
+* Fix 0 default value for repo snapshot speed {es-pull}95854[#95854] (issue: {es-issue}95561[#95561])
 * Stop sorting indices in get-snapshots API {es-pull}94890[#94890]
 
 Transform::

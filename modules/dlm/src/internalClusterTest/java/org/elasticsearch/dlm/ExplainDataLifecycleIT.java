@@ -225,7 +225,15 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
             ExplainDataLifecycleAction.Response response = client().execute(ExplainDataLifecycleAction.INSTANCE, explainIndicesRequest)
                 .actionGet();
             assertThat(response.getIndices().size(), is(1));
-            assertThat(response.getIndices().get(0).getError(), is(nullValue()));
+            if (internalCluster().numDataNodes() > 1) {
+                assertThat(response.getIndices().get(0).getError(), is(nullValue()));
+            } else {
+                /*
+                 * If there is only one node in the cluster then the replica shard will never be allocated. So forcemerge will never
+                 * succeed, and there will always be an error in the error store. This behavior is subject to change in the future.
+                 */
+                assertThat(response.getIndices().get(0).getError(), is(notNullValue()));
+            }
         });
     }
 

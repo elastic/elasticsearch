@@ -210,6 +210,19 @@ foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
 // end::split-result[]
 ;
 
+mvMax
+// tag::mv_max[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL max_a = MV_MAX(a)
+// end::mv_max[]
+;
+
+// tag::mv_max-result[]
+            a:keyword | max_a:keyword
+["foo", "zoo", "bar"] | "zoo"
+// end::mv_max-result[]
+;
+
 mvMin
 // tag::mv_min[]
 ROW a=["foo", "bar"]

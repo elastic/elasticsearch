@@ -200,6 +200,20 @@ emp_no:integer | salary_change.int:integer | salary_change:double
 10015          | [12, 14]                  | 13.325
 ;
 
+mvAvgSimple
+// tag::mv_avg[]
+ROW a=[3, 5, 1, 6]
+| EVAL avg_a = MV_AVG(a)
+// end::mv_avg[]
+;
+
+// tag::mv_avg-result[]
+   a:integer | avg_a:double
+[3, 5, 1, 6] | 3.75
+// end::mv_avg-result[]
+;
+
+
 mvMax
 from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;
 
@@ -211,6 +225,19 @@ emp_no:integer | salary_change.int:integer | salary_change:integer
 10013          | null                      | null
 10014          | [-1, 9]                   | 9
 10015          | [12, 14]                  | 14
+;
+
+mvMaxSimple
+// tag::mv_max[]
+ROW a=[3, 5, 1]
+| EVAL max_a = MV_MAX(a)
+// end::mv_max[]
+;
+
+// tag::mv_max-result[]
+a:integer | max_a:integer
+[3, 5, 1] | 5
+// end::mv_max-result[]
 ;
 
 mvMin
@@ -250,4 +277,17 @@ emp_no:integer | salary_change.int:integer | salary_change:integer
 10013          | null                      | null
 10014          | [-1, 9]                   | 8
 10015          | [12, 14]                  | 26
+;
+
+mvSumSimple
+// tag::mv_sum[]
+ROW a=[3, 5, 6]
+| EVAL sum_a = MV_SUM(a)
+// end::mv_sum[]
+;
+
+// tag::mv_sum-result[]
+a:integer | sum_a:integer
+[3, 5, 6] | 14
+// end::mv_sum-result[]
 ;

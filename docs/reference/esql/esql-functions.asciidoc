@@ -15,7 +15,10 @@ these functions:
 * <<esql-is_nan>>
 * <<esql-is_null>>
 * <<esql-length>>
+* <<esql-mv_avg>>
+* <<esql-mv_max>>
 * <<esql-mv_min>>
+* <<esql-mv_sum>>
 * <<esql-pow>>
 * <<esql-round>>
 * <<esql-split>>
@@ -162,7 +165,10 @@ FROM employees
 | EVAL fn_length = LENGTH(first_name)
 ----
 
+include::functions/mv_avg.asciidoc[]
+include::functions/mv_max.asciidoc[]
 include::functions/mv_min.asciidoc[]
+include::functions/mv_sum.asciidoc[]
 
 [[esql-pow]]
 === `POW`

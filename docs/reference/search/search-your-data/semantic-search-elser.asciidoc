@@ -153,8 +153,8 @@ follow the progress. It may take a couple of minutes to complete the process.
 [[text-expansion-query]]
 === Semantic search by using the `text_expansion` query
 
-To perform semantic search, pass a `text_expansion` object to the search API 
-call, and provide the query text and the ELSER model ID. The example below uses 
+To perform semantic search, use the `text_expansion` query, 
+and provide the query text and the ELSER model ID. The example below uses 
 the query text "How to avoid muscle soreness after running?":
 
 [source,console]

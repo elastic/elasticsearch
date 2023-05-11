@@ -1,5 +1,5 @@
 [[semantic-search-elser]]
-== Perform semantic search with ELSER
+== Tutorial: semantic search with ELSER
 ++++
 <titleabbrev>Semantic search with ELSER</titleabbrev>
 ++++
@@ -13,7 +13,7 @@ representation. Instead of literal matching on search terms, semantic search
 retrieves results based on the intent and the contextual meaning of a search 
 query.
 
-The instructions on this page shows you how to use ELSER to perform semantic 
+The instructions in this tutorial shows you how to use ELSER to perform semantic 
 search on your data.
 
 

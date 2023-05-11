@@ -43,6 +43,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -1301,10 +1302,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      *         Otherwise <code>null</code> is returned.
      */
     @Nullable
-    public IndexLongFieldRange getTimeSeriesTimestampRange() {
+    public IndexLongFieldRange getTimeSeriesTimestampRange(DateFieldMapper.DateFieldType dateFieldType) {
         var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
         if (bounds != null) {
-            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(bounds.startTime(), bounds.endTime()));
+            long start = bounds.startTime();
+            long end = bounds.endTime();
+            if (dateFieldType != null) {
+                start = dateFieldType.resolution().convert(Instant.ofEpochMilli(start));
+                end = dateFieldType.resolution().convert(Instant.ofEpochMilli(end));
+            }
+            return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(start, end));
         } else {
             return null;
         }

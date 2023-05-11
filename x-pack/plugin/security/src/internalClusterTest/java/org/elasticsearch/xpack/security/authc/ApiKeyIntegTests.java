@@ -275,6 +275,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(daysBetween, is(7L));
 
         assertThat(getApiKeyDocument(response.getId()).get("type"), equalTo("rest"));
+        assertThat(getApiKeyInfo(client(), response.getId(), randomBoolean(), randomBoolean()).getType(), is(ApiKey.Type.REST));
 
         // create simple api key
         final CreateApiKeyResponse simple = new CreateApiKeyRequestBuilder(client).setName("simple").get();
@@ -1940,7 +1941,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var expectedMetadata = request.getMetadata() != null ? request.getMetadata() : createdApiKey.v2();
         final var expectedRoleDescriptors = nullRoleDescriptors ? List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR) : newRoleDescriptors;
 
-        doTestApiKeyHasExpectedAttributes(
+        doTestUpdatedApiKeyHasExpectedAttributes(
             apiKeyId,
             Map.of(
                 ApiKeyAttribute.CREATOR,
@@ -2003,7 +2004,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             )
         );
         for (String apiKeyId : apiKeyIds) {
-            doTestApiKeyHasExpectedAttributes(
+            doTestUpdatedApiKeyHasExpectedAttributes(
                 apiKeyId,
                 Map.of(
                     ApiKeyAttribute.METADATA,
@@ -2035,7 +2036,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(response.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
         assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
         for (String apiKeyId : apiKeyIds) {
-            doTestApiKeyHasExpectedAttributes(
+            doTestUpdatedApiKeyHasExpectedAttributes(
                 apiKeyId,
                 Map.of(
                     ApiKeyAttribute.METADATA,
@@ -2211,7 +2212,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             "all"
         ).v1().get(0);
         final String apiKeyId = createdApiKey.getId();
-        doTestApiKeyHasExpectedAttributes(
+        doTestUpdatedApiKeyHasExpectedAttributes(
             apiKeyId,
             Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorBeforeUpdate))
         );
@@ -2236,7 +2237,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
-        doTestApiKeyHasExpectedAttributes(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorAfterUpdate)));
+        doTestUpdatedApiKeyHasExpectedAttributes(
+            apiKeyId,
+            Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorAfterUpdate))
+        );
 
         // Update user role name only
         final RoleDescriptor roleDescriptorWithNewName = putRoleWithClusterPrivileges(
@@ -2262,7 +2266,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectedCreator.put("metadata", updatedUser.metadata());
         expectedCreator.put("realm_type", "native");
         expectedCreator.put("realm", "index");
-        doTestApiKeyHasExpectedAttributes(
+        doTestUpdatedApiKeyHasExpectedAttributes(
             apiKeyId,
             Map.of(ApiKeyAttribute.CREATOR, expectedCreator, ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, Set.of(roleDescriptorWithNewName))
         );
@@ -2578,7 +2582,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 currentSuperuserRoleDescriptors
             )
         );
-        doTestApiKeyHasExpectedAttributes(apiKeyId, Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, currentSuperuserRoleDescriptors));
+        doTestUpdatedApiKeyHasExpectedAttributes(
+            apiKeyId,
+            Map.of(ApiKeyAttribute.LIMITED_BY_ROLE_DESCRIPTORS, currentSuperuserRoleDescriptors)
+        );
         // Second update is noop because role descriptors were auto-updated by the previous request
         assertSingleNoop(
             apiKeyId,
@@ -2697,10 +2704,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     // Check attributes with both the raw document and the get api key response whenever possible
     @SuppressWarnings("unchecked")
-    private void doTestApiKeyHasExpectedAttributes(String apiKeyId, Map<ApiKeyAttribute, Object> attributes) throws IOException {
+    private void doTestUpdatedApiKeyHasExpectedAttributes(String apiKeyId, Map<ApiKeyAttribute, Object> attributes) throws IOException {
         final Map<String, Object> apiKeyDocMap = getApiKeyDocument(apiKeyId);
         final boolean useGetApiKey = randomBoolean();
         final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, useGetApiKey);
+        // Updated API keys do not change their type
+        assertThat(apiKeyDocMap.get("type"), equalTo("rest"));
+        assertThat(apiKeyInfo.getType(), is(ApiKey.Type.REST));
         for (Map.Entry<ApiKeyAttribute, Object> entry : attributes.entrySet()) {
             switch (entry.getKey()) {
                 case CREATOR -> {
@@ -2739,7 +2749,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void expectAttributesForApiKeys(List<String> apiKeyIds, Map<ApiKeyAttribute, Object> attributes) throws IOException {
         for (String apiKeyId : apiKeyIds) {
-            doTestApiKeyHasExpectedAttributes(apiKeyId, attributes);
+            doTestUpdatedApiKeyHasExpectedAttributes(apiKeyId, attributes);
         }
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
@@ -80,6 +81,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -446,10 +448,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
         );
 
+        // Check the API key attributes with raw document
         final Map<String, Object> document = client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
             .actionGet()
             .getSource();
-
         assertThat(document.get("type"), equalTo("cross_cluster"));
 
         @SuppressWarnings("unchecked")
@@ -463,22 +465,45 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             XContentType.JSON
         );
 
-        assertThat(
-            actualRoleDescriptor,
-            equalTo(
-                new RoleDescriptor(
-                    "cross_cluster",
-                    new String[] { "cross_cluster_search" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("logs")
-                            .privileges("read", "read_cross_cluster", "view_index_metadata")
-                            .build() },
-                    null
-                )
-            )
+        final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
+            "cross_cluster",
+            new String[] { "cross_cluster_search" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .build() },
+            null
         );
+        assertThat(actualRoleDescriptor, equalTo(expectedRoleDescriptor));
         assertThat((Map<?, ?>) document.get("limited_by_role_descriptors"), anEmptyMap());
+
+        // Check the API key attributes with Get API
+        final GetApiKeyResponse getApiKeyResponse = client().execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
+        ).actionGet();
+        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(getApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
+        assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
+
+        // Check the API key attributes with Query API
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery().addIds(apiKeyId)),
+            null,
+            null,
+            null,
+            null,
+            randomBoolean()
+        );
+        final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
+        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
+        assertThat(queryApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
+        assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
     }
 
     private GrantApiKeyRequest buildGrantApiKeyRequest(String username, SecureString password, String runAsUsername) throws IOException {

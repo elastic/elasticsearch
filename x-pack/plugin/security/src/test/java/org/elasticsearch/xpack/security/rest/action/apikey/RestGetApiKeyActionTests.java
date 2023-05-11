@@ -26,6 +26,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -93,9 +94,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
+        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
-        @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
         final List<RoleDescriptor> roleDescriptors = randomUniquelyNamedRoleDescriptors(0, 3);
         final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy ? randomUniquelyNamedRoleDescriptors(1, 3) : null;
@@ -104,6 +105,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 new ApiKey(
                     "api-key-name-1",
                     "api-key-id-1",
+                    type,
                     creation,
                     expiration,
                     false,
@@ -166,6 +168,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                         new ApiKey(
                             "api-key-name-1",
                             "api-key-id-1",
+                            type,
                             creation,
                             expiration,
                             false,
@@ -209,11 +212,13 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             }
         };
 
+        final ApiKey.Type type = TcpTransport.isUntrustedRemoteClusterEnabled() ? randomFrom(ApiKey.Type.values()) : ApiKey.Type.REST;
         final Instant creation = Instant.now();
         final Instant expiration = randomFrom(Arrays.asList(null, Instant.now().plus(10, ChronoUnit.DAYS)));
         final ApiKey apiKey1 = new ApiKey(
             "api-key-name-1",
             "api-key-id-1",
+            type,
             creation,
             expiration,
             false,
@@ -226,6 +231,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final ApiKey apiKey2 = new ApiKey(
             "api-key-name-2",
             "api-key-id-2",
+            type,
             creation,
             expiration,
             false,

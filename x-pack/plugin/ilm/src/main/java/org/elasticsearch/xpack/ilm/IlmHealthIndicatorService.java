@@ -231,18 +231,21 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     static class IlmRuleEvaluator {
 
-        public static final Duration ONE_DAY = Duration.ofSeconds(1);
+        private static Predicate<CurrentState> actionAndMaxTimeOn(String action) {
+            assert RULES_BY_ACTION_CONFIG.get(action) != null;
+            return cs -> action.equals(cs.action) && RULES_BY_ACTION_CONFIG.get(action).maxTimeOn.compareTo(cs.timeOnAction) < 0;
+        }
 
         private static final IlmRuleEvaluator ILM_RULE_EVALUATOR = new IlmRuleEvaluator(
             List.of(
-                cs -> RolloverAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> MigrateAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> SearchableSnapshotAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> DeleteStep.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> ShrinkAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> AllocateAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> ForceMergeAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0,
-                cs -> DownsampleAction.NAME.equals(cs.action) && ONE_DAY.compareTo(cs.timeOnAction) < 0
+                actionAndMaxTimeOn(RolloverAction.NAME),
+                actionAndMaxTimeOn(MigrateAction.NAME),
+                actionAndMaxTimeOn(SearchableSnapshotAction.NAME),
+                actionAndMaxTimeOn(DeleteStep.NAME),
+                actionAndMaxTimeOn(ShrinkAction.NAME),
+                actionAndMaxTimeOn(AllocateAction.NAME),
+                actionAndMaxTimeOn(ForceMergeAction.NAME),
+                actionAndMaxTimeOn(DownsampleAction.NAME)
             )
         );
         private final List<Predicate<CurrentState>> rules;
@@ -255,6 +258,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return rules.stream().anyMatch(r -> r.test(currentState));
         }
     }
+
+    private record Rule(TimeValue maxTimeOn, long maxRetries) {}
 
     private record CurrentState(
         String indexName,

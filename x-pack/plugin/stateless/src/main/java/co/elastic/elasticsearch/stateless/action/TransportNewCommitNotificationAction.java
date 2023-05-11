@@ -27,11 +27,13 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.unpromotable.TransportBroadcastUnpromotableAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -83,6 +85,10 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             }
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
             shard.readAllowed();
+            if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
+                listener.onFailure(new IndexClosedException(request.shardId().getIndex()));
+                return;
+            }
             Engine engineOrNull = shard.getEngineOrNull();
             if (engineOrNull == null) {
                 throw new EngineException(shard.shardId(), "Engine not started.");

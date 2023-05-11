@@ -284,7 +284,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return;
         }
         Bits liveDocs = ctx.reader().getLiveDocs();
-        BitSet liveDocsBitSet = getSparseBitSetOrNull(liveDocs);
+        BitSet liveDocsBitSet = null;//TODO getSparseBitSetOrNull(liveDocs);
         BulkScorer bulkScorer;
         if (liveDocsBitSet == null) {
             bulkScorer = weight.bulkScorer(ctx);
@@ -298,7 +298,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 bulkScorer = new CancellableBulkScorer(bulkScorer, cancellable::checkCancelled);
             }
             try {
-                bulkScorer.score(leafCollector, ctx.reader().getLiveDocs());
+                bulkScorer.score(leafCollector, liveDocs);
             } catch (CollectionTerminatedException e) {
                 // collection was terminated prematurely
                 // continue with the following leaf

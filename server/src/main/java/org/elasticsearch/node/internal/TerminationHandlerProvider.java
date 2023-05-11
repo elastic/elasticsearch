@@ -8,8 +8,6 @@
 
 package org.elasticsearch.node.internal;
 
-import java.util.Collection;
-
 /**
  * SPI service interface for providing hooks to handle graceful termination. This class is mostly plumbing and implementations should be
  * mostly boilerplate that passes the handlers along from the {@link org.elasticsearch.plugins.Plugin} class. See {@link TerminationHandler}
@@ -29,5 +27,5 @@ public interface TerminationHandlerProvider {
      *
      * @return A list of {@link  TerminationHandler}s
      */
-    Collection<TerminationHandler> handlers();
+    TerminationHandler handlers();
 }

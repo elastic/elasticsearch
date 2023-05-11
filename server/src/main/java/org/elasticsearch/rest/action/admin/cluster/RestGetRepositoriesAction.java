@@ -51,6 +51,9 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
         return channel -> client.admin().cluster().getRepositories(getRepositoriesRequest, new RestToXContentListener<>(channel));
     }
 

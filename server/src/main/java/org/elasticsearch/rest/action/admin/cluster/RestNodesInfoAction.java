@@ -95,6 +95,11 @@ public class RestNodesInfoAction extends BaseRestHandler {
             metrics.retainAll(ALLOWED_METRICS);
             nodesInfoRequest.addMetrics(metrics.toArray(String[]::new));
         }
+
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
+
         return nodesInfoRequest;
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -58,6 +59,10 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         if (source.containsKey(PERSISTENT)) {
             clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
         }
+
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
 
         return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new RestToXContentListener<>(channel));
     }

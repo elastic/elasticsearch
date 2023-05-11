@@ -81,6 +81,13 @@ public class RestIndicesAction extends AbstractCatAction {
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
+        // validate response params
+        request.paramAsBoolean("local", false);
+        String health = request.param("health");
+        if (health != null) {
+            ClusterHealthStatus.fromString(request.param("health"));
+        }
+
         return channel -> {
             final var indexSettingsRef = new AtomicReference<GetSettingsResponse>();
             final var indicesStatsRef = new AtomicReference<IndicesStatsResponse>();

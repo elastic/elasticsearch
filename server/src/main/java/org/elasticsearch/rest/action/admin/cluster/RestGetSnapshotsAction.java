@@ -77,6 +77,12 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.includeIndexNames(request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, getSnapshotsRequest.includeIndexNames()));
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
+
+        // validate response params
+        request.paramAsBoolean(INDEX_DETAILS_XCONTENT_PARAM, false);
+        request.paramAsBoolean(INCLUDE_REPOSITORY_XCONTENT_PARAM, true);
+        request.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, true);
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
             .getSnapshots(getSnapshotsRequest, new RestChunkedToXContentListener<>(channel));

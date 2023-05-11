@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -56,8 +57,11 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.compatibleCritical("get_index_template_include_type_name", TYPES_DEPRECATION_MESSAGE);
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            responseParams(RestApiVersion.V_7).forEach(request::param);
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                deprecationLogger.compatibleCritical("get_index_template_include_type_name", TYPES_DEPRECATION_MESSAGE);
+            }
         }
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
 
@@ -67,6 +71,10 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
+
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
 
         return channel -> client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestToXContentListener<>(channel) {
             @Override

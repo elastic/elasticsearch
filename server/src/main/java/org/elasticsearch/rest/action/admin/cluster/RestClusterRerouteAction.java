@@ -84,6 +84,9 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         if (metric == null) {
             request.params().put("metric", DEFAULT_METRICS);
         }
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
         return channel -> client.admin().cluster().reroute(clusterRerouteRequest, new RestChunkedToXContentListener<>(channel));
     }
 

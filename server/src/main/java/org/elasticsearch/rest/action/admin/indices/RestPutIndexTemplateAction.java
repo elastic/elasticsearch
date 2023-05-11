@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -91,6 +93,10 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.patterns(List.of((String) sourceAsMap.remove("template")));
         }
         putRequest.source(sourceAsMap);
+
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
 
         return channel -> client.admin().indices().putTemplate(putRequest, new RestToXContentListener<>(channel));
     }

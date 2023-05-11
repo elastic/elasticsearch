@@ -95,7 +95,8 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
+        // pre-consume response params
+        RESPONSE_PARAMS.forEach(request::param);
         SearchRequest searchRequest;
         if (request.hasParam("min_compatible_shard_node")) {
             searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));
@@ -422,6 +423,7 @@ public class RestSearchAction extends BaseRestHandler {
         checkSearchType(restRequest, searchRequest);
         // ensures that the rest param is consumed
         restRequest.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
+        restRequest.paramAsBoolean(TYPED_KEYS_PARAM, false);
     }
 
     /**

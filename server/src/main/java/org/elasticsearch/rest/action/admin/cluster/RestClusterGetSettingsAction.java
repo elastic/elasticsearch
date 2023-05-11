@@ -77,6 +77,9 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
         ClusterGetSettingsAction.Request clusterSettingsRequest = new ClusterGetSettingsAction.Request();
 
         setUpRequestParams(clusterSettingsRequest, request);
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
 
         return channel -> client.execute(
             ClusterGetSettingsAction.INSTANCE,

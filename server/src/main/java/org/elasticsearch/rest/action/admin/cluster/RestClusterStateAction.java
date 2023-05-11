@@ -78,6 +78,8 @@ public class RestClusterStateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // pre-consume response params
+        responseParams().forEach(request::param);
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterStateRequest.indicesOptions()));
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -109,6 +111,10 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.customs(metrics.contains(ClusterState.Metric.CUSTOMS));
         }
         settingsFilter.addFilterSettingParams(request);
+
+        // pre-consume response params
+        request.paramAsBoolean(Settings.FLAT_SETTINGS_PARAM, true);
+        request.param(SettingsFilter.SETTINGS_FILTER_PARAM);
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             ClusterStateAction.INSTANCE,

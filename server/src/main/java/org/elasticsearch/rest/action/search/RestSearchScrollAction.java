@@ -66,6 +66,9 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }
         });
+
+        // ensures that the rest param is consumed
+        request.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 

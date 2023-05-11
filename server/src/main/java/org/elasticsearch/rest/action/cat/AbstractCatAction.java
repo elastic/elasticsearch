@@ -11,6 +11,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.SizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -35,6 +38,21 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         boolean helpWanted = request.paramAsBoolean("help", false);
+        // pre-consume response params
+        for (String p : RESPONSE_PARAMS) {
+            if ("ts".equals(p) || "pri".equals(p)) {
+                request.paramAsBoolean(p, false);
+            } else if ("bytes".equals(p)) {
+                ByteSizeValue.validateUnit(request.param(p, "b"));
+            } else if ("size".equals(p)) {
+                SizeValue.validateUnit(request.param(p, ""));
+            } else if ("time".equals(p)) {
+                TimeValue.validateUnit(request.param(p, "nanos"));
+            } else {
+                request.param(p);
+            }
+        }
+
         if (helpWanted) {
             return channel -> {
                 Table table = getTableWithHeader(request);

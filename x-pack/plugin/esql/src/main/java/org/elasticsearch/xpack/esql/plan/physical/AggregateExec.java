@@ -94,11 +94,4 @@ public class AggregateExec extends UnaryExec {
             && Objects.equals(child(), other.child());
     }
 
-    @Override
-    public boolean singleNode() {
-        if (mode != Mode.PARTIAL) {
-            return true;
-        }
-        return child().singleNode();
-    }
 }

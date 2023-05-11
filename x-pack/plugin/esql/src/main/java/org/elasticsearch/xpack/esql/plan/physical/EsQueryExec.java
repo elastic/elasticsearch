@@ -124,11 +124,6 @@ public class EsQueryExec extends LeafExec {
     }
 
     @Override
-    public boolean singleNode() {
-        return false;
-    }
-
-    @Override
     public String nodeString() {
         return nodeName()
             + "["

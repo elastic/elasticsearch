@@ -47,11 +47,6 @@ public class RowExec extends LeafExec {
     }
 
     @Override
-    public boolean singleNode() {
-        return true;
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(fields);
     }

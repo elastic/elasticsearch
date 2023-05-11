@@ -22,11 +22,6 @@ public class ExchangeExec extends UnaryExec {
         this.mode = mode;
     }
 
-    @Override
-    public boolean singleNode() {
-        return true;
-    }
-
     public Mode mode() {
         return mode;
     }

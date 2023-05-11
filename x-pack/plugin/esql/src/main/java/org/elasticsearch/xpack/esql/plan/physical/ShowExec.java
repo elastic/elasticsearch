@@ -44,11 +44,6 @@ public class ShowExec extends LeafExec {
     }
 
     @Override
-    public boolean singleNode() {
-        return true;
-    }
-
-    @Override
     public List<Attribute> output() {
         return attributes;
     }

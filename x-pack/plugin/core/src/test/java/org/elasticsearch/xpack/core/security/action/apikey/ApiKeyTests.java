@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -105,6 +106,27 @@ public class ApiKeyTests extends ESTestCase {
         for (RoleDescriptor roleDescriptor : limitedByRoleDescriptors) {
             assertThat(limitedByMap, hasKey(roleDescriptor.getName()));
             assertThat(XContentTestUtils.convertToMap(roleDescriptor), equalTo(limitedByMap.get(roleDescriptor.getName())));
+        }
+    }
+
+    public void testParseApiKeyType() throws IOException {
+        assertThat(parseTypeString(randomFrom("rest", "REST", "Rest")), is(ApiKey.Type.REST));
+        assertThat(parseTypeString(randomFrom("cross_cluster", "CROSS_CLUSTER", "Cross_Cluster")), is(ApiKey.Type.CROSS_CLUSTER));
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseTypeString(randomAlphaOfLengthBetween(3, 20))
+        );
+        assertThat(e.getMessage(), containsString("invalid API key type"));
+    }
+
+    private ApiKey.Type parseTypeString(String typeString) throws IOException {
+        if (randomBoolean()) {
+            return ApiKey.Type.parse(typeString);
+        } else {
+            return ApiKey.Type.fromXContent(
+                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, "\"" + typeString + "\"")
+            );
         }
     }
 

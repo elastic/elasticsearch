@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -28,6 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -51,8 +54,23 @@ public final class ApiKey implements ToXContentObject, Writeable {
             return switch (value.toLowerCase(Locale.ROOT)) {
                 case "rest" -> REST;
                 case "cross_cluster" -> CROSS_CLUSTER;
-                default -> throw new IllegalArgumentException("unknown API key type [" + value + "]");
+                default -> throw new IllegalArgumentException(
+                    "invalid API key type ["
+                        + value
+                        + "] expected one of ["
+                        + Stream.of(values()).map(Type::value).collect(Collectors.joining(","))
+                        + "]"
+                );
             };
+        }
+
+        public static Type fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+            return parse(parser.text());
         }
 
         public String value() {

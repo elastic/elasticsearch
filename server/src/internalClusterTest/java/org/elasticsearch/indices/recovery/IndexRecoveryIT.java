@@ -791,7 +791,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         checkDisconnectsDuringRecovery(false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95933")
     public void testHistoryRetention() throws Exception {
         internalCluster().startNodes(3);
 

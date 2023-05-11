@@ -33,31 +33,29 @@ public class HasPrivilegesCheckWithSecurity implements HasPrivilegesCheck {
         Objects.requireNonNull(securityContext.getAuthentication());
         authorizationService.getPrivilegesCheck(
             securityContext.getAuthentication().getEffectiveSubject(),
-            ActionListener.wrap(privilegesCheck -> {
-                listener.onResponse(privilegesToCheck -> {
-                    final RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = privilegesToCheck.indexPrivileges()
-                        .stream()
-                        .map(
-                            it -> RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(it.indices().toArray(new String[0]))
-                                .privileges(it.privileges().toArray(new String[0]))
-                                .build()
-                        )
-                        .toArray(RoleDescriptor.IndicesPrivileges[]::new);
-                    final String[] clusterPrivilegesToCheck = privilegesToCheck.clusterPrivileges().toArray(new String[0]);
-                    final AuthorizationEngine.PrivilegesCheckResult checkResult = privilegesCheck.apply(
-                        new AuthorizationEngine.PrivilegesToCheck(
-                            clusterPrivilegesToCheck,
-                            indicesPrivilegesToCheck,
-                            new RoleDescriptor.ApplicationResourcePrivileges[0],
-                            false
-                        )
-                    );
-                    if (false == checkResult.allChecksSuccess()) {
-                        throw Exceptions.authorizationError("insufficient privileges");
-                    }
-                });
-            }, listener::onFailure)
+            ActionListener.wrap(privilegesCheck -> listener.onResponse(privilegesToCheck -> {
+                final RoleDescriptor.IndicesPrivileges[] indicesPrivilegesToCheck = privilegesToCheck.indexPrivileges()
+                    .stream()
+                    .map(
+                        it -> RoleDescriptor.IndicesPrivileges.builder()
+                            .indices(it.indices().toArray(new String[0]))
+                            .privileges(it.privileges().toArray(new String[0]))
+                            .build()
+                    )
+                    .toArray(RoleDescriptor.IndicesPrivileges[]::new);
+                final String[] clusterPrivilegesToCheck = privilegesToCheck.clusterPrivileges().toArray(new String[0]);
+                final AuthorizationEngine.PrivilegesCheckResult checkResult = privilegesCheck.apply(
+                    new AuthorizationEngine.PrivilegesToCheck(
+                        clusterPrivilegesToCheck,
+                        indicesPrivilegesToCheck,
+                        new RoleDescriptor.ApplicationResourcePrivileges[0],
+                        false
+                    )
+                );
+                if (false == checkResult.allChecksSuccess()) {
+                    throw Exceptions.authorizationError("insufficient privileges");
+                }
+            }), listener::onFailure)
         );
     }
 }

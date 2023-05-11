@@ -39,6 +39,11 @@ import java.util.List;
  * This approach of limiting the algorithms to some deterministic linear function of the simplification threshold k is used for all
  * complex geometries, even <code>GeometryCollection</code>.
  * <p>
+ * Note, however, that no attempt is made to prevent invalid geometries from forming. For example, when simplifying a polygon,
+ * the removal of points can cause lines to cross, creating invalid polygons. Any usage of this algorithm needs to consider that
+ * possibility. If the simplification is only required for visualization, and the visualization code is tolerant of line crossings,
+ * this is not an issue. But if you need valid simplified geometries, do additional validation on the final results before using them.
+ * <p>
  * If the incoming data is a stream of points, or x and y coordinates, it is even more memory efficient to directly use the
  * <code>StreamingGeometrySimplifier</code> which will only maintain the single array of length <code>k</code>, and produce a final
  * geometry of <code>O(k)</code> at the end, so the total size of the original geometry is not a factor.

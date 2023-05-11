@@ -1,5 +1,11 @@
 [[esql-source-commands]]
-== Source commands
+== ESQL source commands
+
+++++
+<titleabbrev>Source commands</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, source commands
+:description: An ESQL source command produces a table, typically with data from {es}. 
 
 An ESQL source command produces a table, typically with data from {es}. 
 

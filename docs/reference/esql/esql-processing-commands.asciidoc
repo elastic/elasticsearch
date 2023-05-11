@@ -1,5 +1,11 @@
 [[esql-processing-commands]]
-== Processing commands
+== ESQL processing commands
+
+++++
+<titleabbrev>Processing commands</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, processing commands
+:description: ESQL processing commands change an input table by adding, removing, or changing rows and columns.
 
 ESQL processing commands change an input table by adding, removing, or changing
 rows and columns.

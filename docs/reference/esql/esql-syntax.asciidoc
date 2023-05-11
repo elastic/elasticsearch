@@ -1,5 +1,11 @@
 [[esql-syntax]]
-== Syntax reference
+== ESQL syntax reference
+
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
+:keywords: {es}, ESQL, {es} query language, syntax
+:description: An ESQL query is composed of a source command followed by an optional series of processing commands, separated by a pipe character.
 
 [discrete]
 [[esql-basic-syntax]]

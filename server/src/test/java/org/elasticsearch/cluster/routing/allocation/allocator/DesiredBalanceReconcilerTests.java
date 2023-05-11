@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -87,6 +88,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAll
 import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -1043,8 +1045,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testRebalanceDoesNotCauseHotSpots() {
 
-        int numberOfNodes = randomIntBetween(10, 21);
-        int shardsPerNode = randomIntBetween(4, 17);
+        int numberOfNodes = randomIntBetween(5, 9);
+        int shardsPerNode = randomIntBetween(4, 15);
 
         var indexMetadata = IndexMetadata.builder("index-1")
             .settings(indexSettings(Version.CURRENT, shardsPerNode * numberOfNodes, 0))
@@ -1063,7 +1065,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             var shardId = new ShardId(index, i);
 
             var desiredNode = i % numberOfNodes;
-            var currentNode = (desiredNode + numberOfNodes / 2) % numberOfNodes;
+            var currentNode = randomIntBetween(0, numberOfNodes - 1);
 
             assignments.put(shardId, new ShardAssignment(Set.of("node-" + desiredNode), 1, 0, 0));
             indexRoutingTableBuilder.addShard(newShardRouting(shardId, "node-" + currentNode, true, STARTED));
@@ -1084,6 +1086,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var allocationOrdering = new NodeAllocationOrdering();
         var moveOrdering = new NodeAllocationOrdering();
 
+        var totalMoves = new HashMap<String, AtomicInteger>();
+        for (int i = 0; i < numberOfNodes; i++) {
+            totalMoves.put("node-" + i, new AtomicInteger());
+        }
+
         while (true) {
 
             var allocation = createRoutingAllocationFrom(clusterState, deciders);
@@ -1094,27 +1101,18 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 break;
             }
             for (ShardRouting shardRouting : initializing) {
+                totalMoves.get(shardRouting.relocatingNodeId()).incrementAndGet();
                 allocation.routingNodes().startShard(logger, shardRouting, allocation.changes(), 0L);
             }
 
-            int minShards = Integer.MAX_VALUE;
-            int maxShards = 0;
-            for (RoutingNode routingNode : allocation.routingNodes()) {
-                minShards = Math.min(minShards, routingNode.size());
-                maxShards = Math.max(maxShards, routingNode.size());
-            }
+            var summary = totalMoves.values().stream().mapToInt(AtomicInteger::get).summaryStatistics();
+            assertThat(
+                "Every node expect to have similar amount of outgoing rebalances: " + totalMoves,
+                summary.getMax() - summary.getMin(),
+                lessThanOrEqualTo(1)
+            );
 
-            if (maxShards - minShards > shardsPerNode) {
-                var message = "Rebalancing causes node hot spots." + //
-                    " Nodes: " + numberOfNodes + //
-                    " shards per node " + shardsPerNode + //
-                    " min shards per node " + minShards + //
-                    " max shards per node " + maxShards + //
-                    System.lineSeparator() + allocation.routingNodes().toString();
-                logger.error(message);
-                fail(message);
-            }
-
+            totalMoves.keySet().removeIf(nodeId -> isReconciled(allocation.routingNodes().node(nodeId), balance));
             clusterState = ClusterState.builder(clusterState)
                 .routingTable(RoutingTable.of(allocation.routingTable().version(), allocation.routingNodes()))
                 .build();
@@ -1123,6 +1121,15 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         new DesiredBalanceReconciler(desiredBalance, routingAllocation, new NodeAllocationOrdering(), new NodeAllocationOrdering()).run();
+    }
+
+    private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {
+        for (ShardRouting shardRouting : node) {
+            if (balance.assignments().get(shardRouting.shardId()).nodeIds().contains(node.nodeId()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static AllocationService createTestAllocationService(

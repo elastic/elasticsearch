@@ -58,18 +58,21 @@ public class Dist {
             return Double.NaN;
         }
         double index = q * (n - 1);
-        if (index < 0) {
-            index = 0;
-        }
-        if (index > n - 1) {
-            index = n - 1;
-        }
         int low_index = (int) Math.floor(index);
         int high_index = low_index + 1;
+        double weight = index - low_index;
 
-        double high_weight = index - low_index;
-        double low_weight = 1 - high_weight;
-        return low_weight * data[low_index] + high_weight * data[high_index];
+        if (index <= 0) {
+            low_index = 0;
+            high_index = 0;
+            weight = 0;
+        }
+        if (index >= n - 1) {
+            low_index = n - 1;
+            high_index = n - 1;
+            weight = 0;
+        }
+        return data[low_index] + weight * (data[high_index] - data[low_index]);
     }
 
     public static double quantile(final double q, List<Double> data) {

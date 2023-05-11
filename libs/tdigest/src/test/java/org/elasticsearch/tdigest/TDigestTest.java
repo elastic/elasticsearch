@@ -81,10 +81,13 @@ public abstract class TDigestTest extends AbstractTest {
         }
         digest.add(1_000_000);
 
-        assertEquals(18, digest.quantile(0.89999999), 0);
-        assertEquals(19, digest.quantile(0.9), 0);
-        assertEquals(19, digest.quantile(0.949999999), 0);
-        assertEquals(1_000_000, digest.quantile(0.95), 0);
+        assertEquals(10.5, digest.quantile(0.50), 1e-5);
+        assertEquals(16.2, digest.quantile(0.80), 1e-5);
+        assertEquals(18.1, digest.quantile(0.90), 1e-5);
+        assertEquals(50_000, digest.quantile(0.95), 100);
+        assertEquals(620_000, digest.quantile(0.98), 100);
+        assertEquals(810_000, digest.quantile(0.99), 100);
+        assertEquals(1_000_000, digest.quantile(1.00), 0);
 
         assertEquals(0.925, digest.cdf(19), 1e-11);
         assertEquals(0.95, digest.cdf(19.0000001), 1e-11);
@@ -113,11 +116,11 @@ public abstract class TDigestTest extends AbstractTest {
             td.add(datum);
         }
         assertEquals(15.0, td.quantile(0.00), 1e-5);
-        assertEquals(15.0, td.quantile(0.10), 1e-5);
-        assertEquals(17.5, td.quantile(0.25), 1e-5);
+        assertEquals(16.5, td.quantile(0.10), 1e-5);
+        assertEquals(18.75, td.quantile(0.25), 1e-5);
         assertEquals(26.0, td.quantile(0.50), 1e-5);
-        assertEquals(46.0, td.quantile(0.75), 1e-5);
-        assertEquals(60.0, td.quantile(0.90), 1e-5);
+        assertEquals(39.0, td.quantile(0.75), 1e-5);
+        assertEquals(51.6, td.quantile(0.90), 1e-5);
         assertEquals(60.0, td.quantile(1.00), 1e-5);
     }
 
@@ -209,9 +212,9 @@ public abstract class TDigestTest extends AbstractTest {
      */
     @Test
     public void singletonQuantiles() {
-        double[] data = new double[20];
+        double[] data = new double[11];
         TDigest digest = factory(100).create();
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < data.length; i++) {
             digest.add(i);
             data[i] = i;
         }
@@ -220,9 +223,12 @@ public abstract class TDigestTest extends AbstractTest {
             assertEquals(Dist.cdf(x, data), digest.cdf(x), 0);
         }
 
-        for (int i = 0; i < 1000; i++) {
+        double lastDelta = 0;
+        for (int i = 0; i <= 1000; i++) {
             double q = 0.001 * i;
-            assertEquals(String.valueOf(q), Dist.quantile(q, data), digest.quantile(q), 0.1);
+            double dist = Dist.quantile(q, data);
+            double td = digest.quantile(q);
+            assertEquals(String.valueOf(q), dist, td, 0.0);
         }
     }
 
@@ -333,8 +339,13 @@ public abstract class TDigestTest extends AbstractTest {
         for (int i = 0; i < 26; ++i) {
             d.add(1000);
         }
-        assertEquals(3000.0, d.quantile(0.9), 0.0);
-        assertEquals(9000.0, d.quantile(0.95), 0.0);
+
+        assertEquals(3000.0, d.quantile(0.90), 1e-5);
+        assertEquals(3600.0, d.quantile(0.95), 1e-5);
+        assertEquals(5880.0, d.quantile(0.96), 1e-5);
+        assertEquals(8160.0, d.quantile(0.97), 1e-5);
+        assertEquals(9000.0, d.quantile(0.98), 1e-5);
+        assertEquals(9000.0, d.quantile(1.00), 1e-5);
     }
 
     protected abstract TDigest fromBytes(ByteBuffer bytes);
@@ -615,15 +626,17 @@ public abstract class TDigestTest extends AbstractTest {
                 assertEquals(message, 0.75, dist.cdf(2), 0.01 * scale);
                 assertEquals(message, 1, dist.cdf(2 + 1e-9), 0);
 
-                assertEquals(1, dist.quantile(0), 0);
-                assertEquals(1, dist.quantile(0.1), 0);
-                assertEquals(1, dist.quantile(0.2), 0);
-                assertEquals(1, dist.quantile(0.4), 0);
-                assertEquals(2, dist.quantile(0.6), 0);
-                assertEquals(2, dist.quantile(0.7), 0);
-                assertEquals(2, dist.quantile(0.8), 0);
-                assertEquals(2, dist.quantile(0.9), 0);
-                assertEquals(2, dist.quantile(1), 0);
+                assertEquals(1.0, dist.quantile(0.0), 1e-5);
+                assertEquals(1.0, dist.quantile(0.1), 1e-5);
+                assertEquals(1.0, dist.quantile(0.2), 1e-5);
+
+                assertTrue(dist.quantile(0.5) > 1.0);
+                assertTrue(dist.quantile(0.5) < 2.0);
+
+                assertEquals(2.0, dist.quantile(0.7), 1e-5);
+                assertEquals(2.0, dist.quantile(0.8), 1e-5);
+                assertEquals(2.0, dist.quantile(0.9), 1e-5);
+                assertEquals(2.0, dist.quantile(1.0), 1e-5);
             }
             // this limit should be 70 for merging digest variants
             // I decreased it to help out AVLTreeDigest.
@@ -774,30 +787,35 @@ public abstract class TDigestTest extends AbstractTest {
         double p95 = tdigest.quantile(0.95);
         double p99 = tdigest.quantile(0.99);
 
-        assertTrue("ordering of quantiles", Double.compare(p10, p50) <= 0);
-        assertTrue("ordering of quantiles", Double.compare(p50, p90) <= 0);
-        assertTrue("ordering of quantiles", Double.compare(p90, p95) <= 0);
-        assertTrue("ordering of quantiles", Double.compare(p95, p99) <= 0);
+        assertTrue(Double.compare(p10, p50) <= 0);
+        assertTrue(Double.compare(p50, p90) <= 0);
+        assertTrue(Double.compare(p90, p95) <= 0);
+        assertTrue(Double.compare(p95, p99) <= 0);
 
-        assertEquals("Extreme quantiles", x0, p10, 0);
-        assertEquals("Extreme quantiles", x2, p99, 0);
+        assertEquals(x0, tdigest.quantile(0.0), 0);
+        assertEquals(x2, tdigest.quantile(1.0), 0);
+
+        assertTrue(String.valueOf(p10),Double.compare(x0, p10) < 0);
+        assertTrue(String.valueOf(p10),Double.compare(x1, p10) > 0);
+        assertTrue(String.valueOf(p99),Double.compare(x1, p99) < 0);
+        assertTrue(String.valueOf(p99),Double.compare(x2, p99) > 0);
     }
 
     @Test
     public void testSingletonInACrowd() {
-        final double compression = 100;
-        TDigest dist = factory(compression).create();
+        TDigest dist = factory(100).create();
         for (int i = 0; i < 10000; i++) {
             dist.add(10);
         }
         dist.add(20);
         dist.compress();
+
         assertEquals(10.0, dist.quantile(0), 0);
         assertEquals(10.0, dist.quantile(0.5), 0);
         assertEquals(10.0, dist.quantile(0.8), 0);
         assertEquals(10.0, dist.quantile(0.9), 0);
-        assertEquals(10.0, dist.quantile(0.99), 0);
-        assertEquals(10.0, dist.quantile(0.999), 0);
+        assertEquals(11.95, dist.quantile(0.99), 0.01);
+        assertEquals(12.45, dist.quantile(0.999), 0.01);
         assertEquals(20.0, dist.quantile(1), 0);
     }
 

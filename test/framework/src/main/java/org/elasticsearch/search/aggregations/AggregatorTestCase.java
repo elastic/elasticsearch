@@ -37,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -920,20 +921,25 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sets the IndexSearcher to run on concurrent mode.
      */
     protected IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
-        return new ContextIndexSearcher(
-            indexReader,
-            IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            randomBoolean(),
-            randomBoolean() ? this.threadPoolExecutor : null
-        ) {
-            @Override
-            protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                // get a thread per segment
-                return slices(leaves, 1, 1);
-            }
-        };
+        if (randomBoolean()) {
+            // this executes basic query checks and asserts that weights are normalized only once etc.
+            return new AssertingIndexSearcher(random(), indexReader);
+        } else {
+            return new ContextIndexSearcher(
+                indexReader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                randomBoolean(),
+                this.threadPoolExecutor
+            ) {
+                @Override
+                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+                    // get a thread per segment
+                    return slices(leaves, 1, 1);
+                }
+            };
+        }
     }
 
     /**

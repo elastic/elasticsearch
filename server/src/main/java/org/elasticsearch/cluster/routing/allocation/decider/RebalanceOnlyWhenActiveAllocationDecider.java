@@ -23,7 +23,7 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
         NAME,
         "rebalancing is allowed as all replicas are active in the cluster"
     );
-    static final Decision NO_SOME_REPLICASE_INACTIVE = Decision.single(
+    static final Decision NO_SOME_REPLICAS_INACTIVE = Decision.single(
         Decision.Type.NO,
         NAME,
         "rebalancing is not allowed until all replicas in the cluster are active"
@@ -33,6 +33,6 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         return allocation.routingNodes().allReplicasActive(shardRouting.shardId(), allocation.metadata())
             ? YES_ALL_REPLICAS_ACTIVE
-            : NO_SOME_REPLICASE_INACTIVE;
+            : NO_SOME_REPLICAS_INACTIVE;
     }
 }

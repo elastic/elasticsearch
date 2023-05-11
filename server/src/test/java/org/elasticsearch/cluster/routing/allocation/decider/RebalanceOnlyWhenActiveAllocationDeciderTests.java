@@ -28,7 +28,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
-import static org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider.NO_SOME_REPLICASE_INACTIVE;
+import static org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider.NO_SOME_REPLICAS_INACTIVE;
 import static org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider.YES_ALL_REPLICAS_ACTIVE;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -70,8 +70,8 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
         var allocation = createRoutingAllocation(state);
         var decider = new RebalanceOnlyWhenActiveAllocationDecider();
 
-        assertThat(decider.canRebalance(primary, allocation), equalTo(NO_SOME_REPLICASE_INACTIVE));
-        assertThat(decider.canRebalance(replica, allocation), equalTo(NO_SOME_REPLICASE_INACTIVE));
+        assertThat(decider.canRebalance(primary, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
+        assertThat(decider.canRebalance(replica, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
     }
 
     public void testDoNotAllowRebalanceWhenSomeShardsAreNotActiveAndRebalancing() {
@@ -92,9 +92,9 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
         var allocation = createRoutingAllocation(state);
         var decider = new RebalanceOnlyWhenActiveAllocationDecider();
 
-        assertThat(decider.canRebalance(primary, allocation), equalTo(NO_SOME_REPLICASE_INACTIVE));
-        assertThat(decider.canRebalance(replica1, allocation), equalTo(NO_SOME_REPLICASE_INACTIVE));
-        assertThat(decider.canRebalance(replica2, allocation), equalTo(NO_SOME_REPLICASE_INACTIVE));
+        assertThat(decider.canRebalance(primary, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
+        assertThat(decider.canRebalance(replica1, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
+        assertThat(decider.canRebalance(replica2, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
     }
 
     public void testAllowConcurrentRebalance() {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.util.function.UnaryOperator;
 
 class BytesRegister {
+
     private BytesReference bytesReference = BytesArray.EMPTY;
 
     synchronized BytesReference compareAndExchange(BytesReference expected, BytesReference updated) {
@@ -24,11 +25,11 @@ class BytesRegister {
         }
     }
 
-    public synchronized void updateAndGet(UnaryOperator<BytesReference> updater) {
+    synchronized void updateAndGet(UnaryOperator<BytesReference> updater) {
         bytesReference = updater.apply(bytesReference);
     }
 
-    public synchronized BytesReference get() {
+    synchronized BytesReference get() {
         return bytesReference;
     }
 }

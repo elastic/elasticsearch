@@ -410,14 +410,14 @@ public class AVLTreeDigest extends AbstractTDigest {
         }
 
         // if values were stored in a sorted array, index would be the offset we are interested in
-        final double index = q * count;
+        final double index = q * (count - 1);
 
         // deal with min and max as a special case singletons
         if (index <= 0) {
             return min;
         }
 
-        if (index >= count) {
+        if (index >= count - 1) {
             return max;
         }
 
@@ -435,16 +435,18 @@ public class AVLTreeDigest extends AbstractTDigest {
             return 2 * values.mean(values.last()) - max;
         }
 
-        // special edge cases are out of the way now ... continue with normal stuff
+        // weightSoFar represents the total mass to the left of the center of the current node.
+        // If there's a singleton on the left boundary, there's no more mass on the left.
+        double weightSoFar = (currentWeight == 1) ? 0 : currentWeight / 2.0;
+//        weightSoFar = currentWeight / 2.0;
 
-        // weightSoFar represents the total mass to the left of the center of the current node
-        double weightSoFar = currentWeight / 2.0;
-
-        // at left boundary, we interpolate between min and first mean
-        if (index <= weightSoFar) {
-            // we know that there was a sample exactly at min so we exclude that
-            // from the interpolation
-            return weightedAverage(values.mean(currentNode), weightSoFar - index, values.mean(values.next(currentNode)),  index);
+        if (index <= weightSoFar || (currentWeight == 1 && index <= currentWeight)) {
+            // If there's a singleton on the left boundary, interpolate between the first two centroids.
+            if (currentWeight == 1) {
+                return min + index * (values.mean(values.next(currentNode)) - min);
+            }
+            // Interpolate between min and first mean, otherwise.
+            return weightedAverage(min, index, values.mean(currentNode), weightSoFar - index);
         }
         for (int i = 0; i < values.size() - 1; i++) {
             int nextNode = values.next(currentNode);
@@ -452,17 +454,8 @@ public class AVLTreeDigest extends AbstractTDigest {
             // this is the mass between current center and next center
             double dw = (currentWeight + nextWeight) / 2.0;
             if (index < weightSoFar + dw) {
-                // index is bracketed between centroids
-
-                // deal with singletons if present
-                // if (currentWeight == 1 && index < weightSoFar + 0.5) {
-                // return values.mean(currentNode);
-                // }
-                // if (nextWeight == 1 && index < weightSoFar + dw - 0.5) {
-                // return values.mean(nextNode);
-                // }
+                // index is bracketed between centroids i and i+1
                 assert dw >= 1;
-                // centroids i and i+1 bracket our current point
                 double w1 = index - weightSoFar;
                 double w2 = weightSoFar + dw - index;
                 return weightedAverage(values.mean(currentNode), w2, values.mean(nextNode), w1);
@@ -471,14 +464,20 @@ public class AVLTreeDigest extends AbstractTDigest {
             currentNode = nextNode;
             currentWeight = nextWeight;
         }
-        // index is in the right hand side of the last node, interpolate to max
-        // we have already handled the case were last centroid is a singleton
+
+        // Index is close or after the last centroid.
         assert currentWeight >= 1;
         assert index - weightSoFar < count - currentWeight / 2.0;
         assert count - weightSoFar >= 0.5;
 
         double w1 = index - weightSoFar;
         double w2 = count - weightSoFar - w1;
+
+        // If there's a singleton on the right boundary, interpolate with the previous mean.
+        if (currentWeight == 1) {
+            return weightedAverage(values.mean(values.prev(currentNode)), w2, values.mean(currentNode), w1);
+        }
+        // Interpolate between the last mean and the max.
         return weightedAverage(values.mean(currentNode), w2, max, w1);
     }
 

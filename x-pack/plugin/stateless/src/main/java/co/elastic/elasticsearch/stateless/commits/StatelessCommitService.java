@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -91,6 +90,11 @@ public class StatelessCommitService {
         this.client = client;
     }
 
+    public void markRecoveredCommit(ShardId shardId, StatelessCompoundCommit commit) {
+        ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
+        commitState.markRecoveredCommit(commit);
+    }
+
     public void markCommitDeleted(ShardId shardId, Collection<String> commitFiles) {
         ShardCommitState commitState = getSafe(fileToBlobFile, shardId);
         commitState.markCommitDeleted(commitFiles);
@@ -99,9 +103,17 @@ public class StatelessCommitService {
     public void onCommitCreation(StatelessCommitRef reference) {
         var shardId = reference.getShardId();
         var generation = reference.getGeneration();
-        logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
 
         ShardCommitState commitState = getSafe(fileToBlobFile, reference.getShardId());
+
+        if (commitState.recoveredGeneration == reference.getGeneration()) {
+            logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
+            IOUtils.closeWhileHandlingException(reference);
+            return;
+        }
+
+        logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
+
         commitState.markNewCommit(reference.getCommitFiles(), reference.getAdditionalFiles());
         CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.wrap(new ActionListener<>() {
             @Override
@@ -134,7 +146,6 @@ public class StatelessCommitService {
             }
         }), reference, TimeValue.timeValueMillis(50));
         commitUpload.run();
-
     }
 
     public class CommitUpload extends RetryableAction<StatelessCompoundCommit> {
@@ -285,8 +296,7 @@ public class StatelessCommitService {
 
         @Override
         public void onFinished() {
-            Releasable releasable = () -> {};
-            IOUtils.closeWhileHandlingException(reference, releasable);
+            IOUtils.closeWhileHandlingException(reference);
         }
 
         @Override
@@ -331,11 +341,22 @@ public class StatelessCommitService {
 
         private final Map<String, BlobFile> fileMap = new ConcurrentHashMap<>();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
+        private volatile long recoveredGeneration = -1;
         private long generationUploaded = -1;
         private volatile boolean isClosed;
 
         private ShardCommitState(ShardId shardId) {
             this.shardId = shardId;
+        }
+
+        private void markRecoveredCommit(StatelessCompoundCommit recoveredCommit) {
+            recoveredGeneration = recoveredCommit.generation();
+            recoveredCommit.commitFiles().forEach((fileName, location) -> {
+                BlobFile blobFile = new BlobFile();
+                blobFile.setBlobLocation(location);
+                fileMap.put(fileName, blobFile);
+            });
+            markCommitUploaded(recoveredCommit);
         }
 
         public void markFileUploaded(String name, BlobLocation objectStoreLocation) {

@@ -10,7 +10,6 @@ package org.elasticsearch.get;
 
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction.Response;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -26,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class GetFromTranslogActionIT extends ESIntegTestCase {
-    public void testGet() throws Exception {
+    public void testGetFromTranslog() throws Exception {
         assertAcked(
             prepareCreate("test").setMapping("field1", "type=keyword,store=true")
                 .setSettings(
@@ -63,15 +62,15 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         assertThat(response.getResult().isExists(), equalTo(true));
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After a refresh we should not be able to get from translog
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
+        refresh("test");
         response = getFromTranslog(indexOrAlias(), indexResponse.getId());
         assertNull(response.getResult());
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
         // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.
         client().prepareIndex("test").setSource("field1", "value3").get();
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
-        client().admin().indices().refresh(new RefreshRequest("test")).get();
+        refresh("test");
+        refresh("test");
         // An optimized index operation marks the maps as unsafe
         client().prepareIndex("test").setSource("field1", "value4").get();
         response = getFromTranslog(indexOrAlias(), "non-existent");

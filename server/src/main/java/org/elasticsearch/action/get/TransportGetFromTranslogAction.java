@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -59,11 +60,6 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         IndexShard indexShard = indexService.getShard(shardId.id());
         assert indexShard.routingEntry().isPromotableToPrimary();
         assert getRequest.realtime();
-        Engine engine = indexShard.getEngineOrNull();
-        if (engine == null) {
-            listener.onFailure(new AlreadyClosedException("engine closed"));
-            return;
-        }
         ActionListener.completeWith(listener, () -> {
             var result = indexShard.getService()
                 .getFromTranslog(
@@ -77,6 +73,10 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 );
             long segmentGeneration = -1;
             if (result == null) {
+                Engine engine = indexShard.getEngineOrNull();
+                if (engine == null) {
+                    throw new AlreadyClosedException("engine closed");
+                }
                 segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
             }
             return new Response(result, segmentGeneration);
@@ -121,17 +121,13 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
 
         @Override
         public String toString() {
-            return "Request{" + "getRequest=" + getRequest + ", shardId=" + shardId + "}";
+            return "GetFromTranslogRequest{" + "getRequest=" + getRequest + ", shardId=" + shardId + "}";
         }
     }
 
     public static class Response extends ActionResponse {
-        private GetResult getResult;
-        /**
-         * The segment generation that the search shard should wait for before handling the real-time GET request locally.
-         * -1 if the result is not null (i.e., the result is served from the indexing shard), or there hasn't simply been
-         * any switches from unsafe to safe map in the LiveVersionMap (see {@link InternalEngine#getVersionFromMap(BytesRef)}).
-         */
+        @Nullable
+        private final GetResult getResult;
         private final long segmentGeneration;
 
         public Response(GetResult getResult, long segmentGeneration) {
@@ -142,26 +138,25 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         public Response(StreamInput in) throws IOException {
             super(in);
             segmentGeneration = in.readZLong();
-            if (in.readBoolean()) {
-                getResult = new GetResult(in);
-            }
+            getResult = in.readOptionalWriteable(GetResult::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
-            if (getResult == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                getResult.writeTo(out);
-            }
+            out.writeOptionalWriteable(getResult);
         }
 
+        @Nullable
         public GetResult getResult() {
             return getResult;
         }
 
+        /**
+         * The segment generation that the search shard should wait for before handling the real-time GET request locally.
+         * -1 if the result is not null (i.e., the result is served from the indexing shard), or there hasn't simply been
+         * any switches from unsafe to safe map in the LiveVersionMap (see {@link InternalEngine#getVersionFromMap(BytesRef)}).
+         */
         public long segmentGeneration() {
             return segmentGeneration;
         }

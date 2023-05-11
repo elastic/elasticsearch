@@ -58,6 +58,13 @@ that you specify. This can be useful for testing.
 ROW a = 1, b = "two", c = null
 ----
 
+Use angle brackets to create multi-value columns:
+
+[source,esql]
+----
+ROW a = [2, 1]
+----
+
 `ROW` supports the use of <<esql-functions,functions>>:
 
 [source,esql]

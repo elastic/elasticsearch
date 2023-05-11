@@ -4,8 +4,6 @@ constant_keyword:
       indices.create:
         index:  test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               kind:
@@ -50,8 +48,6 @@ multivalued keyword:
       indices.create:
         index:  test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               card:
@@ -80,8 +76,6 @@ wildcard:
       indices.create:
         index:  test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               card:
@@ -119,8 +113,6 @@ numbers:
       indices.create:
         index:  test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               i:
@@ -174,8 +166,6 @@ small_numbers:
       indices.create:
         index:  test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               b:
@@ -243,8 +233,6 @@ scaled_float:
       indices.create:
         index:  test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               f:
@@ -288,8 +276,6 @@ multivalued boolean:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               booleans:
@@ -318,8 +304,6 @@ ip:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_shards: 5
           mappings:
             properties:
               ip:
@@ -356,3 +340,140 @@ ip:
   - match: {columns.0.type: ip }
   - length: {values: 1 }
   - match: {values.0.0: "127.0.0.1" }
+
+---
+alias:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+              bar:
+                type: alias
+                path: foo
+              level1:
+                properties:
+                  level2:
+                    type: long
+              level2_alias:
+                type: alias
+                path: level1.level2
+              some_long:
+                type: long
+              some_long_alias:
+                type: alias
+                path: some_long
+              some_long_alias2:
+                type: alias
+                path: some_long
+              some_date:
+                type: date
+              some_date_alias:
+                type: alias
+                path: some_date
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "foo": "abc", "level1": {"level2": 10}, "some_long": 12, "some_date": "2015-01-01T12:00:00.000Z" }
+          - { "index": { } }
+          - { "foo": "def", "level1": {"level2": 50}, "some_long": 15, "some_date": "2015-01-01T12:00:00.000Z" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | project foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - match: { columns.4.name: some_long }
+  - match: { columns.4.type: long }
+  - match: { columns.5.name: some_long_alias }
+  - match: { columns.5.type: long }
+  - match: { columns.6.name: some_long_alias2 }
+  - match: { columns.6.type: long }
+  - match: { columns.7.name: some_date }
+  - match: { columns.7.type: date }
+  - match: { columns.8.name: some_date_alias }
+  - match: { columns.8.type: date }
+  - length: { values: 2 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+  - match: { values.0.4: 12 }
+  - match: { values.0.5: 12 }
+  - match: { values.0.6: 12 }
+  - match: { values.0.7: 2015-01-01T12:00:00.000Z }
+  - match: { values.0.8: 2015-01-01T12:00:00.000Z }
+  - match: { values.1.0: def }
+  - match: { values.1.1: def }
+  - match: { values.1.2: 50 }
+  - match: { values.1.3: 50 }
+  - match: { values.1.4: 15 }
+  - match: { values.1.5: 15 }
+  - match: { values.1.6: 15 }
+  - match: { values.1.7: 2015-01-01T12:00:00.000Z }
+  - match: { values.1.8: 2015-01-01T12:00:00.000Z }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where bar == "abc" | project foo, bar, level1.level2, level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where level2_alias == 10 | project foo, bar, level1.level2, level2_alias'
+  - match: { columns.0.name: foo }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: bar }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: level1.level2 }
+  - match: { columns.2.type: long }
+  - match: { columns.3.name: level2_alias }
+  - match: { columns.3.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: abc }
+  - match: { values.0.1: abc }
+  - match: { values.0.2: 10 }
+  - match: { values.0.3: 10 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where level2_alias == 20'
+  - length: { values: 0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats x = max(level2_alias)'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: 50 }

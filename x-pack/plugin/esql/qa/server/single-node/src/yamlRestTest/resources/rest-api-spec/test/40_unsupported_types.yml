@@ -38,6 +38,9 @@ unsupported:
                 type: keyword
               geo_point:
                 type: geo_point
+              geo_point_alias:
+                type: alias
+                path: geo_point
               ip_range:
                 type: ip_range
               long_range:
@@ -125,42 +128,44 @@ unsupported:
   - match: { columns.8.type: unsupported }
   - match: { columns.9.name: geo_point }
   - match: { columns.9.type: unsupported }
-  - match: { columns.10.name: histogram }
+  - match: { columns.10.name: geo_point_alias }
   - match: { columns.10.type: unsupported }
-  - match: { columns.11.name: integer_range }
+  - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
-  - match: { columns.12.name: ip_range }
+  - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
-  - match: { columns.13.name: long_range }
+  - match: { columns.13.name: ip_range }
   - match: { columns.13.type: unsupported }
-  - match: { columns.14.name: match_only_text }
+  - match: { columns.14.name: long_range }
   - match: { columns.14.type: unsupported }
-  - match: { columns.15.name: name }
-  - match: { columns.15.type: keyword }
-  - match: { columns.16.name: rank_feature }
-  - match: { columns.16.type: unsupported }
-  - match: { columns.17.name: rank_features }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: unsupported }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: rank_feature }
   - match: { columns.17.type: unsupported }
-  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.name: rank_features }
   - match: { columns.18.type: unsupported }
-  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.name: search_as_you_type }
   - match: { columns.19.type: unsupported }
-  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.name: search_as_you_type._2gram }
   - match: { columns.20.type: unsupported }
-  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.name: search_as_you_type._3gram }
   - match: { columns.21.type: unsupported }
-  - match: { columns.22.name: shape }
+  - match: { columns.22.name: search_as_you_type._index_prefix }
   - match: { columns.22.type: unsupported }
-  - match: { columns.23.name: some_doc.bar }
-  - match: { columns.23.type: long }
-  - match: { columns.24.name: some_doc.foo }
-  - match: { columns.24.type: keyword }
-  - match: { columns.25.name: text }
-  - match: { columns.25.type: unsupported }
-  - match: { columns.26.name: token_count }
-  - match: { columns.26.type: integer }
-  - match: { columns.27.name: version }
-  - match: { columns.27.type: unsupported }
+  - match: { columns.23.name: shape }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: some_doc.bar }
+  - match: { columns.24.type: long }
+  - match: { columns.25.name: some_doc.foo }
+  - match: { columns.25.type: keyword }
+  - match: { columns.26.name: text }
+  - match: { columns.26.type: unsupported }
+  - match: { columns.27.name: token_count }
+  - match: { columns.27.type: integer }
+  - match: { columns.28.name: version }
+  - match: { columns.28.type: unsupported }
 
   - length: { values: 1 }
   - match: { values.0.0: "<unsupported>" }
@@ -178,19 +183,20 @@ unsupported:
   - match: { values.0.12: "<unsupported>" }
   - match: { values.0.13: "<unsupported>" }
   - match: { values.0.14: "<unsupported>" }
-  - match: { values.0.15: Alice }
-  - match: { values.0.16: "<unsupported>" }
+  - match: { values.0.15: "<unsupported>" }
+  - match: { values.0.16: Alice }
   - match: { values.0.17: "<unsupported>" }
   - match: { values.0.18: "<unsupported>" }
   - match: { values.0.19: "<unsupported>" }
   - match: { values.0.20: "<unsupported>" }
   - match: { values.0.21: "<unsupported>" }
   - match: { values.0.22: "<unsupported>" }
-  - match: { values.0.23: 12 }
-  - match: { values.0.24: xy }
-  - match: { values.0.25: "<unsupported>" }
-  - match: { values.0.26: 3 }
-  - match: { values.0.27: "<unsupported>" }
+  - match: { values.0.23: "<unsupported>" }
+  - match: { values.0.24: 12 }
+  - match: { values.0.25: xy }
+  - match: { values.0.26: "<unsupported>" }
+  - match: { values.0.27: 3 }
+  - match: { values.0.28: "<unsupported>" }
 
 
 # limit 0
@@ -218,42 +224,44 @@ unsupported:
   - match: { columns.8.type: unsupported }
   - match: { columns.9.name: geo_point }
   - match: { columns.9.type: unsupported }
-  - match: { columns.10.name: histogram }
+  - match: { columns.10.name: geo_point_alias }
   - match: { columns.10.type: unsupported }
-  - match: { columns.11.name: integer_range }
+  - match: { columns.11.name: histogram }
   - match: { columns.11.type: unsupported }
-  - match: { columns.12.name: ip_range }
+  - match: { columns.12.name: integer_range }
   - match: { columns.12.type: unsupported }
-  - match: { columns.13.name: long_range }
+  - match: { columns.13.name: ip_range }
   - match: { columns.13.type: unsupported }
-  - match: { columns.14.name: match_only_text }
+  - match: { columns.14.name: long_range }
   - match: { columns.14.type: unsupported }
-  - match: { columns.15.name: name }
-  - match: { columns.15.type: keyword }
-  - match: { columns.16.name: rank_feature }
-  - match: { columns.16.type: unsupported }
-  - match: { columns.17.name: rank_features }
+  - match: { columns.15.name: match_only_text }
+  - match: { columns.15.type: unsupported }
+  - match: { columns.16.name: name }
+  - match: { columns.16.type: keyword }
+  - match: { columns.17.name: rank_feature }
   - match: { columns.17.type: unsupported }
-  - match: { columns.18.name: search_as_you_type }
+  - match: { columns.18.name: rank_features }
   - match: { columns.18.type: unsupported }
-  - match: { columns.19.name: search_as_you_type._2gram }
+  - match: { columns.19.name: search_as_you_type }
   - match: { columns.19.type: unsupported }
-  - match: { columns.20.name: search_as_you_type._3gram }
+  - match: { columns.20.name: search_as_you_type._2gram }
   - match: { columns.20.type: unsupported }
-  - match: { columns.21.name: search_as_you_type._index_prefix }
+  - match: { columns.21.name: search_as_you_type._3gram }
   - match: { columns.21.type: unsupported }
-  - match: { columns.22.name: shape }
+  - match: { columns.22.name: search_as_you_type._index_prefix }
   - match: { columns.22.type: unsupported }
-  - match: { columns.23.name: some_doc.bar }
-  - match: { columns.23.type: long }
-  - match: { columns.24.name: some_doc.foo }
-  - match: { columns.24.type: keyword }
-  - match: { columns.25.name: text }
-  - match: { columns.25.type: unsupported }
-  - match: { columns.26.name: token_count }
-  - match: { columns.26.type: integer }
-  - match: { columns.27.name: version }
-  - match: { columns.27.type: unsupported }
+  - match: { columns.23.name: shape }
+  - match: { columns.23.type: unsupported }
+  - match: { columns.24.name: some_doc.bar }
+  - match: { columns.24.type: long }
+  - match: { columns.25.name: some_doc.foo }
+  - match: { columns.25.type: keyword }
+  - match: { columns.26.name: text }
+  - match: { columns.26.type: unsupported }
+  - match: { columns.27.name: token_count }
+  - match: { columns.27.type: integer }
+  - match: { columns.28.name: version }
+  - match: { columns.28.type: unsupported }
 
   - length: { values: 0 }
 

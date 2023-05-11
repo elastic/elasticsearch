@@ -120,7 +120,10 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
                 assertThat(explainIndex.getLifecycle().getDataRetention(), nullValue());
-                assertThat(explainIndex.getError(), nullValue());
+                if (internalCluster().numDataNodes() > 1) {
+                    // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                    assertThat(explainIndex.getError(), nullValue());
+                }
 
                 if (explainIndex.getIndex().equals(DataStream.getDefaultBackingIndexName(dataStreamName, 1))) {
                     // first generation index was rolled over
@@ -262,8 +265,10 @@ public class ExplainDataLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.getGenerationTime(System::currentTimeMillis), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
-
-                assertThat(explainIndex.getError(), nullValue());
+                if (internalCluster().numDataNodes() > 1) {
+                    // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
+                    assertThat(explainIndex.getError(), nullValue());
+                }
             }
         });
     }

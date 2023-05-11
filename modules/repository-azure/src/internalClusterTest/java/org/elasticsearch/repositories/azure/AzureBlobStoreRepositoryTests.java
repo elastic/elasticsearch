@@ -278,10 +278,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             var data = randomBytes(randomIntBetween(128, 512));
             String blobName = randomName();
             container.writeBlob(blobName, new ByteArrayInputStream(data), data.length, true);
-            try (var inputStream = container.readBlob(blobName)) {
-                for (byte blobByte : data) {
-                    assertThat(blobByte, is(equalTo((byte) inputStream.read())));
+
+            var originalDataInputStream = new ByteArrayInputStream(data);
+            try (var azureInputStream = container.readBlob(blobName)) {
+                for (int i = 0; i < data.length; i++) {
+                    assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }
+
+                assertThat(azureInputStream.read(), is(equalTo(-1)));
+                assertThat(originalDataInputStream.read(), is(equalTo(-1)));
             }
             container.delete();
         }

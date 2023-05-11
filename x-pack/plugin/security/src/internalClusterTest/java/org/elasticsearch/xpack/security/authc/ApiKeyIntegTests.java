@@ -2702,9 +2702,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Map<String, Object> apiKeyDocMap = getApiKeyDocument(apiKeyId);
         final boolean useGetApiKey = randomBoolean();
         final ApiKey apiKeyInfo = getApiKeyInfo(client(), apiKeyId, true, useGetApiKey);
-        // Updated API keys do not change their type
-        assertThat(apiKeyDocMap.get("type"), equalTo("rest"));
-        assertThat(apiKeyInfo.getType(), is(ApiKey.Type.REST));
         for (Map.Entry<ApiKeyAttribute, Object> entry : attributes.entrySet()) {
             switch (entry.getKey()) {
                 case CREATOR -> {

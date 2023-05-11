@@ -2,4 +2,5 @@ pr: 95625
 summary: "[Fleet] Add `.secrets` system index"
 area: Infra/Plugins
 type: feature
-issues: []
+issues:
+ - 95143

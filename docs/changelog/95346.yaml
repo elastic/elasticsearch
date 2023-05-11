@@ -1,0 +1,5 @@
+pr: 95346
+summary: Dense aggs reduce prototype
+area: Aggregations
+type: feature
+issues: []

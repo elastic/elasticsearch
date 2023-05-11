@@ -60,6 +60,11 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
+    public boolean supportsDenseAggregations() {
+        return true;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new MaxAggregationBuilder(this, factoriesBuilder, metadata);
     }

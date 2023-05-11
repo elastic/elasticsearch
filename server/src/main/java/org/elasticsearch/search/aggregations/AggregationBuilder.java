@@ -202,6 +202,19 @@ public abstract class AggregationBuilder
         return false;
     }
 
+    /**
+     * Does this aggregation support building dense representations ({@link CollectedAggregator} objects)
+     * for the transport protocol.
+     *
+     * Metric aggregations should override this to return a boolean.  Bucketing aggregations should
+     * iterate their sub-aggregations and return false if any of them return false.
+     *
+     * @return True iff the whole aggregations tree from this point can support the dense format
+     */
+    public boolean supportsDenseAggregations() {
+        return false;
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);

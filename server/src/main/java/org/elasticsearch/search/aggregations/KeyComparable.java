@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 /**
@@ -16,7 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
  * @param <T> {@link Bucket} of the same type that also implements {@link KeyComparable}.
  * @see BucketOrder#key(boolean)
  */
-public interface KeyComparable<T extends Bucket & KeyComparable<T>> {
+public interface KeyComparable<T extends Bucket & KeyComparable<T>> extends MultiBucketsAggregation.Bucket {
 
     /**
      * Compare this {@link Bucket}s {@link Bucket#getKey() key} with another bucket.

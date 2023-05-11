@@ -125,6 +125,11 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         return true;
     }
 
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
+    }
+
     public boolean isKeyed() {
         return keyed;
     }

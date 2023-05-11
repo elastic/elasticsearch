@@ -284,7 +284,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return;
         }
         Bits liveDocs = ctx.reader().getLiveDocs();
-        BitSet liveDocsBitSet = null;//TODO getSparseBitSetOrNull(liveDocs);
+        BitSet liveDocsBitSet = null;// TODO getSparseBitSetOrNull(liveDocs);
         BulkScorer bulkScorer;
         if (liveDocsBitSet == null) {
             bulkScorer = weight.bulkScorer(ctx);

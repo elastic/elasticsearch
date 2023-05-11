@@ -638,7 +638,7 @@ The mustache templating language defines various tag types you can use within te
 [discrete]
 [[search-template-mustache-variable]]
 === Mustache variables
-Mustache tags are typically enclosed in double curly brackets, A mustache variable : `{{my-variable}}` is a type of mustache tag which checks for a matching `my-variable` key in your search template `params` and replaces template with the value set for `my-variable`
+Mustache tags are typically enclosed in double curly brackets. A mustache variable: `{{my-variable}}` is a type of mustache tag. When you run a templated search, {es} replaces these variables with values from `params`.
 
 For example, consider the following search template:
 
@@ -731,7 +731,7 @@ When rendered, template outputs as:
 [[search-template-sections]]
 === Sections
 
-Sections are also a type of Mustache tags. You can use `sections` in your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{\my-section-variable}}`.
+Sections are also a type of Mustache tags. You can use `sections` in your search template with a nested or unnested object. A section begins with `{{#my-section-variable}}` and ends with `{{/my-section-variable}}`.
 
 The following search template shows an example using sections with nested objects:
 

@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,6 +62,7 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -303,12 +305,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
         logger.debug("starting translog file upload [{}]", fileName);
-        ensureRunning();
-        if (permits.tryAcquire()) {
-            uploadTranslogTaskRunner.enqueueTask(
-                new TranslogFileUploadTask(fileName, reference, ActionListener.runBefore(listener, permits::release))
-            );
-        }
+        enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, l));
     }
 
     public void uploadStatelessCommitFile(
@@ -321,23 +318,20 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         StatelessCompoundCommit.Writer pendingCommit,
         ActionListener<StatelessCompoundCommit> listener
     ) {
-        ensureRunning();
-        if (permits.tryAcquire()) {
-            final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm);
-
-            uploadTaskRunner.enqueueTask(
-                new CommitFileUploadTask(
-                    shardId,
-                    generation,
-                    commitStartNanos,
-                    commitFileName,
-                    directory,
-                    pendingCommit,
-                    blobContainer,
-                    ActionListener.runBefore(listener, permits::release)
-                )
-            );
-        }
+        enqueueTask(
+            listener,
+            uploadTaskRunner,
+            l -> new CommitFileUploadTask(
+                shardId,
+                generation,
+                commitStartNanos,
+                commitFileName,
+                directory,
+                pendingCommit,
+                SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
+                l
+            )
+        );
     }
 
     public void uploadCommitFile(
@@ -349,21 +343,45 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         long commitStartNanos,
         ActionListener<BlobLocation> listener
     ) {
-        ensureRunning();
-        if (permits.tryAcquire()) {
-            final BlobContainer blobContainer = SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm);
-            uploadTaskRunner.enqueueTask(
-                new FileUploadTask(
-                    shardId,
-                    primaryTerm,
-                    generation,
-                    commitStartNanos,
-                    file,
-                    directory,
-                    blobContainer,
-                    ActionListener.runBefore(listener, permits::release)
-                )
-            );
+        enqueueTask(
+            listener,
+            uploadTaskRunner,
+            l -> new FileUploadTask(
+                shardId,
+                primaryTerm,
+                generation,
+                commitStartNanos,
+                file,
+                directory,
+                SearchDirectory.unwrapDirectory(directory).getBlobContainer(primaryTerm),
+                l
+            )
+        );
+    }
+
+    private <R, T extends AbstractRunnable & Comparable<T>> void enqueueTask(
+        ActionListener<R> listener,
+        PrioritizedThrottledTaskRunner<T> runner,
+        Function<ActionListener<R>, T> task
+    ) {
+        try {
+            ensureRunning();
+            if (permits.tryAcquire() == false) {
+                throw new IllegalStateException("Failed to acquire permit to enqueue task");
+            }
+            final var releasable = Releasables.releaseOnce(permits::release);
+            boolean enqueued = false;
+            try {
+                runner.enqueueTask(task.apply(ActionListener.releaseAfter(listener, releasable)));
+                enqueued = true;
+            } finally {
+                if (enqueued == false) {
+                    Releasables.closeExpectNoException(releasable);
+                }
+            }
+        } catch (Exception e) {
+            assert false : "enqueue task failed: " + e;
+            listener.onFailure(e);
         }
     }
 

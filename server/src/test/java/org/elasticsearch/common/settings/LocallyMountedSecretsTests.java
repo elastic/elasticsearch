@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class LocallyMountedSecretsTests extends ESTestCase {
     Environment env;
 
-    private static String testJSON = """
+    private static String testJSONDepricated = """
         {
              "metadata": {
                  "version": "1",
@@ -39,6 +39,21 @@ public class LocallyMountedSecretsTests extends ESTestCase {
              "secrets": {
                  "aaa": "bbb",
                  "ccc": "ddd"
+             }
+        }""";
+
+    private static String testJSON = """
+        {
+             "metadata": {
+                 "version": "1",
+                 "compatibility": "8.4.0"
+             },
+             "string_secrets": {
+                 "aaa": "bbb",
+                 "ccc": "ddd"
+             },
+             "file_secrets": {
+                "eee": "ZmZm"
              }
         }""";
 
@@ -60,8 +75,20 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         assertTrue(secrets.isLoaded());
     }
 
-    public void testProcessSettingsFile() throws IOException {
+    public void testProcessSettingsFile() throws Exception {
         writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
+        assertTrue(secrets.isLoaded());
+        assertThat(secrets.getVersion(), equalTo(1L));
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc", "eee"));
+        assertEquals("bbb", secrets.getString("aaa").toString());
+        assertEquals("ddd", secrets.getString("ccc").toString());
+
+        assertEquals("fff", new String(secrets.getFile("eee").readAllBytes(), StandardCharsets.UTF_8));
+    }
+
+    public void testProcessDeprecatedSettingsFile() throws Exception {
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
         assertThat(secrets.getVersion(), equalTo(1L));
@@ -74,7 +101,9 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
-        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc", "eee"));
+
+        // we can read string settings as "files"
         try (InputStream stream = secrets.getFile("aaa")) {
             for (int i = 0; i < 3; ++i) {
                 int got = stream.read();
@@ -85,10 +114,22 @@ public class LocallyMountedSecretsTests extends ESTestCase {
             }
             assertEquals(-1, stream.read()); // nothing left
         }
+
+        // but really we want to read file settings
+        try (InputStream stream = secrets.getFile("eee")) {
+            for (int i = 0; i < 3; ++i) {
+                int got = stream.read();
+                if (got < 0) {
+                    fail("Expected 3 bytes but read " + i);
+                }
+                assertEquals('f', got);
+            }
+            assertEquals(-1, stream.read()); // nothing left
+        }
     }
 
     public void testSettingsSHADigest() throws IOException, GeneralSecurityException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
@@ -106,7 +147,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testSerializationWithSecrets() throws Exception {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -131,7 +172,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testClose() throws IOException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());

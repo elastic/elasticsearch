@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.service.ReservedStateVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -68,20 +69,14 @@ public class LocallyMountedSecrets implements SecureSettings {
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
 
-    public static final ParseField SECRETS_FIELD = new ParseField("secrets");
-    public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets");
+    public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets", "secrets");
     public static final ParseField FILE_SECRETS_FIELD = new ParseField("file_secrets");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<LocalFileSecrets, Void> secretsParser = new ConstructingObjectParser<>(
         "locally_mounted_secrets",
-        a -> LocalFileSecrets.createLocalFileSecrets(
-            (Map<String, String>) a[0],
-            (Map<String, String>) a[1],
-            (Map<String, String>) a[2],
-            (ReservedStateVersion) a[3]
-        )
+        a -> LocalFileSecrets.createLocalFileSecrets((Map<String, String>) a[0], (Map<String, String>) a[1], (ReservedStateVersion) a[2])
     );
 
     private final String secretsDir;
@@ -94,7 +89,6 @@ public class LocallyMountedSecrets implements SecureSettings {
     public LocallyMountedSecrets(Environment environment) {
         var secretsDirPath = resolveSecretsDir(environment);
         var secretsFilePath = resolveSecretsFile(environment);
-        secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SECRETS_FIELD);
         secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), STRING_SECRETS_FIELD);
         secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), FILE_SECRETS_FIELD);
         secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
@@ -211,7 +205,8 @@ public class LocallyMountedSecrets implements SecureSettings {
         try (
             var fis = Files.newInputStream(path);
             var bis = new BufferedInputStream(fis);
-            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+            var parser = JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(DeprecationHandler.IGNORE_DEPRECATIONS), bis)
         ) {
             return secretsParser.apply(parser, null);
         }
@@ -220,16 +215,15 @@ public class LocallyMountedSecrets implements SecureSettings {
     record LocalFileSecrets(Map<String, byte[]> secrets, ReservedStateVersion metadata) implements Writeable {
 
         public static LocalFileSecrets createLocalFileSecrets(
-            Map<String, String> plainSecrets,
             Map<String, String> stringSecrets,
             Map<String, String> fileSecrets,
             ReservedStateVersion metadata
         ) {
-
-            Map<String, byte[]> stringSecretsMap = Stream.concat(
-                plainSecrets == null ? Stream.of() : plainSecrets.entrySet().stream(),
-                stringSecrets == null ? Stream.of() : stringSecrets.entrySet().stream()
-            ).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
+            Map<String, byte[]> stringSecretsMap = stringSecrets == null
+                ? Map.of()
+                : stringSecrets.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
 
             Map<String, byte[]> fileSecretsByteMap = fileSecrets == null
                 ? Map.of()

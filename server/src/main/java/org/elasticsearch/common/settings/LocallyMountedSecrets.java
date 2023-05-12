@@ -24,12 +24,18 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -48,9 +54,12 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *                  "version": "1",
  *                  "compatibility": "8.7.0"
  *              },
- *              "secrets": {
+ *              "string_secrets": {
  *                  "secure.setting.key.one": "aaa",
  *                  "secure.setting.key.two": "bbb"
+ *              }
+ *              "file_secrets": {
+ *                  "secure.setting.key.three": "deadbeef1234",
  *              }
  *         }
  */
@@ -60,12 +69,19 @@ public class LocallyMountedSecrets implements SecureSettings {
     public static final String SECRETS_DIRECTORY = "secrets";
 
     public static final ParseField SECRETS_FIELD = new ParseField("secrets");
+    public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets");
+    public static final ParseField FILE_SECRETS_FIELD = new ParseField("file_secrets");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<LocalFileSecrets, Void> secretsParser = new ConstructingObjectParser<>(
         "locally_mounted_secrets",
-        a -> new LocalFileSecrets((Map<String, String>) a[0], (ReservedStateVersion) a[1])
+        a -> LocalFileSecrets.createLocalFileSecrets(
+            (Map<String, String>) a[0],
+            (Map<String, String>) a[1],
+            (Map<String, String>) a[2],
+            (ReservedStateVersion) a[3]
+        )
     );
 
     private final String secretsDir;
@@ -78,7 +94,9 @@ public class LocallyMountedSecrets implements SecureSettings {
     public LocallyMountedSecrets(Environment environment) {
         var secretsDirPath = resolveSecretsDir(environment);
         var secretsFilePath = resolveSecretsFile(environment);
-        secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), SECRETS_FIELD);
+        secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), SECRETS_FIELD);
+        secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), STRING_SECRETS_FIELD);
+        secretsParser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), FILE_SECRETS_FIELD);
         secretsParser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> ReservedStateVersion.parse(p), METADATA_FIELD);
         if (Files.exists(secretsDirPath) && Files.exists(secretsFilePath)) {
             try {
@@ -145,17 +163,19 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public Set<String> getSettingNames() {
         assert isLoaded();
-        return secrets.get().map().keySet();
+        return secrets.get().secrets().keySet();
     }
 
     @Override
     public SecureString getString(String setting) {
         assert isLoaded();
-        var value = secrets.get().map().get(setting);
+        var value = secrets.get().secrets().get(setting);
         if (value == null) {
             return null;
         }
-        return new SecureString(value.toCharArray());
+        ByteBuffer byteBuffer = ByteBuffer.wrap(value);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(byteBuffer);
+        return new SecureString(Arrays.copyOfRange(charBuffer.array(), charBuffer.position(), charBuffer.limit()));
     }
 
     @Override
@@ -179,8 +199,8 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     @Override
     public void close() throws IOException {
-        if (null != secrets.get() && secrets.get().map().isEmpty() == false) {
-            for (var entry : secrets.get().map().entrySet()) {
+        if (null != secrets.get() && secrets.get().secrets().isEmpty() == false) {
+            for (var entry : secrets.get().secrets().entrySet()) {
                 entry.setValue(null);
             }
         }
@@ -197,14 +217,39 @@ public class LocallyMountedSecrets implements SecureSettings {
         }
     }
 
-    record LocalFileSecrets(Map<String, String> map, ReservedStateVersion metadata) implements Writeable {
+    record LocalFileSecrets(Map<String, byte[]> secrets, ReservedStateVersion metadata) implements Writeable {
+
+        public static LocalFileSecrets createLocalFileSecrets(
+            Map<String, String> plainSecrets,
+            Map<String, String> stringSecrets,
+            Map<String, String> fileSecrets,
+            ReservedStateVersion metadata
+        ) {
+
+            Map<String, byte[]> stringSecretsMap = Stream.concat(
+                plainSecrets == null ? Stream.of() : plainSecrets.entrySet().stream(),
+                stringSecrets == null ? Stream.of() : stringSecrets.entrySet().stream()
+            ).collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
+
+            Map<String, byte[]> fileSecretsByteMap = fileSecrets == null
+                ? Map.of()
+                : fileSecrets.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> Base64.getDecoder().decode(e.getValue())));
+
+            Map<String, byte[]> allSecrets = Stream.concat(stringSecretsMap.entrySet().stream(), fileSecretsByteMap.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            return new LocalFileSecrets(allSecrets, metadata);
+        }
+
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
-            return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readString), ReservedStateVersion.readFrom(in));
+            return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap((map == null) ? Map.of() : map, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap((secrets == null) ? Map.of() : secrets, StreamOutput::writeString, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

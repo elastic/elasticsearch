@@ -1743,7 +1743,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         createIndexRequest("test", "child-type", "child-id", "parent-id", "searchText", "quick brown fox").get();
         refresh();
 
-        String[] highlightTypes = new String[] { "unified" };
+        String[] highlightTypes = new String[] { "plain", "fvh", "unified" };
         for (String highlightType : highlightTypes) {
             logger.info("Testing with highlight type [{}]", highlightType);
             SearchResponse searchResponse = client().prepareSearch("test")

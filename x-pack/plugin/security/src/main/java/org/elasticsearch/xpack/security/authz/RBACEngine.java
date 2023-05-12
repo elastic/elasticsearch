@@ -97,9 +97,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -184,6 +182,9 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
+            } else if (isTemplateAction(requestInfo.getAction())) {
+                // Index template actions have a custom authorization flow that's enforced elsewhere
+                listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
             }
@@ -192,6 +193,11 @@ public class RBACEngine implements AuthorizationEngine {
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         }
+    }
+
+    private static boolean isTemplateAction(String actionName) {
+        // Other `indices:admin/index_template` actions would also go here
+        return actionName.equals("indices:admin/index_template/put");
     }
 
     // pkg private for testing
@@ -530,11 +536,12 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
-    private PrivilegesCheckResult checkPrivileges(
+    @Override
+    public PrivilegesCheckResult checkPrivileges(
         AuthorizationInfo authorizationInfo,
         PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges
-    ) throws ExecutionException {
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
         }
@@ -567,7 +574,7 @@ public class RBACEngine implements AuthorizationEngine {
                 return result;
             } catch (Exception e) {
                 logger.error("Failed to cache check result for [{}]", privilegesToCheck);
-                throw e;
+                throw new RuntimeException(e);
             }
         } else {
             // caching of check result unsupported
@@ -657,22 +664,6 @@ public class RBACEngine implements AuthorizationEngine {
             assert allMatch;
             return PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
         }
-    }
-
-    @Override
-    public void getPrivilegesCheck(
-        AuthorizationInfo authorizationInfo,
-        ActionListener<Function<PrivilegesToCheck, PrivilegesCheckResult>> listener
-    ) {
-        listener.onResponse(privilegesToCheck -> {
-            try {
-                assert privilegesToCheck.application().length == 0;
-                return checkPrivileges(authorizationInfo, privilegesToCheck, Collections.emptySet());
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
-            }
-        });
     }
 
     @Override

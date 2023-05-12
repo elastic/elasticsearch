@@ -21,9 +21,9 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.HasPrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplatesPrivilegesCheckSupplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -272,7 +272,7 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
-import org.elasticsearch.xpack.security.authz.HasPrivilegesCheckWithSecurity;
+import org.elasticsearch.xpack.security.authz.IndexTemplatesPrivilegesCheckSupplierImpl;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
@@ -1003,7 +1003,10 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         components.add(
-            new PluginComponentBinding<>(HasPrivilegesCheck.class, new HasPrivilegesCheckWithSecurity(authzService, securityContext.get()))
+            new PluginComponentBinding<>(
+                IndexTemplatesPrivilegesCheckSupplier.class,
+                new IndexTemplatesPrivilegesCheckSupplierImpl(authzService, securityContext.get())
+            )
         );
 
         return components;

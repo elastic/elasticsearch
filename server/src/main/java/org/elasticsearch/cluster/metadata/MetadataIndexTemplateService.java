@@ -125,7 +125,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final HasPrivilegesCheck hasPrivilegesCheck;
+    private final IndexTemplatesPrivilegesCheckSupplier indexTemplatesPrivilegesCheckSupplier;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -179,7 +179,7 @@ public class MetadataIndexTemplateService {
             xContentRegistry,
             systemIndices,
             indexSettingProviders,
-            new HasPrivilegesCheck.Noop()
+            new IndexTemplatesPrivilegesCheckSupplier.Noop()
         );
     }
 
@@ -192,7 +192,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        HasPrivilegesCheck hasPrivilegesCheck
+        IndexTemplatesPrivilegesCheckSupplier indexTemplatesPrivilegesCheckSupplier
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -202,7 +202,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
-        this.hasPrivilegesCheck = hasPrivilegesCheck;
+        this.indexTemplatesPrivilegesCheckSupplier = indexTemplatesPrivilegesCheckSupplier;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -516,9 +516,10 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        // TODO this might be better placed inside the update task, to avoid dirty reads but that breaks existing tests
+        // TODO this might be better placed inside the update task, to avoid dirty reads but that breaks existing tests so leaving as is for
+        // now
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
-        hasPrivilegesCheck.getPrivilegesCheck(ActionListener.wrap(privilegesCheck -> {
+        indexTemplatesPrivilegesCheckSupplier.getPrivilegesCheckForIndexPatterns(ActionListener.wrap(privilegesCheck -> {
             taskQueue.submitTask(
                 "create-index-template-v2 [" + name + "], cause [" + cause + "]",
                 new TemplateClusterStateUpdateTask(listener) {
@@ -588,9 +589,9 @@ public class MetadataIndexTemplateService {
         final boolean create,
         final String name,
         final ComposableIndexTemplate template,
-        final Consumer<HasPrivilegesCheck.PrivilegesToCheck> privilegeCheck
+        final Consumer<List<String>> indexPatternsPrivilegesCheck
     ) throws Exception {
-        return addIndexTemplateV2(currentState, create, name, template, true, privilegeCheck);
+        return addIndexTemplateV2(currentState, create, name, template, true, indexPatternsPrivilegesCheck);
     }
 
     public ClusterState addIndexTemplateV2(
@@ -609,19 +610,13 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps,
-        final Consumer<HasPrivilegesCheck.PrivilegesToCheck> privilegeCheck
+        final Consumer<List<String>> indexPatternsPrivilegesCheck
     ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
-        privilegeCheck.accept(
-            new HasPrivilegesCheck.PrivilegesToCheck(
-                new HasPrivilegesCheck.IndexPrivileges(
-                    existing == null
-                        ? template.indexPatterns()
-                        : CollectionUtils.concatLists(template.indexPatterns(), existing.indexPatterns()),
-                    "manage" // Just an example; in the final implementation this will be `manage_index_templates`
-                )
-            )
-        );
+        final List<String> indexPatternsToCheck = existing == null
+            ? template.indexPatterns()
+            : CollectionUtils.concatLists(template.indexPatterns(), existing.indexPatterns());
+        indexPatternsPrivilegesCheck.accept(indexPatternsToCheck);
 
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");

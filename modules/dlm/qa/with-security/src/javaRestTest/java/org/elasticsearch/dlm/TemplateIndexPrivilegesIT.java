@@ -9,6 +9,7 @@
 package org.elasticsearch.dlm;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -25,27 +26,44 @@ import static org.hamcrest.Matchers.equalTo;
 public class TemplateIndexPrivilegesIT extends ESRestTestCase {
 
     @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_dlm", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testAuthorizeIndexTemplateActions() throws IOException {
-        makeRequest(client(), requestWithBody("PUT", "/_index_template/test_template", """
+        // User with cluster privilege has access to everything
+        makeRequest("user_with_cluster", client(), requestWithBody("PUT", "/_index_template/test_template_1", """
             {
                 "index_patterns": ["test-*"],
+                "priority": 1,
+                "data_stream": { }
+            }"""), true);
+        makeRequest("user_with_cluster", client(), requestWithBody("PUT", "/_index_template/test_template_2", """
+            {
+                "index_patterns": ["other-*"],
+                "priority": 2,
                 "data_stream": { }
             }"""), true);
 
-        makeRequest(client(), requestWithBody("PUT", "/_index_template/test_template", """
+        // User with index privilege only has access to specific index patterns
+        makeRequest("user_with_index", client(), requestWithBody("PUT", "/_index_template/test_template_3", """
+            {
+                "index_patterns": ["test-*"],
+                "priority": 3,
+                "data_stream": { }
+            }"""), true);
+        makeRequest("user_with_index", client(), requestWithBody("PUT", "/_index_template/test_template_4", """
             {
                 "index_patterns": ["other-*"],
+                "priority": 4,
+                "data_stream": { }
+            }"""), false);
+        // Denied because test_template_2 has index patterns `other-*`
+        makeRequest("user_with_index", client(), requestWithBody("PUT", "/_index_template/test_template_2", """
+            {
+                "index_patterns": ["test-*"],
+                "priority": 2,
                 "data_stream": { }
             }"""), false);
     }
@@ -56,11 +74,11 @@ public class TemplateIndexPrivilegesIT extends ESRestTestCase {
         return request;
     }
 
-    /*
-     * This makes the given request with the given client. It asserts a 200 response if expectSuccess is true, and asserts an exception
-     * with a 403 response if expectStatus is false.
-     */
-    private void makeRequest(RestClient client, Request request, boolean expectSuccess) throws IOException {
+    private void makeRequest(String user, RestClient client, Request request, boolean expectSuccess) throws IOException {
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", basicAuthHeaderValue(user, new SecureString("x-pack-test-password".toCharArray())))
+        );
         if (expectSuccess) {
             Response response = client.performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));

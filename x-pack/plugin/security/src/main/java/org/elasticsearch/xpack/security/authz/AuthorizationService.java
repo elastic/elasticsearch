@@ -92,7 +92,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
@@ -202,18 +201,14 @@ public class AuthorizationService {
         );
     }
 
-    public void getPrivilegesCheck(
+    public AuthorizationEngine.PrivilegesCheckResult checkPrivileges(
         Subject subject,
-        ActionListener<Function<AuthorizationEngine.PrivilegesToCheck, AuthorizationEngine.PrivilegesCheckResult>> listener
+        AuthorizationInfo authorizationInfo,
+        AuthorizationEngine.PrivilegesToCheck privilegesToCheck,
+        List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        authorizationEngine.resolveAuthorizationInfo(
-            subject,
-            ActionListener.wrap(
-                authorizationInfo -> authorizationEngine.getPrivilegesCheck(authorizationInfo, listener),
-                listener::onFailure
-            )
-        );
+        return authorizationEngine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors);
     }
 
     public void retrieveUserPrivileges(

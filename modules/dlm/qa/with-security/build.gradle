@@ -11,6 +11,6 @@ testClusters.configureEach {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   rolesFile file('src/javaRestTest/resources/roles.yml')
-  user username: "test_dlm", password: "x-pack-test-password", role: "manage_dlm"
-  user username: "test_non_privileged", password: "x-pack-test-password", role: "not_privileged"
+  user username: "user_with_cluster", password: "x-pack-test-password", role: "role_with_cluster"
+  user username: "user_with_index", password: "x-pack-test-password", role: "role_with_index"
 }

@@ -1,8 +1,9 @@
-manage_dlm:
-  cluster:
-    - manage_index_templates
+role_with_index:
   indices:
     - names: [ 'test-*' ]
       privileges:
         - manage
-        - view_index_metadata
+
+role_with_cluster:
+  cluster:
+    - manage_index_templates

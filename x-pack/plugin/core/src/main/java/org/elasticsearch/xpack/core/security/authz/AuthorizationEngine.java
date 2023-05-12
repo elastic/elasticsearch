@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -231,9 +230,10 @@ public interface AuthorizationEngine {
         ActionListener<PrivilegesCheckResult> listener
     );
 
-    default void getPrivilegesCheck(
+    default PrivilegesCheckResult checkPrivileges(
         AuthorizationInfo authorizationInfo,
-        ActionListener<Function<PrivilegesToCheck, PrivilegesCheckResult>> listener
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors
     ) {
         throw new UnsupportedOperationException("not supported by this engine");
     }

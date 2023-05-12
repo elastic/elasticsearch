@@ -46,9 +46,9 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
-import org.elasticsearch.cluster.metadata.HasPrivilegesCheck;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplatesPrivilegesCheckSupplier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -1084,7 +1084,7 @@ public class Node implements Closeable {
                 boolean privCheckBound = false;
                 for (Object p : pluginComponents) {
                     if (p instanceof PluginComponentBinding<?, ?> pcb) {
-                        privCheckBound = privCheckBound || pcb.inter().isAssignableFrom(HasPrivilegesCheck.class);
+                        privCheckBound = privCheckBound || pcb.inter().isAssignableFrom(IndexTemplatesPrivilegesCheckSupplier.class);
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) pcb.inter();
                         b.bind(clazz).toInstance(pcb.impl());
@@ -1095,7 +1095,7 @@ public class Node implements Closeable {
                     }
                 }
                 if (false == privCheckBound) {
-                    b.bind(HasPrivilegesCheck.class).toInstance(new HasPrivilegesCheck.Noop());
+                    b.bind(IndexTemplatesPrivilegesCheckSupplier.class).toInstance(new IndexTemplatesPrivilegesCheckSupplier.Noop());
                 }
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);

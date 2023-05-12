@@ -298,7 +298,7 @@ public record IndexVersion(int id, Version luceneVersion) implements Comparable<
         return version.id >= id;
     }
 
-    public boolean isLegacyIndexFormatVersion() {
+    public boolean isLegacyIndexVersion() {
         return before(MINIMUM_COMPATIBLE);
     }
 

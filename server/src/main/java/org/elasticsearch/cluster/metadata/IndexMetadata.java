@@ -2510,7 +2510,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         Settings settings = Settings.fromXContent(parser);
-                        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).isLegacyIndexFormatVersion() == false) {
+                        if (SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).isLegacyIndexVersion() == false) {
                             throw new IllegalStateException(
                                 "this method should only be used to parse older incompatible index metadata versions "
                                     + "but got "

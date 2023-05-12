@@ -152,7 +152,8 @@ public class DefaultHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             highlighterNumberOfFragments,
             maxAnalyzedOffset,
-            fieldContext.field.fieldOptions().maxAnalyzedOffset()
+            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            fieldContext.field.fieldOptions().requireFieldMatch()
         );
     }
 

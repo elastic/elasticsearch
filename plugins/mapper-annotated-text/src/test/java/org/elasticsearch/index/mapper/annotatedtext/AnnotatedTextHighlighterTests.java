@@ -145,7 +145,8 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                     noMatchSize,
                     expectedPassages.length,
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
+                    queryMaxAnalyzedOffset,
+                    true
                 );
                 highlighter.setFieldMatcher((name) -> "text".equals(name));
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);

@@ -148,7 +148,8 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     noMatchSize,
                     expectedPassages.length,
                     maxAnalyzedOffset,
-                    queryMaxAnalyzedOffset
+                    queryMaxAnalyzedOffset,
+                    true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(snippets.length, expectedPassages.length);

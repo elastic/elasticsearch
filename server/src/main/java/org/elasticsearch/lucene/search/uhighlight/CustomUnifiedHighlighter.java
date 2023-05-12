@@ -25,17 +25,20 @@ import org.apache.lucene.search.uhighlight.NoOpOffsetStrategy;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.search.uhighlight.PassageScorer;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
 
@@ -85,7 +88,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int noMatchSize,
         int maxPassages,
         int maxAnalyzedOffset,
-        Integer queryMaxAnalyzedOffset
+        Integer queryMaxAnalyzedOffset,
+        boolean requireFieldMatch
     ) throws IOException {
         super(builder);
         this.offsetSource = offsetSource;
@@ -95,7 +99,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.maxAnalyzedOffset = maxAnalyzedOffset;
         this.queryMaxAnalyzedOffset = queryMaxAnalyzedOffset;
-        if (weightMatchesUnsupported(query)) {
+        if (requireFieldMatch == false || weightMatchesUnsupported(query)) {
             getFlags(field).remove(HighlightFlag.WEIGHT_MATCHES);
         }
         fieldHighlighter = (CustomFieldHighlighter) getFieldHighlighter(field, query, extractTerms(query), maxPassages);
@@ -230,10 +234,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param query The query to highlight
      */
     private boolean weightMatchesUnsupported(Query query) {
-
         boolean[] hasUnknownLeaf = new boolean[1];
         query.visit(new QueryVisitor() {
-
             @Override
             public void visitLeaf(Query leafQuery) {
                 /**
@@ -249,9 +251,31 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             }
 
             @Override
+            public void consumeTerms(Query leafQuery, Term... terms) {
+                if (leafQuery instanceof AbstractScriptFieldQuery) {
+                    /**
+                     * Queries on runtime fields don't support the matches API.
+                     */
+                    hasUnknownLeaf[0] = true;
+                }
+                super.consumeTerms(query, terms);
+            }
+
+            @Override
+            public void consumeTermsMatching(Query leafQuery, String field, Supplier<ByteRunAutomaton> automaton) {
+                if (leafQuery instanceof AbstractScriptFieldQuery) {
+                    /**
+                     * Queries on runtime fields don't support the matches API.
+                     */
+                    hasUnknownLeaf[0] = true;
+                }
+                super.consumeTermsMatching(query, field, automaton);
+            }
+
+            @Override
             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
                 /**
-                 * Disable nested query support.
+                 * Nested queries don't support the matches API.
                  */
                 if (parent instanceof ESToParentBlockJoinQuery) {
                     hasUnknownLeaf[0] = true;

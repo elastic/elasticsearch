@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -160,7 +159,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             this.name = in.readString();
         }
         this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
             this.type = in.readEnum(Type.class);
         } else {
             // This default is safe because
@@ -274,7 +273,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             out.writeString(name);
         }
         out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_001)) {
             out.writeEnum(type);
         }
         out.writeInstant(creation);

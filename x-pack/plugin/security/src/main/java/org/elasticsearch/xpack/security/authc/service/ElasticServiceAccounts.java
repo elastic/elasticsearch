@@ -84,6 +84,11 @@ final class ElasticServiceAccounts {
                     .privileges("read", "monitor", "maintenance")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".fleet-secrets*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
                     // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")

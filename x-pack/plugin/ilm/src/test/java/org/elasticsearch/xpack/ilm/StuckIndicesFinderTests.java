@@ -64,27 +64,31 @@ public class StuckIndicesFinderTests extends ESTestCase {
         var stuckIndices = stuckIndicesFinder.find();
 
         assertThat(stuckIndices, hasSize(2));
-        assertThat(stuckIndices, containsInAnyOrder(
-            new IlmHealthIndicatorService.IndexIlmState(
-                idxMd1.indexName,
-                idxMd1.policyName,
-                idxMd1.ilmState.phase(),
-                idxMd1.ilmState.action(),
-                TimeValue.timeValueMillis(instant - idxMd1.ilmState.actionTime()),
-                idxMd1.ilmState.step(),
-                TimeValue.timeValueMillis(instant - idxMd1.ilmState.stepTime()),
-                idxMd1.ilmState.failedStepRetryCount()
-            ),
-            new IlmHealthIndicatorService.IndexIlmState(
-                idxMd3.indexName,
-                idxMd3.policyName,
-                idxMd3.ilmState.phase(),
-                idxMd3.ilmState.action(),
-                TimeValue.timeValueMillis(instant - idxMd3.ilmState.actionTime()),
-                idxMd3.ilmState.step(),
-                TimeValue.timeValueMillis(instant - idxMd3.ilmState.stepTime()),
-                idxMd3.ilmState.failedStepRetryCount()
-            )));
+        assertThat(
+            stuckIndices,
+            containsInAnyOrder(
+                new IlmHealthIndicatorService.IndexIlmState(
+                    idxMd1.indexName,
+                    idxMd1.policyName,
+                    idxMd1.ilmState.phase(),
+                    idxMd1.ilmState.action(),
+                    TimeValue.timeValueMillis(instant - idxMd1.ilmState.actionTime()),
+                    idxMd1.ilmState.step(),
+                    TimeValue.timeValueMillis(instant - idxMd1.ilmState.stepTime()),
+                    idxMd1.ilmState.failedStepRetryCount()
+                ),
+                new IlmHealthIndicatorService.IndexIlmState(
+                    idxMd3.indexName,
+                    idxMd3.policyName,
+                    idxMd3.ilmState.phase(),
+                    idxMd3.ilmState.action(),
+                    TimeValue.timeValueMillis(instant - idxMd3.ilmState.actionTime()),
+                    idxMd3.ilmState.step(),
+                    TimeValue.timeValueMillis(instant - idxMd3.ilmState.stepTime()),
+                    idxMd3.ilmState.failedStepRetryCount()
+                )
+            )
+        );
     }
 
     public void testStuckIndicesEvaluator() {

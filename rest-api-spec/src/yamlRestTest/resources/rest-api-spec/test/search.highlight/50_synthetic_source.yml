@@ -210,7 +210,7 @@ text single unified from reanalysis:
             fields:
               foo.analyze:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from reanalysis:
@@ -225,7 +225,7 @@ text multi unified from reanalysis:
             fields:
               foo.analyze:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.analyze.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single unified from positions:
@@ -240,7 +240,7 @@ text single unified from positions:
             fields:
               foo.positions:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from positions:
@@ -255,7 +255,7 @@ text multi unified from positions:
             fields:
               foo.positions:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.positions.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single unified from vectors:
@@ -270,7 +270,7 @@ text single unified from vectors:
             fields:
               foo.vectors:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the</em> <em>quick</em> <em>brown</em> <em>fox</em> <em>jumped</em> <em>over</em> <em>the</em> <em>lazy</em> <em>dog</em> }
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>the quick brown fox jumped over the lazy dog</em> }
 
 ---
 text multi unified from vectors:
@@ -285,7 +285,7 @@ text multi unified from vectors:
             fields:
               foo.vectors:
                 type: unified
-  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That</em> <em>makes</em> <em>calamity</em> <em>of</em> <em>so</em> <em>long</em> <em>life</em>. }
+  - match: { hits.hits.0.highlight.foo\.vectors.0: <em>That makes calamity of so long life</em>. }
 
 ---
 text single fvh source order:

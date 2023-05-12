@@ -22,6 +22,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,6 +43,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
              }
         }""";
 
+    // "ZmZm" is the base64 encoding of "fff"
     private static String testJSON = """
         {
              "metadata": {
@@ -129,13 +131,16 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testSettingsSHADigest() throws IOException, GeneralSecurityException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
-        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
+        assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc", "eee"));
 
         final byte[] stringSettingHash = MessageDigest.getInstance("SHA-256").digest("bbb".getBytes(StandardCharsets.UTF_8));
         assertThat(secrets.getSHA256Digest("aaa"), equalTo(stringSettingHash));
+
+        final byte[] fileSettingHash = MessageDigest.getInstance("SHA-256").digest("fff".getBytes(StandardCharsets.UTF_8));
+        assertThat(secrets.getSHA256Digest("eee"), equalTo(fileSettingHash));
     }
 
     public void testProcessBadSettingsFile() throws IOException {
@@ -147,18 +152,20 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testSerializationWithSecrets() throws Exception {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
 
         final BytesStreamOutput out = new BytesStreamOutput();
         secrets.writeTo(out);
         final LocallyMountedSecrets fromStream = new LocallyMountedSecrets(out.bytes().streamInput());
 
-        assertThat(fromStream.getSettingNames(), hasSize(2));
-        assertThat(fromStream.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
+        assertThat(fromStream.getSettingNames(), hasSize(3));
+        assertThat(fromStream.getSettingNames(), containsInAnyOrder("aaa", "ccc", "eee"));
 
         assertEquals(secrets.getString("aaa"), fromStream.getString("aaa"));
+        assertThat(secrets.getFile("eee").readAllBytes(), equalTo(fromStream.getFile("eee").readAllBytes()));
         assertTrue(fromStream.isLoaded());
+
     }
 
     public void testSerializationNewlyCreated() throws Exception {
@@ -172,7 +179,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
     }
 
     public void testClose() throws IOException {
-        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDepricated);
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());

@@ -60,7 +60,7 @@ import static org.elasticsearch.xcontent.XContentType.JSON;
  *                  "secure.setting.key.two": "bbb"
  *              }
  *              "file_secrets": {
- *                  "secure.setting.key.three": "deadbeef1234",
+ *                  "secure.setting.key.three": "Y2Nj"
  *              }
  *         }
  */
@@ -157,13 +157,13 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public Set<String> getSettingNames() {
         assert isLoaded();
-        return secrets.get().secrets().keySet();
+        return secrets.get().map().keySet();
     }
 
     @Override
     public SecureString getString(String setting) {
         assert isLoaded();
-        var value = secrets.get().secrets().get(setting);
+        var value = secrets.get().map().get(setting);
         if (value == null) {
             return null;
         }
@@ -175,13 +175,13 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
         assert isLoaded();
-        return new ByteArrayInputStream(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
+        return new ByteArrayInputStream(secrets.get().map().get(setting));
     }
 
     @Override
     public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
         assert isLoaded();
-        return MessageDigests.sha256().digest(getString(setting).toString().getBytes(StandardCharsets.UTF_8));
+        return MessageDigests.sha256().digest(secrets.get().map().get(setting));
     }
 
     /**
@@ -193,8 +193,8 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     @Override
     public void close() throws IOException {
-        if (null != secrets.get() && secrets.get().secrets().isEmpty() == false) {
-            for (var entry : secrets.get().secrets().entrySet()) {
+        if (null != secrets.get() && secrets.get().map().isEmpty() == false) {
+            for (var entry : secrets.get().map().entrySet()) {
                 entry.setValue(null);
             }
         }
@@ -212,7 +212,7 @@ public class LocallyMountedSecrets implements SecureSettings {
         }
     }
 
-    record LocalFileSecrets(Map<String, byte[]> secrets, ReservedStateVersion metadata) implements Writeable {
+    record LocalFileSecrets(Map<String, byte[]> map, ReservedStateVersion metadata) implements Writeable {
 
         public static LocalFileSecrets createLocalFileSecrets(
             Map<String, String> stringSecrets,
@@ -243,7 +243,7 @@ public class LocallyMountedSecrets implements SecureSettings {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap((secrets == null) ? Map.of() : secrets, StreamOutput::writeString, StreamOutput::writeByteArray);
+            out.writeMap((map == null) ? Map.of() : map, StreamOutput::writeString, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

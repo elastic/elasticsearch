@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.downsample.DownsampleAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
@@ -245,6 +246,82 @@ public class DownsampleStepTests extends AbstractStepTestCase<DownsampleStep> {
                 assertTrue(e.getMessage().contains("already exists with downsample status [started]"));
             }
         });
+    }
+
+    public void testNextStepKey() {
+        String sourceIndexName = randomAlphaOfLength(10);
+        String lifecycleName = randomAlphaOfLength(5);
+
+        LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
+        lifecycleState.setIndexCreationDate(randomNonNegativeLong());
+
+        String downsampleIndex = GenerateUniqueIndexNameStep.generateValidIndexName(DOWNSAMPLED_INDEX_PREFIX, sourceIndexName);
+        lifecycleState.setDownsampleIndexName(downsampleIndex);
+
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(sourceIndexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(sourceIndexMetadata, true).build())
+            .build();
+        {
+            try (NoOpClient client = new NoOpClient(getTestName())) {
+                StepKey nextKeyOnComplete = randomStepKey();
+                StepKey nextKeyOnIncomplete = randomStepKey();
+                DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+                DownsampleStep completeStep = new DownsampleStep(
+                    randomStepKey(),
+                    nextKeyOnComplete,
+                    nextKeyOnIncomplete,
+                    client,
+                    fixedInterval
+                ) {
+                    void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
+                        listener.onResponse(null);
+                    }
+                };
+                completeStep.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
+                assertThat(completeStep.getNextStepKey(), is(nextKeyOnComplete));
+            }
+        }
+        {
+            try (NoOpClient client = new NoOpClient(getTestName())) {
+                StepKey nextKeyOnComplete = randomStepKey();
+                StepKey nextKeyOnIncomplete = randomStepKey();
+                DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+                DownsampleStep doubleInvocationStep = new DownsampleStep(
+                    randomStepKey(),
+                    nextKeyOnComplete,
+                    nextKeyOnIncomplete,
+                    client,
+                    fixedInterval
+                ) {
+                    void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "failing ["
+                                    + DownsampleStep.NAME
+                                    + "] step for index ["
+                                    + indexName
+                                    + "] as part of policy ["
+                                    + lifecycleName
+                                    + "] because the downsample index ["
+                                    + downsampleIndexName
+                                    + "] already exists with downsample status ["
+                                    + IndexMetadata.DownsampleTaskStatus.UNKNOWN
+                                    + "]"
+                            )
+                        );
+                    }
+                };
+                doubleInvocationStep.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
+                assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
+            }
+        }
     }
 
     private void mockClientDownsampleCall(String sourceIndex) {

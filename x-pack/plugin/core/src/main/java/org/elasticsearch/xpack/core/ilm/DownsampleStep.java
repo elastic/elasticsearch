@@ -126,7 +126,7 @@ public class DownsampleStep extends AsyncActionStep {
         }
     }
 
-    private void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
+    void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
         DownsampleConfig config = new DownsampleConfig(fixedInterval);
         DownsampleAction.Request request = new DownsampleAction.Request(indexName, downsampleIndexName, config).masterNodeTimeout(
             TimeValue.MAX_VALUE

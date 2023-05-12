@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -33,19 +32,6 @@ public class MvMin extends AbstractMultivalueFunction {
     @Override
     protected TypeResolution resolveFieldType() {
         return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
-    }
-
-    @Override
-    protected Object foldMultivalued(List<?> l) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> l.stream().mapToInt(o -> (boolean) o ? 1 : 0).min().getAsInt() == 1;
-            case BYTES_REF -> l.stream().map(o -> (BytesRef) o).min(Comparator.naturalOrder()).get();
-            case DOUBLE -> l.stream().mapToDouble(o -> (double) o).min().getAsDouble();
-            case INT -> l.stream().mapToInt(o -> (int) o).min().getAsInt();
-            case LONG -> l.stream().mapToLong(o -> (long) o).min().getAsLong();
-            case NULL -> null;
-            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
-        };
     }
 
     @Override

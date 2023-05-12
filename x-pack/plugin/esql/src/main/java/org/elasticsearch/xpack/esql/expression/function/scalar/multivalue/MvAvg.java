@@ -43,23 +43,6 @@ public class MvAvg extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Object foldMultivalued(List<?> l) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> {
-                CompensatedSum sum = new CompensatedSum();
-                for (Object i : l) {
-                    sum.add((Double) i);
-                }
-                yield sum.value() / l.size();
-            }
-            case INT -> ((double) l.stream().mapToInt(o -> (int) o).sum()) / l.size();
-            case LONG -> ((double) l.stream().mapToLong(o -> (long) o).sum()) / l.size();
-            case NULL -> null;
-            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
-        };
-    }
-
-    @Override
     protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
             case DOUBLE -> () -> new MvAvgDoubleEvaluator(fieldEval.get());

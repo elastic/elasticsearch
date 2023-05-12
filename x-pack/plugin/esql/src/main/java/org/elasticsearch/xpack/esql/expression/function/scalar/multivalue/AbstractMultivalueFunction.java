@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.planner.Mappable;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -26,11 +25,6 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
     }
-
-    /**
-     * Fold a multivalued constant.
-     */
-    protected abstract Object foldMultivalued(List<?> l);
 
     /**
      * Build the evaluator given the evaluator a multivalued field.
@@ -49,11 +43,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
     @Override
     public final Object fold() {
-        Object folded = field().fold();
-        if (folded instanceof List<?> l) {
-            return l.size() == 0 ? null : foldMultivalued(l);
-        }
-        return folded;
+        return Mappable.super.fold();
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     @Override
@@ -35,7 +36,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected Matcher<Object> resultMatcherForInput(List<?> input) {
-        return equalTo(input.size());
+        return input == null ? nullValue() : equalTo(input.size());
     }
 
     @Override

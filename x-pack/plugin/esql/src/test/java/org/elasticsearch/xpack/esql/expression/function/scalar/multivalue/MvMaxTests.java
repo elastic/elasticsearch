@@ -34,13 +34,15 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected Matcher<Object> resultMatcherForInput(List<?> input) {
+        if (input == null) {
+            return nullValue();
+        }
         return switch (LocalExecutionPlanner.toElementType(EsqlDataTypes.fromJava(input.get(0)))) {
             case BOOLEAN -> equalTo(input.stream().mapToInt(o -> (Boolean) o ? 1 : 0).max().getAsInt() == 1);
             case BYTES_REF -> equalTo(input.stream().map(o -> (BytesRef) o).max(Comparator.naturalOrder()).get());
             case DOUBLE -> equalTo(input.stream().mapToDouble(o -> (Double) o).max().getAsDouble());
             case INT -> equalTo(input.stream().mapToInt(o -> (Integer) o).max().getAsInt());
             case LONG -> equalTo(input.stream().mapToLong(o -> (Long) o).max().getAsLong());
-            case NULL -> nullValue();
             default -> throw new UnsupportedOperationException("unsupported type " + input);
         };
     }

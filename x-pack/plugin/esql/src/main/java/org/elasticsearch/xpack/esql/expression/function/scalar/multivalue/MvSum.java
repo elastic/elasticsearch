@@ -35,17 +35,6 @@ public class MvSum extends AbstractMultivalueFunction {
         return isType(field(), t -> t.isNumeric() && isRepresentable(t), sourceText(), null, "numeric");
     }
 
-    @Override
-    protected Object foldMultivalued(List<?> l) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> sum(l.stream().mapToDouble(o -> (double) o));
-            case INT -> l.stream().mapToInt(o -> (int) o).sum();
-            case LONG -> l.stream().mapToLong(o -> (long) o).sum();
-            case NULL -> null;
-            default -> throw new UnsupportedOperationException("unsupported type [" + field().dataType() + "]");
-        };
-    }
-
     static double sum(DoubleStream stream) {
         CompensatedSum sum = new CompensatedSum();
         stream.forEach(sum::add);

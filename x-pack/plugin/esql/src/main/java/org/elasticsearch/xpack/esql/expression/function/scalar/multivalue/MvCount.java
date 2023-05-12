@@ -43,11 +43,6 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Object foldMultivalued(List<?> l) {
-        return l.size();
-    }
-
-    @Override
     protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
         return () -> new Evaluator(fieldEval.get());
     }

@@ -115,7 +115,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     public final void testFoldManyValues() {
         for (DataType type : supportedTypes()) {
-            List<Object> data = randomList(1, 100, () -> randomLiteral(type).value());
+            List<Object> data = type == DataTypes.NULL ? null : randomList(1, 100, () -> randomLiteral(type).value());
             Expression expression = build(Source.EMPTY, new Literal(Source.EMPTY, data, type));
             assertTrue(expression.foldable());
             assertThat(expression.fold(), resultMatcherForInput(data));

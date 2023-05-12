@@ -9,33 +9,34 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.function.Supplier;
 
+/**
+ * Evaluates a tree of functions for every position in the block, resulting in a
+ * new block which is appended to the page.
+ */
 @Experimental
 public class EvalOperator extends AbstractPageMappingOperator {
 
-    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator, ElementType elementType) implements OperatorFactory {
+    public record EvalOperatorFactory(Supplier<ExpressionEvaluator> evaluator) implements OperatorFactory {
 
         @Override
         public Operator get() {
-            return new EvalOperator(evaluator.get(), elementType);
+            return new EvalOperator(evaluator.get());
         }
 
         @Override
         public String describe() {
-            return "EvalOperator[elementType=" + elementType + ", evaluator=" + evaluator.get() + "]";
+            return "EvalOperator[evaluator=" + evaluator.get() + "]";
         }
     }
 
     private final ExpressionEvaluator evaluator;
-    private final ElementType elementType;    // TODO we no longer need this parameter
 
-    public EvalOperator(ExpressionEvaluator evaluator, ElementType elementType) {
+    public EvalOperator(ExpressionEvaluator evaluator) {
         this.evaluator = evaluator;
-        this.elementType = elementType;
     }
 
     @Override
@@ -45,12 +46,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("elementType=").append(elementType).append(", ");
-        sb.append("evaluator=").append(evaluator);
-        sb.append("]");
-        return sb.toString();
+        return getClass().getSimpleName() + "[evaluator=" + evaluator + "]";
     }
 
     public interface ExpressionEvaluator {

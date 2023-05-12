@@ -10,7 +10,6 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -70,12 +69,7 @@ public class EvalBenchmark {
     public String operation;
 
     private static Operator operator(String operation) {
-        ElementType elementType = switch (operation) {
-            case "abs", "add", "date_trunc" -> ElementType.LONG;
-            case "equal_to_const", "long_equal_to_long", "long_equal_to_int" -> ElementType.BOOLEAN;
-            default -> throw new IllegalArgumentException();
-        };
-        return new EvalOperator(evaluator(operation), elementType);
+        return new EvalOperator(evaluator(operation));
     }
 
     private static EvalOperator.ExpressionEvaluator evaluator(String operation) {

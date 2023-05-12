@@ -332,7 +332,7 @@ public class LocalExecutionPlanner {
             }
             Layout.Builder layout = source.layout.builder();
             layout.appendChannel(namedExpression.toAttribute().id());
-            source = source.with(new EvalOperatorFactory(evaluatorSupplier, toElementType(namedExpression.dataType())), layout.build());
+            source = source.with(new EvalOperatorFactory(evaluatorSupplier), layout.build());
         }
         return source;
     }

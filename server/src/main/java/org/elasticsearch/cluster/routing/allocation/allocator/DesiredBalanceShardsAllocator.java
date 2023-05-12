@@ -30,7 +30,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -155,6 +154,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             Priority.URGENT,
             new ReconcileDesiredBalanceExecutor()
         );
+        clusterService.addListener(event -> {
+            if (event.localNodeMaster() == false) {
+                onNoLongerMaster();
+            }
+        });
     }
 
     @Override
@@ -268,7 +272,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
+    private static final class ReconcileDesiredBalanceTask implements ClusterStateTaskListener {
         private final DesiredBalance desiredBalance;
 
         private ReconcileDesiredBalanceTask(DesiredBalance desiredBalance) {
@@ -278,12 +282,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         @Override
         public void onFailure(Exception e) {
             assert MasterService.isPublishFailureException(e) : e;
-            if (e.getCause() != null && e.getCause() instanceof EsRejectedExecutionException esRejectedExecutionException) {
-                assert esRejectedExecutionException.isExecutorShutdown();
-                // TODO now what? onNoLongerMaster() asserts it's on the master thread but we could be anywhere here
-            } else {
-                onNoLongerMaster();
-            }
         }
 
         @Override

@@ -34,7 +34,8 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 0 }
+      search_applications: { count: 0 },
+      analytics_collections: { count: 0 }
     }
   }
 
@@ -51,7 +52,8 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 1 }
+      search_applications: { count: 1 },
+      analytics_collections: { count: 0 }
     }
   }
 
@@ -68,7 +70,8 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 2 }
+      search_applications: { count: 2 },
+      analytics_collections: { count: 0 }
     }
   }
 
@@ -83,6 +86,7 @@ teardown:
     enterprise_search: {
       enabled: true,
       available: true,
-      search_applications: { count: 1 }
+      search_applications: { count: 1 },
+      analytics_collections: { count: 0 }
     }
   }

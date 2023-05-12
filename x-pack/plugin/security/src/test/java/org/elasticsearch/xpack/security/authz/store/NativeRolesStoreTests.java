@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -35,7 +36,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
@@ -61,6 +62,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -235,7 +237,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final Client client = mock(Client.class);
-        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(Version.CURRENT);
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.CURRENT);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
@@ -314,13 +316,15 @@ public class NativeRolesStoreTests extends ESTestCase {
 
     public void testPutRoleWithRemoteIndicesUnsupportedMinNodeVersion() {
         final Client client = mock(Client.class);
-        final Version versionBeforeRemoteIndices = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        final Version version = VersionUtils.randomVersionBetween(
-            random(),
-            versionBeforeRemoteIndices.minimumCompatibilityVersion(),
-            versionBeforeRemoteIndices
+        final TransportVersion transportVersionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
         );
-        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(version);
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            transportVersionBeforeAdvancedRemoteClusterSecurity
+        );
+        final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(minTransportVersion);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
@@ -358,12 +362,19 @@ public class NativeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         rolesStore.putRole(putRoleRequest, remoteIndicesRole, future);
         IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("all nodes must have version [8.6.0] or higher to support remote indices privileges"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "all nodes must have transport version ["
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                    + "] or higher to support remote indices privileges"
+            )
+        );
     }
 
-    private ClusterService mockClusterServiceWithMinNodeVersion(Version version) {
+    private ClusterService mockClusterServiceWithMinNodeVersion(TransportVersion transportVersion) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
-        when(clusterService.state().nodes().getMinNodeVersion()).thenReturn(version);
+        when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
         return clusterService;
     }
 

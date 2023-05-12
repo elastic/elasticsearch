@@ -44,7 +44,9 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -443,7 +445,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES);
+        final boolean canIncludeRemoteIndices = version.onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -463,7 +465,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
-            RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -1045,7 +1047,11 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {
-        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max);
+        return randomRemoteIndicesPrivileges(min, max, Set.of());
+    }
+
+    public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
+        final RoleDescriptor.IndicesPrivileges[] innerIndexPrivileges = randomIndicesPrivileges(min, max, excludedPrivileges);
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges =
             new RoleDescriptor.RemoteIndicesPrivileges[innerIndexPrivileges.length];
         for (int i = 0; i < remoteIndexPrivileges.length; i++) {
@@ -1058,16 +1064,26 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max) {
+        return randomIndicesPrivileges(min, max, Set.of());
+    }
+
+    public static RoleDescriptor.IndicesPrivileges[] randomIndicesPrivileges(int min, int max, Set<String> excludedPrivileges) {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(min, max)];
         for (int i = 0; i < indexPrivileges.length; i++) {
-            indexPrivileges[i] = randomIndicesPrivilegesBuilder().build();
+            indexPrivileges[i] = randomIndicesPrivilegesBuilder(excludedPrivileges).build();
         }
         return indexPrivileges;
     }
 
     private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder() {
+        return randomIndicesPrivilegesBuilder(Set.of());
+    }
+
+    private static RoleDescriptor.IndicesPrivileges.Builder randomIndicesPrivilegesBuilder(Set<String> excludedPrivileges) {
+        final Set<String> candidatePrivilegesNames = Sets.difference(IndexPrivilege.names(), excludedPrivileges);
+        assert false == candidatePrivilegesNames.isEmpty() : "no candidate privilege names to random from";
         final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
-            .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+            .privileges(randomSubsetOf(randomIntBetween(1, 4), candidatePrivilegesNames))
             .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
             .allowRestrictedIndices(randomBoolean());
         if (randomBoolean()) {

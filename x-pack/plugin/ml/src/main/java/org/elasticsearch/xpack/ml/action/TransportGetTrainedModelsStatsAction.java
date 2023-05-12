@@ -262,7 +262,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         }
         String deployments = matchedDeployments.stream().collect(Collectors.joining(","));
 
-        logger.info("Fetching stats for deployments [{}]", deployments);
+        logger.debug("Fetching stats for deployments [{}]", deployments);
 
         GetDeploymentStatsAction.Request getDeploymentStatsRequest = new GetDeploymentStatsAction.Request(deployments);
         getDeploymentStatsRequest.setParentTask(parentTaskId);

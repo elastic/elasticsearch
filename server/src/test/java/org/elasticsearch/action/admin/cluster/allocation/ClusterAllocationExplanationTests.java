@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -157,7 +157,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED
         );
         DiscoveryNode node = assignedShard
-            ? new DiscoveryNode("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
+            ? TestDiscoveryNode.create("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet())
             : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {

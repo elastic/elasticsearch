@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -400,7 +401,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     }
 
     public void testValidatePackagedModelRequiredFields() {
-        String modelId = "." + randomAlphaOfLength(20);
+        String modelId = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
 
         TrainedModelConfig.Builder builder = TrainedModelConfig.builder().setModelId(modelId);
 

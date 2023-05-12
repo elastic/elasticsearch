@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -87,19 +88,14 @@ public class ReservedPipelineActionTests extends ESTestCase {
             null,
             null,
             Collections.singletonList(DUMMY_PLUGIN),
-            client
+            client,
+            null
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("set"));
         assertEquals(1, factories.size());
 
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "_node_id",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("_node_id", buildNewFakeTransportAddress(), emptyMap(), emptySet());
 
         NodeInfo nodeInfo = new NodeInfo(
             Version.CURRENT,

@@ -73,15 +73,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
                 if (API_KEY_MAP_REF.get() == null) {
                     final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey(Strings.format("""
                         {
-                          "role": {
-                            "cluster": ["cross_cluster_access"],
-                            "index": [
+                            "search": [
                               {
-                                  "names": ["%s"],
-                                  "privileges": ["read", "read_cross_cluster"]
+                                  "names": ["%s"]
                               }
                             ]
-                          }
                         }""", REMOTE_INDEX_NAME));
                     API_KEY_MAP_REF.set(apiKeyMap);
                 }
@@ -168,14 +164,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
             );
 
             // Check that CCS fails because we cannot establish connection due to the license check.
-            if (useProxyMode) {
-                // TODO: We should improve error handling so we get actual cause instead just NoSeedNodeLeftException.
-                var exception = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(searchRequest));
-                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-                assertThat(exception.getMessage(), containsString("Unable to open any proxy connections to cluster [my_remote_cluster]"));
-            } else {
-                assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
-            }
+            assertRequestFailsDueToUnsupportedLicense(() -> performRequestWithRemoteSearchUser(searchRequest));
 
             // We start the trial license which supports all features.
             startTrialLicense(fulfillingClusterClient);

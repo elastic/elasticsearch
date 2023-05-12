@@ -1,5 +1,5 @@
 pr: 95625
-summary: "[Fleet] Add `.secrets` system index"
+summary: "[Fleet] Add `.fleet-secrets` system index"
 area: Infra/Plugins
 type: feature
 issues:

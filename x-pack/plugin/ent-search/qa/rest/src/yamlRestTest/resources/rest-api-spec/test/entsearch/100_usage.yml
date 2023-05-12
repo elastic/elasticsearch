@@ -64,6 +64,10 @@ teardown:
           indices: [ "test-index1" ]
 
   - do:
+      search_application.put_behavioral_analytics:
+        name: test-analytics-collection
+
+  - do:
       xpack.usage: {}
 
   - match: {
@@ -71,13 +75,29 @@ teardown:
       enabled: true,
       available: true,
       search_applications: { count: 2 },
-      analytics_collections: { count: 0 }
+      analytics_collections: { count: 1 }
     }
   }
 
   - do:
       search_application.delete:
         name: test-search-application-2
+
+  - do:
+      xpack.usage: {}
+
+  - match: {
+    enterprise_search: {
+      enabled: true,
+      available: true,
+      search_applications: { count: 1 },
+      analytics_collections: { count: 1 }
+    }
+  }
+
+  - do:
+      search_application.delete_behavioral_analytics:
+        name: test-analytics-collection
 
   - do:
       xpack.usage: {}

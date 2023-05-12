@@ -274,6 +274,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final long daysBetween = ChronoUnit.DAYS.between(start, expiration);
         assertThat(daysBetween, is(7L));
 
+        assertThat(getApiKeyDocument(response.getId()).get("type"), equalTo("rest"));
+
         // create simple api key
         final CreateApiKeyResponse simple = new CreateApiKeyRequestBuilder(client).setName("simple").get();
         assertEquals("simple", simple.getName());

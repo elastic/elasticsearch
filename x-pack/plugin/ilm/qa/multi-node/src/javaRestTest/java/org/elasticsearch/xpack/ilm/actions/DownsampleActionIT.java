@@ -93,7 +93,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }""";
 
     @Before
-    public void refreshAbstractions() throws IOException {
+    public void refreshAbstractions() {
         index = "index-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         alias = "alias-" + randomAlphaOfLength(5);

@@ -699,7 +699,7 @@ public class IndexNameExpressionResolver {
         }
 
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
-        DataStream dataStream = ia.getParentDataStream() == null ? null: ia.getParentDataStream().getDataStream();
+        DataStream dataStream = ia.getParentDataStream() == null ? null : ia.getParentDataStream().getDataStream();
         if (dataStream != null) {
             if (skipIdentity == false && resolvedExpressions.contains(dataStream.getName())) {
                 // skip the filters when the request targets the data stream name

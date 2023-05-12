@@ -19,19 +19,25 @@ public class EnterpriseSearchFeatureSetUsageSerializingTests extends AbstractWir
     @Override
     protected EnterpriseSearchFeatureSetUsage createTestInstance() {
         Map<String, Object> searchApplicationsStats = new HashMap<>();
+        Map<String, Object> analyticsCollectionsStats = new HashMap<>();
         searchApplicationsStats.put("count", randomLongBetween(0, 100000));
-        return new EnterpriseSearchFeatureSetUsage(true, true, searchApplicationsStats);
+        analyticsCollectionsStats.put("count", randomLongBetween(0, 100000));
+        return new EnterpriseSearchFeatureSetUsage(true, true, searchApplicationsStats, analyticsCollectionsStats);
     }
 
     @Override
     protected EnterpriseSearchFeatureSetUsage mutateInstance(EnterpriseSearchFeatureSetUsage instance) throws IOException {
         long searchApplicationsCount = (long) instance.getSearchApplicationsUsage().get("count");
         searchApplicationsCount = randomValueOtherThan(searchApplicationsCount, () -> randomLongBetween(0, 100000));
+        long analyticsCollectionsCount = (long) instance.getAnalyticsCollectionsUsage().get("count");
+        analyticsCollectionsCount = randomValueOtherThan(analyticsCollectionsCount, () -> randomLongBetween(0, 100000));
 
         Map<String, Object> searchApplicationsStats = new HashMap<>();
+        Map<String, Object> analyticsCollectionsStats = new HashMap<>();
         searchApplicationsStats.put("count", searchApplicationsCount);
+        analyticsCollectionsStats.put("count", analyticsCollectionsCount);
 
-        return new EnterpriseSearchFeatureSetUsage(true, true, searchApplicationsStats);
+        return new EnterpriseSearchFeatureSetUsage(true, true, searchApplicationsStats, analyticsCollectionsStats);
     }
 
     @Override

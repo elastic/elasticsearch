@@ -81,4 +81,5 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public Map<String, Object> getSearchApplicationsUsage() {
         return searchApplicationsUsage;
     }
+    public Map<String, Object> getAnalyticsCollectionsUsage() { return analyticsCollectionsUsage; }
 }

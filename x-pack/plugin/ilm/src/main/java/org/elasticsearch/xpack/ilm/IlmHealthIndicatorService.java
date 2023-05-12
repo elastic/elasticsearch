@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,6 +30,10 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
+import org.elasticsearch.xpack.core.ilm.WaitForDataTierStep;
+import org.elasticsearch.xpack.core.ilm.WaitForIndexColorStep;
+import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,6 +48,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
@@ -59,8 +62,6 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
  * ILM must be running to fix warning reported by this indicator.
  */
 public class IlmHealthIndicatorService implements HealthIndicatorService {
-
-    private static final Logger logger = LogManager.getLogger(IlmHealthIndicatorService.class);
 
     public static final String NAME = "ilm";
     public static final String HELP_URL = "https://ela.st/fix-ilm";
@@ -102,23 +103,24 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     // TODO fix this value
     public static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
 
-    static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
-        RolloverAction.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        MigrateAction.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        SearchableSnapshotAction.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        DeleteStep.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        ShrinkAction.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        AllocateAction.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        ForceMergeAction.NAME,
-        new RuleConfig(ONE_DAY, 100),
-        DownsampleAction.NAME,
-        new RuleConfig(ONE_DAY, 100)
+    static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Stream.of(
+        new RuleConfig(RolloverAction.NAME, ONE_DAY, 100, List.of(WaitForActiveShardsStep.NAME)),
+        new RuleConfig(MigrateAction.NAME, ONE_DAY, 100),
+        new RuleConfig(
+            SearchableSnapshotAction.NAME,
+            ONE_DAY,
+            100,
+            List.of(WaitForDataTierStep.NAME, WaitForIndexColorStep.NAME, WaitForNoFollowersStep.NAME)
+        ),
+        new RuleConfig(DeleteStep.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME)),
+        new RuleConfig(ShrinkAction.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME)),
+        new RuleConfig(AllocateAction.NAME, ONE_DAY, 100),
+        new RuleConfig(ForceMergeAction.NAME, ONE_DAY, 100, List.of(WaitForIndexColorStep.NAME)),
+        new RuleConfig(DownsampleAction.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME))
+    ).collect(toMap(RuleConfig::action, Function.identity()));
+
+    public static final StuckIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StuckIndicesRuleEvaluator(
+        RULES_BY_ACTION_CONFIG.values().stream().map(RuleConfig::toPredicate).toList()
     );
 
     static final Map<String, Function<String, Diagnosis.Definition>> ACTION_STUCK_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
@@ -214,7 +216,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     private List<Diagnosis> createDiagnoses(List<IndexIlmState> stuckIndices, int maxAffectedResourcesCount) {
         return stuckIndices.stream()
-            .collect(groupingBy(cs -> Tuple.tuple(cs.action, cs.policyName)))
+            .collect(groupingBy(state -> Tuple.tuple(state.action, state.policyName)))
             .entrySet()
             .stream()
             .map(actionPolicyTuple -> {
@@ -309,24 +311,6 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     static class StuckIndicesRuleEvaluator {
-
-        private static Predicate<IndexIlmState> actionAndMaxTimeOn(String action) {
-            assert RULES_BY_ACTION_CONFIG.get(action) != null;
-            return cs -> action.equals(cs.action) && RULES_BY_ACTION_CONFIG.get(action).maxTimeOn.compareTo(cs.timeOnAction) < 0;
-        }
-
-        public static final StuckIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StuckIndicesRuleEvaluator(
-            List.of(
-                actionAndMaxTimeOn(RolloverAction.NAME),
-                actionAndMaxTimeOn(MigrateAction.NAME),
-                actionAndMaxTimeOn(SearchableSnapshotAction.NAME),
-                actionAndMaxTimeOn(DeleteStep.NAME),
-                actionAndMaxTimeOn(ShrinkAction.NAME),
-                actionAndMaxTimeOn(AllocateAction.NAME),
-                actionAndMaxTimeOn(ForceMergeAction.NAME),
-                actionAndMaxTimeOn(DownsampleAction.NAME)
-            )
-        );
         private final List<Predicate<IndexIlmState>> rules;
 
         StuckIndicesRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
@@ -338,7 +322,19 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private record RuleConfig(TimeValue maxTimeOn, long maxRetries) {}
+    private record RuleConfig(String action, TimeValue maxTimeOn, long maxRetries, List<String> stepsToCheck) {
+        RuleConfig(String action, TimeValue maxTimeOn, long maxRetries) {
+            this(action, maxTimeOn, maxRetries, null);
+        }
+
+        public Predicate<IndexIlmState> toPredicate() {
+            return stepsToCheck == null || stepsToCheck.isEmpty()
+                ? state -> action.equals(state.action) && maxTimeOn.compareTo(state.timeOnAction) < 0
+                : state -> action.equals(state.action)
+                    && (maxTimeOn.compareTo(state.timeOnAction) < 0
+                        || (stepsToCheck.contains(state.step) && state.stepRetries > maxRetries));
+        }
+    }
 
     record IndexIlmState(
         String indexName,
@@ -350,5 +346,4 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         TimeValue timeOnStep,
         Integer stepRetries
     ) {}
-
 }

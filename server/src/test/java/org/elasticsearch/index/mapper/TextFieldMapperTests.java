@@ -44,10 +44,10 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -1190,7 +1190,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         expectThrows(MapperParsingException.class, () -> createMapperService(startingMapping));
 
-        MapperService mapperService = createMapperService(Version.fromString("5.0.0"), startingMapping);
+        MapperService mapperService = createMapperService(IndexVersion.fromId(5000099), startingMapping);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(TextFieldMapper.class));
 
         merge(mapperService, startingMapping);
@@ -1207,7 +1207,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
 
-        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
         assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().fielddata());
 
         MapperService finalMapperService = mapperService;
@@ -1223,7 +1223,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = createMapperService(mapping);
         assertTrue(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
 
-        mapperService = createMapperService(Version.fromString("5.0.0"), mapping);
+        mapperService = createMapperService(IndexVersion.fromId(5000099), mapping);
         assertFalse(((TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field")).fieldType().eagerGlobalOrdinals());
     }
 

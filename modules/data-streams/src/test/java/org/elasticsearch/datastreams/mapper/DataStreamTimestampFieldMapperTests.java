@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.datastreams.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -170,7 +170,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+            () -> createMapperService(IndexVersion.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
                 b.startObject("@timestamp");
                 b.field("type", "date");
                 b.endObject();
@@ -181,7 +181,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")
         );
 
-        MapperService mapperService = createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
+        MapperService mapperService = createMapperService(IndexVersion.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
             b.startObject("@timestamp");
             b.field("type", "date");
             b.field("ignore_malformed", false);

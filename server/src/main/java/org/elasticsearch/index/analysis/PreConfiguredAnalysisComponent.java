@@ -36,7 +36,7 @@ public abstract class PreConfiguredAnalysisComponent<T> implements AnalysisModul
 
     @Override
     public T get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
-        Version versionCreated = indexSettings.getIndexVersionCreated();
+        Version versionCreated = indexSettings.getIndexVersionCreated().toVersion();
         synchronized (this) {
             T factory = cache.get(versionCreated);
             if (factory == null) {

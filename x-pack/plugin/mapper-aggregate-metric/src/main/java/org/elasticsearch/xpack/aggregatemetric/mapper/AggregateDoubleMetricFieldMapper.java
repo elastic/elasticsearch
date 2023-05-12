@@ -15,10 +15,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -158,10 +158,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
         private final IndexMode indexMode;
 
-        public Builder(String name, Boolean ignoreMalformedByDefault, Version indexCreatedVersion, IndexMode mode) {
+        public Builder(String name, Boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.boolParam(
                 Names.IGNORE_MALFORMED,
@@ -511,7 +511,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final boolean ignoreMalformedByDefault;
 
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     /** A set of metrics supported */
     private final EnumSet<Metric> metrics;

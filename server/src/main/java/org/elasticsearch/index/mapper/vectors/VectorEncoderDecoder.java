@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 
 import java.nio.ByteBuffer;
 
@@ -18,8 +18,8 @@ public final class VectorEncoderDecoder {
 
     private VectorEncoderDecoder() {}
 
-    public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
-        return indexVersion.onOrAfter(Version.V_7_5_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length / INT_BYTES;
+    public static int denseVectorLength(IndexVersion indexVersion, BytesRef vectorBR) {
+        return indexVersion.onOrAfter(IndexVersion.V_7_5_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length / INT_BYTES;
     }
 
     /**
@@ -27,8 +27,8 @@ public final class VectorEncoderDecoder {
      * NOTE: this function can only be called on vectors from an index version greater than or
      * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
-    public static float decodeMagnitude(Version indexVersion, BytesRef vectorBR) {
-        assert indexVersion.onOrAfter(Version.V_7_5_0);
+    public static float decodeMagnitude(IndexVersion indexVersion, BytesRef vectorBR) {
+        assert indexVersion.onOrAfter(IndexVersion.V_7_5_0);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - INT_BYTES);
     }
@@ -36,7 +36,7 @@ public final class VectorEncoderDecoder {
     /**
      * Calculates vector magnitude
      */
-    private static float calculateMagnitude(Version indexVersion, BytesRef vectorBR) {
+    private static float calculateMagnitude(IndexVersion indexVersion, BytesRef vectorBR) {
         final int length = denseVectorLength(indexVersion, vectorBR);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         double magnitude = 0.0f;
@@ -48,11 +48,11 @@ public final class VectorEncoderDecoder {
         return (float) magnitude;
     }
 
-    public static float getMagnitude(Version indexVersion, BytesRef vectorBR) {
+    public static float getMagnitude(IndexVersion indexVersion, BytesRef vectorBR) {
         if (vectorBR == null) {
             throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
         }
-        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+        if (indexVersion.onOrAfter(IndexVersion.V_7_5_0)) {
             return decodeMagnitude(indexVersion, vectorBR);
         } else {
             return calculateMagnitude(indexVersion, vectorBR);

@@ -9,7 +9,7 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 import java.nio.ByteBuffer;
@@ -19,11 +19,11 @@ public class BinaryDenseVector implements DenseVector {
 
     protected final BytesRef docVector;
     protected final int dims;
-    protected final Version indexVersion;
+    protected final IndexVersion indexVersion;
 
     protected float[] decodedDocVector;
 
-    public BinaryDenseVector(BytesRef docVector, int dims, Version indexVersion) {
+    public BinaryDenseVector(BytesRef docVector, int dims, IndexVersion indexVersion) {
         this.docVector = docVector;
         this.indexVersion = indexVersion;
         this.dims = dims;

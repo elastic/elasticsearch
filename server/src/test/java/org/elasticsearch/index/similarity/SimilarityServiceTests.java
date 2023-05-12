@@ -12,9 +12,9 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -73,7 +73,7 @@ public class SimilarityServiceTests extends ESTestCase {
         };
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimilarityService.validateSimilarity(Version.V_7_0_0, negativeScoresSim)
+            () -> SimilarityService.validateSimilarity(IndexVersion.V_7_0_0, negativeScoresSim)
         );
         assertThat(e.getMessage(), Matchers.containsString("Similarities should not return negative scores"));
 
@@ -98,7 +98,7 @@ public class SimilarityServiceTests extends ESTestCase {
         };
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimilarityService.validateSimilarity(Version.V_7_0_0, decreasingScoresWithFreqSim)
+            () -> SimilarityService.validateSimilarity(IndexVersion.V_7_0_0, decreasingScoresWithFreqSim)
         );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not decrease when term frequency increases"));
 
@@ -123,7 +123,7 @@ public class SimilarityServiceTests extends ESTestCase {
         };
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> SimilarityService.validateSimilarity(Version.V_7_0_0, increasingScoresWithNormSim)
+            () -> SimilarityService.validateSimilarity(IndexVersion.V_7_0_0, increasingScoresWithNormSim)
         );
         assertThat(e.getMessage(), Matchers.containsString("Similarity scores should not increase when norm increases"));
     }

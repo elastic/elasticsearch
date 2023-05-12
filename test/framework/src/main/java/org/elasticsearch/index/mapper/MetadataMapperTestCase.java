@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract boolean isConfigurable();
 
-    protected boolean isSupportedOn(Version version) {
+    protected boolean isSupportedOn(IndexVersion version) {
         return true;
     }
 
@@ -105,7 +105,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testUnsupportedParametersAreRejected() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n"
@@ -129,7 +129,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public final void testFixedMetaFieldsAreNotConfigurable() throws IOException {
         assumeFalse("Metadata field " + fieldName() + " is configurable", isConfigurable());
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(xContentBuilder -> {}));
         String mappingAsString = "{\n" + "    \"_doc\" : {\n" + "      \"" + fieldName() + "\" : {\n" + "      }\n" + "    }\n" + "}";
@@ -142,8 +142,8 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public void testTypeAndFriendsAreAcceptedBefore_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        Version previousVersion = VersionUtils.getPreviousVersion(Version.V_8_6_0);
-        Version version = VersionUtils.randomVersionBetween(random(), previousVersion.minimumIndexCompatibilityVersion(), previousVersion);
+        IndexVersion previousVersion = IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_6_0);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, previousVersion);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they will still be ignored in existing indices
@@ -166,7 +166,7 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     public void testTypeAndFriendsAreDeprecatedFrom_8_6_0() throws IOException {
         assumeTrue("Metadata field " + fieldName() + " isn't configurable", isConfigurable());
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_6_0, Version.CURRENT);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_6_0, IndexVersion.CURRENT);
         assumeTrue("Metadata field " + fieldName() + " is not supported on version " + version, isSupportedOn(version));
         MapperService mapperService = createMapperService(version, mapping(b -> {}));
         // these parameters were previously silently ignored, they are now deprecated in new indices

@@ -92,7 +92,7 @@ public final class AnalysisRegistry implements Closeable {
     private static Settings getSettingsFromIndexSettings(IndexSettings indexSettings, String groupName) {
         Settings settings = indexSettings.getSettings().getAsSettings(groupName);
         if (settings.isEmpty()) {
-            settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
+            settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated().id()).build();
         }
         return settings;
     }
@@ -452,7 +452,9 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
         Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance
     ) throws IOException {
-        Settings defaultSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
+        Settings defaultSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, settings.getIndexVersionCreated().id())
+            .build();
         Map<String, T> factories = new HashMap<>();
         for (Map.Entry<String, Settings> entry : settingsMap.entrySet()) {
             String name = entry.getKey();

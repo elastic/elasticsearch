@@ -24,8 +24,8 @@ import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -125,9 +125,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        final Version indexVersionCreated;
+        final IndexVersion indexVersionCreated;
 
-        public Builder(String name, Version indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
 
@@ -684,11 +684,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int dims;
         private final boolean indexed;
         private final VectorSimilarity similarity;
-        private final Version indexVersionCreated;
+        private final IndexVersion indexVersionCreated;
 
         public DenseVectorFieldType(
             String name,
-            Version indexVersionCreated,
+            IndexVersion indexVersionCreated,
             ElementType elementType,
             int dims,
             boolean indexed,
@@ -832,7 +832,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final boolean indexed;
     private final VectorSimilarity similarity;
     private final IndexOptions indexOptions;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -842,7 +842,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean indexed,
         VectorSimilarity similarity,
         IndexOptions indexOptions,
-        Version indexCreatedVersion,
+        IndexVersion indexCreatedVersion,
         MultiFields multiFields,
         CopyTo copyTo
     ) {
@@ -890,13 +890,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private Field parseBinaryDocValuesVector(DocumentParserContext context) throws IOException {
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0)
+        byte[] bytes = indexCreatedVersion.onOrAfter(IndexVersion.V_7_5_0)
             ? new byte[dims * elementType.elementBytes + MAGNITUDE_BYTES]
             : new byte[dims * elementType.elementBytes];
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         double dotProduct = elementType.parseKnnVectorToByteBuffer(context, this, byteBuffer);
-        if (indexCreatedVersion.onOrAfter(Version.V_7_5_0)) {
+        if (indexCreatedVersion.onOrAfter(IndexVersion.V_7_5_0)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);

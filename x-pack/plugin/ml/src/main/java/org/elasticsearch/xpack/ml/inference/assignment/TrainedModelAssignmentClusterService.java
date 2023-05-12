@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AllocationReducer;
@@ -571,7 +572,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
         final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("deployment with id [{}] not found", deploymentId);
+            listener.onFailure(ExceptionsHelper.missingModelDeployment(deploymentId));
+            return;
         }
         if (existingAssignment.getTaskParams().getNumberOfAllocations() == numberOfAllocations) {
             listener.onResponse(existingAssignment);

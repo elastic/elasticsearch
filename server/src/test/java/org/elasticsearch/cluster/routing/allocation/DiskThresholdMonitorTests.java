@@ -101,7 +101,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("frozen"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")).add(newFrozenOnlyNode("frozen")))
@@ -262,7 +262,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestDoesNotSubmitRerouteTaskTooFrequently(boolean testMaxHeadroom) {
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")))
             .build();
         AtomicLong currentTime = new AtomicLong();
@@ -443,7 +443,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2")))
@@ -779,7 +779,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test_2"))
             .build();
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().add(newNormalNode("node1", "my-node1")).add(newNormalNode("node2", "my-node2")))
@@ -1031,7 +1031,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void doTestDiskMonitorLogging(boolean testHeadroom) throws IllegalAccessException {
-        final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newFrozenOnlyNode("frozen")))
             .build();
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(clusterState);
@@ -1316,11 +1316,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             discoveryNodes.add(newNormalNode("node3", "node3"));
         }
         final ClusterState clusterState = applyStartedShardsUntilNoChange(
-            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metadata(metadata)
-                .routingTable(routingTable)
-                .nodes(discoveryNodes)
-                .build(),
+            ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(discoveryNodes).build(),
             createAllocationService(Settings.EMPTY)
         );
         Map<String, DiskUsage> diskUsages = new HashMap<>();
@@ -1331,7 +1327,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertTrue(result.v1()); // reroute on new nodes
         assertEquals(Set.of("test"), result.v2());
 
-        final ClusterState blockedClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        final ClusterState blockedClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(discoveryNodes)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())

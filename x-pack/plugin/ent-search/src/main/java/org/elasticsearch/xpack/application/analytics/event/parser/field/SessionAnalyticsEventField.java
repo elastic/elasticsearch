@@ -8,6 +8,7 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,9 +25,25 @@ public class SessionAnalyticsEventField {
 
     public static ParseField SESSION_ID_FIELD = new ParseField("id");
 
-    private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    public static final ParseField CLIENT_ADDRESS_FIELD = new ParseField("ip");
+
+    public static final ParseField USER_AGENT_FIELD = new ParseField("user_agent");
+
+    private static final ObjectParser<MapBuilder<String, String>, AnalyticsEvent.Context> PARSER = ObjectParser.fromBuilder(
         SESSION_FIELD.getPreferredName(),
-        MapBuilder::newMapBuilder
+        (c) -> {
+            MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
+
+            if (Strings.isNullOrBlank(c.clientAddress()) == false) {
+                mapBuilder.put(CLIENT_ADDRESS_FIELD.getPreferredName(), c.clientAddress());
+            }
+
+            if (Strings.isNullOrBlank(c.userAgent()) == false) {
+                mapBuilder.put(USER_AGENT_FIELD.getPreferredName(), c.userAgent());
+            }
+
+            return mapBuilder;
+        }
     );
 
     static {

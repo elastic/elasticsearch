@@ -28,6 +28,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class RestCreateApiKeyActionTests extends ESTestCase {
@@ -94,6 +96,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 CreateApiKeyRequest createApiKeyRequest = (CreateApiKeyRequest) request;
                 @SuppressWarnings("unchecked")
                 RestToXContentListener<CreateApiKeyResponse> actionListener = (RestToXContentListener<CreateApiKeyResponse>) listener;
+                assertThat(createApiKeyRequest.getType(), is(ApiKey.Type.REST));
                 if (createApiKeyRequest.getName().equals("my-api-key")) {
                     actionListener.onResponse(expected);
                 } else {

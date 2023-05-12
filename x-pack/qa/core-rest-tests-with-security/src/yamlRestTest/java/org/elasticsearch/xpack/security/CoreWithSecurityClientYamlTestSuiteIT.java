@@ -35,6 +35,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("rank-eval")
         .module("x-pack-ilm")
         .module("x-pack-stack")
+        .module("ingest-common")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")

@@ -407,6 +407,13 @@ GET /_xpack/usage
     "invocations": {
       "total": 0
     }
+  },
+  "enterprise_search" : {
+    "available": true,
+    "enabled": true,
+    "search_applications" : {
+      "count": 0
+    }
   }
 }
 ------------------------------------------------------------

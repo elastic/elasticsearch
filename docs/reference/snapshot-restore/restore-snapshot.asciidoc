@@ -366,17 +366,15 @@ POST _watcher/_start
 +
 --
 * Universal Profiling
-
++
 Check if Universal Profiling index template management is enabled:
-
 +
 [source,console]
 ----
 GET /_cluster/settings?filter_path=**.xpack.profiling.templates.enabled&include_defaults=true
 ----
-
++
 If the value is `true`, disable Universal Profiling index template management:
-
 +
 [source,console]
 ----
@@ -504,7 +502,7 @@ POST _watcher/_start
 --
 
 * Universal Profiling
-
++
 If the value was `true` initially, enable Universal Profiling index template management again, otherwise skip this step:
 +
 [source,console]

@@ -201,7 +201,7 @@ public class MergingDigest extends AbstractTDigest {
         // we have to account for the fact that we copy all live centroids into the incoming space
         double scale = Math.max(1, bufferSize / size - 1);
         //noinspection ConstantConditions
-        if (!useTwoLevelCompression) {
+        if (useTwoLevelCompression == false) {
             scale = 1;
         }
 
@@ -713,24 +713,29 @@ public class MergingDigest extends AbstractTDigest {
         int n = lastUsedCell;
 
         // if values were stored in a sorted array, index would be the offset we are interested in
-        final double index = q * totalWeight;
+        final double index = q * (totalWeight - 1);
 
         // beyond the boundaries, we return min or max
-        // usually, the first centroid will have unit weight so this will make it moot
-        if (index < 1) {
+        // usually, the first and last centroids have unit weights so this will make it moot
+        if (index < 0) {
             return min;
+        }
+        if (index >= totalWeight) {
+            return max;
+        }
+
+        double weightSoFar = (weight[0] == 1) ? 0 : weight[0] / 2;
+
+        // If there's a singleton on the left boundary, interpolate between the first two centroids.
+        if (weight[0] == 1 && index <= weight[0]) {
+            return min + index * (mean[1] - min);
         }
 
         // if the left centroid has more than one sample, we still know
         // that one sample occurred at min so we can do some interpolation
-        if (weight[0] > 1 && index < weight[0] / 2) {
+        if (weight[0] > 1 && index < weightSoFar) {
             // there is a single sample at min so we interpolate with less weight
-            return min + (index - 1) / (weight[0] / 2 - 1) * (mean[0] - min);
-        }
-
-        // usually the last centroid will have unit weight so this test will make it moot
-        if (index >= totalWeight) {
-            return max;
+            return min + (index - 1) / (weightSoFar - 1) * (mean[0] - min);
         }
 
         // if the right-most centroid has more than one sample, we still know
@@ -740,21 +745,10 @@ public class MergingDigest extends AbstractTDigest {
         }
 
         // in between extremes we interpolate between centroids
-        double weightSoFar = weight[0] / 2;
         for (int i = 0; i < n - 1; i++) {
             double dw = (weight[i] + weight[i + 1]) / 2;
             if (weightSoFar + dw > index) {
                 // centroids i and i+1 bracket our current point
-
-                // check for unit weight
-                if (weight[i] == 1 && index - weightSoFar < 0.5) {
-                    // within the singleton's sphere
-                    return mean[i];
-                }
-                if (weight[i + 1] == 1 && weightSoFar + dw - index > 0.5) {
-                    // no interpolation needed near singleton
-                    return mean[i + 1];
-                }
                 double z1 = index - weightSoFar;
                 double z2 = weightSoFar + dw - index;
                 return weightedAverage(mean[i], z2, mean[i + 1], z1);
@@ -764,7 +758,7 @@ public class MergingDigest extends AbstractTDigest {
 
         assert weight[n - 1] >= 1;
         assert index <= totalWeight;
-        assert index >= totalWeight - weight[n - 1] / 2;
+        assert index >= totalWeight - weight[n - 1];
 
         // weightSoFar = totalWeight - weight[n-1]/2 (very nearly)
         // so we interpolate out to max value ever seen

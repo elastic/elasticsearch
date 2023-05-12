@@ -152,11 +152,11 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     public void testCreationOfFleetSecrets() throws Exception {
-        Request request = new Request("PUT", ".secrets");
+        Request request = new Request("PUT", ".fleet-secrets");
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        request = new Request("GET", ".secrets/_mapping");
+        request = new Request("GET", ".fleet-secrets/_mapping");
         response = client().performRequest(request);
         String responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("value"));

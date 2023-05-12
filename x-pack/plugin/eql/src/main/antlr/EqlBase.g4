@@ -212,7 +212,7 @@ LP: '(';
 RP: ')';
 PIPE: '|';
 OPTIONAL: '?';
-MISSING_EVENT_OPEN: '-[';
+MISSING_EVENT_OPEN: '![';
 
 fragment STRING_ESCAPE
     : '\\' [btnfr"'\\]

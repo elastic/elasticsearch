@@ -114,7 +114,7 @@ class EqlBaseParser extends Parser {
             "')'",
             "'|'",
             "'?'",
-            "'-['" };
+            "'!['" };
     }
 
     private static final String[] _LITERAL_NAMES = makeLiteralNames();

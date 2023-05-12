@@ -38,8 +38,8 @@ public abstract class DocumentParserContext {
     private static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
-        private Wrapper(DocumentParserContext in) {
-            super(in);
+        private Wrapper(ObjectMapper parent, DocumentParserContext in) {
+            super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
         }
 
@@ -90,11 +90,13 @@ public abstract class DocumentParserContext {
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final List<RuntimeField> dynamicRuntimeFields;
     private final DocumentDimensions dimensions;
+    private final ObjectMapper parent;
+    private final ObjectMapper.Dynamic dynamic;
     private String id;
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
-    private DocumentParserContext(DocumentParserContext in) {
+    private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
         this.mappingLookup = in.mappingLookup;
         this.indexSettings = in.indexSettings;
         this.indexAnalyzers = in.indexAnalyzers;
@@ -109,6 +111,8 @@ public abstract class DocumentParserContext {
         this.version = in.version;
         this.seqID = in.seqID;
         this.dimensions = in.dimensions;
+        this.parent = parent;
+        this.dynamic = dynamic;
     }
 
     protected DocumentParserContext(MappingLookup mappingLookup, MappingParserContext mappingParserContext, SourceToParse source) {
@@ -123,6 +127,8 @@ public abstract class DocumentParserContext {
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
         this.dimensions = this.indexSettings.getMode().buildDocumentDimensions(this.indexSettings);
+        this.parent = mappingLookup.getMapping().getRoot();
+        this.dynamic = parent.dynamic == null ? ObjectMapper.Dynamic.TRUE : parent.dynamic;
     }
 
     public final IndexSettings indexSettings() {
@@ -135,6 +141,10 @@ public abstract class DocumentParserContext {
 
     public final RootObjectMapper root() {
         return this.mappingLookup.getMapping().getRoot();
+    }
+
+    public final ObjectMapper parent() {
+        return parent;
     }
 
     public final MappingLookup mappingLookup() {
@@ -215,6 +225,14 @@ public abstract class DocumentParserContext {
     public final String documentDescription() {
         IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
         return idMapper.documentDescription(this);
+    }
+
+    public Mapper getMapper(String name) {
+        return parent.getMapper(name);
+    }
+
+    public ObjectMapper.Dynamic dynamic() {
+        return dynamic;
     }
 
     /**
@@ -313,6 +331,10 @@ public abstract class DocumentParserContext {
         return false;
     }
 
+    public final DocumentParserContext createChildContext(ObjectMapper parent) {
+        return new Wrapper(parent, this);
+    }
+
     /**
      * Return a new context that will be used within a nested document.
      */
@@ -346,7 +368,7 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        return new Wrapper(this) {
+        return new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
                 return document;
@@ -362,7 +384,7 @@ public abstract class DocumentParserContext {
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), path);
-        return new Wrapper(this) {
+        return new Wrapper(root(), this) {
             @Override
             public ContentPath path() {
                 return path;
@@ -394,7 +416,7 @@ public abstract class DocumentParserContext {
      */
     @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
-        return new Wrapper(this) {
+        return new Wrapper(this.parent, this) {
             @Override
             public XContentParser parser() {
                 return parser;

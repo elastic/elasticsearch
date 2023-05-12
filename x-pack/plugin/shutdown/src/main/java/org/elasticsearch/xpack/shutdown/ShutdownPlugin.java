@@ -57,8 +57,8 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
     ) {
 
         NodeSeenService nodeSeenService = new NodeSeenService(clusterService);
-
-        return Collections.singletonList(nodeSeenService);
+        SigtermShutdownCleanupService shutdownCleanupService = new SigtermShutdownCleanupService(clusterService);
+        return List.of(nodeSeenService, shutdownCleanupService);
     }
 
     @Override

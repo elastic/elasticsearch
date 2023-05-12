@@ -104,7 +104,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
                     PutTrainedModelVocabularyAction.Request r2 = new PutTrainedModelVocabularyAction.Request(
                         modelId,
                         vocabularyAndMerges.v1(),
-                        vocabularyAndMerges.v2()
+                        vocabularyAndMerges.v2(),
+                        List.of()
                     );
                     client.execute(PutTrainedModelVocabularyAction.INSTANCE, r2).actionGet();
 

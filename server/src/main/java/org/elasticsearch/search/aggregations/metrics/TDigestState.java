@@ -9,8 +9,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.tdigest.AVLTreeDigest;
 import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.MergingDigest;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -18,7 +18,7 @@ import java.util.Iterator;
 /**
  * Extension of {@link org.elasticsearch.tdigest.TDigest} with custom serialization.
  */
-public class TDigestState extends AVLTreeDigest {
+public class TDigestState extends MergingDigest {
 
     private final double compression;
 
@@ -53,7 +53,7 @@ public class TDigestState extends AVLTreeDigest {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj instanceof TDigestState == false) {
+        if (obj instanceof TDigestState == false) {
             return false;
         }
         TDigestState that = (TDigestState) obj;

@@ -438,7 +438,6 @@ public class AVLTreeDigest extends AbstractTDigest {
         // weightSoFar represents the total mass to the left of the center of the current node.
         // If there's a singleton on the left boundary, there's no more mass on the left.
         double weightSoFar = (currentWeight == 1) ? 0 : currentWeight / 2.0;
-//        weightSoFar = currentWeight / 2.0;
 
         if (index <= weightSoFar || (currentWeight == 1 && index <= currentWeight)) {
             // If there's a singleton on the left boundary, interpolate between the first two centroids.
@@ -446,16 +445,19 @@ public class AVLTreeDigest extends AbstractTDigest {
                 return min + index * (values.mean(values.next(currentNode)) - min);
             }
             // Interpolate between min and first mean, otherwise.
-            return weightedAverage(min, index, values.mean(currentNode), weightSoFar - index);
+            return min + index * (values.mean(currentNode) - min);
         }
+
         for (int i = 0; i < values.size() - 1; i++) {
             int nextNode = values.next(currentNode);
             int nextWeight = values.count(nextNode);
             // this is the mass between current center and next center
             double dw = (currentWeight + nextWeight) / 2.0;
+
             if (index < weightSoFar + dw) {
                 // index is bracketed between centroids i and i+1
                 assert dw >= 1;
+
                 double w1 = index - weightSoFar;
                 double w2 = weightSoFar + dw - index;
                 return weightedAverage(values.mean(currentNode), w2, values.mean(nextNode), w1);
@@ -512,8 +514,8 @@ public class AVLTreeDigest extends AbstractTDigest {
         return buf.position();
     }
 
-    private final static int VERBOSE_ENCODING = 1;
-    private final static int SMALL_ENCODING = 2;
+    private static final int VERBOSE_ENCODING = 1;
+    private static final int SMALL_ENCODING = 2;
 
     /**
      * Outputs a histogram as bytes using a particularly cheesy encoding.

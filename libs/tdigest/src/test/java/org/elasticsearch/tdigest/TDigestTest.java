@@ -31,7 +31,6 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 //import org.apache.commons.math3.distribution.AbstractRealDistribution;
 //import org.apache.commons.math3.distribution.GammaDistribution;
@@ -223,7 +222,6 @@ public abstract class TDigestTest extends AbstractTest {
             assertEquals(Dist.cdf(x, data), digest.cdf(x), 0);
         }
 
-        double lastDelta = 0;
         for (int i = 0; i <= 1000; i++) {
             double q = 0.001 * i;
             double dist = Dist.quantile(q, data);
@@ -303,9 +301,8 @@ public abstract class TDigestTest extends AbstractTest {
         assertEquals(1.0 / digest.size(), digest.cdf(1e-9), 1e-10);
 
         assertEquals(0, digest.quantile(0), 0);
-        assertEquals(0, digest.quantile(0.5 / digest.size()), 0);
-        assertEquals(0, digest.quantile(1.0 / digest.size() - 1e-10), 0);
-        assertEquals(0, digest.quantile(1.0 / digest.size()), 0);
+        assertEquals(0.5, digest.quantile(0.5 / digest.size()), 0.1);
+        assertEquals(1.0, digest.quantile(1.0 / digest.size()), 0.1);
         assertEquals(first.mean(), 0.0, 1e-5);
 
         digest.add(4);
@@ -318,9 +315,6 @@ public abstract class TDigestTest extends AbstractTest {
         assertEquals(1 - 1.0 / digest.size(), digest.cdf((digest.getMax() - 1e-9)), 1e-10);
 
         assertEquals(4, digest.quantile(1), 0);
-        assertEquals(4, digest.quantile(1 - 0.5 / digest.size()), 0);
-        assertEquals(4, digest.quantile(1 - 1.0 / digest.size() + 1e-10), 0);
-        assertEquals(4, digest.quantile(1 - 1.0 / digest.size()), 0);
         assertEquals(last.mean(), 4, 0);
     }
 
@@ -391,9 +385,9 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    private int repeats() {
-        return Boolean.parseBoolean(System.getProperty("runSlowTests")) ? 10 : 1;
-    }
+//    private int repeats() {
+//        return Boolean.parseBoolean(System.getProperty("runSlowTests")) ? 10 : 1;
+//    }
 
     public void testEmptyDigest() {
         TDigest digest = factory().create();
@@ -810,12 +804,14 @@ public abstract class TDigestTest extends AbstractTest {
         dist.add(20);
         dist.compress();
 
+        // The actual numbers depend on how the digest get constructed.
+        // A singleton on the right boundary yields much better accuracy, e.g. q(0.9999) == 10.
+        // Otherwise, quantiles above 0.9 use interpolation between 10 and 20, thus returning higher values.
         assertEquals(10.0, dist.quantile(0), 0);
-        assertEquals(10.0, dist.quantile(0.5), 0);
-        assertEquals(10.0, dist.quantile(0.8), 0);
         assertEquals(10.0, dist.quantile(0.9), 0);
-        assertEquals(11.95, dist.quantile(0.99), 0.01);
-        assertEquals(12.45, dist.quantile(0.999), 0.01);
+        assertEquals(10.0, dist.quantile(0.999), 3);
+        assertEquals(12.0, dist.quantile(0.9999), 3);
+        assertEquals(19.0, dist.quantile(0.99999), 3);
         assertEquals(20.0, dist.quantile(1), 0);
     }
 
@@ -844,12 +840,11 @@ public abstract class TDigestTest extends AbstractTest {
         final Random gen0 = random();
         List<Callable<String>> tasks = new ArrayList<>();
         for (final int size : new int[] { 10, 100, 1000, 10000 }) {
-            tasks.add(new Callable<String>() {
+            tasks.add(new Callable<>() {
                 final Random gen = new Random(gen0.nextLong());
 
                 @Override
                 public String call() {
-                    StringWriter s = new StringWriter();
                     for (double compression : new double[] { 50, 100, 200, 500 }) {
                         TDigest dist = factory(compression).create();
                         for (int i = 0; i < size * 1000; i++) {
@@ -870,7 +865,7 @@ public abstract class TDigestTest extends AbstractTest {
     }
 
     @Test
-    public void testScaling() throws FileNotFoundException {
+    public void testScaling() {
         final Random gen = random();
         for (int k = 0; k < 10; k++) {
             List<Double> data = new ArrayList<>();

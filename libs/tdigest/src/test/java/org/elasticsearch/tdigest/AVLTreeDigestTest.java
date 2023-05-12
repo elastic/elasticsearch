@@ -40,7 +40,9 @@ public class AVLTreeDigestTest extends TDigestTest {
         return new DigestFactory() {
             @Override
             public TDigest create() {
-                return new AVLTreeDigest(compression);
+                AVLTreeDigest digest = new AVLTreeDigest(compression);
+                digest.setRandomSeed(randomLong());
+                return digest;
             }
         };
     }

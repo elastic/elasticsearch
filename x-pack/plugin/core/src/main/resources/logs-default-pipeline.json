@@ -12,7 +12,7 @@
       "pipeline" : {
         "name": "logs@custom",
         "ignore_missing_pipeline": true,
-        "description": "A custom pipeline for logs data streams, which does not exist by default"
+        "description": "A custom pipeline for logs data streams, which does not exist by default, but can be added if additional processing is required"
       }
     }
   ],

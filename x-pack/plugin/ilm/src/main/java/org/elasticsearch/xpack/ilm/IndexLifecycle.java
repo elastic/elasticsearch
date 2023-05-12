@@ -276,7 +276,12 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         ilmHealthIndicatorService.set(
             new IlmHealthIndicatorService(
                 clusterService,
-                new IlmHealthIndicatorService.StuckIndicesFinder(expressionResolver, clusterService, System::currentTimeMillis)
+                new IlmHealthIndicatorService.StuckIndicesFinder(
+                    expressionResolver,
+                    clusterService,
+                    IlmHealthIndicatorService.StuckIndicesRuleEvaluator.ILM_RULE_EVALUATOR,
+                    System::currentTimeMillis
+                )
             )
         );
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));

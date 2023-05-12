@@ -100,9 +100,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     // TODO fix this value
-    public static final TimeValue ONE_DAY = TimeValue.timeValueSeconds(2);
+    public static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
 
-    private static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
+    static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Map.of(
         RolloverAction.NAME,
         new RuleConfig(ONE_DAY, 100),
         MigrateAction.NAME,
@@ -121,7 +121,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         new RuleConfig(ONE_DAY, 100)
     );
 
-    private static final Map<String, Function<String, Diagnosis.Definition>> ACTION_STUCK_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
+    static final Map<String, Function<String, Diagnosis.Definition>> ACTION_STUCK_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
         .stream()
         .collect(
             Collectors.toUnmodifiableMap(
@@ -191,7 +191,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         OperationMode currentMode,
         int maxAffectedResourcesCount
     ) {
-        var stuckIndices = stuckIndicesFinder.getIndices();
+        var stuckIndices = stuckIndicesFinder.find();
 
         if (stuckIndices.isEmpty()) {
             return createIndicator(
@@ -259,22 +259,25 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     static class StuckIndicesFinder {
 
-        private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final ClusterService clusterService;
+        private final IndexNameExpressionResolver indexNameExpressionResolver;
+        private final StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator;
         private final LongSupplier nowSupplier;
 
         StuckIndicesFinder(
             IndexNameExpressionResolver indexNameExpressionResolver,
             ClusterService clusterService,
+            StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator,
             LongSupplier nowSupplier
         ) {
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.clusterService = clusterService;
+            this.stuckIndicesRuleEvaluator = stuckIndicesRuleEvaluator;
             this.nowSupplier = nowSupplier;
         }
 
-        public List<IndexIlmState> getIndices() {
-            return findIndicesManagedByIlm().filter(IlmRuleEvaluator.ILM_RULE_EVALUATOR::isStuck).toList();
+        public List<IndexIlmState> find() {
+            return findIndicesManagedByIlm().filter(stuckIndicesRuleEvaluator::isStuck).toList();
         }
 
         private Stream<IndexIlmState> findIndicesManagedByIlm() {
@@ -305,14 +308,14 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    static class IlmRuleEvaluator {
+    static class StuckIndicesRuleEvaluator {
 
         private static Predicate<IndexIlmState> actionAndMaxTimeOn(String action) {
             assert RULES_BY_ACTION_CONFIG.get(action) != null;
             return cs -> action.equals(cs.action) && RULES_BY_ACTION_CONFIG.get(action).maxTimeOn.compareTo(cs.timeOnAction) < 0;
         }
 
-        private static final IlmRuleEvaluator ILM_RULE_EVALUATOR = new IlmRuleEvaluator(
+        public static final StuckIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StuckIndicesRuleEvaluator(
             List.of(
                 actionAndMaxTimeOn(RolloverAction.NAME),
                 actionAndMaxTimeOn(MigrateAction.NAME),
@@ -326,7 +329,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         );
         private final List<Predicate<IndexIlmState>> rules;
 
-        IlmRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
+        StuckIndicesRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
             this.rules = rules;
         }
 

@@ -708,7 +708,7 @@ public class AzureBlobStore implements BlobStore {
         @Override
         public int read() throws IOException {
             byte[] b = new byte[1];
-            var bytesRead = read(b, 0, 1);
+            int bytesRead = read(b, 0, 1);
 
             if (bytesRead > 1) {
                 throw new IOException("Stream returned more data than requested");

@@ -33,6 +33,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -274,12 +275,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     public void testReadByteByByte() throws Exception {
         try (BlobStore store = newBlobStore()) {
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add(UUIDs.randomBase64UUID()));
-            var data = randomBytes(randomIntBetween(128, 512));
+            byte[] data = randomBytes(randomIntBetween(128, 512));
             String blobName = randomName();
             container.writeBlob(blobName, new ByteArrayInputStream(data), data.length, true);
 
-            var originalDataInputStream = new ByteArrayInputStream(data);
-            try (var azureInputStream = container.readBlob(blobName)) {
+            InputStream originalDataInputStream = new ByteArrayInputStream(data);
+            try (InputStream azureInputStream = container.readBlob(blobName)) {
                 for (int i = 0; i < data.length; i++) {
                     assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
                 }

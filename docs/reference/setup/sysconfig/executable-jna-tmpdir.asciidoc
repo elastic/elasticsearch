@@ -52,9 +52,9 @@ temporary files by setting the `LIBFFI_TMPDIR` environment variable. Future
 versions of {es} may need additional configuration, so you should prefer to set
 `ES_TMPDIR` wherever possible.
 
-NOTE: {es} does not clear out the `/tmp` directory, as this could be an
-unwelcome behavior in the event of a power outage or an Out of Memory error.
-Instead, it's expected that temporary directories are cleaned out automatically
-by the system on events such as a reboot. This is the behavior with the Linux
-link:https://www.kernel.org/doc/html/latest/filesystems/tmpfs.html[tmpfs]
-file system, for example.
+NOTE: {es} does not remove its temporary directory. You should remove leftover
+temporary directories while {es} is not running. It is best to do this
+automatically, for instance on each reboot. If you are running on Linux, you
+can achieve this by using the
+link:https://www.kernel.org/doc/html/latest/filesystems/tmpfs.html[tmpfs] file
+system.

@@ -9,7 +9,6 @@ package org.elasticsearch.action.admin.cluster.configuration;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -64,9 +63,9 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         localNode = TestDiscoveryNode.create("local");
-        otherNode1 = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode1 = TestDiscoveryNode.create("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        otherNode2 = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode2 = TestDiscoveryNode.create("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }

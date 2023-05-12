@@ -1180,15 +1180,7 @@ public class Security extends Plugin
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
 
         // hide settings
-        settingsList.add(
-            Setting.listSetting(
-                SecurityField.setting("hide_settings"),
-                Collections.emptyList(),
-                Function.identity(),
-                Property.NodeScope,
-                Property.Filtered
-            )
-        );
+        settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
         return settingsList;
     }
 

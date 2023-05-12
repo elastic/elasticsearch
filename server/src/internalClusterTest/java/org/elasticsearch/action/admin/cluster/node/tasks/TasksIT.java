@@ -532,7 +532,12 @@ public class TasksIT extends ESIntegTestCase {
         new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
-        assertEquals(0, clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
+        assertBusy(
+            () -> assertEquals(
+                0,
+                clusterAdmin().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()
+            )
+        );
     }
 
     public void testListTasksWaitForCompletion() throws Exception {

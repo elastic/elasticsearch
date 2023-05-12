@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,10 +28,8 @@ public class AnonymousUser extends ReservedUser {
         s -> s,
         Property.NodeScope
     );
-    public static final Setting<List<String>> ROLES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> ROLES_SETTING = Setting.stringListSetting(
         setting("authc.anonymous.roles"),
-        Collections.emptyList(),
-        s -> s,
         Property.NodeScope
     );
 

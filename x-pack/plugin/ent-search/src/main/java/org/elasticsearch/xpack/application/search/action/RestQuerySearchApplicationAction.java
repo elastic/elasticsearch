@@ -10,14 +10,10 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-<<<<<<< HEAD
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestToXContentListener;
-=======
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestChunkedToXContentListener;
->>>>>>> main
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
 import java.io.IOException;

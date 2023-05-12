@@ -107,7 +107,6 @@ public class DownsampleActionIT extends ESRestTestCase {
             alias,
             policy
         );
-        updateClusterSettings(client(), Settings.builder().put("indices.lifecycle.poll_interval", "5s").build());
     }
 
     @Before

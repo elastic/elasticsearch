@@ -30,11 +30,9 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,12 +72,8 @@ public class FetchPhase {
 
         Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
-        try (XContentBuilder xContentValidator = new XContentBuilder(XContentType.JSON.xContent(), OutputStream.nullOutputStream())) {
-            xContentValidator.startArray();
-            hits = buildSearchHits(context, xContentValidator, profiler);
-            xContentValidator.endArray();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        try {
+            hits = buildSearchHits(context, profiler);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -100,7 +94,7 @@ public class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, XContentBuilder xContentValidator, Profiler profiler) throws IOException {
+    private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
@@ -160,7 +154,7 @@ public class FetchPhase {
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.process(hit);
                 }
-                return hit.hit().validateDocumentFields(xContentValidator);
+                return hit.hit();
             }
         };
 

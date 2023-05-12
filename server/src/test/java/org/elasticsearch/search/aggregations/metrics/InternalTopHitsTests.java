@@ -295,10 +295,14 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
         expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
 
+        // Sort value retrieval requires a single value.
+        hit.sortValues(new Object[] { 10.0, 20.0 }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("_sort")));
+
         // Two SearchHit instances are not allowed, only the first will be used without assertion.
         hits = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
-        InternalTopHits internalTopHits2 = new InternalTopHits("test", 0, 0, null, hits, null);
-        expectThrows(IllegalArgumentException.class, () -> internalTopHits2.getProperty(List.of("foo")));
+        InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits, null);
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
     }
 
     @Override

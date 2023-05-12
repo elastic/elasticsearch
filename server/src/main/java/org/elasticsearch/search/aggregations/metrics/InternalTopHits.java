@@ -208,7 +208,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         if (tokens[0].equals(SORT_VALUE)) {
             Object[] sortValues = topHit.getSortValues();
             if (sortValues != null) {
-                assert sortValues.length == 1 : "property paths should only resolve against top_hits with single sort values.";
+                if (sortValues.length != 1) {
+                    throw new IllegalArgumentException(
+                        "property path for top_hits [\" + getName() + \"] requires a single sort value, got " + sortValues.length
+                    );
+                }
                 return sortValues[0];
             }
         } else if (tokens[0].equals(SCORE)) {

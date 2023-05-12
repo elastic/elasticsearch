@@ -726,3 +726,31 @@ synthetic _source:
                     buckets_path:
                       ts: nosuchagg[_source.salary]
                     script: "params.ts < 8000"
+
+  - do:
+      catch: /property paths for top_hits \[top_salary_hits\] require configuring it with size to 1/
+      search:
+        index: test2
+        size: 0
+        body:
+          aggs:
+            genders:
+              terms:
+                field: gender
+              aggs:
+                top_salary_hits:
+                  top_hits:
+                    sort:
+                      salary:
+                        order: "desc"
+                    _source:
+                      includes:
+                        - gender
+                        - salary
+                        - birth_date
+                    size: 10
+                having.top_salary:
+                  bucket_selector:
+                    buckets_path:
+                      ts: top_salary_hits[salary]
+                    script: "params.ts < 8000"

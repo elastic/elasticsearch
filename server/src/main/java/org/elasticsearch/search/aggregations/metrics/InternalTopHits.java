@@ -181,6 +181,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         return true;
     }
 
+    // Supported property prefixes.
+    private static final String SOURCE = "_source";
+    private static final String SORT_VALUE = "_sort";
+    private static final String SCORE = "_score";
+
     @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
@@ -195,17 +200,15 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             );
         }
 
-        // Supported property prefixes.
-        final String SOURCE = "_source";
-        final String SORT_VALUE = "_sort";
-        final String SCORE = "_score";
-
         String[] tokens = path.get(0).toLowerCase(Locale.ROOT).split(":|>|\\.");
-        assert searchHits.getHits().length == 1 : "property paths should only resolve against top_hits with size == 1.";
+        if (searchHits.getHits().length > 1) {
+            throw new IllegalArgumentException("property paths for top_hits [" + getName() + "] require configuring it with size to 1");
+        }
         SearchHit topHit = searchHits.getAt(0);
         if (tokens[0].equals(SORT_VALUE)) {
             Object[] sortValues = topHit.getSortValues();
             if (sortValues != null) {
+                assert sortValues.length == 1 : "property paths should only resolve against top_hits with single sort values.";
                 return sortValues[0];
             }
         } else if (tokens[0].equals(SCORE)) {
@@ -214,9 +217,13 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
             if (sourceAsMap != null) {
                 String field = tokens[0];
-                if (tokens.length == 2 && tokens[0].equals(SOURCE)) field = tokens[1];
+                if (tokens.length == 2 && tokens[0].equals(SOURCE)) {
+                    field = tokens[1];
+                }
                 Object property = sourceAsMap.get(field);
-                if (property != null) return property;
+                if (property != null) {
+                    return property;
+                }
             }
 
         }

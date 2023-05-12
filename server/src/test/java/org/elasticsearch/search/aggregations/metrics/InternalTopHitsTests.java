@@ -298,7 +298,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Two SearchHit instances are not allowed, only the first will be used without assertion.
         hits = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
         InternalTopHits internalTopHits2 = new InternalTopHits("test", 0, 0, null, hits, null);
-        expectThrows(AssertionError.class, () -> internalTopHits2.getProperty(List.of("foo")));
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits2.getProperty(List.of("foo")));
     }
 
     @Override

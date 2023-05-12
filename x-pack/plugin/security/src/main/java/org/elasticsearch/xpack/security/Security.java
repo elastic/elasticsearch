@@ -1511,10 +1511,16 @@ public class Security extends Plugin
                 RemoteHostHeader.process(channel, threadContext);
                 // step 2: Run authentication on the now properly prepared thread-context.
                 // This inspects and modifies the thread context.
-                authenticationService.authenticate(
-                    httpPreRequest,
-                    ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
-                );
+                if (httpPreRequest.method() != RestRequest.Method.OPTIONS) {
+                    authenticationService.authenticate(
+                        httpPreRequest,
+                        ActionListener.wrap(ignored -> listener.onResponse(null), listener::onFailure)
+                    );
+                } else {
+                    // allow for unauthenticated OPTIONS request
+                    // this includes CORS preflight, and regular OPTIONS that return permitted methods for a given path
+                    listener.onResponse(null);
+                }
             };
             return getHttpServerTransportWithHeadersValidator(
                 settings,

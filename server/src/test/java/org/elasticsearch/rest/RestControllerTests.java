@@ -82,6 +82,7 @@ public class RestControllerTests extends ESTestCase {
     private HierarchyCircuitBreakerService circuitBreakerService;
     private UsageService usageService;
     private NodeClient client;
+    private List<RestRequest.Method> methodList;
 
     @Before
     public void setup() {
@@ -112,6 +113,7 @@ public class RestControllerTests extends ESTestCase {
             (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
         );
         httpServerTransport.start();
+        methodList = Arrays.stream(RestRequest.Method.values()).filter(m -> m != OPTIONS).collect(Collectors.toList());
     }
 
     @After
@@ -171,7 +173,7 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
-        RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        RestRequest.Method method = randomFrom(methodList);
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = (request, channel, client) -> {};
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
@@ -190,10 +192,10 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterAsReplacedHandler() {
         final RestController controller = mock(RestController.class);
 
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method method = randomFrom(methodList);
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         final RestHandler handler = (request, channel, client) -> {};
-        final RestRequest.Method replacedMethod = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method replacedMethod = randomFrom(methodList);
         final String replacedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
         final String deprecationMessage = "["
             + replacedMethod.name()
@@ -220,10 +222,8 @@ public class RestControllerTests extends ESTestCase {
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService);
 
-        RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
-        RestRequest.Method secondMethod = randomFrom(
-            Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).collect(Collectors.toList())
-        );
+        RestRequest.Method firstMethod = randomFrom(methodList);
+        RestRequest.Method secondMethod = randomFrom(methodList.stream().filter(m -> m != firstMethod).collect(Collectors.toList()));
 
         final String path = "/_" + randomAlphaOfLengthBetween(1, 6);
 
@@ -517,7 +517,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDoesNotConsumeContent() throws Exception {
-        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final RestRequest.Method method = randomFrom(methodList);
         restController.registerHandler(new Route(method, "/notconsumed"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -674,7 +674,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(null, client, circuitBreakerService, usageService);
         for (String path : RestController.RESERVED_PATHS) {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
-                restController.registerHandler(new Route(randomFrom(RestRequest.Method.values()), path), new RestHandler() {
+                restController.registerHandler(new Route(randomFrom(methodList), path), new RestHandler() {
                     @Override
                     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                         channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));

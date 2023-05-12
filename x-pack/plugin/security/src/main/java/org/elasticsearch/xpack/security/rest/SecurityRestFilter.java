@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
@@ -77,6 +78,17 @@ public class SecurityRestFilter implements RestHandler {
                 }, e -> handleException("Secondary authentication", request, channel, e)));
             }, e -> handleException("Authentication", request, channel, e)));
         } else {
+            // requests with the OPTIONS method should be handled elsewhere, and not by calling {@code RestHandler#handleRequest}
+            // authn is bypassed for HTTP reqs with the OPTIONS method, so this sanity check prevents dispatching unauthenticated reqs
+            if (licenseState.isSecurityEnabled()) {
+                handleException(
+                    "Options with body",
+                    request,
+                    channel,
+                    new ElasticsearchSecurityException("Cannot dispatch OPTIONS request, as they are not authenticated")
+                );
+                return;
+            }
             if (request.method() != Method.OPTIONS) {
                 HeaderWarning.addWarning(
                     "Elasticsearch built-in security features are not enabled. Without "

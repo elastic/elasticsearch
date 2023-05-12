@@ -36,7 +36,7 @@ public class DownsampleStep extends AsyncActionStep {
     private final DateHistogramInterval fixedInterval;
     private final StepKey nextStepOnSuccess;
     private final StepKey nextStepOnFailure;
-    private boolean downsampleFailed;
+    private volatile boolean downsampleFailed;
 
     public DownsampleStep(
         StepKey key,

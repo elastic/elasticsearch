@@ -437,6 +437,7 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -775,7 +776,9 @@ public class ActionModule extends AbstractModule {
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
         // Synonyms
-        actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+        if (SynonymsManagementAPIService.isEnabled()) {
+            actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
+        }
 
         return unmodifiableMap(actions.getRegistry());
     }
@@ -986,7 +989,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Synonyms
-        registerHandler.accept(new RestPutSynonymsAction());
+        if (SynonymsManagementAPIService.isEnabled()) {
+            registerHandler.accept(new RestPutSynonymsAction());
+        }
     }
 
     /**

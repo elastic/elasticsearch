@@ -524,10 +524,6 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         }
     }
 
-    public void testUnauthenticatedOptionsMethod() throws Exception {
-
-    }
-
     public void testMalformedRequestDispatchedNoAuthn() throws Exception {
         final AtomicReference<Throwable> dispatchThrowableReference = new AtomicReference<>();
         final AtomicInteger authnInvocationCount = new AtomicInteger();

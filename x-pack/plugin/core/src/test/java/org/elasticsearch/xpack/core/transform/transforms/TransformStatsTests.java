@@ -30,6 +30,11 @@ public class TransformStatsTests extends AbstractWireSerializingTestCase<Transfo
     }
 
     @Override
+    protected TransformStats mutateInstance(TransformStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformStats> instanceReader() {
         return TransformStats::new;
     }

@@ -1,5 +1,0 @@
-pr: 90287
-summary: 'Revert "Remove `ImmutableOpenMap` from snapshot services"'
-area: "Infra/Core"
-type: regression
-issues: []

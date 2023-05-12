@@ -152,6 +152,13 @@ public class BigArrays {
         public byte[] array() {
             return array;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = Math.toIntExact(size()) * Byte.BYTES;
+            out.writeVInt(size);
+            out.write(array, 0, size);
+        }
     }
 
     private static class ByteArrayAsIntArrayWrapper extends AbstractArrayWrapper implements IntArray {

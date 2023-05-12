@@ -78,23 +78,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     public void testToXContent() throws IOException {
         AsyncStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = formatted(
-                """
-                    {
-                      "id" : "%s",
-                      "is_running" : %s,
-                      "is_partial" : %s,
-                      "start_time_in_millis" : %s,
-                      "expiration_time_in_millis" : %s,
-                      "_shards" : {
-                        "total" : %s,
-                        "successful" : %s,
-                        "skipped" : %s,
-                        "failed" : %s
-                       }
-                      %s
-                    }
-                    """,
+            Object[] args = new Object[] {
                 response.getId(),
                 response.isRunning(),
                 response.isPartial(),
@@ -104,9 +88,24 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
                 response.getSuccessfulShards(),
                 response.getSkippedShards(),
                 response.getFailedShards(),
-                response.getCompletionStatus() == null ? "" : formatted("""
-                    ,"completion_status" : %s""", response.getCompletionStatus().getStatus())
-            );
+                response.getCompletionStatus() == null ? "" : Strings.format("""
+                    ,"completion_status" : %s""", response.getCompletionStatus().getStatus()) };
+            String expectedJson = Strings.format("""
+                {
+                  "id" : "%s",
+                  "is_running" : %s,
+                  "is_partial" : %s,
+                  "start_time_in_millis" : %s,
+                  "expiration_time_in_millis" : %s,
+                  "_shards" : {
+                    "total" : %s,
+                    "successful" : %s,
+                    "skipped" : %s,
+                    "failed" : %s
+                   }
+                  %s
+                }
+                """, args);
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
         }

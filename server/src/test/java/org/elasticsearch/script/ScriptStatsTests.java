@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -109,17 +108,17 @@ public class ScriptStatsTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 2222, 0, 0, 5)));
+        assertThat(Strings.toString(builder), equalTo(Strings.format(format, 2222, 0, 0, 5)));
 
         series = new TimeSeries(0, 7, 1234, 5678);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 5678, 0, 7, 1234)));
+        assertThat(Strings.toString(builder), equalTo(Strings.format(format, 5678, 0, 7, 1234)));
 
         series = new TimeSeries(123, 456, 789, 91011);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 91011, 123, 456, 789)));
+        assertThat(Strings.toString(builder), equalTo(Strings.format(format, 91011, 123, 456, 789)));
     }
 
     public void testTimeSeriesIsEmpty() {
@@ -135,7 +134,7 @@ public class ScriptStatsTests extends ESTestCase {
     public void testTimeSeriesSerialization() throws IOException {
         ScriptContextStats stats = randomStats();
 
-        ScriptContextStats deserStats = serDeser(Version.V_8_0_0, Version.V_7_16_0, stats);
+        ScriptContextStats deserStats = serDeser(TransportVersion.V_8_0_0, TransportVersion.V_7_16_0, stats);
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
@@ -144,21 +143,21 @@ public class ScriptStatsTests extends ESTestCase {
         assertTrue(deserStats.getCacheEvictionsHistory().areTimingsEmpty());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictionsHistory().total);
 
-        deserStats = serDeser(Version.V_8_0_0, Version.V_8_0_0, stats);
+        deserStats = serDeser(TransportVersion.V_8_0_0, TransportVersion.V_8_0_0, stats);
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
         assertEquals(stats.getCompilationsHistory(), deserStats.getCompilationsHistory());
         assertEquals(stats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
 
-        deserStats = serDeser(Version.V_8_1_0, Version.V_7_16_0, stats);
+        deserStats = serDeser(TransportVersion.V_8_1_0, TransportVersion.V_7_16_0, stats);
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
         assertEquals(new TimeSeries(stats.getCompilationsHistory().total), deserStats.getCompilationsHistory());
         assertEquals(new TimeSeries(stats.getCacheEvictionsHistory().total), deserStats.getCacheEvictionsHistory());
 
-        deserStats = serDeser(Version.V_8_1_0, Version.V_8_1_0, stats);
+        deserStats = serDeser(TransportVersion.V_8_1_0, TransportVersion.V_8_1_0, stats);
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
@@ -166,12 +165,13 @@ public class ScriptStatsTests extends ESTestCase {
         assertEquals(stats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
     }
 
-    public ScriptContextStats serDeser(Version outVersion, Version inVersion, ScriptContextStats stats) throws IOException {
+    public ScriptContextStats serDeser(TransportVersion outVersion, TransportVersion inVersion, ScriptContextStats stats)
+        throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(outVersion);
+            out.setTransportVersion(outVersion);
             stats.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(inVersion);
+                in.setTransportVersion(inVersion);
                 return new ScriptContextStats(in);
             }
         }

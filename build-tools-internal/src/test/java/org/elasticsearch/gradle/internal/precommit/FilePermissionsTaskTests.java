@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -30,7 +30,7 @@ public class FilePermissionsTaskTests {
 
     @Test
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -51,7 +51,7 @@ public class FilePermissionsTaskTests {
 
     @Test
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -66,7 +66,7 @@ public class FilePermissionsTaskTests {
 
     @Test
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 

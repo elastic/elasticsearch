@@ -1,5 +1,0 @@
-pr: 91306
-summary: Rename `NamedComponent` name parameter to value
-area: Infra/Plugins
-type: enhancement
-issues: []

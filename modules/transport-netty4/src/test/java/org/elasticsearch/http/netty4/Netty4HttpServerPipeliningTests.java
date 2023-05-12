@@ -107,7 +107,8 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
-                null
+                null,
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             );
         }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -30,7 +31,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -66,7 +66,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
             """, index));
         client().performRequest(request);
@@ -74,7 +74,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private void setupFullAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["all"] }  ]}
             """, index));
         client().performRequest(request);
@@ -84,7 +84,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "password" : "%s", "roles" : [ %s ]}
             """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
@@ -330,11 +330,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         for (int i = 0; i < 120; i++) {
             long byteCount = randomNonNegativeLong();
             bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
+            bulk.append(Strings.format(docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
 
             byteCount = randomNonNegativeLong();
             bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
+            bulk.append(Strings.format(docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
 
             date = new Date(date.getTime() + 10_000);
         }
@@ -1584,7 +1584,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private Response createJob(String id, String airlineVariant) throws Exception {
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + id);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "description": "Analysis of response time by airline",
               "analysis_config": {
@@ -1667,31 +1667,28 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
-            request.setJsonEntity(
-                formatted(
-                    """
-                        {
-                          "job_id": "%s",
-                          "indexes":["%s"]
-                           %s
-                           %s
-                           %s
-                           %s
-                           %s
-                           %s
-                        }""",
-                    jobId,
-                    index,
-                    source ? ",\"_source\":true" : "",
-                    scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields,
-                    aggregations == null ? "" : ",\"aggs\":" + aggregations,
-                    frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"",
-                    indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions,
-                    chunkingTimespan == null ? "" : formatted("""
-                        ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
-                        """, chunkingTimespan)
-                )
-            );
+            Object[] args = new Object[] {
+                jobId,
+                index,
+                source ? ",\"_source\":true" : "",
+                scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields,
+                aggregations == null ? "" : ",\"aggs\":" + aggregations,
+                frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"",
+                indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions,
+                chunkingTimespan == null ? "" : Strings.format("""
+                    ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
+                    """, chunkingTimespan) };
+            request.setJsonEntity(Strings.format("""
+                {
+                  "job_id": "%s",
+                  "indexes":["%s"]
+                   %s
+                   %s
+                   %s
+                   %s
+                   %s
+                   %s
+                }""", args));
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", authHeader);
             if (this.secondaryAuthHeader != null) {

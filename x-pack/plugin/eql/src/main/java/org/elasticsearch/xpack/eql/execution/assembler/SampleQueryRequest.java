@@ -146,7 +146,7 @@ public class SampleQueryRequest implements QueryRequest {
      * Sets keys / terms to filter on in the final stage filtering (where actual events are gathered).
      * Can be removed through null.
      */
-    public void singleKeyPair(final List<Object> compositeKeyValues, int maxStages) {
+    public void singleKeyPair(final List<Object> compositeKeyValues, int maxStages, int maxSamplesPerKey) {
         List<QueryBuilder> newFilters = new ArrayList<>();
         if (compositeKeyValues.isEmpty()) {
             // no keys have been specified and none have been set
@@ -169,8 +169,10 @@ public class SampleQueryRequest implements QueryRequest {
 
         SearchSourceBuilder newSource = copySource(searchSource);
         RuntimeUtils.replaceFilter(singleKeyPairFilters, newFilters, newSource);
-        newSource.size(maxStages) // ask for exactly number of filters/stages documents
-            .terminateAfter(maxStages) // no need to ask for more from each shard since we don't need sorting or more docs
+        // ask for the minimum needed to get at least N samplese per key
+        int minResultsNeeded = maxStages + maxSamplesPerKey - 1;
+        newSource.size(minResultsNeeded)
+            .terminateAfter(minResultsNeeded) // no need to ask for more from each shard since we don't need sorting or more docs
             .fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE) // we'll get the source in a separate step
             .trackTotalHits(false)
             .trackScores(false);

@@ -44,6 +44,11 @@ public class ShardFollowTaskTests extends AbstractXContentSerializingTestCase<Sh
     }
 
     @Override
+    protected ShardFollowTask mutateInstance(ShardFollowTask instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<ShardFollowTask> instanceReader() {
         return ShardFollowTask::readFrom;
     }

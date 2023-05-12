@@ -21,7 +21,8 @@ import java.util.function.Supplier;
  */
 public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
-     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no update should be published.
+     * Update the cluster state based on the current state and the given tasks. Return {@code batchExecutionContext.initialState()} to avoid
+     * publishing any update.
      * <p>
      * If this method throws an exception then the cluster state is unchanged and every task's {@link ClusterStateTaskListener#onFailure}
      * method is called.
@@ -30,8 +31,15 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * This works ok but beware that constructing a whole new {@link ClusterState} can be somewhat expensive, and there may sometimes be
      * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
      * should do that instead.
+     * <p>
+     * Returning {@code batchExecutionContext.initialState()} is an important and useful optimisation in most cases, but note that this
+     * fast-path exposes APIs to the risk of stale reads in the vicinity of a master failover: a node {@code N} that handles such a no-op
+     * task batch does not verify with its peers that it's still the master, and if it's not the master then another node {@code M} may
+     * already have become master and updated the state in a way that would be inconsistent with the response that {@code N} sends back to
+     * clients.
      *
-     * @return The resulting cluster state after executing all the tasks. If {code initialState} is returned then no update is published.
+     * @return The resulting cluster state after executing all the tasks. If {code batchExecutionContext.initialState()} is returned then no
+     * update is published.
      */
     ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 
@@ -189,9 +197,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
      *                                   cannot be associated with any specific task.
      */
-    record BatchExecutionContext<T extends ClusterStateTaskListener> (
+    record BatchExecutionContext<T extends ClusterStateTaskListener>(
         ClusterState initialState,
-        List<TaskContext<T>> taskContexts,
+        List<? extends TaskContext<T>> taskContexts,
         Supplier<Releasable> dropHeadersContextSupplier
     ) {
         /**

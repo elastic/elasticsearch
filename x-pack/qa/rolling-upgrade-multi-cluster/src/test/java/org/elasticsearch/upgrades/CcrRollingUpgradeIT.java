@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
@@ -284,7 +285,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void createLeaderIndex(RestClient client, String indexName) throws IOException {
-        Settings.Builder indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        Settings.Builder indexSettings = indexSettings(1, 0);
         if (randomBoolean()) {
             indexSettings.put("index.soft_deletes.enabled", true);
         }
@@ -293,7 +294,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {"remote_cluster": "%s", "leader_index": "%s", "read_poll_timeout": "10ms"}
             """, leaderCluster, leaderIndex));
         assertOK(client.performRequest(request));
@@ -301,7 +302,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             {
               "leader_index_patterns": [ "%s" ],
               "remote_cluster": "%s",

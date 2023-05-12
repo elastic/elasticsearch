@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -24,9 +25,12 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -35,6 +39,44 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * API key information
  */
 public final class ApiKey implements ToXContentObject, Writeable {
+
+    public enum Type {
+        /**
+         * REST type API keys can authenticate on the HTTP interface
+         */
+        REST,
+        /**
+         * Cross cluster type API keys can authenticate on the dedicated remote cluster server interface
+         */
+        CROSS_CLUSTER;
+
+        public static Type parse(String value) {
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "rest" -> REST;
+                case "cross_cluster" -> CROSS_CLUSTER;
+                default -> throw new IllegalArgumentException(
+                    "invalid API key type ["
+                        + value
+                        + "] expected one of ["
+                        + Stream.of(values()).map(Type::value).collect(Collectors.joining(","))
+                        + "]"
+                );
+            };
+        }
+
+        public static Type fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+            return parse(parser.text());
+        }
+
+        public String value() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
 
     private final String name;
     private final String id;
@@ -105,7 +147,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     public ApiKey(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             this.name = in.readOptionalString();
         } else {
             this.name = in.readString();
@@ -116,12 +158,12 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = in.readBoolean();
         this.username = in.readString();
         this.realm = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
             this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
             this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
@@ -202,7 +244,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeOptionalString(name);
         } else {
             out.writeString(name);
@@ -213,10 +255,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeBoolean(invalidated);
         out.writeString(username);
         out.writeString(realm);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeGenericMap(metadata);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeOptionalCollection(roleDescriptors);
             out.writeOptionalWriteable(limitedBy);
         }

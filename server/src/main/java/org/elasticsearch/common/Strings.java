@@ -34,8 +34,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Strings {
 
@@ -287,9 +287,16 @@ public class Strings {
         return newChar + str.substring(1);
     }
 
-    public static final String INVALID_FILENAME_CHARS = Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    // Visible for testing
+    static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+
+    public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
+
+    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile(
+        "[" + INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining()) + "]+"
+    );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -756,7 +763,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent));
+        return toString(chunkedToXContent, false, false);
     }
 
     /**
@@ -795,7 +802,7 @@ public class Strings {
      */
     @Deprecated
     public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        return toString(ChunkedToXContent.wrapAsXContentObject(chunkedToXContent), pretty, human);
+        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
     }
 
     /**
@@ -916,5 +923,16 @@ public class Strings {
             .map(cp -> cp <= 128 ? Character.toLowerCase(cp) : cp)
             .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
             .toString();
+    }
+
+    /**
+     * Alias for {@link org.elasticsearch.core.Strings#format}
+     */
+    public static String format(String format, Object... args) {
+        return org.elasticsearch.core.Strings.format(format, args);
+    }
+
+    public static String stripDisallowedChars(String string) {
+        return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
 }

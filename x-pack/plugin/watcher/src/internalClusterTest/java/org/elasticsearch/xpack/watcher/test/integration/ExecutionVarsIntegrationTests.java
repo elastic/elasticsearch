@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -133,42 +134,44 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         timeWarp().trigger(watchId);
 
         flush();
-        refresh();
+        assertBusy(() -> {
+            refresh();
+            ensureGreen(HistoryStoreField.DATA_STREAM);
+            SearchResponse searchResponse = searchWatchRecords(builder -> {
+                // defaults to match all;
+            });
 
-        SearchResponse searchResponse = searchWatchRecords(builder -> {
-            // defaults to match all;
-        });
+            assertHitCount(searchResponse, 1L);
 
-        assertHitCount(searchResponse, 1L);
+            Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
 
-        Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
+            assertValue(source, "watch_id", is(watchId));
+            assertValue(source, "state", is("executed"));
 
-        assertValue(source, "watch_id", is(watchId));
-        assertValue(source, "state", is("executed"));
+            // we don't store the computed vars in history
+            assertValue(source, "vars", nullValue());
 
-        // we don't store the computed vars in history
-        assertValue(source, "vars", nullValue());
+            assertValue(source, "result.condition.status", is("success"));
+            assertValue(source, "result.transform.status", is("success"));
 
-        assertValue(source, "result.condition.status", is("success"));
-        assertValue(source, "result.transform.status", is("success"));
-
-        List<Map<String, Object>> actions = ObjectPath.eval("result.actions", source);
-        for (Map<String, Object> action : actions) {
-            String id = (String) action.get("id");
-            switch (id) {
-                case "a1" -> {
-                    assertValue(action, "status", is("success"));
-                    assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
+            List<Map<String, Object>> actions = ObjectPath.eval("result.actions", source);
+            for (Map<String, Object> action : actions) {
+                String id = (String) action.get("id");
+                switch (id) {
+                    case "a1" -> {
+                        assertValue(action, "status", is("success"));
+                        assertValue(action, "transform.status", is("success"));
+                        assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
+                    }
+                    case "a2" -> {
+                        assertValue(action, "status", is("success"));
+                        assertValue(action, "transform.status", is("success"));
+                        assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
+                    }
+                    default -> fail("there should not be an action result for action with an id other than a1 or a2");
                 }
-                case "a2" -> {
-                    assertValue(action, "status", is("success"));
-                    assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
-                }
-                default -> fail("there should not be an action result for action with an id other than a1 or a2");
             }
-        }
+        });
     }
 
     public void testVarsManual() throws Exception {

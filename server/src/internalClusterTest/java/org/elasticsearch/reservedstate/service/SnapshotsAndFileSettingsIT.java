@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -37,13 +38,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests that snapshot restore behaves correctly when we have file based settings that reserve part of the
  * cluster state
  */
+@LuceneTestCase.SuppressFileSystems("*")
 public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     private static AtomicLong versionCounter = new AtomicLong(1);
 
@@ -85,7 +86,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
@@ -93,7 +94,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         do {
             try {
                 // this can fail on Windows because of timing
-                Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
                 return;
             } catch (IOException e) {
                 logger.info("--> retrying writing a settings file [" + retryCount + "]");
@@ -139,13 +140,9 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "fs");
 
         logger.info("--> set some persistent cluster settings");
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
         );
 
         ensureGreen();
@@ -167,17 +164,13 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot("test-repo", "test-snap");
         assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
         );
 
         logger.info("--> deleting operator file, no file based settings");
-        Files.delete(fs.operatorSettingsFile());
+        Files.delete(fs.watchedFile());
 
         logger.info("--> restore global state from the snapshot");
         clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap").setRestoreGlobalState(true).setWaitForCompletion(true).get();
@@ -201,14 +194,10 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         // We didn't remove the setting set by file settings, we simply removed the reserved (operator) section.
         assertThat(getSettingsResponse.persistentSettings().get("indices.recovery.max_bytes_per_sec"), equalTo("50mb"));
         // cleanup
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), (String) null)
-                        .put("indices.recovery.max_bytes_per_sec", (String) null)
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey())
+                .putNull("indices.recovery.max_bytes_per_sec")
         );
     }
 
@@ -265,13 +254,9 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "fs");
 
         logger.info("--> set some persistent cluster settings");
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(25))
         );
 
         ensureGreen();
@@ -279,7 +264,6 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         String masterNode = internalCluster().getMasterName();
 
         var savedClusterState = setupClusterStateListener(masterNode);
-        FileSettingsService fs = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
         logger.info("--> write some file based settings, putting some reserved state");
         writeJSONFile(masterNode, testFileSettingsJSON);
@@ -293,13 +277,9 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         createFullSnapshot("test-repo", "test-snap");
         assertThat(getSnapshot("test-repo", "test-snap").state(), equalTo(SnapshotState.SUCCESS));
 
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(55))
         );
 
         logger.info("--> restore global state from the snapshot");
@@ -341,15 +321,10 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
         writeJSONFile(masterNode, emptyFileSettingsJSON);
         assertClusterStateSaveOK(cleanupReservedState.v1(), cleanupReservedState.v2());
         // cleanup
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), (String) null)
-                        .put("indices.recovery.max_bytes_per_sec", (String) null)
-                        .build()
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey())
+                .putNull("indices.recovery.max_bytes_per_sec")
         );
     }
-
 }

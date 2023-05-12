@@ -38,12 +38,12 @@ public class SnapshotLifecycleMetadataTests extends AbstractChunkedSerializingTe
     }
 
     @Override
-    protected Writeable.Reader<SnapshotLifecycleMetadata> instanceReader() {
-        return SnapshotLifecycleMetadata::new;
+    protected SnapshotLifecycleMetadata mutateInstance(SnapshotLifecycleMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean isFragment() {
-        return true;
+    protected Writeable.Reader<SnapshotLifecycleMetadata> instanceReader() {
+        return SnapshotLifecycleMetadata::new;
     }
 }

@@ -9,6 +9,8 @@
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersAware
 import org.elasticsearch.gradle.testclusters.TestDistribution
 
@@ -76,6 +78,14 @@ if (BuildParams.inFipsJvm) {
           keystorePassword 'keystore-password'
         }
       }
+
+      plugins.withType(RestTestBasePlugin) {
+        tasks.withType(StandaloneRestIntegTestTask).configureEach {
+          inputs.files(extraFipsJarsConfiguration).withNormalizer(ClasspathNormalizer)
+          nonInputProperties.systemProperty "tests.cluster.fips.jars.path", "${-> extraFipsJarsConfiguration.asPath}"
+        }
+      }
+
       project.tasks.withType(Test).configureEach { Test task ->
         dependsOn 'fipsResources'
         task.systemProperty('javax.net.ssl.trustStorePassword', 'password')

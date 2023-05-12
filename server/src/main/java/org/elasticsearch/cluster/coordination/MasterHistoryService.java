@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -36,7 +35,6 @@ import java.util.function.LongSupplier;
 public class MasterHistoryService {
     private final TransportService transportService;
     private final MasterHistory localMasterHistory;
-    private final ClusterService clusterService;
     private final LongSupplier currentTimeMillisSupplier;
     private final TimeValue acceptableRemoteHistoryAge;
     /*
@@ -62,7 +60,6 @@ public class MasterHistoryService {
     public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
-        this.clusterService = clusterService;
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;
         this.acceptableRemoteHistoryAge = REMOTE_HISTORY_TIME_TO_LIVE_SETTING.get(clusterService.getSettings());
     }
@@ -128,7 +125,6 @@ public class MasterHistoryService {
         transportService.connectToNode(
             // Note: This connection must be explicitly closed below
             node,
-            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
             new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {

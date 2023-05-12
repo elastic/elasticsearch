@@ -9,6 +9,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -18,7 +19,6 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -342,9 +342,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // changes that would have been done locally
         ClusterHealthResponse health = client().admin()
             .cluster()
-            .health(
-                Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
-            )
+            .health(new ClusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true))
             .actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
@@ -386,8 +384,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         ClusterHealthResponse actionGet = client().admin()
             .cluster()
             .health(
-                Requests.clusterHealthRequest(indices)
-                    .timeout(timeout)
+                new ClusterHealthRequest(indices).timeout(timeout)
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
                     .waitForNoRelocatingShards(true)
@@ -423,7 +420,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected void ensureNoInitializingShards() {
         ClusterHealthResponse actionGet = client().admin()
             .cluster()
-            .health(Requests.clusterHealthRequest("_all").waitForNoInitializingShards(true))
+            .health(new ClusterHealthRequest("_all").waitForNoInitializingShards(true))
             .actionGet();
 
         assertFalse("timed out waiting for shards to initialize", actionGet.isTimedOut());

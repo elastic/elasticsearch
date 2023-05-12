@@ -8,7 +8,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -30,7 +30,6 @@ dependencies {
   api "org.apache.logging.log4j:log4j-1.2-api:${localVersions.log4j}"
   api "commons-codec:commons-codec:${localVersions.commonscodec}"
   api "commons-lang:commons-lang:2.6"
-  api "commons-io:commons-io:2.4"
   api 'javax.mail:mail:1.4.5'
   api 'javax.inject:javax.inject:1'
   api "com.sun.jersey:jersey-client:${localVersions.jersey}"

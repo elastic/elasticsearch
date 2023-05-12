@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -69,7 +70,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testBulkToKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             """, indexName));
@@ -79,7 +80,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testRefresh() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             """, indexName));
@@ -100,7 +101,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             """, indexName));
@@ -119,7 +120,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testMultiGetFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
@@ -131,7 +132,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
 
         Request getRequest = request("GET", "/_mget");
-        getRequest.setJsonEntity(formatted("""
+        getRequest.setJsonEntity(Strings.format("""
             {
               "docs": [
                 {
@@ -155,7 +156,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testSearchFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
@@ -181,7 +182,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testDeleteFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
@@ -199,7 +200,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testDeleteByQueryFromKibanaIndex() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }
@@ -289,7 +290,7 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
 
     public void testScrollingDocs() throws IOException {
         Request request = request("POST", "/_bulk");
-        request.setJsonEntity(formatted("""
+        request.setJsonEntity(Strings.format("""
             { "index" : { "_index" : "%s", "_id" : "1" } }
             { "foo" : "bar" }
             { "index" : { "_index" : "%s", "_id" : "2" } }

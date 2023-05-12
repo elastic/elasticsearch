@@ -16,9 +16,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
-import org.elasticsearch.plugin.api.Inject;
-import org.elasticsearch.plugin.api.NamedComponent;
-import org.elasticsearch.plugin.api.settings.AnalysisSettings;
+import org.elasticsearch.plugin.Inject;
+import org.elasticsearch.plugin.NamedComponent;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
+import org.elasticsearch.plugin.settings.AnalysisSettings;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
 import org.elasticsearch.plugins.scanners.NamedComponentReader;
 import org.elasticsearch.plugins.scanners.PluginInfo;
@@ -131,16 +132,13 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
             emptyList(),
             new StablePluginsRegistry(
                 new NamedComponentReader(),
-                Map.of(
-                    org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName(),
-                    new NameToPluginInfo(mapOfCharFilters)
-                )
+                Map.of(CharFilterFactory.class.getCanonicalName(), new NameToPluginInfo(mapOfCharFilters))
             )
         ).getAnalysisRegistry();
         return registry;
     }
 
-    public abstract static class AbstractCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+    public abstract static class AbstractCharFilterFactory implements CharFilterFactory {
 
         @Override
         public Reader create(Reader reader) {

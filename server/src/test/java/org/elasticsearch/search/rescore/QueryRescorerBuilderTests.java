@@ -167,7 +167,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 : rescoreBuilder.windowSize().intValue();
             assertEquals(expectedWindowSize, rescoreContext.getWindowSize());
             Query expectedQuery = Rewriteable.rewrite(rescoreBuilder.getRescoreQuery(), mockContext).toQuery(mockContext);
-            assertEquals(expectedQuery, rescoreContext.query());
+            assertEquals(expectedQuery, rescoreContext.parsedQuery().query());
             assertEquals(rescoreBuilder.getQueryWeight(), rescoreContext.queryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());

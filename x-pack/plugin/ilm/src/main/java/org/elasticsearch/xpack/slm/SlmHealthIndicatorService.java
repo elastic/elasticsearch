@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+    public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
         var slmMetadata = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentSLMMode(currentState);
@@ -133,6 +134,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 .values()
                 .stream()
                 .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
+                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getName))
                 .toList();
 
             if (unhealthyPolicies.size() > 0) {
@@ -153,9 +155,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                             + policy.getName()
                             + "] had ["
                             + policy.getInvocationsSinceLastSuccess()
-                            + "] repeated failures without successful execution since ["
-                            + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp())
-                            + "]"
+                            + "] repeated failures without successful execution"
+                            + (policy.getLastSuccess() != null && policy.getLastSuccess().getSnapshotStartTimestamp() != null
+                                ? " since [" + FORMATTER.formatMillis(policy.getLastSuccess().getSnapshotStartTimestamp()) + "]"
+                                : "")
                     )
                     .collect(Collectors.joining("\n"));
                 String cause = (unhealthyPolicies.size() > 1
@@ -163,7 +166,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
 
                 String unhealthyPolicyActions = unhealthyPolicies.stream()
-                    .map(policy -> "- /_slm/policy/" + policy.getPolicy().getId() + "?human")
+                    .map(policy -> "- GET /_slm/policy/" + policy.getPolicy().getId() + "?human")
                     .collect(Collectors.joining("\n"));
                 String action = "Check the snapshot lifecycle "
                     + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
@@ -181,7 +184,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                             List.of(
                                 new Diagnosis.Resource(
                                     Diagnosis.Resource.Type.SLM_POLICY,
-                                    unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                                    unhealthyPolicies.stream()
+                                        .map(SnapshotLifecyclePolicyMetadata::getName)
+                                        .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
+                                        .toList()
                                 )
                             )
                         )

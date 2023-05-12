@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_COLD;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.DATA_FROZEN;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -73,11 +74,11 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DesiredNode CONTENT_DESIRED_NODE = newDesiredNode("node-content", DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE);
     private static final DesiredNode DATA_DESIRED_NODE = newDesiredNode("node-data", DiscoveryNodeRole.DATA_ROLE);
 
-    private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+    private final ClusterSettings clusterSettings = createBuiltInClusterSettings();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(
             DataTierAllocationDecider.INSTANCE,
-            new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+            new SameShardAllocationDecider(clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         )
     );
@@ -86,7 +87,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         new ShardId("myindex", "myindex", 0),
         true,
         RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+        ShardRouting.Role.DEFAULT
     );
 
     public void testIndexPrefer() {
@@ -186,7 +188,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     clusterState,
                     node,
                     Decision.Type.NO,
-                    formatted(
+                    org.elasticsearch.core.Strings.format(
                         "index has a preference for tiers [%s], but no nodes for any of those tiers are available in the cluster",
                         tierPreference
                     )
@@ -586,13 +588,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder(shard.getIndexName())
                     .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                            .put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
-                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, shard.getIndexName())
                             .put(DataTier.TIER_PREFERENCE, tierPreference)
-                            .build()
                     )
             );
         if (desiredNodes != null) {

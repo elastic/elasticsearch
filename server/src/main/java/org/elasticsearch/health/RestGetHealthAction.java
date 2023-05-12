@@ -23,6 +23,8 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     private static final String VERBOSE_PARAM = "verbose";
 
+    private static final String SIZE_PARAM = "size";
+
     @Override
     public String getName() {
         // TODO: Existing - "cluster_health_action", "cat_health_action"
@@ -31,14 +33,15 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_internal/_health"), new Route(GET, "/_internal/_health/{indicator}"));
+        return List.of(new Route(GET, "/_health_report"), new Route(GET, "/_health_report/{indicator}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String indicatorName = request.param("indicator");
         boolean verbose = request.paramAsBoolean(VERBOSE_PARAM, true);
-        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose);
+        int size = request.paramAsInt(SIZE_PARAM, 1000);
+        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose, size);
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetHealthAction.INSTANCE,
             getHealthRequest,

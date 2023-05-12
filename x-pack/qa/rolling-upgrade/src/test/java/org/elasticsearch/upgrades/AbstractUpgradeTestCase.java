@@ -35,6 +35,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     protected static final boolean SKIP_ML_TESTS = Booleans.parseBoolean(System.getProperty("tests.ml.skip", "false"));
 
     @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
+
+    @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
     }

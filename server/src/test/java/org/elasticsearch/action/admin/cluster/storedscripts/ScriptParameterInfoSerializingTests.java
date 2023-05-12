@@ -42,7 +42,7 @@ public class ScriptParameterInfoSerializingTests extends AbstractXContentSeriali
     }
 
     @Override
-    protected ParameterInfo mutateInstance(ParameterInfo instance) throws IOException {
+    protected ParameterInfo mutateInstance(ParameterInfo instance) {
         return mutate(instance);
     }
 

@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.NODE_DEFAULT_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -75,8 +76,9 @@ public class IndexSettingsTests extends ESTestCase {
         Setting<Integer> integerSetting = Setting.intSetting("index.test.setting.int", -1, Property.Dynamic, Property.IndexScope);
         IndexMetadata metadata = newIndexMeta("index", theSettings);
         IndexSettings settings = newIndexSettings(newIndexMeta("index", theSettings), Settings.EMPTY, integerSetting);
-        settings.getScopedSettings()
-            .addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> { if (i == 42) throw new AssertionError("boom"); });
+        settings.getScopedSettings().addSettingsUpdateConsumer(integerSetting, integer::set, (i) -> {
+            if (i == 42) throw new AssertionError("boom");
+        });
 
         assertEquals(version, settings.getIndexVersionCreated());
         assertEquals("0xdeadbeef", settings.getUUID());
@@ -218,11 +220,7 @@ public class IndexSettingsTests extends ESTestCase {
     public void testNodeSettingsAreContained() {
         final int numShards = randomIntBetween(1, 10);
         final int numReplicas = randomIntBetween(0, 10);
-        Settings theSettings = Settings.builder()
-            .put("index.foo.bar", 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-            .build();
+        Settings theSettings = indexSettings(numShards, numReplicas).put("index.foo.bar", 0).build();
 
         Settings nodeSettings = Settings.builder().put("index.foo.bar", 43).build();
         final AtomicInteger indexValue = new AtomicInteger(0);
@@ -234,44 +232,18 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(0, indexValue.get());
 
         assertTrue(
-            settings.updateIndexMetadata(
-                newIndexMeta(
-                    "index",
-                    Settings.builder()
-                        .put("index.foo.bar", 42)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas + 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                        .build()
-                )
-            )
+            settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).put("index.foo.bar", 42).build()))
         );
 
         assertEquals(42, indexValue.get());
         assertSame(nodeSettings, settings.getNodeSettings());
 
-        assertTrue(
-            settings.updateIndexMetadata(
-                newIndexMeta(
-                    "index",
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas + 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
-                        .build()
-                )
-            )
-        );
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).build())));
         assertEquals(43, indexValue.get());
-
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(indexSettings)
-            .build();
-        return IndexMetadata.builder(name).settings(build).build();
+        return IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 1).put(indexSettings)).build();
     }
 
     public void testUpdateDurability() {
@@ -326,6 +298,38 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(
             TimeValue.parseTimeValue(
                 refreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+        String newRefreshInterval = getRandomTimeString();
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval).build())
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                newRefreshInterval,
+                new TimeValue(1, TimeUnit.DAYS),
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+            ),
+            settings.getRefreshInterval()
+        );
+    }
+
+    public void testNodeDefaultRefreshInterval() {
+        String defaultRefreshInterval = getRandomTimeString();
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(
+            metadata,
+            Settings.builder().put(NODE_DEFAULT_REFRESH_INTERVAL_SETTING.getKey(), defaultRefreshInterval).build()
+        );
+        assertEquals(
+            TimeValue.parseTimeValue(
+                defaultRefreshInterval,
                 new TimeValue(1, TimeUnit.DAYS),
                 IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
             ),
@@ -525,7 +529,7 @@ public class IndexSettingsTests extends ESTestCase {
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(actualValue, settings.getFlushThresholdSize());
+        assertEquals(actualValue, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
         ByteSizeValue newTranslogFlushThresholdSize = ByteSizeValue.ofBytes(Math.abs(randomInt()));
         ByteSizeValue actualNewTranslogFlushThresholdSize = ByteSizeValue.parseBytesSizeValue(
             newTranslogFlushThresholdSize.getBytes() + "B",
@@ -539,7 +543,7 @@ public class IndexSettingsTests extends ESTestCase {
                     .build()
             )
         );
-        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize());
+        assertEquals(actualNewTranslogFlushThresholdSize, settings.getFlushThresholdSize(ByteSizeValue.ofTb(1)));
     }
 
     public void testTranslogGenerationSizeThreshold() {
@@ -613,15 +617,15 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testArchiveBrokenIndexSettings() {
-        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
-            Settings.EMPTY,
-            e -> { assert false : "should not have been invoked, no unknown settings"; },
-            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
-        );
+        Settings settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(Settings.EMPTY, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(settings, Settings.EMPTY);
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
             Settings.builder().put("index.refresh_interval", "-200").build(),
-            e -> { assert false : "should not have been invoked, no invalid settings"; },
+            e -> {
+                assert false : "should not have been invoked, no invalid settings";
+            },
             (e, ex) -> {
                 assertThat(e.getKey(), equalTo("index.refresh_interval"));
                 assertThat(e.getValue(), equalTo("-200"));
@@ -632,11 +636,9 @@ public class IndexSettingsTests extends ESTestCase {
         assertNull(settings.get("index.refresh_interval"));
 
         Settings prevSettings = settings; // no double archive
-        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(
-            prevSettings,
-            e -> { assert false : "should not have been invoked, no unknown settings"; },
-            (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; }
-        );
+        settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(prevSettings, e -> {
+            assert false : "should not have been invoked, no unknown settings";
+        }, (e, ex) -> { assert false : "should not have been invoked, no invalid settings"; });
         assertSame(prevSettings, settings);
 
         settings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.archiveUnknownOrInvalidSettings(

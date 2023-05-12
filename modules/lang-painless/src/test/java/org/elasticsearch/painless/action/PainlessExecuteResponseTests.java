@@ -32,6 +32,11 @@ public class PainlessExecuteResponseTests extends AbstractXContentSerializingTes
     }
 
     @Override
+    protected PainlessExecuteAction.Response mutateInstance(PainlessExecuteAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected PainlessExecuteAction.Response doParseInstance(XContentParser parser) throws IOException {
         parser.nextToken(); // START-OBJECT
         parser.nextToken(); // FIELD-NAME

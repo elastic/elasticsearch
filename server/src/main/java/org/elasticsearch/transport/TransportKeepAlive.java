@@ -75,7 +75,7 @@ final class TransportKeepAlive implements Closeable {
 
         for (TcpChannel channel : nodeChannels) {
             scheduledPing.addChannel(channel);
-            channel.addCloseListener(ActionListener.wrap(() -> scheduledPing.removeChannel(channel)));
+            channel.addCloseListener(ActionListener.running(() -> scheduledPing.removeChannel(channel)));
         }
     }
 

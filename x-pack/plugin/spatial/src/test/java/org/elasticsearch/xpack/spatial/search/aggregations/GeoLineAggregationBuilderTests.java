@@ -56,6 +56,11 @@ public class GeoLineAggregationBuilderTests extends AbstractXContentSerializingT
         return lineAggregationBuilder;
     }
 
+    @Override
+    protected GeoLineAggregationBuilder mutateInstance(GeoLineAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testInvalidSize() {
         MultiValuesSourceFieldConfig pointConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(randomAlphaOfLength(5)).build();
         MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName(randomAlphaOfLength(6)).build();

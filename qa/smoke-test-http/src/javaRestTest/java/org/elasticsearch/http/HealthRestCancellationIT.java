@@ -47,7 +47,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
     }
 
     public void testHealthRestCancellation() throws Exception {
-        runTest(new Request(HttpGet.METHOD_NAME, "/_internal/_health"));
+        runTest(new Request(HttpGet.METHOD_NAME, "/_health_report"));
     }
 
     private void runTest(Request request) throws Exception {
@@ -111,7 +111,7 @@ public class HealthRestCancellationIT extends HttpSmokeTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean verbose, HealthInfo healthInfo) {
+        public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             try {
                 operationBlock.acquire();
             } catch (InterruptedException e) {

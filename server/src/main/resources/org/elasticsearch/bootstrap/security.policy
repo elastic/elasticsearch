@@ -28,6 +28,9 @@ grant codeBase "${codebase.elasticsearch}" {
   // for module layer
   permission java.lang.RuntimePermission "createClassLoader";
   permission java.lang.RuntimePermission "getClassLoader";
+
+  // for plugin api dynamic settings instances
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
 };
 
 //// Very special jar permissions:
@@ -71,6 +74,13 @@ grant codeBase "${codebase.jna}" {
 
 grant codeBase "${codebase.log4j-api}" {
   permission java.lang.RuntimePermission "getClassLoader";
+};
+
+grant codeBase "${codebase.elasticsearch-preallocate}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // for accessing the file descriptor field in FileChannel
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 //// Everything else:

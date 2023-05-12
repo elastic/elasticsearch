@@ -13,8 +13,8 @@ import java.util.List;
 
 public class EqlMissingEventsIT extends EqlMissingEventsSpecTestCase {
 
-    public EqlMissingEventsIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size) {
-        super(query, name, eventIds, joinKeys, size);
+    public EqlMissingEventsIT(String query, String name, List<long[]> eventIds, String[] joinKeys, Integer size, Integer maxSamplesPerKey) {
+        super(query, name, eventIds, joinKeys, size, maxSamplesPerKey);
     }
 
 }

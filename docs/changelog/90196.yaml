@@ -1,5 +1,0 @@
-pr: 90196
-summary: "Synthetic `_source`: support `wildcard` field"
-area: TSDB
-type: enhancement
-issues: []

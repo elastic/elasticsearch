@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.action;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,7 +83,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
             columnar = in.readBoolean();
             asyncExecutionId = in.readOptionalString();
             isPartial = in.readBoolean();

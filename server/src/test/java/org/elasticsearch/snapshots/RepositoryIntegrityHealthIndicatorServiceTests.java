@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -113,6 +114,52 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(RepositoryIntegrityHealthIndicatorService.NAME, equalTo("repository_integrity"));
+        assertThat(
+            CORRUPTED_REPOSITORY.getUniqueId(),
+            equalTo("elasticsearch:health:repository_integrity:diagnosis:corrupt_repo_integrity")
+        );
+    }
+
+    public void testLimitNumberOfAffectedResources() {
+        List<RepositoryMetadata> repos = Stream.iterate(0, n -> n + 1)
+            .limit(20)
+            .map(i -> createRepositoryMetadata("corrupted-repo" + i, true))
+            .toList();
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
+        var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
+
+        {
+            assertThat(
+                service.calculate(true, 10, HealthInfo.EMPTY_HEALTH_INFO).diagnosisList(),
+                equalTo(
+                    List.of(
+                        new Diagnosis(
+                            CORRUPTED_REPOSITORY,
+                            List.of(
+                                new Diagnosis.Resource(
+                                    Type.SNAPSHOT_REPOSITORY,
+                                    repos.stream().limit(10).map(RepositoryMetadata::name).toList()
+                                )
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        {
+            assertThat(
+                service.calculate(true, 0, HealthInfo.EMPTY_HEALTH_INFO).diagnosisList(),
+                equalTo(List.of(new Diagnosis(CORRUPTED_REPOSITORY, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of())))))
+            );
+        }
+
     }
 
     private static ClusterState createClusterStateWith(RepositoriesMetadata metadata) {

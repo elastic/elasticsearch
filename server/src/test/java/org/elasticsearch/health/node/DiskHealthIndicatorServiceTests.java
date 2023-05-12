@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.health.Diagnosis;
@@ -54,9 +54,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.health.HealthIndicatorService.MAX_AFFECTED_RESOURCES_COUNT;
 import static org.elasticsearch.health.ImpactArea.DEPLOYMENT_MANAGEMENT;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.INDICES_WITH_READONLY_BLOCK;
 import static org.elasticsearch.health.node.DiskHealthIndicatorService.DiskHealthAnalyzer.NODES_OVER_FLOOD_STAGE_WATERMARK;
@@ -513,16 +511,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
     public void testMissingHealthInfo() {
         Set<DiscoveryNode> discoveryNodes = createNodesWithAllRoles();
         Set<DiscoveryNode> discoveryNodesInClusterState = new HashSet<>(discoveryNodes);
-        discoveryNodesInClusterState.add(
-            new DiscoveryNode(
-                randomAlphaOfLength(30),
-                UUID.randomUUID().toString(),
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                DiscoveryNodeRole.roles(),
-                Version.CURRENT
-            )
-        );
+        discoveryNodesInClusterState.add(TestDiscoveryNode.create(randomAlphaOfLength(30), UUID.randomUUID().toString()));
         ClusterService clusterService = createClusterService(discoveryNodesInClusterState, false);
         DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
         {
@@ -882,6 +871,115 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testLimitNumberOfAffectedResources() {
+        Set<DiscoveryNodeRole> otherRoles = new HashSet<>(randomNonEmptySubsetOf(OTHER_ROLES));
+        Set<DiscoveryNodeRole> dataRoles = new HashSet<>(randomNonEmptySubsetOf(DATA_ROLES));
+        Set<DiscoveryNodeRole> masterRole = Set.of(DiscoveryNodeRole.MASTER_ROLE);
+        Set<DiscoveryNode> dataNodes = createNodes(30, dataRoles);
+        Set<DiscoveryNode> masterNodes = createNodes(20, masterRole);
+        Set<DiscoveryNode> otherNodes = createNodes(10, otherRoles);
+        ClusterService clusterService = createClusterService(Sets.union(Sets.union(dataNodes, masterNodes), otherNodes), true);
+        DiskHealthIndicatorService diskHealthIndicatorService = new DiskHealthIndicatorService(clusterService);
+        int numberOfRedMasterNodes = masterNodes.size();
+        int numberOfRedOtherNodes = otherNodes.size();
+        int numberOfYellowDataNodes = dataNodes.size();
+        HealthInfo healthInfo = createHealthInfo(
+            List.of(
+                new HealthInfoConfig(HealthStatus.YELLOW, numberOfYellowDataNodes, dataNodes),
+                new HealthInfoConfig(HealthStatus.RED, numberOfRedMasterNodes, masterNodes),
+                new HealthInfoConfig(HealthStatus.RED, numberOfRedOtherNodes, otherNodes)
+            )
+        );
+        {
+            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, 0, healthInfo);
+            List<Diagnosis> diagnosisList = result.diagnosisList();
+            assertThat(diagnosisList.size(), equalTo(3));
+            {
+                Diagnosis diagnosis = diagnosisList.get(0);
+                List<Diagnosis.Resource> dataAffectedResources = diagnosis.affectedResources();
+                assertThat(dataAffectedResources.size(), equalTo(2));
+                assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(dataAffectedResources.get(0).getNodes().size(), is(0));
+                assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
+                assertThat(dataAffectedResources.get(1).getValues().size(), is(0));
+            }
+            {
+                Diagnosis diagnosis = diagnosisList.get(1);
+                List<Diagnosis.Resource> masterAffectedResources = diagnosis.affectedResources();
+                assertThat(masterAffectedResources.size(), equalTo(1));
+                assertThat(masterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(masterAffectedResources.get(0).getNodes().size(), is(0));
+            }
+
+            {
+                Diagnosis diagnosis = diagnosisList.get(2);
+                List<Diagnosis.Resource> nonDataNonMasterAffectedResources = diagnosis.affectedResources();
+                assertThat(nonDataNonMasterAffectedResources.size(), equalTo(1));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getNodes().size(), is(0));
+            }
+        }
+
+        {
+            HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, 10, healthInfo);
+            List<Diagnosis> diagnosisList = result.diagnosisList();
+            assertThat(diagnosisList.size(), equalTo(3));
+            {
+                Diagnosis diagnosis = diagnosisList.get(0);
+                List<Diagnosis.Resource> dataAffectedResources = diagnosis.affectedResources();
+                assertThat(dataAffectedResources.size(), equalTo(2));
+                assertThat(dataAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(dataAffectedResources.get(0).getNodes().size(), is(10));
+                assertThat(dataAffectedResources.get(1).getType(), is(Diagnosis.Resource.Type.INDEX));
+                assertThat(dataAffectedResources.get(1).getValues().size(), is(1));
+            }
+            {
+                Diagnosis diagnosis = diagnosisList.get(1);
+                List<Diagnosis.Resource> masterAffectedResources = diagnosis.affectedResources();
+                assertThat(masterAffectedResources.size(), equalTo(1));
+                assertThat(masterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(masterAffectedResources.get(0).getNodes().size(), is(10));
+            }
+
+            {
+                Diagnosis diagnosis = diagnosisList.get(2);
+                List<Diagnosis.Resource> nonDataNonMasterAffectedResources = diagnosis.affectedResources();
+                assertThat(nonDataNonMasterAffectedResources.size(), equalTo(1));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getType(), is(Diagnosis.Resource.Type.NODE));
+                assertThat(nonDataNonMasterAffectedResources.get(0).getNodes().size(), is(10));
+            }
+        }
+
+    }
+
+    // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index
+    // they need to be declared in the health-api-indexer.edn in the telemetry repository.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(DiskHealthIndicatorService.NAME, equalTo("disk"));
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createDataNodeDiagnosis(0, List.of()).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity_data_nodes")
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createNonDataNodeDiagnosis(
+                HealthStatus.RED,
+                List.of(),
+                MAX_AFFECTED_RESOURCES_COUNT,
+                true
+            ).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity_master_nodes")
+        );
+        assertThat(
+            DiskHealthIndicatorService.DiskHealthAnalyzer.createNonDataNodeDiagnosis(
+                HealthStatus.RED,
+                List.of(),
+                MAX_AFFECTED_RESOURCES_COUNT,
+                false
+            ).definition().getUniqueId(),
+            equalTo("elasticsearch:health:disk:diagnosis:add_disk_capacity")
+        );
+    }
+
     private Set<DiscoveryNode> createNodesWithAllRoles() {
         return createNodes(DiscoveryNodeRole.roles());
     }
@@ -894,13 +992,12 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> discoveryNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
             discoveryNodes.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     randomAlphaOfLength(30),
                     UUID.randomUUID().toString(),
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    roles,
-                    Version.CURRENT
+                    roles
                 )
             );
         }
@@ -981,11 +1078,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             int numberOfShards = indexNameToNodeIdsMap.get(index).size() == 0 ? 1 : indexNameToNodeIdsMap.get(index).size();
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    Settings.builder()
-                        .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                    indexSettings(Version.CURRENT, numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
                         .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
                 )
                 .build();

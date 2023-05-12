@@ -17,6 +17,11 @@ public class RuleConditionTests extends AbstractXContentSerializingTestCase<Rule
         return createRandom();
     }
 
+    @Override
+    protected RuleCondition mutateInstance(RuleCondition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static RuleCondition createRandom() {
         RuleCondition.AppliesTo appliesTo = randomFrom(RuleCondition.AppliesTo.values());
         Operator operator = randomFrom(Operator.LT, Operator.LTE, Operator.GT, Operator.GTE);

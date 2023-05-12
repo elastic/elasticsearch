@@ -1,5 +1,0 @@
-pr: 91045
-summary: Support `aggregate_metric_double` field type in transform aggregations
-area: Transform
-type: enhancement
-issues: []

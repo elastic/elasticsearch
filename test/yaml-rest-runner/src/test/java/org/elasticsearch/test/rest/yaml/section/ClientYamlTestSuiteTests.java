@@ -11,6 +11,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -19,7 +20,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -500,7 +500,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [do] with a [warnings] section without a corresponding ["skip": "features": "warnings"] \
             so runners that do not support the [warnings] section can skip the test at line [%d]\
@@ -514,7 +514,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [do] with a [warnings_regex] section without a corresponding ["skip": "features": "warnings_regex"] \
             so runners that do not support the [warnings_regex] section can skip the test at line [%d]\
@@ -528,7 +528,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [do] with a [allowed_warnings] section without a corresponding ["skip": "features": \
             "allowed_warnings"] so runners that do not support the [allowed_warnings] section can skip the test at \
@@ -543,7 +543,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [do] with a [allowed_warnings_regex] section without a corresponding ["skip": "features": \
             "allowed_warnings_regex"] so runners that do not support the [allowed_warnings_regex] section can skip the test \
@@ -559,7 +559,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCallSection);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [do] with a [headers] section without a corresponding ["skip": "features": "headers"] \
             so runners that do not support the [headers] section can skip the test at line [%d]\
@@ -574,7 +574,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCall);
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [do] with a [node_selector] section without a corresponding ["skip": "features": "node_selector"] \
             so runners that do not support the [node_selector] section can skip the test at line [%d]\
@@ -590,7 +590,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         );
         ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, containsAssertion);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertThat(e.getMessage(), containsString(formatted("""
+        assertThat(e.getMessage(), containsString(Strings.format("""
             api/name:
             attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] \
             so runners that do not support the [contains] assertion can skip the test at line [%d]\
@@ -642,7 +642,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             sections
         );
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals(String.format(Locale.ROOT, """
+        assertEquals(Strings.format("""
             api/name:
             attempted to add a [contains] assertion without a corresponding ["skip": "features": "contains"] so runners that \
             do not support the [contains] assertion can skip the test at line [%d],

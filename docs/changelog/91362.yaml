@@ -1,6 +1,0 @@
-pr: 91362
-summary: "Introduce a phase to use String.equals on constant strings, rather than\
-  \ def equality"
-area: Infra/Core
-type: enhancement
-issues: [91235]

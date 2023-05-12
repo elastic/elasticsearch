@@ -178,4 +178,9 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         assertThat(reduced.getBuckets().get(0).getDocCount(), equalTo(1L));
         assertThat(reduced.getBuckets().get(1).getDocCount(), equalTo(2L));
     }
+
+    @Override
+    protected InternalIpPrefix mutateInstance(InternalIpPrefix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

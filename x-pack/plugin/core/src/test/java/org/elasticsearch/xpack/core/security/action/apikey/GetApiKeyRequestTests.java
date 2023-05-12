@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -20,7 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -127,11 +127,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().ownedByAuthenticatedUser(true).apiKeyId(apiKeyId).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_3_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_3_0));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_3_0));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -146,11 +146,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
                 .build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_8_4_0));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, TransportVersion.V_8_4_0));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_7_4_0, Version.V_8_4_0));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_7_4_0, TransportVersion.V_8_4_0));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream.getApiKeyId(), equalTo(getApiKeyRequest.getApiKeyId()));
@@ -162,11 +162,11 @@ public class GetApiKeyRequestTests extends ESTestCase {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build();
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(randomVersionBetween(random(), Version.V_8_5_0, Version.CURRENT));
+            out.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.CURRENT));
             getApiKeyRequest.writeTo(out);
 
             InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
-            inputStreamStreamInput.setVersion(randomVersionBetween(random(), Version.V_8_5_0, Version.CURRENT));
+            inputStreamStreamInput.setTransportVersion(randomVersionBetween(random(), TransportVersion.V_8_5_0, TransportVersion.CURRENT));
             GetApiKeyRequest requestFromInputStream = new GetApiKeyRequest(inputStreamStreamInput);
 
             assertThat(requestFromInputStream, equalTo(getApiKeyRequest));

@@ -1,6 +1,0 @@
-pr: 92025
-summary: Use primitive types rather than boxing/unboxing for iterating over primitive
-  arrays from defs
-area: Infra/Scripting
-type: enhancement
-issues: []

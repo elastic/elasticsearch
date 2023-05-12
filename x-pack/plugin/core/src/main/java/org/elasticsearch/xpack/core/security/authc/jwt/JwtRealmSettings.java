@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -160,6 +161,7 @@ public class JwtRealmSettings {
                 ALLOWED_SUBJECTS,
                 FALLBACK_SUB_CLAIM,
                 FALLBACK_AUD_CLAIM,
+                REQUIRED_CLAIMS,
                 CLAIMS_PRINCIPAL.getClaim(),
                 CLAIMS_PRINCIPAL.getPattern(),
                 CLAIMS_GROUPS.getClaim(),
@@ -298,6 +300,26 @@ public class JwtRealmSettings {
                 final String namespace = FALLBACK_AUD_CLAIM.getNamespace(FALLBACK_AUD_CLAIM.getConcreteSetting(key));
                 final List<Setting<?>> settings = List.of(TOKEN_TYPE.getConcreteSettingForNamespace(namespace));
                 return settings.iterator();
+            }
+        }, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<Settings> REQUIRED_CLAIMS = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "required_claims",
+        key -> Setting.groupSetting(key + ".", settings -> {
+            final List<String> invalidRequiredClaims = List.of("iss", "sub", "aud", "exp", "nbf", "iat");
+            for (String name : settings.names()) {
+                final String fullName = key + "." + name;
+                if (invalidRequiredClaims.contains(name)) {
+                    throw new IllegalArgumentException(
+                        Strings.format("required claim [%s] cannot be one of [%s]", fullName, String.join(",", invalidRequiredClaims))
+                    );
+                }
+                final List<String> values = settings.getAsList(name);
+                if (values.isEmpty()) {
+                    throw new IllegalArgumentException(Strings.format("required claim [%s] cannot be empty", fullName));
+                }
             }
         }, Setting.Property.NodeScope)
     );

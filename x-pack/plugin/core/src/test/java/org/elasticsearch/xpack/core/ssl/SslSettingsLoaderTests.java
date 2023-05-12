@@ -15,18 +15,23 @@ import org.elasticsearch.common.ssl.EmptyKeyConfig;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.Before;
 
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.net.ssl.KeyManager;
@@ -39,6 +44,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -68,6 +74,94 @@ public class SslSettingsLoaderTests extends ESTestCase {
         assertThat(globalConfig.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
         assertThat(globalConfig.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
         assertThat(globalConfig.supportedProtocols(), not(hasItem("TLSv1")));
+    }
+
+    public void testRemoteClusterSslConfigurationsWhenPortNotEnabled() {
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), false);
+        }
+        final Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(builder.build());
+        // Server (SSL is not built when port is not enabled)
+        assertThat(settingsMap, not(hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX)));
+        // Client (SSL is always built)
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+        final SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+        assertThat(sslConfiguration.keyConfig(), sameInstance(EmptyKeyConfig.INSTANCE));
+        assertThat(sslConfiguration.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
+        assertThat(sslConfiguration.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        assertThat(sslConfiguration.supportedProtocols(), not(hasItem("TLSv1")));
+        assertThat(sslConfiguration.verificationMode(), is(SslVerificationMode.FULL));
+    }
+
+    /**
+     * Tests that the Remote Cluster port is configured if enabled and properly uses the default settings.
+     */
+    public void testRemoteClusterPortConfigurationIsInjectedWithDefaults() {
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
+        Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true).build();
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+        // Server
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        assertThat(sslConfiguration.keyConfig(), sameInstance(EmptyKeyConfig.INSTANCE));
+        assertThat(sslConfiguration.trustConfig().getClass().getSimpleName(), is("DefaultJdkTrustConfig"));
+        assertThat(sslConfiguration.supportedProtocols(), equalTo(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS));
+        assertThat(sslConfiguration.supportedProtocols(), not(hasItem("TLSv1")));
+        assertThat(sslConfiguration.clientAuth(), is(SslClientAuthenticationMode.NONE));
+        // Client
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+    }
+
+    /**
+     * Tests that settings are correctly read from the remote cluster SSL settings to set up the {@link SslConfiguration} object used by
+     * all the SSL infrastructure to define per-profile settings. Makes sure to use both regular and secure settings to be sure both are
+     * covered.
+     */
+    public void testRemoteClusterPortConfigurationIsInjectedWithItsSettings() {
+        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
+        final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(
+            XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD,
+            "testnode"
+        );
+        Settings testSettings = Settings.builder()
+            .put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true)
+            .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.KEYSTORE_PATH, path)
+            .putList(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.PROTOCOLS, "TLSv1.3", "TLSv1.2")
+            .put(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX + SslConfigurationKeys.CLIENT_AUTH, "required")
+            .put(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX + SslConfigurationKeys.VERIFICATION_MODE, "certificate")
+            .setSecureSettings(secureSettings)
+            .build();
+        Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
+
+        // Server
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        SslConfiguration sslConfiguration = getSslConfiguration(settingsMap.get(XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX));
+        assertThat(sslConfiguration.supportedProtocols(), contains("TLSv1.3", "TLSv1.2"));
+        assertThat(sslConfiguration.clientAuth(), is(SslClientAuthenticationMode.REQUIRED));
+
+        SslKeyConfig keyStore = sslConfiguration.keyConfig();
+        assertThat(keyStore.getDependentFiles(), contains(path));
+        assertThat(keyStore.hasKeyMaterial(), is(true));
+        final X509ExtendedKeyManager keyManager = keyStore.createKeyManager();
+        assertThat(keyManager, notNullValue());
+        assertThat(keyStore.getKeys(), hasSize(3)); // testnode_ec, testnode_rsa, testnode_dsa
+        assertThat(
+            keyStore.getKeys().stream().map(t -> t.v1().getAlgorithm()).collect(Collectors.toUnmodifiableSet()),
+            containsInAnyOrder("RSA", "DSA", "EC")
+        );
+
+        assertCombiningTrustConfigContainsCorrectIssuers(sslConfiguration);
+
+        // Client
+        assertThat(settingsMap, hasKey(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX));
+        final SslConfiguration clientSslConfiguration = getSslConfiguration(
+            settingsMap.get(XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX)
+        );
+        assertThat(clientSslConfiguration.verificationMode(), is(SslVerificationMode.CERTIFICATE));
     }
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {

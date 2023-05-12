@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -47,7 +47,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         this.name = in.readString();
         this.enabled = in.readBoolean();
         this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             this.roleTemplates = in.readList(TemplateRoleName::new);
         }
         this.rules = ExpressionParser.readExpression(in);
@@ -155,7 +155,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(rules, out);

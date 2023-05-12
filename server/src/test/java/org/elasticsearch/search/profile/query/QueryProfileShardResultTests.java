@@ -42,6 +42,11 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
     }
 
     @Override
+    protected QueryProfileShardResult mutateInstance(QueryProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected QueryProfileShardResult doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         QueryProfileShardResult result = QueryProfileShardResult.fromXContent(parser);

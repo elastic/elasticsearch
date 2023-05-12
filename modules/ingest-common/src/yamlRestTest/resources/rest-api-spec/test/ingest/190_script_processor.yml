@@ -313,7 +313,7 @@ teardown:
               "foo": "bar"
             }
           }
-  - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline]" }
+  - match: { error.root_cause.0.reason: "Failed to generate the source document for ingest pipeline [my_pipeline] for document [test/1]" }
 
 ---
 "Test metadata":

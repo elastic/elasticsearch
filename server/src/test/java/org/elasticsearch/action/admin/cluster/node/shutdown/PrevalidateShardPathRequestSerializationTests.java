@@ -14,7 +14,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -39,7 +38,7 @@ public class PrevalidateShardPathRequestSerializationTests extends AbstractWireS
     }
 
     @Override
-    protected PrevalidateShardPathRequest mutateInstance(PrevalidateShardPathRequest request) throws IOException {
+    protected PrevalidateShardPathRequest mutateInstance(PrevalidateShardPathRequest request) {
         int i = randomInt(2);
         return switch (i) {
             case 0 -> new PrevalidateShardPathRequest(

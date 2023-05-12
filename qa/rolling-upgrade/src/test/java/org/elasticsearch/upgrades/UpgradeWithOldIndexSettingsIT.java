@@ -12,10 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -56,7 +57,7 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
                 if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
                     bulk.setOptions(expectWarnings(EXPECTED_WARNING));
                 }
-                bulk.setJsonEntity(String.format(Locale.ROOT, """
+                bulk.setJsonEntity(Strings.format("""
                     {"index": {"_index": "%s"}}
                     {"f1": "v1", "f2": "v2"}
                     """, INDEX_NAME));
@@ -69,7 +70,7 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
                 if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
                     bulk.setOptions(expectWarnings(EXPECTED_WARNING));
                 }
-                bulk.setJsonEntity(String.format(Locale.ROOT, """
+                bulk.setJsonEntity(Strings.format("""
                     {"index": {"_index": "%s"}}
                     {"f1": "v3", "f2": "v4"}
                     """, INDEX_NAME));
@@ -110,5 +111,21 @@ public class UpgradeWithOldIndexSettingsIT extends AbstractRollingTestCase {
         var hitsTotal = (Integer) (XContentMapValues.extractValue("hits.total", response));
 
         assertTrue(hitsTotal >= countAtLeast);
+    }
+
+    public static void updateIndexSettingsPermittingSlowlogDeprecationWarning(String index, Settings.Builder settings) throws IOException {
+        Request request = new Request("PUT", "/" + index + "/_settings");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(settings.build()));
+        if (UPGRADE_FROM_VERSION.before(Version.V_7_17_9)) {
+            // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
+            // Below warnings are set (and leaking) from an index in this test case
+            request.setOptions(expectVersionSpecificWarnings(v -> {
+                v.compatible(
+                    "[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                        + "See the breaking changes documentation for the next major version."
+                );
+            }));
+        }
+        client().performRequest(request);
     }
 }

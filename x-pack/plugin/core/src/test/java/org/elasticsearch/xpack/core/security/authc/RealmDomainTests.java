@@ -30,4 +30,9 @@ public class RealmDomainTests extends AbstractXContentSerializingTestCase<RealmD
         return AuthenticationTestHelper.randomDomain(randomBoolean());
     }
 
+    @Override
+    protected RealmDomain mutateInstance(RealmDomain instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
 }

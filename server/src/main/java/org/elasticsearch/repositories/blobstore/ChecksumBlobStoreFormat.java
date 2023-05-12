@@ -301,13 +301,13 @@ public final class ChecksumBlobStoreFormat<T> {
             final int footerLen = CodecUtil.footerLength();
             if (bufferCount == 0) {
                 // first read, fill the buffer
-                bufferCount = Streams.readFully(in, buffer, 0, buffer.length);
+                bufferCount = org.elasticsearch.core.Streams.readFully(in, buffer, 0, buffer.length);
             } else if (bufferPos == bufferCount - footerLen) {
                 // crc and discard all but the last 16 bytes in the buffer that might be the footer bytes
                 assert bufferCount >= footerLen;
                 crc32.update(buffer, 0, bufferPos);
                 System.arraycopy(buffer, bufferPos, buffer, 0, footerLen);
-                bufferCount = footerLen + Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
+                bufferCount = footerLen + org.elasticsearch.core.Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
                 bufferPos = 0;
             }
             // bytes in the buffer minus 16 bytes that could be the footer

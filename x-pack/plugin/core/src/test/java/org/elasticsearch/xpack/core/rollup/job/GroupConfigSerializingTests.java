@@ -30,4 +30,9 @@ public class GroupConfigSerializingTests extends AbstractXContentSerializingTest
     protected GroupConfig createTestInstance() {
         return randomGroupConfig(random());
     }
+
+    @Override
+    protected GroupConfig mutateInstance(GroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

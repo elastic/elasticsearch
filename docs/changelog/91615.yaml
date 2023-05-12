@@ -1,6 +1,0 @@
-pr: 91615
-summary: Trigger index settings providers when updating component templates
-area: Indices APIs
-type: bug
-issues:
- - 91592

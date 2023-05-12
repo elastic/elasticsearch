@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -84,7 +84,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     /**
      * Searchable snapshots partial storage was introduced in 7.12.0
      */
-    private static final Version SHARED_CACHE_VERSION = Version.V_7_12_0;
+    private static final TransportVersion SHARED_CACHE_VERSION = TransportVersion.V_7_12_0;
 
     private final String mountedIndexName;
     private final String repositoryName;
@@ -127,7 +127,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         this.indexSettings = readSettingsFromStream(in);
         this.ignoreIndexSettings = in.readStringArray();
         this.waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             this.storage = Storage.readFromStream(in);
         } else {
             this.storage = Storage.FULL_COPY;
@@ -144,11 +144,11 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(SHARED_CACHE_VERSION)) {
             storage.writeTo(out);
         } else if (storage != Storage.FULL_COPY) {
             throw new UnsupportedOperationException(
-                "storage type [" + storage + "] is not supported on version [" + out.getVersion() + "]"
+                "storage type [" + storage + "] is not supported on version [" + out.getTransportVersion() + "]"
             );
         }
     }

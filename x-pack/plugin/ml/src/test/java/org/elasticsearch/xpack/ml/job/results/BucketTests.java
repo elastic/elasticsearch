@@ -35,6 +35,11 @@ public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
         return createTestInstance("foo");
     }
 
+    @Override
+    protected Bucket mutateInstance(Bucket instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public Bucket createTestInstance(String jobId) {
         Bucket bucket = new Bucket(jobId, randomDate(), randomLongBetween(1, MAX_BUCKET_SPAN_SEC));
         if (randomBoolean()) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -21,9 +22,10 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.AbstractCollection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -39,10 +41,11 @@ import java.util.stream.Stream;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements SimpleDiffable<DiscoveryNodes> {
+public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<DiscoveryNodes> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 
+    private final long nodeLeftGeneration;
     private final Map<String, DiscoveryNode> nodes;
     private final Map<String, DiscoveryNode> dataNodes;
     private final Map<String, DiscoveryNode> masterNodes;
@@ -63,6 +66,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final Set<String> availableRoles;
 
     private DiscoveryNodes(
+        long nodeLeftGeneration,
         Map<String, DiscoveryNode> nodes,
         Map<String, DiscoveryNode> dataNodes,
         Map<String, DiscoveryNode> masterNodes,
@@ -73,6 +77,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         Version maxNodeVersion,
         Version minNodeVersion
     ) {
+        this.nodeLeftGeneration = nodeLeftGeneration;
         this.nodes = nodes;
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
@@ -98,7 +103,14 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return nodes.values().iterator();
     }
 
-    @Override
+    public Stream<DiscoveryNode> stream() {
+        return nodes.values().stream();
+    }
+
+    public Collection<DiscoveryNode> getAllNodes() {
+        return nodes.values();
+    }
+
     public int size() {
         return nodes.size();
     }
@@ -185,11 +197,15 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
+    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
+        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+
     /**
      * Returns a stream of all nodes, with master nodes at the front
      */
     public Stream<DiscoveryNode> mastersFirstStream() {
-        return Stream.concat(masterNodes.values().stream(), stream().filter(n -> n.isMasterNode() == false));
+        return nodes.values().stream().sorted(MASTERS_FIRST_COMPARATOR);
     }
 
     /**
@@ -309,6 +325,19 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public Version getMaxNodeVersion() {
         return maxNodeVersion;
+    }
+
+    /**
+     * Return the node-left generation, which is the number of times the cluster membership has been updated by removing one or more nodes.
+     * <p>
+     * Since node-left events are rare, nodes can use the fact that this value has not changed to very efficiently verify that they have not
+     * been removed from the cluster. If the node-left generation changes then that indicates <i>some</i> node has left the cluster, which
+     * triggers some more expensive checks to determine the new cluster membership.
+     * <p>
+     * Not tracked if the cluster has any nodes older than v8.9.0, in which case this method returns zero.
+     */
+    public long getNodeLeftGeneration() {
+        return nodeLeftGeneration;
     }
 
     /**
@@ -469,7 +498,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("nodes: \n");
+        sb.append("nodes (node-left generation: ").append(nodeLeftGeneration).append("):\n");
         for (DiscoveryNode node : this) {
             sb.append("   ").append(node);
             if (node == getLocalNode()) {
@@ -584,6 +613,9 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeVLong(nodeLeftGeneration);
+        } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
     }
 
@@ -595,6 +627,11 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         if (localNode != null) {
             builder.localNodeId(localNode.getId());
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            builder.nodeLeftGeneration(in.readVLong());
+        } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
+
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             DiscoveryNode node = new DiscoveryNode(in);
@@ -627,15 +664,22 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         private final Map<String, DiscoveryNode> nodes;
         private String masterNodeId;
         private String localNodeId;
+        private boolean removedNode;
+
+        private final long oldNodeLeftGeneration;
+        @Nullable // if not specified
+        private Long nodeLeftGeneration;
 
         public Builder() {
             nodes = new HashMap<>();
+            oldNodeLeftGeneration = 0L;
         }
 
         public Builder(DiscoveryNodes nodes) {
             this.masterNodeId = nodes.getMasterNodeId();
             this.localNodeId = nodes.getLocalNodeId();
             this.nodes = new HashMap<>(nodes.getNodes());
+            this.oldNodeLeftGeneration = nodes.nodeLeftGeneration;
         }
 
         /**
@@ -667,13 +711,16 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         }
 
         public Builder remove(String nodeId) {
-            nodes.remove(nodeId);
+            if (nodes.remove(nodeId) != null) {
+                removedNode = true;
+            }
             return this;
         }
 
         public Builder remove(DiscoveryNode node) {
             if (node.equals(nodes.get(node.getId()))) {
                 nodes.remove(node.getId());
+                removedNode = true;
             }
             return this;
         }
@@ -733,7 +780,22 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                 maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);
             }
 
+            final long newNodeLeftGeneration;
+            if (minNodeVersion == null || minNodeVersion.before(Version.V_8_9_0)) {
+                assert this.nodeLeftGeneration == null || this.nodeLeftGeneration == 0L;
+                newNodeLeftGeneration = 0L;
+            } else if (this.nodeLeftGeneration != null) {
+                // only happens during deserialization
+                assert removedNode == false;
+                newNodeLeftGeneration = nodeLeftGeneration;
+            } else if (removedNode) {
+                newNodeLeftGeneration = oldNodeLeftGeneration + 1L;
+            } else {
+                newNodeLeftGeneration = oldNodeLeftGeneration;
+            }
+
             return new DiscoveryNodes(
+                newNodeLeftGeneration,
                 Map.copyOf(nodes),
                 filteredNodes(nodes, DiscoveryNode::canContainData),
                 filteredNodes(nodes, DiscoveryNode::isMasterNode),
@@ -748,6 +810,12 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
 
         public boolean isLocalNodeElectedMaster() {
             return masterNodeId != null && masterNodeId.equals(localNodeId);
+        }
+
+        void nodeLeftGeneration(long nodeLeftGeneration) {
+            // only for deserialization
+            assert this.nodeLeftGeneration == null : nodeLeftGeneration + " vs " + this.nodeLeftGeneration;
+            this.nodeLeftGeneration = nodeLeftGeneration;
         }
     }
 

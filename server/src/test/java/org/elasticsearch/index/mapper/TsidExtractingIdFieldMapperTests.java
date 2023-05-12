@@ -488,7 +488,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testProvideWrongId() {
         String wrongId = testCase.expectedId + "wrong";
-        Exception e = expectThrows(MapperParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
         assertThat(
             e.getCause().getMessage(),
             equalTo(
@@ -614,9 +614,6 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     private TestDocumentParserContext documentParserContext(IndexableField... fields) throws IOException {
         TestDocumentParserContext ctx = new TestDocumentParserContext(
             mapperService().mappingLookup(),
-            MapperTestCase.createIndexSettings(Version.CURRENT, Settings.EMPTY),
-            null,
-            null,
             source(null, testCase.randomSource(), null)
         );
         for (IndexableField f : fields) {

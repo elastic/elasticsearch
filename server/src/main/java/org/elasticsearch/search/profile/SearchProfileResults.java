@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.profile;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +45,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
     }
 
     public SearchProfileResults(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             shardResults = in.readMap(StreamInput::readString, SearchProfileShardResult::new);
         } else {
             // Before 8.0.0 we only send the query phase result
@@ -58,7 +58,7 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             out.writeMap(shardResults, StreamOutput::writeString, (o, r) -> r.writeTo(o));
         } else {
             // Before 8.0.0 we only send the query phase

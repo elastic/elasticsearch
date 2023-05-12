@@ -20,4 +20,9 @@ public class ClearDeploymentCacheActionResponseTests extends AbstractWireSeriali
     protected ClearDeploymentCacheAction.Response createTestInstance() {
         return new ClearDeploymentCacheAction.Response(randomBoolean());
     }
+
+    @Override
+    protected ClearDeploymentCacheAction.Response mutateInstance(ClearDeploymentCacheAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

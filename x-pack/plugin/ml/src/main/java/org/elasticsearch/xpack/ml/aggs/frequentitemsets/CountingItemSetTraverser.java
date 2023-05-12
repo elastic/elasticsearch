@@ -261,6 +261,14 @@ final class CountingItemSetTraverser implements Releasable {
         topItemSetTraverser.prune();
     }
 
+    public void pruneToNextMainBranch() {
+        long thisCount = getCount();
+
+        while (getNumberOfItems() > 1 && getCount() == thisCount) {
+            topItemSetTraverser.prune();
+        }
+    }
+
     /**
      * Return true if the item set tree is on a leaf, which mean no further items can be added to the candidate set.
      */

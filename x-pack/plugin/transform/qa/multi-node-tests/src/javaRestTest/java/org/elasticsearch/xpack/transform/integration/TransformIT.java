@@ -220,7 +220,7 @@ public class TransformIT extends TransformRestTestCase {
         putPipeline.setEntity(new StringEntity(Strings.toString(pipelineBuilder), ContentType.APPLICATION_JSON));
         assertOK(client().performRequest(putPipeline));
 
-        String update = formatted("""
+        String update = Strings.format("""
             {
                 "description": "updated config",
                 "dest": {
@@ -229,7 +229,7 @@ public class TransformIT extends TransformRestTestCase {
                 }
             }
             """, dest, pipelineId);
-        updateConfig(id, update);
+        updateConfig(id, update, RequestOptions.DEFAULT);
 
         // index some more docs
         long timeStamp = Instant.now().toEpochMilli() - 1_000;
@@ -293,7 +293,7 @@ public class TransformIT extends TransformRestTestCase {
                 "retention_policy": null
             }
             """;
-        updateConfig(transformId, update);
+        updateConfig(transformId, update, RequestOptions.DEFAULT);
         assertThat(getTransform(transformId), not(hasKey("retention_policy")));
     }
 
@@ -407,7 +407,7 @@ public class TransformIT extends TransformRestTestCase {
         // test randomly: with explicit settings and reset to default
         String reqsPerSec = randomBoolean() ? "1000" : "null";
         String maxPageSize = randomBoolean() ? "1000" : "null";
-        String update = formatted("""
+        String update = Strings.format("""
             {
                 "settings" : {
                     "docs_per_second": %s,
@@ -416,7 +416,7 @@ public class TransformIT extends TransformRestTestCase {
             }
             """, reqsPerSec, maxPageSize);
 
-        updateConfig(config.getId(), update);
+        updateConfig(config.getId(), update, RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformState(config.getId()), equalTo("started"));
@@ -482,14 +482,14 @@ public class TransformIT extends TransformRestTestCase {
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {
         StringBuilder bulkBuilder = new StringBuilder();
         for (int i = 0; i < 25; i++) {
-            bulkBuilder.append(formatted("""
+            bulkBuilder.append(Strings.format("""
                 {"create":{"_index":"%s"}}
                 """, index));
 
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            String source = formatted("""
+            String source = Strings.format("""
                 {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
                 """, userId, i, business, stars, timestamp);
             bulkBuilder.append(source);

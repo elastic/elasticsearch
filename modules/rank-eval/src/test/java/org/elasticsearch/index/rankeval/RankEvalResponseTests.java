@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -44,7 +43,6 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
@@ -54,7 +52,6 @@ public class RankEvalResponseTests extends ESTestCase {
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
         new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
         new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
-        new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
         new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
         new SearchPhaseExecutionException(
             "search",

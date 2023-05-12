@@ -123,7 +123,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testParsingAndToQueryGeohex() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -136,7 +136,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testParsingAndToQueryGeotile() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -149,7 +149,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testParsingAndToQueryGeohash() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -168,7 +168,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testMalformedGeoTile() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -182,7 +182,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testMalformedGeohash() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -196,7 +196,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testMalformedGeohex() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -210,7 +210,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testWrongField() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -224,7 +224,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
     }
 
     public void testDuplicateField() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
                 "geo_grid":{
                     "%s":{
@@ -278,6 +278,7 @@ public class GeoGridQueryBuilderTests extends AbstractQueryTestCase<GeoGridQuery
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92611")
     public void testBoundingBoxQuantize() {
         double lat = randomDoubleBetween(-GeoTileUtils.LATITUDE_MASK, GeoTileUtils.LATITUDE_MASK, true);
         double lon = randomDoubleBetween(-180d, 180d, true);

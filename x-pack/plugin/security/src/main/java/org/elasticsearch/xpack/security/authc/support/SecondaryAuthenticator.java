@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 
 import java.util.function.Consumer;
@@ -39,14 +40,25 @@ public class SecondaryAuthenticator {
     private final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
     private final AuthenticationService authenticationService;
+    private final AuditTrailService auditTrailService;
 
-    public SecondaryAuthenticator(Settings settings, ThreadContext threadContext, AuthenticationService authenticationService) {
-        this(new SecurityContext(settings, threadContext), authenticationService);
+    public SecondaryAuthenticator(
+        Settings settings,
+        ThreadContext threadContext,
+        AuthenticationService authenticationService,
+        AuditTrailService auditTrailService
+    ) {
+        this(new SecurityContext(settings, threadContext), authenticationService, auditTrailService);
     }
 
-    public SecondaryAuthenticator(SecurityContext securityContext, AuthenticationService authenticationService) {
+    public SecondaryAuthenticator(
+        SecurityContext securityContext,
+        AuthenticationService authenticationService,
+        AuditTrailService auditTrailService
+    ) {
         this.securityContext = securityContext;
         this.authenticationService = authenticationService;
+        this.auditTrailService = auditTrailService;
     }
 
     /**
@@ -76,7 +88,14 @@ public class SecondaryAuthenticator {
         // Use cases for secondary authentication are far more likely to want to fall back to the primary authentication if no secondary
         // auth is provided, so in that case we do no want to set anything in the context
         authenticate(
-            authListener -> authenticationService.authenticate(request, false, authListener),
+            authListener -> authenticationService.authenticate(
+                request.getHttpRequest(),
+                false,
+                authListener.delegateFailure((l, authentication) -> {
+                    auditTrailService.get().authenticationSuccess(request);
+                    l.onResponse(authentication);
+                })
+            ),
             ActionListener.wrap(secondaryAuthentication -> {
                 if (secondaryAuthentication != null) {
                     secondaryAuthentication.writeToContext(threadContext);
@@ -120,17 +139,5 @@ public class SecondaryAuthenticator {
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
             authenticate.accept(authenticationListener);
         }
-    }
-
-    /**
-     * Checks whether this thread context provides secondary authentication credentials.
-     * This does not check whether the header contains valid credentials
-     * - you must call {@link #authenticateAndAttachToContext} to validate the header.
-     *
-     * @return {@code true} if a secondary authentication header exists in the thread context.
-     */
-    public boolean hasSecondaryAuthenticationHeader() {
-        final String header = securityContext.getThreadContext().getHeader(SECONDARY_AUTH_HEADER_NAME);
-        return Strings.isNullOrEmpty(header) == false;
     }
 }

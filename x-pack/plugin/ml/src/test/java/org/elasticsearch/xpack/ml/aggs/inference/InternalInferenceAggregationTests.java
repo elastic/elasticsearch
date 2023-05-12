@@ -223,4 +223,9 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
             expectThrows(InvalidAggregationPathException.class, () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
     }
+
+    @Override
+    protected InternalInferenceAggregation mutateInstance(InternalInferenceAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

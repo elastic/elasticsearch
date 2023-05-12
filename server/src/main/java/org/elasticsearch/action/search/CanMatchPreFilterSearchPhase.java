@@ -24,8 +24,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
@@ -44,7 +42,6 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -68,8 +65,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     private final Logger logger;
     private final SearchRequest request;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final ActionListener<SearchResponse> listener;
-    private final SearchResponse.Clusters clusters;
+    private final ActionListener<GroupShardsIterator<SearchShardIterator>> listener;
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTransportService searchTransportService;
@@ -77,8 +73,8 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     private final Map<String, Float> concreteIndexBoosts;
     private final Map<String, AliasFilter> aliasFilter;
     private final SearchTask task;
-    private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final Executor executor;
+    private final boolean requireAtLeastOneMatch;
 
     private final CanMatchSearchPhaseResults results;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
@@ -91,13 +87,12 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         Map<String, Float> concreteIndexBoosts,
         Executor executor,
         SearchRequest request,
-        ActionListener<SearchResponse> listener,
         GroupShardsIterator<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
         SearchTask task,
-        Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-        SearchResponse.Clusters clusters,
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        boolean requireAtLeastOneMatch,
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
+        ActionListener<GroupShardsIterator<SearchShardIterator>> listener
     ) {
         super("can_match");
         this.logger = logger;
@@ -106,12 +101,11 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         this.request = request;
         this.listener = listener;
         this.shardsIts = shardsIts;
-        this.clusters = clusters;
         this.timeProvider = timeProvider;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.task = task;
-        this.phaseFactory = phaseFactory;
+        this.requireAtLeastOneMatch = requireAtLeastOneMatch;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
         this.executor = executor;
         this.shardItIndexMap = new HashMap<>();
@@ -145,13 +139,13 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 );
             }
         }
-
         runCoordinatorRewritePhase();
     }
 
     // tries to pre-filter shards based on information that's available to the coordinator
     // without having to reach out to the actual shards
     private void runCoordinatorRewritePhase() {
+        // TODO: the index filter (i.e, `_index:patten`) should be prefiltered on the coordinator
         assert assertSearchCoordinationThread();
         final List<SearchShardIterator> matchedShardLevelRequests = new ArrayList<>();
         for (SearchShardIterator searchShardIterator : shardsIts) {
@@ -183,11 +177,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 results.consumeResult(result, () -> {});
             }
         }
-
-        if (matchedShardLevelRequests.isEmpty() == false) {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
-        } else {
+        if (matchedShardLevelRequests.isEmpty()) {
             finishPhase();
+        } else {
+            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
         }
     }
 
@@ -372,14 +365,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     private void finishPhase() {
-        try {
-            phaseFactory.apply(getIterator(results, shardsIts)).start();
-        } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
-            }
-            onPhaseFailure("finish", e);
-        }
+        listener.onResponse(getIterator(results, shardsIts));
     }
 
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
@@ -419,29 +405,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     @Override
     public void start() {
         if (getNumShards() == 0) {
-            // no search shards to search on, bail with empty response
-            // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo();
-            // total hits is null in the response if the tracking of total hits is disabled
-            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(
-                new SearchResponse(
-                    withTotalHits ? InternalSearchResponse.EMPTY_WITH_TOTAL_HITS : InternalSearchResponse.EMPTY_WITHOUT_TOTAL_HITS,
-                    null,
-                    0,
-                    0,
-                    0,
-                    timeProvider.buildTookInMillis(),
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
-                )
-            );
+            finishPhase();
             return;
         }
-
         // Note that the search is failed when this task is rejected by the executor
         executor.execute(new AbstractRunnable() {
             @Override
@@ -535,7 +501,8 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     ) {
         int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
-        if (cardinality == 0) {
+        // TODO: pick the local shard when possible
+        if (requireAtLeastOneMatch && cardinality == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
             // to produce a valid search result with all the aggs etc.
             // Since it's possible that some of the shards that we're skipping are

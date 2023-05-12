@@ -94,6 +94,11 @@ public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupC
     }
 
     @Override
+    protected GroupConfig mutateInstance(GroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<GroupConfig> instanceReader() {
         return GroupConfig::new;
     }

@@ -45,6 +45,11 @@ public class MetricConfigSerializingTests extends AbstractXContentSerializingTes
         return ConfigTestHelpers.randomMetricConfig(random());
     }
 
+    @Override
+    protected MetricConfig mutateInstance(MetricConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public void testValidateNoMapping() {
         ActionRequestValidationException e = new ActionRequestValidationException();
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();

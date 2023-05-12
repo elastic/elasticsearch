@@ -5,6 +5,12 @@ Also see <<breaking-changes-8.3,Breaking changes in 8.3>>.
 
 {es} 8.3.2 is a version compatibility release for the {stack}.
 
+[[known-issues-8.3.2]]
+[float]
+=== Known issues
+
+include::8.0.0.asciidoc[tag=jackson-filtering-bug]
+
 [[bug-8.3.2]]
 [float]
 === Bug fixes
@@ -17,4 +23,4 @@ Geo::
 === New features
 
 Heath::
-* Add user action for the `instance_has_master` indicator {es-pull}87963[#87963] 
+* Add user action for the `instance_has_master` indicator {es-pull}87963[#87963]

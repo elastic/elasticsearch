@@ -9,6 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -23,15 +24,15 @@ import java.io.IOException;
  */
 public class StartRecoveryRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-    private String targetAllocationId;
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
-    private Store.MetadataSnapshot metadataSnapshot;
-    private boolean primaryRelocation;
-    private long startingSeqNo;
-    private boolean canDownloadSnapshotFiles;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final String targetAllocationId;
+    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode targetNode;
+    private final Store.MetadataSnapshot metadataSnapshot;
+    private final boolean primaryRelocation;
+    private final long startingSeqNo;
+    private final boolean canDownloadSnapshotFiles;
 
     public StartRecoveryRequest(StreamInput in) throws IOException {
         super(in);
@@ -43,7 +44,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
-        if (in.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
             canDownloadSnapshotFiles = in.readBoolean();
         } else {
             canDownloadSnapshotFiles = true;
@@ -124,6 +125,22 @@ public class StartRecoveryRequest extends TransportRequest {
     }
 
     @Override
+    public String getDescription() {
+        return Strings.format(
+            """
+                recovery of %s to %s \
+                [recoveryId=%d, targetAllocationId=%s, startingSeqNo=%d, primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
+            shardId,
+            targetNode.descriptionWithoutAttributes(),
+            recoveryId,
+            targetAllocationId,
+            startingSeqNo,
+            primaryRelocation,
+            canDownloadSnapshotFiles
+        );
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
@@ -134,7 +151,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
-        if (out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
             out.writeBoolean(canDownloadSnapshotFiles);
         }
     }

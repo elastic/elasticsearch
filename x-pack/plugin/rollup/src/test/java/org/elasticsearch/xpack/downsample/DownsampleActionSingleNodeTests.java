@@ -35,6 +35,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -174,10 +175,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
          * check that the value of the label (last value) matches the value
          * of the corresponding metric which uses a last_value metric type.
          */
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+        Settings.Builder settings = indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
             .put(
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
@@ -214,7 +212,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_DOUBLE).field("type", "double").endObject();
         mapping.startObject(FIELD_LABEL_INTEGER).field("type", "integer").endObject();
         mapping.startObject(FIELD_LABEL_KEYWORD).field("type", "keyword").endObject();
-        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").endObject();
+        mapping.startObject(FIELD_LABEL_TEXT).field("type", "text").field("store", "true").endObject();
         mapping.startObject(FIELD_LABEL_BOOLEAN).field("type", "boolean").endObject();
         mapping.startObject(FIELD_LABEL_IPv4_ADDRESS).field("type", "ip").endObject();
         mapping.startObject(FIELD_LABEL_IPv6_ADDRESS).field("type", "ip").endObject();
@@ -350,7 +348,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+            .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
 
         final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
         if (totalFieldsLimit != null) {
@@ -435,13 +433,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(rollupIndex)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
-                .get()
-        );
+        assertAcked(client().admin().indices().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
@@ -457,21 +449,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
-    public void testCannotRollupIndexWithNoMetrics() {
+    public void testRollupIndexWithNoMetrics() throws IOException {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         client().admin()
             .indices()
             .prepareCreate(sourceIndex)
             .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", numOfShards)
-                    .put("index.number_of_replicas", numOfReplicas)
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-                    .build()
             )
             .setMapping(
                 FIELD_TIMESTAMP,
@@ -485,8 +473,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
-        Exception exception = expectThrows(ActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupWriteableIndex() {
@@ -616,7 +604,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             shard.shardId(),
             rollupIndex,
             config,
-            new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {}
         );
@@ -649,6 +636,54 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), equalTo("Unable to rollup index [" + sourceIndex + "]"));
+    }
+
+    public void testTooManyBytesInFlight() throws IOException {
+        // create rollup config and index documents into source index
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+
+        IndicesService indexServices = getInstanceFromNode(IndicesService.class);
+        Index srcIndex = resolveIndex(sourceIndex);
+        IndexService indexService = indexServices.indexServiceSafe(srcIndex);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
+        RollupShardTask task = new RollupShardTask(
+            randomLong(),
+            "rollup",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            rollupIndex,
+            config,
+            emptyMap(),
+            shard.shardId()
+        );
+
+        // re-use source index as temp index for test
+        RollupShardIndexer indexer = new RollupShardIndexer(
+            task,
+            client(),
+            indexService,
+            shard.shardId(),
+            rollupIndex,
+            config,
+            new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
+            new String[] {}
+        );
+        /*
+         * Here we set the batch size and the total bytes in flight size to tiny numbers so that we are guaranteed to trigger the bulk
+         * processor to reject some calls to add(), so that we can make sure RollupShardIndexer keeps trying until success.
+         */
+        indexer.rollupMaxBytesInFlight = ByteSizeValue.ofBytes(1024);
+        indexer.rollupBulkSize = ByteSizeValue.ofBytes(512);
+        indexer.execute();
     }
 
     private DateHistogramInterval randomInterval() {
@@ -746,7 +781,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
             if (helper.isTimeSeriesMetric(field, fieldMapping)) {
-                metricFields.put(field, TimeSeriesParams.MetricType.valueOf(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
+                metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
             } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
@@ -911,8 +946,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         metricFields.forEach((field, metricType) -> {
             switch (metricType) {
-                case counter -> assertEquals("double", mappings.get(field).get("type"));
-                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                case COUNTER -> assertEquals("double", mappings.get(field).get("type"));
+                case GAUGE -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
                 default -> fail("Unsupported field type");
             }
             assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
@@ -1050,10 +1085,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template indexTemplate = new Template(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),
             new CompressedXContent("""

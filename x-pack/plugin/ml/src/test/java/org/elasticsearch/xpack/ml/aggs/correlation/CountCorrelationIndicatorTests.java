@@ -43,4 +43,9 @@ public class CountCorrelationIndicatorTests extends AbstractXContentSerializingT
     protected CountCorrelationIndicator createTestInstance() {
         return randomInstance();
     }
+
+    @Override
+    protected CountCorrelationIndicator mutateInstance(CountCorrelationIndicator instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

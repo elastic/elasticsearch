@@ -1,5 +1,0 @@
-pr: 92252
-summary: Preventing ILM and SLM runtime state from being stored in a snapshot
-area: ILM+SLM
-type: bug
-issues: []

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.ToXContent;
@@ -162,7 +163,9 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
             {
                 builder.field("nodes_hash", nodesHash(clusterState.nodes()));
                 builder.field("status", status.name().toLowerCase(Locale.ROOT));
-                clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+                // we need the whole doc in memory anyway so no need to preserve chunking here; moreover CLUSTER_STATS_PARAMS doesn't
+                // include anything heavy so this should be fine.
+                ChunkedToXContent.wrapAsToXContent(clusterState).toXContent(builder, CLUSTER_STATS_PARAMS);
             }
             builder.endObject();
         }

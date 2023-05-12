@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
@@ -46,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -114,7 +117,10 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         this.initialIndexerState = initialState;
         this.initialPosition = initialPosition;
 
-        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, this);
+        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint, transform.from(), this);
+        if (state != null) {
+            this.context.setAuthState(state.getAuthState());
+        }
     }
 
     public ParentTaskAssigningClient getParentTaskClient() {
@@ -147,7 +153,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 context.getStateReason(),
                 null,
                 null,
-                false
+                false,
+                context.getAuthState()
             );
         } else {
             return new TransformState(
@@ -158,7 +165,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 context.getStateReason(),
                 getIndexer().getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                context.getAuthState()
             );
         }
     }
@@ -209,7 +217,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     /**
      * Starts the transform and schedules it to be triggered in the future.
-     *
      *
      * @param startingCheckpoint The starting checkpoint, could null. Null indicates that there is no starting checkpoint
      * @param listener The listener to alert once started
@@ -265,7 +272,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 null,
                 getIndexer().getProgress(),
                 null,
-                context.shouldStopAtCheckpoint()
+                context.shouldStopAtCheckpoint(),
+                context.getAuthState()
             );
 
             logger.info("[{}] updating state for transform to [{}].", transform.getId(), state.toString());
@@ -383,6 +391,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         }
     }
 
+    public void applyNewAuthState(AuthorizationState authState) {
+        synchronized (context) {
+            context.setAuthState(authState);
+        }
+    }
+
     @Override
     protected void init(
         PersistentTasksService persistentTasksService,
@@ -452,6 +466,17 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] shutdown of transform requested", transform.getId());
         transformScheduler.deregisterTransform(getTransformId());
         markAsCompleted();
+        waitForPersistentTask(Objects::isNull, null, new PersistentTasksService.WaitForPersistentTaskListener<>() {
+            @Override
+            public void onResponse(PersistentTask<PersistentTaskParams> persistentTask) {
+                logger.trace("[{}] successfully finished waiting for persistent task to disappear.", transform.getId());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> "[" + transform.getId() + "] failure while waiting for persistent task to disappear.", e);
+            }
+        });
     }
 
     void persistStateToClusterState(TransformState state, ActionListener<PersistentTask<?>> listener) {
@@ -538,6 +563,11 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     TransformTask setNumFailureRetries(int numFailureRetries) {
         context.setNumFailureRetries(numFailureRetries);
+        return this;
+    }
+
+    TransformTask setAuthState(AuthorizationState authState) {
+        context.setAuthState(authState);
         return this;
     }
 

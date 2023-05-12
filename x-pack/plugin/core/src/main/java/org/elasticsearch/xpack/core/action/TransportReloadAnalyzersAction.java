@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -81,28 +80,24 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     }
 
     @Override
-    protected ReloadAnalyzersResponse newResponse(
+    protected ResponseFactory<ReloadAnalyzersResponse, ReloadResult> getResponseFactory(
         ReloadAnalyzersRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<ReloadResult> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<String, ReloadDetails>();
-        for (ReloadResult result : responses) {
-            if (reloadedIndicesDetails.containsKey(result.index)) {
-                reloadedIndicesDetails.get(result.index).merge(result);
-                ;
-            } else {
-                HashSet<String> nodeIds = new HashSet<String>();
-                nodeIds.add(result.nodeId);
-                ReloadDetails details = new ReloadDetails(result.index, nodeIds, new HashSet<String>(result.reloadedSearchAnalyzers));
-                reloadedIndicesDetails.put(result.index, details);
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> {
+            Map<String, ReloadDetails> reloadedIndicesDetails = new HashMap<>();
+            for (ReloadResult result : responses) {
+                if (reloadedIndicesDetails.containsKey(result.index)) {
+                    reloadedIndicesDetails.get(result.index).merge(result);
+                } else {
+                    HashSet<String> nodeIds = new HashSet<>();
+                    nodeIds.add(result.nodeId);
+                    ReloadDetails details = new ReloadDetails(result.index, nodeIds, new HashSet<>(result.reloadedSearchAnalyzers));
+                    reloadedIndicesDetails.put(result.index, details);
+                }
             }
-        }
-        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, shardFailures, reloadedIndicesDetails);
+            return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, shardFailures, reloadedIndicesDetails);
+        };
     }
 
     @Override

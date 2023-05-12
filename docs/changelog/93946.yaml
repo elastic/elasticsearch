@@ -1,0 +1,5 @@
+pr: 93946
+summary: Support position `time_series_metric` on `geo_point` fields
+area: "TSDB"
+type: enhancement
+issues: []

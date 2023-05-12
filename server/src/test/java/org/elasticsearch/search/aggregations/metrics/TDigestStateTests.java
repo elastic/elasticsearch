@@ -12,6 +12,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 public class TDigestStateTests extends ESTestCase {
 
@@ -39,5 +42,92 @@ public class TDigestStateTests extends ESTestCase {
             assertTrue("Unexpectedly high value: " + v, v <= 1.0);
             prev = v;
         }
+    }
+
+    public void testTestEqualsHashCode() {
+        final TDigestState empty1 = new EmptyTDigestState();
+        final TDigestState empty2 = new EmptyTDigestState();
+        final TDigestState empty = new TDigestState(1.0D);
+        final TDigestState a = new TDigestState(200);
+        final TDigestState b = new TDigestState(100);
+        final TDigestState c = new TDigestState(100);
+
+        assertEquals(empty1, empty2);
+        assertEquals(empty1.hashCode(), empty2.hashCode());
+        assertEquals(empty1, empty);
+        assertEquals(empty1.hashCode(), empty.hashCode());
+
+        assertNotEquals(a, b);
+        assertNotEquals(a.hashCode(), b.hashCode());
+
+        assertNotEquals(a, c);
+        assertNotEquals(a.hashCode(), c.hashCode());
+
+        assertEquals(b, c);
+        assertEquals(b.hashCode(), c.hashCode());
+
+        for (int i = 0; i < 100; i++) {
+            double value = randomDouble();
+            a.add(value);
+            b.add(value);
+            c.add(value);
+        }
+
+        assertNotEquals(a, b);
+        assertNotEquals(a.hashCode(), b.hashCode());
+
+        assertNotEquals(a, c);
+        assertNotEquals(a.hashCode(), c.hashCode());
+
+        assertEquals(b, c);
+        assertEquals(b.hashCode(), c.hashCode());
+
+        b.add(randomDouble());
+        c.add(randomDouble());
+
+        assertNotEquals(b, c);
+        assertNotEquals(b.hashCode(), c.hashCode());
+    }
+
+    public void testTDigestStateHash() {
+        final HashMap<String, TDigestState> map = new HashMap<>();
+        final Set<TDigestState> set = new HashSet<>();
+        final TDigestState empty1 = new EmptyTDigestState();
+        final TDigestState empty2 = new EmptyTDigestState();
+        final TDigestState a = new TDigestState(200);
+        final TDigestState b = new TDigestState(100);
+        final TDigestState c = new TDigestState(100);
+
+        a.add(randomDouble());
+        b.add(randomDouble());
+        c.add(randomDouble());
+        expectThrows(UnsupportedOperationException.class, () -> empty1.add(randomDouble()));
+        expectThrows(UnsupportedOperationException.class, () -> empty2.add(a));
+
+        map.put("empty1", empty1);
+        map.put("empty2", empty2);
+        map.put("a", a);
+        map.put("b", b);
+        map.put("c", c);
+        set.add(empty1);
+        set.add(empty2);
+        set.add(a);
+        set.add(b);
+        set.add(c);
+
+        assertEquals(5, map.size());
+        assertEquals(4, set.size());
+
+        assertEquals(empty1, map.get("empty1"));
+        assertEquals(empty2, map.get("empty2"));
+        assertEquals(a, map.get("a"));
+        assertEquals(b, map.get("b"));
+        assertEquals(c, map.get("c"));
+
+        assertTrue(set.stream().anyMatch(digest -> digest.equals(a)));
+        assertTrue(set.stream().anyMatch(digest -> digest.equals(b)));
+        assertTrue(set.stream().anyMatch(digest -> digest.equals(c)));
+        assertTrue(set.stream().anyMatch(digest -> digest.equals(empty1)));
+        assertTrue(set.stream().anyMatch(digest -> digest.equals(empty2)));
     }
 }

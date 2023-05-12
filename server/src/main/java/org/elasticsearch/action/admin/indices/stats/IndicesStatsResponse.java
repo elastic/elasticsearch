@@ -8,14 +8,16 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.ChunkedBroadcastResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -49,7 +51,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             indexHealthMap = in.readMap(StreamInput::readString, ClusterHealthStatus::readFrom);
             indexStateMap = in.readMap(StreamInput::readString, IndexMetadata.State::readFrom);
         } else {
@@ -64,21 +66,23 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         int successfulShards,
         int failedShards,
         List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
+        Metadata metadata,
+        RoutingTable routingTable
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-        Objects.requireNonNull(clusterState);
+        Objects.requireNonNull(metadata);
+        Objects.requireNonNull(routingTable);
         Objects.requireNonNull(shards);
         Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
-                    ignored -> new ClusterIndexHealth(indexMetadata, clusterState.routingTable().index(index)).getStatus()
+                    ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index)).getStatus()
                 );
                 indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
             }
@@ -167,7 +171,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_1_0)) {
             out.writeMap(indexHealthMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
             out.writeMap(indexStateMap, StreamOutput::writeString, (o, s) -> s.writeTo(o));
         }
@@ -175,14 +179,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     @Override
     protected Iterator<ToXContent> customXContentChunks(ToXContent.Params params) {
-        final String level = params.param("level", "indices");
-        final boolean isLevelValid = "cluster".equalsIgnoreCase(level)
-            || "indices".equalsIgnoreCase(level)
-            || "shards".equalsIgnoreCase(level);
-        if (isLevelValid == false) {
-            throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
-        }
-        if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
+        final ClusterStatsLevel level = ClusterStatsLevel.of(params, ClusterStatsLevel.INDICES);
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             return Iterators.concat(Iterators.single(((builder, p) -> {
                 commonStats(builder, p);
                 return builder.startObject(Fields.INDICES);
@@ -203,7 +201,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                 indexStats.getTotal().toXContent(builder, p);
                 builder.endObject();
 
-                if ("shards".equalsIgnoreCase(level)) {
+                if (level == ClusterStatsLevel.SHARDS) {
                     builder.startObject(Fields.SHARDS);
                     for (IndexShardStats indexShardStats : indexStats) {
                         builder.startArray(Integer.toString(indexShardStats.getShardId().id()));

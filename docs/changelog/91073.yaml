@@ -1,6 +1,0 @@
-pr: 91073
-summary: GeoBoundsAggregations reject sub aggregations
-area: Aggregations
-type: bug
-issues:
- - 91072

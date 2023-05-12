@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -32,6 +33,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private static final String OPERATOR_PRIVILEGES_XFIELD = XPackField.OPERATOR_PRIVILEGES;
     private static final String DOMAINS_XFIELD = "domains";
     private static final String USER_PROFILE_XFIELD = "user_profile";
+    private static final String REMOTE_CLUSTER_SERVER_XFIELD = "remote_cluster_server";
 
     private Map<String, Object> realmsUsage;
     private Map<String, Object> rolesStoreUsage;
@@ -46,13 +48,14 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private Map<String, Object> operatorPrivilegesUsage;
     private Map<String, Object> domainsUsage;
     private Map<String, Object> userProfileUsage;
+    private Map<String, Object> remoteClusterServerUsage;
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         realmsUsage = in.readMap();
         rolesStoreUsage = in.readMap();
         sslUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             tokenServiceUsage = in.readMap();
             apiKeyServiceUsage = in.readMap();
         }
@@ -60,17 +63,20 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         ipFilterUsage = in.readMap();
         anonymousUsage = in.readMap();
         roleMappingStoreUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             fips140Usage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             operatorPrivilegesUsage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             domainsUsage = in.readMap();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             userProfileUsage = in.readMap();
+        }
+        if (in.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            remoteClusterServerUsage = in.readMap();
         }
     }
 
@@ -88,7 +94,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         Map<String, Object> fips140Usage,
         Map<String, Object> operatorPrivilegesUsage,
         Map<String, Object> domainsUsage,
-        Map<String, Object> userProfileUsage
+        Map<String, Object> userProfileUsage,
+        Map<String, Object> remoteClusterServerUsage
     ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
@@ -104,11 +111,12 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         this.operatorPrivilegesUsage = operatorPrivilegesUsage;
         this.domainsUsage = domainsUsage;
         this.userProfileUsage = userProfileUsage;
+        this.remoteClusterServerUsage = remoteClusterServerUsage;
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_0_0;
     }
 
     @Override
@@ -117,7 +125,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(realmsUsage);
         out.writeGenericMap(rolesStoreUsage);
         out.writeGenericMap(sslUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_2_0)) {
             out.writeGenericMap(tokenServiceUsage);
             out.writeGenericMap(apiKeyServiceUsage);
         }
@@ -125,17 +133,20 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeGenericMap(ipFilterUsage);
         out.writeGenericMap(anonymousUsage);
         out.writeGenericMap(roleMappingStoreUsage);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
             out.writeGenericMap(fips140Usage);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_11_0)) {
             out.writeGenericMap(operatorPrivilegesUsage);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeGenericMap(domainsUsage);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
             out.writeGenericMap(userProfileUsage);
+        }
+        if (out.getTransportVersion().onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            out.writeGenericMap(remoteClusterServerUsage);
         }
     }
 
@@ -159,6 +170,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             }
             if (userProfileUsage != null && false == userProfileUsage.isEmpty()) {
                 builder.field(USER_PROFILE_XFIELD, userProfileUsage);
+            }
+            if (remoteClusterServerUsage != null && false == remoteClusterServerUsage.isEmpty()) {
+                builder.field(REMOTE_CLUSTER_SERVER_XFIELD, remoteClusterServerUsage);
             }
         } else if (sslUsage.isEmpty() == false) {
             // A trial (or basic) license can have SSL without security.

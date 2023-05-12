@@ -8,12 +8,12 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 
 public class ClusterSearchShardsRequestTests extends ESTestCase {
 
@@ -44,18 +44,18 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
             request.routing(routings);
         }
 
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setVersion(version);
+            out.setTransportVersion(version);
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 ClusterSearchShardsRequest deserialized = new ClusterSearchShardsRequest(in);
                 assertArrayEquals(request.indices(), deserialized.indices());
                 // indices options are not equivalent when sent to an older version and re-read due
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
-                if (version.onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
+                if (version.onOrAfter(TransportVersion.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
                     assertEquals(request.indicesOptions(), deserialized.indicesOptions());
                 }
                 assertEquals(request.routing(), deserialized.routing());

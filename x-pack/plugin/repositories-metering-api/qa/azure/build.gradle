@@ -5,22 +5,16 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
 import org.elasticsearch.gradle.internal.info.BuildParams
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.rest-resources'
-
-final Project fixture = project(':test:fixtures:azure-fixture')
 
 dependencies {
+  clusterModules project(xpackModule('repositories-metering-api'))
+  clusterModules project(':modules:repository-azure')
   javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
-}
-
-restResources {
-  restApi {
-    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
-  }
+  javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
 }
 
 boolean useFixture = false
@@ -37,48 +31,15 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
   azureBasePath = ''
   azureSasToken = ''
   useFixture = true
-
-}
-
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(fixture.path, 'azure-fixture-repositories-metering')
-}
-
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("javaRestTest") {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
   systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_repositories_metering_tests_" + BuildParams.testSeed
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-
-  keystore 'azure.client.repositories_metering.account', azureAccount
-  if (azureKey != null && azureKey.isEmpty() == false) {
-    keystore 'azure.client.repositories_metering.key', azureKey
-  }
-  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-    keystore 'azure.client.repositories_metering.sas_token', azureSasToken
-  }
-
-  if (useFixture) {
-    def fixtureAddress = { fixtureName ->
-      assert useFixture: 'closure should not be used without a fixture'
-      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
-      assert ephemeralPort > 0
-      '127.0.0.1:' + ephemeralPort
-    }
-    setting 'azure.client.repositories_metering.endpoint_suffix',
-      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-repositories-metering')}/azure_integration_test_account" },
-      IGNORE_VALUE
-
-  } else {
-    println "Using an external service to test " + project.name
-  }
 }
 
 tasks.register("azureThirdPartyTest") {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -142,7 +143,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), formatted("%dd", retention)));
+        internalCluster().startNode(Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), Strings.format("%dd", retention)));
 
         final ZonedDateTime now = now();
         for (int i = 0; i < max; i++) {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.fields;
 
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,7 +29,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -53,10 +54,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.client.internal.Requests.refreshRequest;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -142,7 +143,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         static Object sourceScript(Map<String, Object> vars, String path) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> source = ((SourceLookup) vars.get("_source")).source();
+            Map<String, Object> source = ((Supplier<Source>) vars.get("_source")).get().source();
             return XContentMapValues.extractValue(path, source);
         }
 
@@ -295,7 +296,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).field("date", "1970-01-01T00:02:00").endObject()
             )
             .get();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        client().admin().indices().refresh(new RefreshRequest()).actionGet();
 
         logger.info("running doc['num1'].value");
         SearchResponse response = client().prepareSearch()
@@ -470,7 +471,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        client().admin().indices().refresh(new RefreshRequest()).actionGet();
 
         SearchResponse response = client().prepareSearch()
             .setQuery(matchAllQuery())

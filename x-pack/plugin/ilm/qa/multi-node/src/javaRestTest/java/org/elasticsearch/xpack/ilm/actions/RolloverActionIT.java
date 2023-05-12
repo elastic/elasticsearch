@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -98,7 +99,7 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         Request updateSettingsRequest = new Request("PUT", "/" + originalIndex + "/_settings");
-        updateSettingsRequest.setJsonEntity(formatted("""
+        updateSettingsRequest.setJsonEntity(Strings.format("""
             {
               "settings": {
                 "%s": true
@@ -106,7 +107,7 @@ public class RolloverActionIT extends ESRestTestCase {
             }""", LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
         client().performRequest(updateSettingsRequest);
         Request updateAliasRequest = new Request("POST", "/_aliases");
-        updateAliasRequest.setJsonEntity(formatted("""
+        updateAliasRequest.setJsonEntity(Strings.format("""
             {
               "actions": [
                 {
@@ -347,7 +348,7 @@ public class RolloverActionIT extends ESRestTestCase {
         // Set up a policy with rollover
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
-        createIndexTemplate.setJsonEntity(formatted("""
+        createIndexTemplate.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {

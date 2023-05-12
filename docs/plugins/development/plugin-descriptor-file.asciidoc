@@ -1,0 +1,58 @@
+ifeval::["{plugin-type}" ==  "stable"]
+The stable plugin descriptor file is a Java properties file called 
+`stable-plugin-descriptor.properties`
+endif::[]
+ifeval::["{plugin-type}" == "classic"]
+The classic plugin descriptor file is a Java properties file called 
+`plugin-descriptor.properties`
+endif::[]
+that describes the plugin. The file is automatically created if you are 
+using {es}'s Gradle build system. If you're not using the gradle plugin, you 
+can create it manually using the following template.
+
+[source,properties]
+:plugin-properties-files: {elasticsearch-root}/build-tools/src/main/resources
+[source,yaml]
+----
+include::{plugin-properties-files}/plugin-descriptor.properties[]
+----
+
+[discrete]
+==== Properties
+
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Element                    | Type   | Description
+
+|`description`              |String  | simple summary of the plugin
+
+|`version`                  |String  | plugin's version
+
+|`name`                     |String  | the plugin name
+
+ifeval::["{plugin-type}" ==  "stable"]
+|`classname`                |String  | this property is for classic plugins. Do
+not include this property for stable plugins.
+endif::[]
+
+ifeval::["{plugin-type}" == "classic"]
+|`classname`                |String  | the name of the class to load, 
+fully-qualified.
+
+|`extended.plugins`         |String  | other plugins this plugin extends through
+SPI.
+
+|`modulename`               |String  | the name of the module to load classname
+from. Only applies to "isolated" plugins. This is optional. Specifying it causes
+the plugin to be loaded as a module.
+endif::[]
+
+|`java.version`             |String  | version of java the code is built against.
+Use the system property `java.specification.version`. Version string must be a
+sequence of nonnegative decimal integers separated by "."'s and may have leading
+zeros.
+
+|`elasticsearch.version`    |String  | version of {es} compiled against.
+
+|=======================================================================

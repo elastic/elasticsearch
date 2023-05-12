@@ -7,11 +7,12 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -62,12 +63,11 @@ public class SearchAsyncActionTests extends ESTestCase {
         int numShards = 10;
 
         AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
-            searchResponse::set,
-            (e) -> { throw new AssertionError("unexpected", e); }
-        );
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(searchResponse::set, (e) -> {
+            throw new AssertionError("unexpected", e);
+        });
+        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
+        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
@@ -184,9 +184,9 @@ public class SearchAsyncActionTests extends ESTestCase {
             response -> {},
             (e) -> { throw new AssertionError("unexpected", e); }
         );
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
         // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
-        DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_1");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
@@ -283,10 +283,12 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(
             searchResponse -> response.set((TestSearchResponse) searchResponse),
-            (e) -> { throw new AssertionError("unexpected", e); }
+            (e) -> {
+                throw new AssertionError("unexpected", e);
+            }
         );
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
+        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
 
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
@@ -406,8 +408,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 latch.countDown();
             }
         );
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
+        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_2");
 
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
@@ -521,9 +523,9 @@ public class SearchAsyncActionTests extends ESTestCase {
             response -> {},
             (e) -> { throw new AssertionError("unexpected", e); }
         );
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
         // for the sake of this test we place the replica on the same node. ie. this is not a mistake since we limit per node now
-        DiscoveryNode replicaNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = TestDiscoveryNode.create("node_1");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
@@ -614,11 +616,10 @@ public class SearchAsyncActionTests extends ESTestCase {
         request.allowPartialSearchResults(true);
 
         AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
-        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
-            searchResponse::set,
-            (e) -> { throw new AssertionError("unexpected", e); }
-        );
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(searchResponse::set, (e) -> {
+            throw new AssertionError("unexpected", e);
+        });
+        DiscoveryNode primaryNode = TestDiscoveryNode.create("node_1");
 
         final int numUnavailableSkippedShards = randomIntBetween(1, 10);
         List<SearchShardIterator> searchShardIterators = new ArrayList<>(numUnavailableSkippedShards);
@@ -724,7 +725,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new ShardId(index, i),
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+                ShardRouting.Role.DEFAULT
             );
             if (primaryNode != null) {
                 routing = routing.initialize(primaryNode.getId(), i + "p", 0);
@@ -736,7 +738,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                     new ShardId(index, i),
                     false,
                     RecoverySource.PeerRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar")
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
+                    ShardRouting.Role.DEFAULT
                 );
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
@@ -790,6 +793,11 @@ public class SearchAsyncActionTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
+        }
+
+        @Override
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

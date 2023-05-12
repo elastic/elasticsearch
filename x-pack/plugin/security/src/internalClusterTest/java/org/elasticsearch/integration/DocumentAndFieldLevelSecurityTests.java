@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -49,7 +49,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers() + String.format(Locale.ROOT, """
+        return super.configUsers() + Strings.format("""
             user1:%s
             user2:%s
             user3:%s
@@ -150,7 +150,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     .indices()
                     .prepareCreate(indexName)
                     .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1))
+                    .setSettings(indexSettings(1, 0))
             );
             client().prepareIndex(indexName).setId("1").setSource("id", "1", "field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 

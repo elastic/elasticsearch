@@ -42,8 +42,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                // TODO can we get finer-grained information from the FieldFetcher for this?
-                return StoredFieldsSpec.NEEDS_SOURCE;
+                return fieldFetcher.storedFieldsSpec();
             }
 
             @Override

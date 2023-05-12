@@ -6,3 +6,4 @@
 #
 
 org.elasticsearch.xpack.security.LocalReservedSecurityStateHandlerProvider
+org.elasticsearch.xpack.security.LocalReservedUnstableSecurityStateHandlerProvider

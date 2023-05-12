@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -66,6 +67,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
     private static final String MANAGE_OWN_API_KEY_USER = "manage_own_api_key_user";
     private static final String REMOTE_INDICES_USER = "remote_indices_user";
+    private static final String MANAGE_API_KEY_USER = "manage_api_key_user";
+    private static final String MANAGE_SECURITY_USER = "manage_security_user";
 
     @Before
     public void createUsers() throws IOException {
@@ -75,6 +78,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createRole("user_role", Set.of("monitor"));
         createUser(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD, List.of("manage_own_api_key_role"));
         createRole("manage_own_api_key_role", Set.of("manage_own_api_key"));
+        createUser(MANAGE_API_KEY_USER, END_USER_PASSWORD, List.of("manage_api_key_role"));
+        createRole("manage_api_key_role", Set.of("manage_api_key"));
+        createUser(MANAGE_SECURITY_USER, END_USER_PASSWORD, List.of("manage_security_role"));
+        createRole("manage_security_role", Set.of("manage_security"));
     }
 
     @After
@@ -82,11 +89,17 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         deleteUser(SYSTEM_USER);
         deleteUser(END_USER);
         deleteUser(MANAGE_OWN_API_KEY_USER);
+        deleteUser(MANAGE_API_KEY_USER);
+        deleteUser(MANAGE_SECURITY_USER);
         deleteRole("system_role");
         deleteRole("user_role");
         deleteRole("manage_own_api_key_role");
+        deleteRole("manage_api_key_role");
+        deleteRole("manage_security_role");
         invalidateApiKeysForUser(END_USER);
         invalidateApiKeysForUser(MANAGE_OWN_API_KEY_USER);
+        invalidateApiKeysForUser(MANAGE_API_KEY_USER);
+        invalidateApiKeysForUser(MANAGE_SECURITY_USER);
     }
 
     @SuppressWarnings("unchecked")
@@ -577,7 +590,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
     }
 
-    public void testRemoteIndicesNotSupportedForApiKeys() throws IOException {
+    public void testRemoteIndicesSupportForApiKeys() throws IOException {
         assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
 
         createUser(REMOTE_INDICES_USER, END_USER_PASSWORD, List.of("remote_indices_role"));
@@ -592,13 +605,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             ]""";
 
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
-        boolean includeRemoteIndices = randomBoolean();
+        final boolean includeRemoteIndices = randomBoolean();
         createApiKeyRequest.setJsonEntity(Strings.format("""
             {"name": "k1", "role_descriptors": {"r1": {%s}}}""", includeRemoteIndices ? remoteIndicesSection : ""));
-        doRequestAndAssertRemoteIndicesNotSupported(createApiKeyRequest, false == includeRemoteIndices);
+        Response response = sendRequestWithRemoteIndices(createApiKeyRequest, false == includeRemoteIndices);
+        String apiKeyId = ObjectPath.createFromResponse(response).evaluate("id");
+        assertThat(apiKeyId, notNullValue());
+        assertOK(response);
 
         final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
-        includeRemoteIndices = randomBoolean();
         grantApiKeyRequest.setJsonEntity(Strings.format("""
             {
                "grant_type":"password",
@@ -613,10 +628,17 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   }
                }
             }""", includeRemoteIndices ? MANAGE_OWN_API_KEY_USER : REMOTE_INDICES_USER, includeRemoteIndices ? remoteIndicesSection : ""));
-        doRequestAndAssertRemoteIndicesNotSupported(grantApiKeyRequest, false == includeRemoteIndices);
+        response = sendRequestWithRemoteIndices(grantApiKeyRequest, false == includeRemoteIndices);
 
-        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/id");
-        includeRemoteIndices = randomBoolean();
+        final String updatedRemoteIndicesSection = """
+            "remote_indices": [
+                {
+                  "names": ["index-b", "index-a"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "remote-b"]
+                }
+            ]""";
+        final Request updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         updateApiKeyRequest.setJsonEntity(Strings.format("""
             {
               "role_descriptors": {
@@ -624,40 +646,256 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                   %s
                 }
               }
-            }""", includeRemoteIndices ? remoteIndicesSection : ""));
-        doRequestAndAssertRemoteIndicesNotSupported(updateApiKeyRequest, false == includeRemoteIndices);
+            }""", includeRemoteIndices ? updatedRemoteIndicesSection : ""));
+        response = sendRequestWithRemoteIndices(updateApiKeyRequest, false == includeRemoteIndices);
+        assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), equalTo(includeRemoteIndices));
 
+        final String bulkUpdatedRemoteIndicesSection = """
+            "remote_indices": [
+                {
+                  "names": ["index-c"],
+                  "privileges": ["read"],
+                  "clusters": ["remote-a", "remote-c"]
+                }
+            ]""";
         final Request bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-        includeRemoteIndices = randomBoolean();
         bulkUpdateApiKeyRequest.setJsonEntity(Strings.format("""
             {
-              "ids": ["id"],
+              "ids": ["%s"],
               "role_descriptors": {
                 "r1": {
                   %s
                 }
               }
-            }""", includeRemoteIndices ? remoteIndicesSection : ""));
-        doRequestAndAssertRemoteIndicesNotSupported(bulkUpdateApiKeyRequest, false == includeRemoteIndices);
+            }""", apiKeyId, includeRemoteIndices ? bulkUpdatedRemoteIndicesSection : ""));
+        response = sendRequestWithRemoteIndices(bulkUpdateApiKeyRequest, false == includeRemoteIndices);
+        if (includeRemoteIndices) {
+            assertThat(ObjectPath.createFromResponse(response).evaluate("updated"), contains(apiKeyId));
+        } else {
+            assertThat(ObjectPath.createFromResponse(response).evaluate("noops"), contains(apiKeyId));
+        }
 
         deleteUser(REMOTE_INDICES_USER);
         deleteRole("remote_indices_role");
+
     }
 
-    private void doRequestAndAssertRemoteIndicesNotSupported(final Request request, final boolean executeAsRemoteIndicesUser) {
-        final ResponseException e = expectThrows(ResponseException.class, () -> {
-            if (executeAsRemoteIndicesUser) {
-                request.setOptions(
-                    RequestOptions.DEFAULT.toBuilder()
-                        .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_INDICES_USER, END_USER_PASSWORD))
-                );
-                client().performRequest(request);
-            } else {
-                adminClient().performRequest(request);
-            }
-        });
+    public void testCreateCrossClusterApiKey() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "my-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [ "metrics" ],
+                    "query": "{\\"term\\":{\\"score\\":42}}"
+                  }
+                ],
+                "replication": [
+                  {
+                    "names": [ "logs" ],
+                    "allow_restricted_indices": true
+                  }
+                ]
+              },
+              "expiration": "7d",
+              "metadata": { "tag": "shared", "points": 0 }
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+        final String apiKeyId = createResponse.evaluate("id");
+
+        // Cross cluster API key cannot be used on the REST interface
+        final Request authenticateRequest1 = new Request("GET", "/_security/_authenticate");
+        authenticateRequest1.setOptions(
+            authenticateRequest1.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        );
+        final ResponseException authenticateError1 = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(authenticateRequest1)
+        );
+        assertThat(authenticateError1.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(
+            authenticateError1.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
+        // Not allowed as secondary authentication on the REST interface either
+        final Request authenticateRequest2 = new Request("GET", "/_security/_authenticate");
+        setUserForRequest(authenticateRequest2, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        authenticateRequest2.setOptions(
+            authenticateRequest2.getOptions()
+                .toBuilder()
+                .addHeader("es-secondary-authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        );
+        final ResponseException authenticateError2 = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(authenticateRequest2)
+        );
+        assertThat(authenticateError2.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(
+            authenticateError2.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
+        final Request fetchRequest;
+        if (randomBoolean()) {
+            fetchRequest = new Request("GET", "/_security/api_key");
+            fetchRequest.addParameter("id", apiKeyId);
+        } else {
+            fetchRequest = new Request("GET", "/_security/_query/api_key");
+            fetchRequest.setJsonEntity(Strings.format("""
+                { "query": { "ids": { "values": ["%s"] } } }""", apiKeyId));
+        }
+
+        if (randomBoolean()) {
+            setUserForRequest(fetchRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        } else {
+            setUserForRequest(fetchRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        }
+        final ObjectPath fetchResponse = assertOKAndCreateObjectPath(client().performRequest(fetchRequest));
+
+        assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
+        assertThat(
+            fetchResponse.evaluate("api_keys.0.role_descriptors"),
+            equalTo(
+                Map.of(
+                    "cross_cluster",
+                    XContentTestUtils.convertToMap(
+                        new RoleDescriptor(
+                            "cross_cluster",
+                            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+                            new RoleDescriptor.IndicesPrivileges[] {
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metrics")
+                                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                                    .query("{\"term\":{\"score\":42}}")
+                                    .build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("logs")
+                                    .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
+                                    .allowRestrictedIndices(true)
+                                    .build() },
+                            null
+                        )
+                    )
+                )
+            )
+        );
+
+        final Request deleteRequest = new Request("DELETE", "/_security/api_key");
+        deleteRequest.setJsonEntity(Strings.format("""
+            {"ids": ["%s"]}""", apiKeyId));
+        if (randomBoolean()) {
+            setUserForRequest(deleteRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        } else {
+            setUserForRequest(deleteRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        }
+        final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
+        assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
+
+        // Cannot create cross-cluster API keys with either manage_api_key or manage_own_api_key privilege
+        if (randomBoolean()) {
+            setUserForRequest(createRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+        } else {
+            setUserForRequest(createRequest, MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD);
+        }
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("action [cluster:admin/xpack/security/cross_cluster/api_key/create] is unauthorized"));
+    }
+
+    public void testCrossClusterApiKeyDoesNotAllowEmptyAccess() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {"name": "my-key"}""", "Required [access]");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {"name": "my-key", "access": null}""", "access doesn't support values of type: VALUE_NULL");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {"name": "my-key", "access": {}}}""", "must specify non-empty access for either [search] or [replication]");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {"name": "my-key", "access": {"search":[]}}}""", "must specify non-empty access for either [search] or [replication]");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {"name": "my-key", "access": {"replication":[]}}}""", "must specify non-empty access for either [search] or [replication]");
+
+        assertBadCreateCrossClusterApiKeyRequest(
+            """
+                {"name": "my-key", "access": {"search":[],"replication":[]}}}""",
+            "must specify non-empty access for either [search] or [replication]"
+        );
+    }
+
+    public void testCrossClusterApiKeyDoesNotAllowDlsFlsForReplication() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "replication": [ {"names": ["logs"], "query":{"term": {"tag": 42}}} ]
+              }
+            }""", "replication does not support document or field level security");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "replication": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]}} ]
+              }
+            }""", "replication does not support document or field level security");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "replication": [ {
+                  "names": ["logs"],
+                  "query": {"term": {"tag": 42}},
+                  "field_security": {"grant": ["*"], "except": ["private"]}
+                 } ]
+              }
+            }""", "replication does not support document or field level security");
+    }
+
+    public void testCrossClusterApiKeyRequiresName() throws IOException {
+        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "access": {
+                "search": [ {"names": ["logs"]} ]
+              }
+            }""", "Required [name]");
+    }
+
+    private void assertBadCreateCrossClusterApiKeyRequest(String body, String expectedErrorMessage) throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity(body);
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("remote indices not supported for API keys"));
+        assertThat(e.getMessage(), containsString(expectedErrorMessage));
+    }
+
+    private Response sendRequestWithRemoteIndices(final Request request, final boolean executeAsRemoteIndicesUser) throws IOException {
+        if (executeAsRemoteIndicesUser) {
+            request.setOptions(
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_INDICES_USER, END_USER_PASSWORD))
+            );
+            return client().performRequest(request);
+        } else {
+            return adminClient().performRequest(request);
+        }
     }
 
     private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
@@ -766,6 +1004,15 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKeyName, equalTo(actualApiKeyName));
 
         return new EncodedApiKey(apiKeyId, apiKeyEncoded, actualApiKeyName);
+    }
+
+    private void setUserForRequest(Request request, String username, SecureString password) throws IOException {
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .removeHeader("Authorization")
+                .addHeader("Authorization", headerFromRandomAuthMethod(username, password))
+        );
     }
 
     private String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tracing.SpanId;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.tracing.Tracer} interface, which uses
@@ -58,15 +60,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
     /** Holds in-flight span information. */
-    private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<SpanId, Context> spans = ConcurrentCollections.newConcurrentMap();
 
     private volatile boolean enabled;
     private volatile APMServices services;
 
     private List<String> includeNames;
     private List<String> excludeNames;
+    private List<String> labelFilters;
     /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
     private volatile CharacterRunAutomaton filterAutomaton;
+    private volatile CharacterRunAutomaton labelFilterAutomaton;
     private String clusterName;
     private String nodeName;
 
@@ -86,7 +90,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public APMTracer(Settings settings) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        this.labelFilters = APM_TRACING_SANITIZE_FIELD_NAMES.get(settings);
+
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
+        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APM_ENABLED_SETTING.get(settings);
     }
 
@@ -107,6 +114,16 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     void setExcludeNames(List<String> excludeNames) {
         this.excludeNames = excludeNames;
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
+    }
+
+    void setLabelFilters(List<String> labelFilters) {
+        this.labelFilters = labelFilters;
+        this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
+    }
+
+    // package-private for testing
+    CharacterRunAutomaton getLabelFilterAutomaton() {
+        return labelFilterAutomaton;
     }
 
     @Override
@@ -142,7 +159,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void startTrace(ThreadContext threadContext, String spanId, String spanName, @Nullable Map<String, Object> attributes) {
+    public void startTrace(ThreadContext threadContext, SpanId spanId, String spanName, @Nullable Map<String, Object> attributes) {
         assert threadContext != null;
         assert spanId != null;
         assert spanName != null;
@@ -257,7 +274,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * @return a method to close the scope when you are finished with it.
      */
     @Override
-    public Releasable withScope(String spanId) {
+    public Releasable withScope(SpanId spanId) {
         final Context context = spans.get(spanId);
         if (context != null) {
             var scope = context.makeCurrent();
@@ -271,6 +288,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
                 final String key = entry.getKey();
                 final Object value = entry.getValue();
+
+                if (this.labelFilterAutomaton.run(key)) {
+                    spanBuilder.setAttribute(key, "[REDACTED]");
+                    continue;
+                }
+
                 if (value instanceof String) {
                     spanBuilder.setAttribute(key, (String) value);
                 } else if (value instanceof Long) {
@@ -308,7 +331,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addError(String spanId, Throwable throwable) {
+    public void addError(SpanId spanId, Throwable throwable) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.recordException(throwable);
@@ -316,7 +339,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, boolean value) {
+    public void setAttribute(SpanId spanId, String key, boolean value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -324,7 +347,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, double value) {
+    public void setAttribute(SpanId spanId, String key, double value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -332,7 +355,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, long value) {
+    public void setAttribute(SpanId spanId, String key, long value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -340,7 +363,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void setAttribute(String spanId, String key, String value) {
+    public void setAttribute(SpanId spanId, String key, String value) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
@@ -348,7 +371,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void stopTrace(String spanId) {
+    public void stopTrace(SpanId spanId) {
         final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
@@ -365,7 +388,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void addEvent(String spanId, String eventName) {
+    public void addEvent(SpanId spanId, String eventName) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.addEvent(eventName);
@@ -390,13 +413,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     // VisibleForTesting
-    Map<String, Context> getSpans() {
+    Map<SpanId, Context> getSpans() {
         return spans;
     }
 
-    private static CharacterRunAutomaton buildAutomaton(List<String> includeNames, List<String> excludeNames) {
-        Automaton includeAutomaton = patternsToAutomaton(includeNames);
-        Automaton excludeAutomaton = patternsToAutomaton(excludeNames);
+    private static CharacterRunAutomaton buildAutomaton(List<String> includePatterns, List<String> excludePatterns) {
+        Automaton includeAutomaton = patternsToAutomaton(includePatterns);
+        Automaton excludeAutomaton = patternsToAutomaton(excludePatterns);
 
         if (includeAutomaton == null) {
             includeAutomaton = Automata.makeAnyString();

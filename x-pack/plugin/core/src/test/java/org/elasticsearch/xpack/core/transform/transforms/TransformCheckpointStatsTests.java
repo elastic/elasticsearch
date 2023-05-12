@@ -27,6 +27,11 @@ public class TransformCheckpointStatsTests extends AbstractWireSerializingTestCa
     }
 
     @Override
+    protected TransformCheckpointStats mutateInstance(TransformCheckpointStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformCheckpointStats> instanceReader() {
         return TransformCheckpointStats::new;
     }

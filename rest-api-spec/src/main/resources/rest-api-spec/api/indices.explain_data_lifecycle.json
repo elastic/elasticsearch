@@ -1,0 +1,41 @@
+{
+  "indices.explain_data_lifecycle": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/dlm-explain-lifecycle.html",
+      "description": "Retrieves information about the index's current DLM lifecycle, such as any potential encountered error, time since creation etc."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_lifecycle/explain",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The name of the index to explain"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "include_defaults": {
+        "type": "boolean",
+        "description": "indicates if the API should return the default values the system uses for the index's lifecycle"
+      },
+      "master_timeout": {
+        "type": "time",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

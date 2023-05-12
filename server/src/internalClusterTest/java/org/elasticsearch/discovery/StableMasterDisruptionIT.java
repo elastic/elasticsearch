@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -21,8 +20,8 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -135,7 +134,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
     private void assertMasterStability(Client client, HealthStatus expectedStatus, Matcher<String> expectedMatcher) throws Exception {
         assertBusy(() -> {
-            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true)).get();
+            GetHealthAction.Response healthResponse = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
+                .get();
             String debugInformation = xContentToString(healthResponse);
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").status(), equalTo(expectedStatus));
             assertThat(debugInformation, healthResponse.findIndicator("master_is_stable").symptom(), expectedMatcher);
@@ -225,6 +225,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * following another elected master node. These nodes should reject this cluster state and prevent them from following the stale master.
      */
     public void testStaleMasterNotHijackingMajority() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -332,6 +333,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * @throws Exception
      */
     public void testRepeatedMasterChanges(String expectedMasterStabilitySymptomSubstring) throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -421,6 +423,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     }
 
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
+        assumeFalse("jdk20 removed thread suspend/resume", Runtime.version().feature() >= 20);
         /*
          * In this test we have a single master-eligible node. We pause it repeatedly (simulating a long GC pause for example) so that
          * other nodes decide it is no longer the master. However since there is no other master-eligible node, another node is never
@@ -545,17 +548,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 new DiscoveryNodes.Builder().masterNodeId(null)
             ).build();
             ClusterState previousState = new ClusterState.Builder(new ClusterName(internalCluster().getClusterName())).nodes(
-                new DiscoveryNodes.Builder().masterNodeId("test")
-                    .add(
-                        new DiscoveryNode(
-                            "test",
-                            "test",
-                            buildNewFakeTransportAddress(),
-                            Collections.emptyMap(),
-                            DiscoveryNodeRole.roles(),
-                            Version.CURRENT
-                        )
-                    )
+                new DiscoveryNodes.Builder().masterNodeId("test").add(TestDiscoveryNode.create("test", "test"))
             ).build();
             ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("test", state, previousState);
             masterHistoryService.getLocalMasterHistory().clusterChanged(clusterChangedEvent);

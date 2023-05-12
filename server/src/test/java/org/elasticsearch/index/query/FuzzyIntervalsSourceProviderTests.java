@@ -30,7 +30,7 @@ public class FuzzyIntervalsSourceProviderTests extends AbstractXContentSerializi
     }
 
     @Override
-    protected Fuzzy mutateInstance(Fuzzy instance) throws IOException {
+    protected Fuzzy mutateInstance(Fuzzy instance) {
         String term = instance.getTerm();
         int prefixLength = instance.getPrefixLength();
         boolean isTranspositions = instance.isTranspositions();

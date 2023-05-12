@@ -1,5 +1,0 @@
-pr: 91364
-summary: Fix `BytesRefArray` on append empty `BytesRef`
-area: Infra/Core
-type: bug
-issues: []

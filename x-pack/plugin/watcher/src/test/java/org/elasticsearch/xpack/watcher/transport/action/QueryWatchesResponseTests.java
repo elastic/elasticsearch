@@ -106,6 +106,11 @@ public class QueryWatchesResponseTests extends AbstractXContentSerializingTestCa
         return new QueryWatchesAction.Response(numWatches + randomIntBetween(0, 100), items);
     }
 
+    @Override
+    protected QueryWatchesAction.Response mutateInstance(QueryWatchesAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private Watch createWatch(String watchId) {
         return WatcherTestUtils.createTestWatch(
             watchId,

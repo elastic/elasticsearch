@@ -10,10 +10,12 @@ package org.elasticsearch.gradle.internal.info;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
@@ -91,6 +93,10 @@ public class BuildParams {
         return value(inFipsJvm);
     }
 
+    public static void withFipsEnabledOnly(Task task) {
+        task.onlyIf("FIPS mode disabled", task1 -> isInFipsJvm() == false);
+    }
+
     public static String getGitRevision() {
         return value(gitRevision);
     }
@@ -112,11 +118,15 @@ public class BuildParams {
     }
 
     public static Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":", 1)[0], 16));
+        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
     }
 
     public static Boolean isCi() {
         return value(isCi);
+    }
+
+    public static Boolean isGraalVmRuntime() {
+        return value(runtimeJavaDetails.toLowerCase().contains("graalvm"));
     }
 
     public static Integer getDefaultParallel() {
@@ -173,7 +183,11 @@ public class BuildParams {
         }
 
         public void setRuntimeJavaHome(File runtimeJavaHome) {
-            BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome);
+            try {
+                BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome).getCanonicalFile();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         public void setIsRuntimeJavaHomeSet(boolean isRutimeJavaHomeSet) {

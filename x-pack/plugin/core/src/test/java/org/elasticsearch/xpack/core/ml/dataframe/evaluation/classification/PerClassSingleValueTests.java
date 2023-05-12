@@ -28,4 +28,9 @@ public class PerClassSingleValueTests extends AbstractXContentSerializingTestCas
     protected PerClassSingleValue createTestInstance() {
         return new PerClassSingleValue(randomAlphaOfLength(10), randomDouble());
     }
+
+    @Override
+    protected PerClassSingleValue mutateInstance(PerClassSingleValue instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+
+import java.io.IOException;
 
 public class LabelFieldProducerTests extends AggregatorTestCase {
 
@@ -61,16 +64,33 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
         assertNull(label.get());
     }
 
-    public void testLabelFieldProducer() {
+    public void testLabelFieldProducer() throws IOException {
         final LabelFieldProducer producer = new LabelFieldProducer.LabelLastValueFieldProducer("dummy");
         assertTrue(producer.isEmpty());
         assertEquals("dummy", producer.name());
-        assertEquals("last_value", producer.label().name);
-        producer.collect("dummy", "aaaa");
+        assertEquals("last_value", producer.label().name());
+        FormattedDocValues docValues = new FormattedDocValues() {
+            @Override
+            public boolean advanceExact(int docId) {
+                return true;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public Object nextValue() {
+                return "aaaa";
+            }
+        };
+        producer.collect(docValues, 1);
+        // producer.collect("dummy", "aaaa");
         assertFalse(producer.isEmpty());
-        assertEquals("aaaa", producer.value());
+        assertEquals("aaaa", producer.label().get());
         producer.reset();
         assertTrue(producer.isEmpty());
-        assertNull(producer.value());
+        assertNull(producer.label().get());
     }
 }

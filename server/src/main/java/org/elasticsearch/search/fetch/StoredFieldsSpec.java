@@ -8,8 +8,10 @@
 
 package org.elasticsearch.search.fetch;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Defines which stored fields need to be loaded during a fetch
@@ -43,5 +45,13 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
             this.requiresMetadata || other.requiresMetadata,
             mergedFields
         );
+    }
+
+    public static <T> StoredFieldsSpec build(Collection<T> sources, Function<T, StoredFieldsSpec> converter) {
+        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
+        for (T source : sources) {
+            storedFieldsSpec = storedFieldsSpec.merge(converter.apply(source));
+        }
+        return storedFieldsSpec;
     }
 }

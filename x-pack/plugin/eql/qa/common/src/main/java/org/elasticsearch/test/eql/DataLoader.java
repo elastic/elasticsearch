@@ -59,6 +59,7 @@ public class DataLoader {
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
     public static final String TEST_SAMPLE = "sample1,sample2,sample3";
     public static final String TEST_MISSING_EVENTS_INDEX = "missing-events";
+    public static final String TEST_SAMPLE_MULTI = "sample-multi";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -107,6 +108,7 @@ public class DataLoader {
         // missing_events index
         //
         load(client, TEST_MISSING_EVENTS_INDEX, null, null, p);
+        load(client, TEST_SAMPLE_MULTI, null, null, p);
     }
 
     private static void load(

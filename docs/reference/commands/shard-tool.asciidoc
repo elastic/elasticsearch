@@ -44,6 +44,10 @@ There are two ways to specify the path:
 * Use the `--dir` option to specify the full path to the corrupted index or
   translog files.
 
+:tool-name: shard
+include::cli-jvm-options.asciidoc[]
+:!tool-name:
+
 [discrete]
 ==== Removing corrupted data
 

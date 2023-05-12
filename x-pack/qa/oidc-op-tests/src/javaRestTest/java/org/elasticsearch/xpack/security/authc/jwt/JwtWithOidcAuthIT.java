@@ -17,6 +17,7 @@ import com.nimbusds.openid.connect.sdk.OIDCScopeValue;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.TestMatchers;
@@ -65,7 +66,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         clientId = randomFrom(ALLOWED_AUDIENCES);
         redirectUri = "https://" + randomAlphaOfLength(4) + ".rp.example.com/" + randomAlphaOfLength(6);
         String clientSecret = randomAlphaOfLength(24);
-        String clientSetup = formatted("""
+        String clientSetup = Strings.format("""
             {
               "grant_types": [ "implicit" ],
               "response_types": [ "token id_token" ],
@@ -80,7 +81,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
     public void setupRoleMapping() throws Exception {
         try (var restClient = getElasticsearchClient()) {
             var client = new TestSecurityClient(restClient);
-            final String mappingJson = formatted("""
+            final String mappingJson = Strings.format("""
                 {
                   "roles": [ "%s" ],
                   "enabled": true,

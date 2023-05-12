@@ -221,7 +221,14 @@ public class ExecutionManager {
             }
         }
 
-        return new SampleIterator(new PITAwareQueryClient(session), criteria, cfg.fetchSize(), limit, session.circuitBreaker());
+        return new SampleIterator(
+            new PITAwareQueryClient(session),
+            criteria,
+            cfg.fetchSize(),
+            limit,
+            session.circuitBreaker(),
+            cfg.maxSamplesPerKey()
+        );
     }
 
     private int indexOfFirstPositive(boolean[] missing) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -61,7 +62,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
             transformConfigBuilder.setSettings(addCommonSettings(new SettingsConfig.Builder()).setDatesAsEpochMillis(true).build());
         }
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
-        transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
+        transformConfigBuilder.setDest(new DestConfig(NAME, null, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
         Map<String, SingleGroupSource> groupSource = new HashMap<>();
@@ -72,6 +73,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                 null,
                 false,
                 new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND),
+                null,
                 null
             )
         );
@@ -100,11 +102,12 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
 
     @Override
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String eventAgg = formatted("""
+        String eventAgg = Strings.format("""
             , "aggs" : {"event": {"terms": {"field": "%s", "size": 1000, "order": {"_key": "asc"}}}}
             """, termsField);
 
-        String querySource = formatted("""
+        Object[] args = new Object[] { metricTimestampField, addGroupByTerms ? eventAgg : "" };
+        String querySource = Strings.format("""
             {
               "aggs": {
                 "second": {
@@ -116,7 +119,7 @@ public class DateHistogramGroupByOtherTimeFieldIT extends ContinuousTestCase {
                 }
               }
             }
-            """, metricTimestampField, addGroupByTerms ? eventAgg : "");
+            """, args);
 
         Response searchResponseSource = search(
             CONTINUOUS_EVENTS_SOURCE_INDEX,

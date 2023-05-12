@@ -11,7 +11,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -68,16 +68,10 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
         public void snapshotShard(SnapshotShardContext context) {
             int filesToUpload = randomIntBetween(0, 10);
-            if (filesToUpload == 0) {
-                finishedShardSnapshots.incrementAndGet();
-            } else {
-                expectedFileSnapshotTasks.addAndGet(filesToUpload);
-                ActionListener<Void> uploadListener = new GroupedActionListener<>(
-                    filesToUpload,
-                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet)
-                );
+            expectedFileSnapshotTasks.addAndGet(filesToUpload);
+            try (var refs = new RefCountingRunnable(finishedShardSnapshots::incrementAndGet)) {
                 for (int i = 0; i < filesToUpload; i++) {
-                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, uploadListener);
+                    taskRunner.enqueueFileSnapshot(context, ShardSnapshotTaskRunnerTests::dummyFileInfo, refs.acquireListener());
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();
@@ -117,13 +111,8 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
         IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(indexId.getName()).settings(settings).build(),
+            IndexMetadata.builder(indexId.getName()).settings(indexSettings(Version.CURRENT, 1, 0)).build(),
             Settings.EMPTY
         );
         Store dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));

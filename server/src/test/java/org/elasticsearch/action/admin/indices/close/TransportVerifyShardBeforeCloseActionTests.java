@@ -234,7 +234,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final long primaryTerm = indexMetadata.primaryTerm(0);
 
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
-        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final Set<String> trackedShards = shardRoutingTable.getPromotableAllocationIds();
 
         List<ShardRouting> unavailableShards = randomSubsetOf(randomIntBetween(1, nbReplicas), shardRoutingTable.replicaShards());
         IndexShardRoutingTable.Builder shardRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardRoutingTable);

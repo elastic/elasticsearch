@@ -8,19 +8,11 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
 
 public class MetricFieldProducerTests extends AggregatorTestCase {
 
@@ -69,7 +61,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         for (int i = 0; i < values.length; i++) {
             metric.collect(values[i]);
         }
-        assertEquals(metric.get().doubleValue(), 15.3, Double.MIN_NORMAL);
+        assertEquals(15.3, metric.get().doubleValue(), Double.MIN_NORMAL);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         metric.reset();
@@ -82,7 +74,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
             sum += d;
             metric.collect(d);
         }
-        assertEquals(metric.get().doubleValue(), sum, 1e-10);
+        assertEquals(sum, metric.get().doubleValue(), 1e-10);
 
         // Summing up some big double values and expect infinity result
         metric.reset();
@@ -90,13 +82,13 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         for (int i = 0; i < n; i++) {
             metric.collect(Double.MAX_VALUE);
         }
-        assertEquals(metric.get().doubleValue(), Double.POSITIVE_INFINITY, 0d);
+        assertEquals(Double.POSITIVE_INFINITY, metric.get().doubleValue(), 0d);
 
         metric.reset();
         for (int i = 0; i < n; i++) {
             metric.collect(-Double.MAX_VALUE);
         }
-        assertEquals(metric.get().doubleValue(), Double.NEGATIVE_INFINITY, 0d);
+        assertEquals(Double.NEGATIVE_INFINITY, metric.get().doubleValue(), 0d);
     }
 
     public void testValueCountMetric() {
@@ -116,7 +108,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         metric.collect(40);
         metric.collect(30);
         metric.collect(20);
-        assertEquals(40.0, metric.get());
+        assertEquals(40, metric.get());
         metric.reset();
         assertNull(metric.get());
     }
@@ -125,9 +117,9 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         final String field = "field";
         var producer = new MetricFieldProducer.CounterMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
-        producer.collect(field, 55.0);
-        producer.collect(field, 12.2);
-        producer.collect(field, 5.5);
+        producer.collect(55.0);
+        producer.collect(12.2);
+        producer.collect(5.5);
 
         assertFalse(producer.isEmpty());
         Object o = producer.value();
@@ -144,9 +136,9 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         final String field = "field";
         MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer(field);
         assertTrue(producer.isEmpty());
-        producer.collect(field, 55.0);
-        producer.collect(field, 12.2);
-        producer.collect(field, 5.5);
+        producer.collect(55.0);
+        producer.collect(12.2);
+        producer.collect(5.5);
 
         assertFalse(producer.isEmpty());
 
@@ -156,73 +148,5 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertEquals("{\"field\":{\"min\":5.5,\"max\":55.0,\"sum\":72.7,\"value_count\":3}}", Strings.toString(builder));
 
         assertEquals(field, producer.name());
-    }
-
-    public void testBuildMetricProducers() {
-        final Map<String, MappedFieldType> provideMappedFieldType = Map.of(
-            "gauge_field",
-            new NumberFieldMapper.NumberFieldType(
-                "gauge_field",
-                NumberFieldMapper.NumberType.DOUBLE,
-                true,
-                true,
-                true,
-                true,
-                null,
-                emptyMap(),
-                null,
-                false,
-                TimeSeriesParams.MetricType.gauge
-            ),
-            "counter_field",
-            new NumberFieldMapper.NumberFieldType(
-                "counter_field",
-                NumberFieldMapper.NumberType.DOUBLE,
-                true,
-                true,
-                true,
-                true,
-                null,
-                emptyMap(),
-                null,
-                false,
-                TimeSeriesParams.MetricType.counter
-            )
-        );
-
-        IndexSettings settings = createIndexSettings();
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
-            settings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        ) {
-            @Override
-            public MappedFieldType getFieldType(String name) {
-                return provideMappedFieldType.get(name);
-            }
-        };
-
-        Map<String, MetricFieldProducer> producers = MetricFieldProducer.createMetricFieldProducers(
-            searchExecutionContext,
-            new String[] { "gauge_field", "counter_field" }
-        );
-        assertTrue(producers.get("gauge_field") instanceof MetricFieldProducer.GaugeMetricFieldProducer);
-        assertTrue(producers.get("counter_field") instanceof MetricFieldProducer.CounterMetricFieldProducer);
     }
 }

@@ -85,6 +85,11 @@ public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializing
     }
 
     @Override
+    protected Builder mutateInstance(Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<Builder> instanceReader() {
         return AggregatorFactories.Builder::new;
     }

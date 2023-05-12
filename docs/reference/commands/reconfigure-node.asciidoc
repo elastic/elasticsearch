@@ -54,6 +54,11 @@ nodes in an existing, secured cluster.
 
 `-v, --verbose`:: Shows verbose output.
 
+
+:tool-name: reconfigure-node
+include::cli-jvm-options.asciidoc[]
+:!tool-name:
+
 [discrete]
 === Examples
 

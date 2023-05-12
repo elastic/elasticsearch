@@ -172,7 +172,7 @@ public class AnalysisLimitsTests extends AbstractXContentSerializingTestCase<Ana
     }
 
     @Override
-    protected AnalysisLimits mutateInstance(AnalysisLimits instance) throws IOException {
+    protected AnalysisLimits mutateInstance(AnalysisLimits instance) {
         Long memoryModelLimit = instance.getModelMemoryLimit();
         Long categorizationExamplesLimit = instance.getCategorizationExamplesLimit();
         switch (between(0, 1)) {

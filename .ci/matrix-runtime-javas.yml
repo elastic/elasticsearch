@@ -10,3 +10,4 @@ ES_RUNTIME_JAVA:
   - openjdk17
   - openjdk18
   - openjdk19
+  - openjdk20

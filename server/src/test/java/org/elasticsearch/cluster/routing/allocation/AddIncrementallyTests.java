@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -258,7 +259,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         int numberOfReplicas
     ) {
         Metadata.Builder metadataBuilder = Metadata.builder();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
@@ -304,7 +305,10 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         int numberOfReplicas
     ) {
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.getMetadata());
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterState.routingTable()
+        );
 
         IndexMetadata.Builder index = IndexMetadata.builder("test" + indexOrdinal)
             .settings(settings(Version.CURRENT))

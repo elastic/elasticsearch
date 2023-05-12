@@ -60,7 +60,7 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
 
     @Override
     protected Rectangle getTile(double lng, double lat, int precision) {
-        long tiles = 1 << precision;
+        int tiles = 1 << precision;
         int x = GeoTileUtils.getXTile(lng, tiles);
         int y = GeoTileUtils.getYTile(lat, tiles);
         Rectangle r1 = GeoTileUtils.toBoundingBox(x, y, precision);

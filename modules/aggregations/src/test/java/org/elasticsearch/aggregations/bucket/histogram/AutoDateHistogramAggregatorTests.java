@@ -15,7 +15,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -307,8 +307,6 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 docs.add(
                     List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                        new SortedSetDocValuesField("k1", aBytes),
-                        new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
                         new Field("k1", aBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new Field("k1", d < useC ? bBytes : cBytes, KeywordFieldMapper.Defaults.FIELD_TYPE),
                         new SortedNumericDocValuesField("n", n++)
@@ -859,7 +857,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         fullDocCount.clear();
         fullDocCount.putAll(skeletonDocCount);
         for (int minute = 3; minute < 15; minute++) {
-            fullDocCount.put(formatted("2017-02-01T09:%02d:00.000Z", minute), 0);
+            fullDocCount.put(Strings.format("2017-02-01T09:%02d:00.000Z", minute), 0);
         }
         testSearchCase(
             DEFAULT_QUERY,
@@ -1030,8 +1028,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 indexSampleData(dataset, indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 final AutoDateHistogramAggregationBuilder aggregationBuilder = new AutoDateHistogramAggregationBuilder("_name");
                 if (configure != null) {

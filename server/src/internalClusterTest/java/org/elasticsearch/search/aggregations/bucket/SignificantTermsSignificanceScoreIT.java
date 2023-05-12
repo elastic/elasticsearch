@@ -52,8 +52,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
@@ -150,7 +148,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         classes.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
         responseBuilder.endObject();
 
-        String result = formatted("""
+        Object[] args = new Object[] { type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"" };
+        String result = Strings.format("""
             {
               "class": {
                 "doc_count_error_upper_bound": 0,
@@ -191,7 +190,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 ]
               }
             }
-            """, type.equals("long") ? "0" : "\"0\"", type.equals("long") ? "1" : "\"1\"");
+            """, args);
         assertThat(Strings.toString(responseBuilder), equalTo(XContentHelper.stripWhitespace(result)));
 
     }
@@ -437,8 +436,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("text", "type=text,fielddata=true", "class", "type=keyword")
+            prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("text", "type=text,fielddata=true", "class", "type=keyword")
         );
         createIndex("idx_unmapped");
 

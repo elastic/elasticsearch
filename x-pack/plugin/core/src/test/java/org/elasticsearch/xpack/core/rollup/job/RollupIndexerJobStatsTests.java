@@ -18,6 +18,11 @@ public class RollupIndexerJobStatsTests extends AbstractXContentSerializingTestC
     }
 
     @Override
+    protected RollupIndexerJobStats mutateInstance(RollupIndexerJobStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RollupIndexerJobStats> instanceReader() {
         return RollupIndexerJobStats::new;
     }

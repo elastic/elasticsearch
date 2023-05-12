@@ -150,6 +150,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             transformConfigManager.expandTransformIds(
                 request.getId(),
                 new PageParams(0, 10_000),
+                request.getTimeout(),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {
                     validateTaskState(state, hitsAndIds.v2().v1(), request.isForce());
@@ -484,7 +485,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         final ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 transformNodeAssignments.getWaitingForAssignment().size(),
-                ActionListener.wrap(r -> { finalListener.onResponse(response); }, finalListener::onFailure)
+                ActionListener.wrap(r -> {
+                    finalListener.onResponse(response);
+                }, finalListener::onFailure)
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
@@ -494,7 +497,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }, e -> {
             GroupedActionListener<PersistentTask<?>> groupedListener = new GroupedActionListener<>(
                 transformNodeAssignments.getWaitingForAssignment().size(),
-                ActionListener.wrap(r -> { finalListener.onFailure(e); }, finalListener::onFailure)
+                ActionListener.wrap(r -> {
+                    finalListener.onFailure(e);
+                }, finalListener::onFailure)
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {

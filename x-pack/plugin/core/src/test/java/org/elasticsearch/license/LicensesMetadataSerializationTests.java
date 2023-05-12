@@ -39,7 +39,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        ChunkedToXContent.wrapAsXContentObject(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
@@ -53,7 +53,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        ChunkedToXContent.wrapAsXContentObject(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
@@ -79,7 +79,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         Params params = new ToXContent.MapParams(Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
         builder.startObject();
-        builder = ChunkedToXContent.wrapAsXContentObject(metadataBuilder.build()).toXContent(builder, params);
+        builder = ChunkedToXContent.wrapAsToXContent(metadataBuilder.build()).toXContent(builder, params);
         builder.endObject();
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
@@ -102,7 +102,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        ChunkedToXContent.wrapAsXContentObject(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));

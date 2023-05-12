@@ -8,12 +8,10 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.CheckedConsumer;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -40,7 +38,9 @@ import java.util.function.Consumer;
  * }</pre>
  */
 
-public final class StepListener<Response> extends NotifyOnceListener<Response> {
+public final class StepListener<Response> implements ActionListener<Response> {
+
+    private final AtomicBoolean hasBeenCalled = new AtomicBoolean(false);
     private final ListenableFuture<Response> delegate;
 
     public StepListener() {
@@ -48,13 +48,17 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
     }
 
     @Override
-    protected void innerOnResponse(Response response) {
-        delegate.onResponse(response);
+    public void onResponse(Response response) {
+        if (hasBeenCalled.compareAndSet(false, true)) {
+            delegate.onResponse(response);
+        }
     }
 
     @Override
-    protected void innerOnFailure(Exception e) {
-        delegate.onFailure(e);
+    public void onFailure(Exception e) {
+        if (hasBeenCalled.compareAndSet(false, true)) {
+            delegate.onFailure(e);
+        }
     }
 
     /**
@@ -85,20 +89,18 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
     }
 
     /**
-     * Returns the future associated with the given step listener
+     * @return the result of this step, if it has been completed successfully, or throw the exception with which it was completed
+     * exceptionally. It is not valid to call this method if the step is incomplete.
      */
-    public Future<Response> asFuture() {
-        return delegate;
+    public Response result() {
+        return delegate.result();
     }
 
     /**
-     * Gets the result of this step. This method will throw {@link IllegalStateException} if this step is not completed yet.
+     * @return whether this step is complete yet.
      */
-    public Response result() {
-        if (delegate.isDone() == false) {
-            throw new IllegalStateException("step is not completed yet");
-        }
-        return FutureUtils.get(delegate, 0L, TimeUnit.NANOSECONDS); // this future is done already - use a non-blocking method.
+    public boolean isDone() {
+        return delegate.isDone();
     }
 
     /**

@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -19,14 +20,14 @@ public class ClusterInfoSimulator {
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    private final Map<String, Long> shardSizes;
+    private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<ClusterInfo.NodeAndShard, String> dataPath;
 
     public ClusterInfoSimulator(ClusterInfo clusterInfo) {
         this.leastAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeLeastAvailableDiskUsages());
         this.mostAvailableSpaceUsage = new HashMap<>(clusterInfo.getNodeMostAvailableDiskUsages());
-        this.shardSizes = new HashMap<>(clusterInfo.shardSizes);
+        this.shardSizes = new CopyOnFirstWriteMap<>(clusterInfo.shardSizes);
         this.shardDataSetSizes = Map.copyOf(clusterInfo.shardDataSetSizes);
         this.dataPath = Map.copyOf(clusterInfo.dataPath);
     }
@@ -56,16 +57,16 @@ public class ClusterInfoSimulator {
         }
     }
 
-    private Long getEstimatedShardSize(ShardRouting routing) {
-        if (routing.relocatingNodeId() != null) {
+    private Long getEstimatedShardSize(ShardRouting shard) {
+        if (shard.relocatingNodeId() != null) {
             // relocation existing shard, get size of the source shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(routing));
-        } else if (routing.primary() == false) {
+            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard));
+        } else if (shard.primary() == false) {
             // initializing new replica, get size of the source primary shard
-            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(routing.shardId(), true));
+            return shardSizes.get(ClusterInfo.shardIdentifierFromRouting(shard.shardId(), true));
         } else {
-            // initializing new (empty) primary
-            return 0L;
+            // initializing new (empty?) primary
+            return shard.getExpectedShardSize();
         }
     }
 
@@ -101,6 +102,13 @@ public class ClusterInfoSimulator {
     }
 
     public ClusterInfo getClusterInfo() {
-        return new ClusterInfo(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, shardDataSetSizes, dataPath, Map.of());
+        return new ClusterInfo(
+            leastAvailableSpaceUsage,
+            mostAvailableSpaceUsage,
+            shardSizes.toImmutableMap(),
+            shardDataSetSizes,
+            dataPath,
+            Map.of()
+        );
     }
 }

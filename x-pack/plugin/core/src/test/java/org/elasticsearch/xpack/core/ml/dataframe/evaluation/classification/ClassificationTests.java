@@ -93,6 +93,11 @@ public class ClassificationTests extends AbstractXContentSerializingTestCase<Cla
     }
 
     @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Classification> instanceReader() {
         return Classification::new;
     }

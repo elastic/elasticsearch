@@ -25,7 +25,6 @@ restResources {
 dependencies {
   api project(':modules:mapper-extras')
   api project(':modules:parent-join')
-  api project(':modules:aggs-matrix-stats')
   api project(':modules:rank-eval')
   api project(':modules:lang-mustache')
   api project(':modules:aggregations')

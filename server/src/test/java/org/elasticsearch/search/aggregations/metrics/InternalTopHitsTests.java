@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
@@ -288,7 +289,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
      * Assert that two objects are equals, calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} to print out their
      * differences if they aren't equal.
      */
-    private static <T extends ToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
+    private static <T extends ChunkedToXContent> void assertEqualsWithErrorMessageFromXContent(T expected, T actual) {
         if (Objects.equals(expected, actual)) {
             return;
         }
@@ -300,10 +301,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         }
         try (XContentBuilder actualJson = JsonXContent.contentBuilder(); XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
             actualJson.startObject();
-            actual.toXContent(actualJson, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(actual).toXContent(actualJson, ToXContent.EMPTY_PARAMS);
             actualJson.endObject();
             expectedJson.startObject();
-            expected.toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
+            ChunkedToXContent.wrapAsToXContent(expected).toXContent(expectedJson, ToXContent.EMPTY_PARAMS);
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(

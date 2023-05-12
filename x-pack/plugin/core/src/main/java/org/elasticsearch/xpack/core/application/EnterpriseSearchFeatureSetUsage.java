@@ -62,8 +62,6 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.field(ANALYTICS_COLLECTIONS, analyticsCollectionsUsage);
     }
 
-
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -81,5 +79,8 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public Map<String, Object> getSearchApplicationsUsage() {
         return searchApplicationsUsage;
     }
-    public Map<String, Object> getAnalyticsCollectionsUsage() { return analyticsCollectionsUsage; }
+
+    public Map<String, Object> getAnalyticsCollectionsUsage() {
+        return analyticsCollectionsUsage;
+    }
 }

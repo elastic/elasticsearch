@@ -60,9 +60,10 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // requests with the OPTIONS method should be handled elsewhere, and not by calling {@code RestHandler#handleRequest}
+        // authn is bypassed for HTTP requests with the OPTIONS method, so this sanity check prevents dispatching unauthenticated requests
         if (request.method() == Method.OPTIONS) {
-            // CORS - allow for preflight unauthenticated OPTIONS request
-            restHandler.handleRequest(request, channel, client);
+            handleException(request, channel, new IllegalStateException("Cannot dispatch OPTIONS request, as they are not authenticated"));
             return;
         }
 

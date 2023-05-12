@@ -28,7 +28,6 @@ addQaCheckDependencies(project)
 testClusters.configureEach {
   module ':modules:reindex'
   testDistribution = 'DEFAULT'
-  setting 'xpack.profiling.templates.enabled', 'false'
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.security.enabled', 'true'

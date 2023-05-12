@@ -99,7 +99,6 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder nodeSettings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         nodeSettings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        nodeSettings.put(XPackSettings.PROFILING_ENABLED.getKey(), false);
         nodeSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         nodeSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         nodeSettings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);

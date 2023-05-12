@@ -63,7 +63,6 @@ subprojects {
       testDistribution = 'DEFAULT'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
-      setting 'xpack.profiling.enabled', 'false'
     }
 
     tasks.named("javaRestTest").configure {

@@ -81,7 +81,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.authc.realms.native.native.order', '4'
 
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
 
   extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")

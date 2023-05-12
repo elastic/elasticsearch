@@ -19,7 +19,6 @@ testClusters.configureEach {
   numberOfNodes = 2
 
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   // We run with a trial license, but explicitly disable security.
   // This means the security plugin is loaded and all feature are permitted, but they are not enabled
   setting 'xpack.license.self_generated.type', 'trial'

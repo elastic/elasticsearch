@@ -187,7 +187,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.putList("node.roles", Collections.emptyList());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
-        builder.put(XPackSettings.PROFILING_ENABLED.getKey(), false);
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
         builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         builder.put(XPackSettings.WATCHER_ENABLED.getKey(), false);

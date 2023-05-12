@@ -21,7 +21,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.realms.file.file1.order', '0'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   // Kerberos realm

@@ -23,7 +23,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
 
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'

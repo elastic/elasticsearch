@@ -26,7 +26,6 @@ def remoteCluster = testClusters.register('remote-cluster') {
     setting 'node.roles', '[data,ingest,master]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.profiling.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
 
     user username: "test_user", password: "x-pack-test-password"
@@ -41,7 +40,6 @@ testClusters.register('mixed-cluster') {
     nodes."mixed-cluster-1".setting 'node.roles', '[data,ingest,master,transform,remote_cluster_client]'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.profiling.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.my_remote_cluster.seeds', {
       remoteCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()

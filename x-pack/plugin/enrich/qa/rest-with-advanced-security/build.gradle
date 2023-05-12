@@ -14,6 +14,5 @@ testClusters.configureEach {
   user username: "test_enrich", password: "x-pack-test-password", role: "integ_test_role"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.monitoring.collection.enabled', 'true'
 }

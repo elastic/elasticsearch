@@ -13,7 +13,6 @@ restResources {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   user username: "test_admin", password: "x-pack-test-password"

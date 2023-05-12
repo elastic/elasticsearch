@@ -25,9 +25,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
-    if (bwcVersion.onOrAfter('8.7.0')) {
-      setting 'xpack.profiling.enabled', 'false'
-    }
     setting 'xpack.license.self_generated.type', 'trial'
   }
 

@@ -26,7 +26,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   extraConfigFile 'oidc-jwkset.json', file('src/javaRestTest/resources/oidc-jwkset.json')
 
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'

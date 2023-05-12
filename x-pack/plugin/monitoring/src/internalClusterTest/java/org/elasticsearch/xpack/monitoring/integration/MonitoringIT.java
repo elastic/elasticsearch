@@ -83,7 +83,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-            .put(XPackSettings.PROFILING_ENABLED.getKey(), false)
             .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
             .put("xpack.monitoring.exporters._local.type", "local")
             .put("xpack.monitoring.exporters._local.enabled", false)

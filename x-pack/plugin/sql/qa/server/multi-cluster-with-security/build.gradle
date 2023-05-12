@@ -11,7 +11,6 @@ def remoteClusterReg = testClusters.register('remote-cluster') {
   setting 'node.roles', '[data,ingest,master]'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.autoconfiguration.enabled', 'false'
@@ -24,7 +23,6 @@ def javaRestTestClusterReg = testClusters.register('javaRestTest') {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'cluster.remote.my_remote_cluster.seeds', {
     remoteClusterReg.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }

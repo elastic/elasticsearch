@@ -18,7 +18,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   rolesFile file('src/javaRestTest/resources/roles.yml')
 
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
   setting 'xpack.security.enabled', 'true'

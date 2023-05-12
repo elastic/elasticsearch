@@ -11,7 +11,6 @@ testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "test_kibana_user", password: "x-pack-test-password", role: "kibana_system"

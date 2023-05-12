@@ -51,8 +51,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(ProfilingPlugin.class);
     public static final Setting<Boolean> PROFILING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.profiling.templates.enabled",
-        // Enable by default iff the profiling plugin is enabled
-        (settings) -> String.valueOf(XPackSettings.PROFILING_ENABLED.get(settings)),
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

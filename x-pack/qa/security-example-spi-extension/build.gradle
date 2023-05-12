@@ -35,7 +35,6 @@ testClusters.configureEach {
   setting 'xpack.security.authc.realms.custom_role_mapping.role_map.order', '3'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
   user username: "test_user", password: "x-pack-test-password"

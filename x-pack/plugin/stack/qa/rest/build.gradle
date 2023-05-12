@@ -15,6 +15,5 @@ restResources {
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }

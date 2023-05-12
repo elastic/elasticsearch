@@ -18,7 +18,6 @@ testClusters.configureEach {
   // that is thrown in production when indexing a document directly in a follower index.
   jvmArgs '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.profiling.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   // TODO: reduce the need for superuser here

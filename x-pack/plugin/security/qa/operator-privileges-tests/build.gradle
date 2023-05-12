@@ -36,7 +36,6 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.operator_privileges.enabled', "true"
-  setting 'xpack.profiling.templates.enabled', 'false'
   setting 'path.repo', repoDir.absolutePath
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.3.0")

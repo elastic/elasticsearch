@@ -22,6 +22,7 @@ these functions:
 * <<esql-is_null>>
 * <<esql-length>>
 * <<esql-mv_avg>>
+* <<esql-mv_count>>
 * <<esql-mv_max>>
 * <<esql-mv_min>>
 * <<esql-mv_sum>>
@@ -43,6 +44,7 @@ include::functions/is_nan.asciidoc[]
 include::functions/is_null.asciidoc[]
 include::functions/length.asciidoc[]
 include::functions/mv_avg.asciidoc[]
+include::functions/mv_count.asciidoc[]
 include::functions/mv_max.asciidoc[]
 include::functions/mv_min.asciidoc[]
 include::functions/mv_sum.asciidoc[]

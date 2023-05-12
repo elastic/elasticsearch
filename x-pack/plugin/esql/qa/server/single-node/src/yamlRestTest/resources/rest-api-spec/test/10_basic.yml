@@ -298,6 +298,7 @@ setup:
         - median_absolute_deviation
         - min
         - mv_avg
+        - mv_count
         - mv_max
         - mv_min
         - mv_sum
@@ -328,6 +329,7 @@ setup:
         - median_absolute_deviation(arg1)
         - min(arg1)
         - mv_avg(arg1)
+        - mv_count(arg1)
         - mv_max(arg1)
         - mv_min(arg1)
         - mv_sum(arg1)

@@ -210,6 +210,19 @@ foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
 // end::split-result[]
 ;
 
+mvCount
+// tag::mv_count[]
+ROW a=["foo", "zoo", "bar"]
+| EVAL count_a = MV_COUNT(a)
+// end::mv_count[]
+;
+
+// tag::mv_count-result[]
+            a:keyword | count_a:integer
+["foo", "zoo", "bar"] | 3
+// end::mv_count-result[]
+;
+
 mvMax
 // tag::mv_max[]
 ROW a=["foo", "zoo", "bar"]

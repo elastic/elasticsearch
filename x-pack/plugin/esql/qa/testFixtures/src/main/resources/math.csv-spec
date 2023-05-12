@@ -213,6 +213,15 @@ ROW a=[3, 5, 1, 6]
 // end::mv_avg-result[]
 ;
 
+mvCount
+ROW a=[3, 5, 1, 6]
+| EVAL count_a = MV_COUNT(a)
+;
+
+   a:integer | count_a:integer
+[3, 5, 1, 6] | 4
+;
+
 
 mvMax
 from employees | where emp_no > 10008 | eval salary_change = mv_max(salary_change.int) | sort emp_no | project emp_no, salary_change.int, salary_change | limit 7;

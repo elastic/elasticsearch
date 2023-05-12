@@ -142,6 +142,10 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         return result == null ? EMPTY_SNIPPET : result;
     }
 
+    public PassageFormatter getFormatter() {
+        return super.getFormatter(field);
+    }
+
     @Override
     protected FieldHighlighter newFieldHighlighter(
         String field,

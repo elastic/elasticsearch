@@ -203,7 +203,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-secrets-" + CURRENT_INDEX_VERSION)
             .setIndexPattern(".fleet-secrets*")
-            .setAliasName(".secrets")
+            .setAliasName(".fleet-secrets")
             .setDescription("Secret values managed by Fleet")
             .build();
     }

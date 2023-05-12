@@ -75,6 +75,43 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         verify(stuckIndicesFinder, times(1)).find();
     }
 
+    public void testIsYellowIfThereIsOneStuckIndicesAndDetailsEmptyIfNoVerbose() throws IOException {
+        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
+        var action = randomAction();
+        var policyName = randomAlphaOfLength(10);
+        var indexName = randomAlphaOfLength(10);
+        var stuckIndicesFinder = mockedStuckIndicesFinder(List.of(indexIlmState(indexName, policyName, action)));
+        var service = createIlmHealthIndicatorService(clusterState, stuckIndicesFinder);
+
+        var indicatorResult = service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO);
+
+        assertEquals(indicatorResult.name(), NAME);
+        assertEquals(indicatorResult.status(), YELLOW);
+        assertEquals(indicatorResult.symptom(), "An index has been stuck on the same action longer than expected.");
+        assertEquals(xContentToMap(indicatorResult.details()), Map.of());
+        assertThat(indicatorResult.impacts(), hasSize(1));
+        assertThat(
+            indicatorResult.impacts().get(0),
+            equalTo(
+                new HealthIndicatorImpact(
+                    NAME,
+                    IlmHealthIndicatorService.INDEX_STUCK_IMPACT_ID,
+                    3,
+                    "Some indices have been longer than expected on the same Index Lifecycle Management action. The performance "
+                        + "and stability of the cluster could be impacted.",
+                    List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                )
+            )
+        );
+        assertThat(indicatorResult.diagnosisList(), hasSize(1));
+        assertEquals(indicatorResult.diagnosisList().get(0).definition(), ACTION_STUCK_DEFINITIONS.get(action).apply(policyName));
+        assertEquals(
+            indicatorResult.diagnosisList().get(0).affectedResources(),
+            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(indexName)))
+        );
+        verify(stuckIndicesFinder, times(1)).find();
+    }
+
     public void testIsYellowIfThereIsOneStuckIndices() throws IOException {
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
         var action = randomAction();

@@ -62,7 +62,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         // test again with a non failed task but this time it has internal state
         pTasksBuilder.updateTaskState(
             "non-failed-task",
-            new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null, null)
+            new TransformState(TransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null, null, null, false, null)
         );
         csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
@@ -76,7 +76,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         )
             .updateTaskState(
                 "failed-task",
-                new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0L, "task has failed", null)
+                new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0L, "task has failed", null, null, false, null)
             );
         final ClusterState cs = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build())).build();
 

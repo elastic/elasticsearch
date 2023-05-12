@@ -445,7 +445,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             .map(TimeValue::nanos)
             .map(knownRestartDelay -> Math.max(indexLevelDelay, knownRestartDelay))
             .orElse(indexLevelDelay);
-        assert nanoTimeNow >= unassignedTimeNanos;
+        assert nanoTimeNow - unassignedTimeNanos >= 0;
         return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
     }
 
@@ -503,7 +503,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             sb.append(", last_node[").append(lastAllocatedNodeId).append("]");
         }
         String details = getDetails();
-
         if (details != null) {
             sb.append(", details[").append(details).append("]");
         }
@@ -528,6 +527,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             builder.stringListField("failed_nodes", failedNodeIds);
         }
         builder.field("delayed", delayed);
+        if (lastAllocatedNodeId != null) {
+            builder.field("last_node", lastAllocatedNodeId);
+        }
         String details = getDetails();
         if (details != null) {
             builder.field("details", details);

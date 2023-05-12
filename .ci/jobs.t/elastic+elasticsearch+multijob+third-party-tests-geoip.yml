@@ -9,7 +9,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh :modules:ingest-geoip:internalClusterTest -Dgeoip_use_service=true

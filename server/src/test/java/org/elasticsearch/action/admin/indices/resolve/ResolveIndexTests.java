@@ -525,13 +525,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(settings(additionalSettings));
-    }
-
-    private static Settings.Builder settings(Settings additionalSettings) {
-        return settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(additionalSettings);
+        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
     }
 
     private ThreadContext createThreadContext() {

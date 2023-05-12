@@ -187,15 +187,12 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         try {
             logger.info("--> starting recovery from blue to red");
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                )
-                .get();
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1),
+                indexName
+            );
 
             ensureGreen();
             if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
@@ -303,16 +300,12 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
 
         logger.info("--> starting recovery from blue to red");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            )
-            .get();
-
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1),
+            indexName
+        );
         requestFailed.await();
 
         logger.info("--> clearing rules to allow recovery to proceed");
@@ -450,11 +443,10 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         if (primaryRelocation) {
             logger.info("--> starting primary relocation recovery from blue to red");
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red"))
-                .get();
+            updateIndexSettings(
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red"),
+                indexName
+            );
 
             ensureGreen(); // also waits for relocation / recovery to complete
             // if a primary relocation fails after the source shard has been marked as relocated, both source and target are failed. If the
@@ -465,15 +457,12 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             client().admin().indices().prepareRefresh(indexName).get();
         } else {
             logger.info("--> starting replica recovery from blue to red");
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                )
-                .get();
+            updateIndexSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "color", "red,blue")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1),
+                indexName
+            );
 
             ensureGreen();
         }

@@ -147,7 +147,7 @@ public class LocalAllocateDangledIndices {
                                 indexMetadata.getIndex(),
                                 request.fromNode,
                                 indexMetadata.getCompatibilityVersion(),
-                                currentState.getNodes().getMasterNode().getVersion()
+                                currentState.getNodes().getMinNodeVersion()
                             );
                             continue;
                         }

@@ -376,14 +376,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             // no exception
             client().prepareSearch("test1").get();
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1)
-                    )
-            );
+            updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1 - 1));
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1").get());
             assertThat(
@@ -391,14 +384,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 containsString("Trying to query " + numPrimaries1 + " shards, which is over the limit of " + (numPrimaries1 - 1))
             );
 
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1)
-                    )
-            );
+            updateClusterSettings(Settings.builder().put(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), numPrimaries1));
 
             // no exception
             client().prepareSearch("test1").get();
@@ -412,22 +398,17 @@ public class TransportSearchIT extends ESIntegTestCase {
             );
 
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(Collections.singletonMap(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey(), null))
-            );
+            updateClusterSettings(Settings.builder().putNull(TransportSearchAction.SHARD_COUNT_LIMIT_SETTING.getKey()));
         }
     }
 
     public void testSearchIdle() throws Exception {
         int numOfReplicas = randomIntBetween(0, 1);
         internalCluster().ensureAtLeastNumDataNodes(numOfReplicas + 1);
-        final Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
+        final Settings.Builder settings = indexSettings(randomIntBetween(1, 5), numOfReplicas).put(
+            IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(),
+            TimeValue.timeValueMillis(randomIntBetween(50, 500))
+        );
         assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
             {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
@@ -488,8 +469,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         try {
-            Settings settings = Settings.builder().put("indices.breaker.request.limit", "1b").build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().put("indices.breaker.request.limit", "1b"));
             final Client client = client();
             assertBusy(() -> {
                 Exception exc = expectThrows(
@@ -528,8 +508,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
-            Settings settings = Settings.builder().putNull("indices.breaker.request.limit").build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            updateClusterSettings(Settings.builder().putNull("indices.breaker.request.limit"));
         }
     }
 
@@ -579,7 +558,7 @@ public class TransportSearchIT extends ESIntegTestCase {
     }
 
     private long requestBreakerUsed() {
-        NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
         long estimated = 0;
         for (NodeStats nodeStats : stats.getNodes()) {
             estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();

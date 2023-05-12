@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Collections;
@@ -57,6 +58,7 @@ public class XPackLicenseState {
         messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
         messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
         messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
+        messages.put(XPackField.ENTERPRISE_SEARCH, new String[] { "Search Applications and behavioral analytics will be disabled" });
         messages.put(
             XPackField.ROLLUP,
             new String[] {
@@ -79,6 +81,7 @@ public class XPackLicenseState {
                 "The CCR monitoring endpoint will be blocked",
                 "Existing follower indices will continue to replicate data" }
         );
+        messages.put(XPackField.REDACT_PROCESSOR, new String[] { "Executing a redact processor in an ingest pipeline will fail." });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -98,6 +101,8 @@ public class XPackLicenseState {
         messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
+        messages.put(XPackField.ENTERPRISE_SEARCH, XPackLicenseState::enterpriseSearchAcknowledgementMessages);
+        messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -211,6 +216,22 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
+    private static String[] enterpriseSearchAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+            case STANDARD:
+            case GOLD:
+                switch (currentMode) {
+                    case TRIAL:
+                    case PLATINUM:
+                    case ENTERPRISE:
+                        return new String[] { "Search Applications and behavioral analytics will be disabled" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
     private static String[] machineLearningAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
@@ -285,27 +306,24 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
-    private static boolean isBasic(OperationMode mode) {
-        return mode == OperationMode.BASIC;
+    private static String[] redactProcessorAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+            case STANDARD:
+            case GOLD:
+                switch (currentMode) {
+                    case TRIAL:
+                    case PLATINUM:
+                    case ENTERPRISE:
+                        return new String[] { "Redact ingest pipeline processors will be disabled" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
     }
 
-    /** A wrapper for the license mode, state, and expiration date, to allow atomically swapping. */
-    private static class Status {
-
-        /** The current "mode" of the license (ie license type). */
-        final OperationMode mode;
-
-        /** True if the license is active, or false if it is expired. */
-        final boolean active;
-
-        /** A warning to be emitted on license checks about the license expiring soon. */
-        final String expiryWarning;
-
-        Status(OperationMode mode, boolean active, String expiryWarning) {
-            this.mode = mode;
-            this.active = active;
-            this.expiryWarning = expiryWarning;
-        }
+    private static boolean isBasic(OperationMode mode) {
+        return mode == OperationMode.BASIC;
     }
 
     private final List<LicenseStateListener> listeners;
@@ -319,49 +337,52 @@ public class XPackLicenseState {
 
     private final LongSupplier epochMillisProvider;
 
-    // Since Status is the only field that can be updated, we do not need to synchronize access to
+    // Since xPackLicenseStatus is the only field that can be updated, we do not need to synchronize access to
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
     // reads. Methods should use `executeAgainstStatus` and `checkAgainstStatus` to ensure that the status
     // is only read once.
-    private volatile Status status = new Status(OperationMode.TRIAL, true, null);
+    private volatile XPackLicenseStatus xPackLicenseStatus;
+
+    public XPackLicenseState(LongSupplier epochMillisProvider, XPackLicenseStatus xPackLicenseStatus) {
+        this(new CopyOnWriteArrayList<>(), xPackLicenseStatus, new ConcurrentHashMap<>(), epochMillisProvider);
+    }
 
     public XPackLicenseState(LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.usage = new ConcurrentHashMap<>();
         this.epochMillisProvider = epochMillisProvider;
+        this.xPackLicenseStatus = new XPackLicenseStatus(OperationMode.TRIAL, true, null);
     }
 
     private XPackLicenseState(
         List<LicenseStateListener> listeners,
-        Status status,
+        XPackLicenseStatus xPackLicenseStatus,
         Map<FeatureUsage, Long> usage,
         LongSupplier epochMillisProvider
     ) {
         this.listeners = listeners;
-        this.status = status;
+        this.xPackLicenseStatus = xPackLicenseStatus;
         this.usage = usage;
         this.epochMillisProvider = epochMillisProvider;
     }
 
     /** Performs function against status, only reading the status once to avoid races */
-    private <T> T executeAgainstStatus(Function<Status, T> statusFn) {
-        return statusFn.apply(this.status);
+    private <T> T executeAgainstStatus(Function<XPackLicenseStatus, T> statusFn) {
+        return statusFn.apply(this.xPackLicenseStatus);
     }
 
     /** Performs predicate against status, only reading the status once to avoid races */
-    private boolean checkAgainstStatus(Predicate<Status> statusPredicate) {
-        return statusPredicate.test(this.status);
+    private boolean checkAgainstStatus(Predicate<XPackLicenseStatus> statusPredicate) {
+        return statusPredicate.test(this.xPackLicenseStatus);
     }
 
     /**
      * Updates the current state of the license, which will change what features are available.
      *
-     * @param mode   The mode (type) of the current license.
-     * @param active True if the current license exists and is within its allowed usage period; false if it is expired or missing.
-     * @param expiryWarning Warning to emit on license checks about the license expiring soon.
+     * @param xPackLicenseStatus The {@link XPackLicenseStatus} which controls overall state
      */
-    protected void update(OperationMode mode, boolean active, String expiryWarning) {
-        status = new Status(mode, active, expiryWarning);
+    void update(XPackLicenseStatus xPackLicenseStatus) {
+        this.xPackLicenseStatus = xPackLicenseStatus;
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
@@ -377,18 +398,18 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(statusToCheck -> statusToCheck.mode);
+        return executeAgainstStatus(statusToCheck -> statusToCheck.mode());
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(statusToCheck -> statusToCheck.active);
+        return checkAgainstStatus(statusToCheck -> statusToCheck.active());
     }
 
     public String statusDescription() {
         return executeAgainstStatus(
-            statusToCheck -> (statusToCheck.active ? "active" : "expired") + ' ' + statusToCheck.mode.description() + " license"
+            statusToCheck -> (statusToCheck.active() ? "active" : "expired") + ' ' + statusToCheck.mode().description() + " license"
         );
     }
 
@@ -425,7 +446,7 @@ public class XPackLicenseState {
     }
 
     void checkExpiry() {
-        String warning = status.expiryWarning;
+        String warning = xPackLicenseStatus.expiryWarning();
         if (warning != null) {
             HeaderWarning.addWarning(warning);
         }
@@ -475,10 +496,10 @@ public class XPackLicenseState {
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(statusToCheck -> {
-            if (needActive && false == statusToCheck.active) {
+            if (needActive && false == statusToCheck.active()) {
                 return false;
             }
-            return isAllowedByOperationMode(statusToCheck.mode, minimumMode);
+            return isAllowedByOperationMode(statusToCheck.mode(), minimumMode);
         });
     }
 

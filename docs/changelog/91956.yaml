@@ -1,5 +1,0 @@
-pr: 91956
-summary: Geohex aggregation on `geo_shape` field
-area: Geo
-type: feature
-issues: []

@@ -39,8 +39,16 @@ public class TransportGetProfilingActionTests extends ESTestCase {
         List<String> input = List.of("a", "b", "c", "d", "e", "f", "g", "h", "i", "j");
         List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
         assertEquals(slices, sliced.size());
-        assertEquals(List.of("a", "b", "c", "d"), sliced.get(0));
-        assertEquals(List.of("e", "f", "g", "h"), sliced.get(1));
-        assertEquals(List.of("i", "j"), sliced.get(2));
+        assertEquals(List.of("a", "b", "c"), sliced.get(0));
+        assertEquals(List.of("d", "e", "f"), sliced.get(1));
+        assertEquals(List.of("g", "h", "i", "j"), sliced.get(2));
+    }
+
+    public void testRandomLengthListGreaterThanSliceCount() {
+        int slices = randomIntBetween(1, 16);
+        // To ensure that we can actually slice the list
+        List<String> input = randomList(slices, 20000, () -> "s");
+        List<List<String>> sliced = TransportGetProfilingAction.sliced(input, slices);
+        assertEquals(slices, sliced.size());
     }
 }

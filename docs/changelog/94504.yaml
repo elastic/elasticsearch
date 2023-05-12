@@ -1,0 +1,5 @@
+pr: 94504
+summary: Index sequence numbers via a single Lucene field
+area: Mapping
+type: enhancement
+issues: []

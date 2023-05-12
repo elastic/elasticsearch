@@ -8,9 +8,8 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Task;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.specs.NotSpec;
 import org.gradle.api.specs.Spec;
@@ -85,9 +84,8 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     public List<ResourceLock> getSharedResources() {
         List<ResourceLock> locks = new ArrayList<>(super.getSharedResources());
         BuildServiceRegistryInternal serviceRegistry = getServices().get(BuildServiceRegistryInternal.class);
-        Provider<TestClustersThrottle> throttleProvider = GradleUtils.getBuildService(serviceRegistry, THROTTLE_SERVICE_NAME);
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
-
+        BuildServiceProvider<?, ?> serviceProvider = serviceRegistry.consume(THROTTLE_SERVICE_NAME, TestClustersThrottle.class);
+        SharedResource resource = serviceRegistry.forService(serviceProvider);
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
             for (int i = 0; i < Math.min(nodeCount, resource.getMaxUsages()); i++) {

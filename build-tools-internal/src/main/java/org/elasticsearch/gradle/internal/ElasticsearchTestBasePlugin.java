@@ -40,6 +40,8 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
  */
 public class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
+    public static final String DUMP_OUTPUT_ON_FAILURE_PROP_NAME = "dumpOutputOnFailure";
+
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(GradleTestPolicySetupPlugin.class);
@@ -55,7 +57,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
-            test.getExtensions().getExtraProperties().set("dumpOutputOnFailure", true);
+            test.getInputs().property(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);

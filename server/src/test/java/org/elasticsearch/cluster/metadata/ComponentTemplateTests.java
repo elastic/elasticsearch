@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,6 +20,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
@@ -107,11 +112,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static Settings randomSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+        return indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
@@ -242,6 +244,38 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
             CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));
             assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
+        }
+    }
+
+    public void testXContentSerializationWithRollover() throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        Map<String, AliasMetadata> aliases = null;
+        if (randomBoolean()) {
+            settings = randomSettings();
+        }
+        if (randomBoolean()) {
+            mappings = randomMappings();
+        }
+        if (randomBoolean()) {
+            aliases = randomAliases();
+        }
+        DataLifecycle lifecycle = randomLifecycle();
+        ComponentTemplate template = new ComponentTemplate(
+            new Template(settings, mappings, aliases, lifecycle),
+            randomNonNegativeLong(),
+            null
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
+                assertThat(serialized, containsString(label));
+            }
         }
     }
 }

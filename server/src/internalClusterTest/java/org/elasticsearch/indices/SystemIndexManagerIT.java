@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +34,6 @@ import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SystemIndexManagerIT extends ESIntegTestCase {
@@ -110,13 +108,7 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
 
         for (IndexMetadata.APIBlock blockType : IndexMetadata.APIBlock.values()) {
             enableIndexBlock(INDEX_NAME, blockType.settingName());
-
-            AcknowledgedResponse removeBlockResp = client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(blockType.settingName(), false))
-                .get();
-            assertThat(removeBlockResp.isAcknowledged(), is(true));
+            updateIndexSettings(Settings.builder().put(blockType.settingName(), false), INDEX_NAME);
         }
     }
 

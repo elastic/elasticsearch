@@ -611,12 +611,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         Runnable fixupAction = () -> {
             // remove the shard allocation filtering settings and use the Reroute API to retry the failed shards
-            assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings(indexName)
-                    .setSettings(Settings.builder().putNull("index.routing.allocation.include._name").build())
-            );
+            updateIndexSettings(Settings.builder().putNull("index.routing.allocation.include._name"), indexName);
             assertAcked(clusterAdmin().prepareReroute().setRetryFailed(true));
         };
 
@@ -908,7 +903,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> execution was blocked on node [{}], moving shards away from this node", blockedNode);
         Settings.Builder excludeSettings = Settings.builder().put("index.routing.allocation.exclude._name", blockedNode);
-        client().admin().indices().prepareUpdateSettings("test-idx").setSettings(excludeSettings).get();
+        updateIndexSettings(excludeSettings, "test-idx");
 
         unblockNode("test-repo", blockedNode);
         awaitNoMoreRunningOperations();
@@ -1085,13 +1080,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         );
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
-        assertAcked(
-            prepareCreate(
-                "test-idx",
-                2,
-                Settings.builder().put("number_of_replicas", 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(2, 10))
-            )
-        );
+        assertAcked(prepareCreate("test-idx", 2, indexSettingsNoReplicas(randomIntBetween(2, 10))));
         indexRandomDocs("test-idx", 100);
 
         // Pick one node and block it
@@ -2243,8 +2232,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     private void verifySnapshotInfo(final GetSnapshotsResponse response, final Map<String, List<String>> indicesPerSnapshot) {
         for (SnapshotInfo snapshotInfo : response.getSnapshots()) {
-            final List<String> expected = snapshotInfo.indices();
-            assertEquals(expected, indicesPerSnapshot.get(snapshotInfo.snapshotId().getName()));
+            assertEquals(Set.copyOf(indicesPerSnapshot.get(snapshotInfo.snapshotId().getName())), Set.copyOf(snapshotInfo.indices()));
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         }
     }

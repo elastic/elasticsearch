@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.ArrayList;
@@ -35,47 +35,47 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public void testModelThatDoesNotFitInMemory() {
         List<Node> nodes = List.of(new Node("n_1", 100, 4));
-        Model model = new Model("m_1", 101, 4, 1, Map.of(), 0);
-        AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(model)).computePlan();
-        assertThat(plan.assignments(model).isEmpty(), is(true));
+        Deployment deployment = new AssignmentPlan.Deployment("m_1", 101, 4, 1, Map.of(), 0);
+        AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
+        assertThat(plan.assignments(deployment).isEmpty(), is(true));
     }
 
     public void testModelWithThreadsPerAllocationNotFittingOnAnyNode() {
         List<Node> nodes = List.of(new Node("n_1", 100, 4), new Node("n_2", 100, 5));
-        Model model = new Model("m_1", 1, 1, 6, Map.of(), 0);
-        AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(model)).computePlan();
-        assertThat(plan.assignments(model).isEmpty(), is(true));
+        Deployment deployment = new AssignmentPlan.Deployment("m_1", 1, 1, 6, Map.of(), 0);
+        AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(deployment)).computePlan();
+        assertThat(plan.assignments(deployment).isEmpty(), is(true));
     }
 
     public void testSingleModelThatFitsFullyOnSingleNode() {
         {
             Node node = new Node("n_1", 100, 4);
-            Model model = new Model("m_1", 100, 1, 1, Map.of(), 0);
-            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            assertModelFullyAssignedToNode(plan, model, node);
+            Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 1, 1, Map.of(), 0);
+            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertModelFullyAssignedToNode(plan, deployment, node);
         }
         {
             Node node = new Node("n_1", 1000, 8);
-            Model model = new Model("m_1", 1000, 8, 1, Map.of(), 0);
-            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            assertModelFullyAssignedToNode(plan, model, node);
+            Deployment deployment = new Deployment("m_1", 1000, 8, 1, Map.of(), 0);
+            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertModelFullyAssignedToNode(plan, deployment, node);
         }
         {
             Node node = new Node("n_1", 10000, 16);
-            Model model = new Model("m_1", 10000, 1, 16, Map.of(), 0);
-            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            assertModelFullyAssignedToNode(plan, model, node);
+            AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 10000, 1, 16, Map.of(), 0);
+            AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertModelFullyAssignedToNode(plan, deployment, node);
         }
     }
 
     public void testSingleModelThatFitsFullyOnSingleNode_GivenTwoNodes_ShouldBeFullyAssignedOnOneNode() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
-        Model model = new Model("m_1", 100, 4, 1, Map.of(), 0);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", 100, 4, 1, Map.of(), 0);
 
-        AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(model)).computePlan();
+        AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
 
-        Map<Node, Integer> assignments = plan.assignments(model).get();
+        Map<Node, Integer> assignments = plan.assignments(deployment).get();
         if (assignments.get(node1) > 0) {
             assertThat(assignments.get(node1), equalTo(4));
         } else {
@@ -84,22 +84,22 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testModelWithMoreAllocationsThanAvailableCores_GivenSingleThreadPerAllocation() {
-        Model model = new Model("m_1", 30, 10, 1, Map.of(), 0);
+        AssignmentPlan.Deployment deployment = new Deployment("m_1", 30, 10, 1, Map.of(), 0);
         // Single node
         {
             Node node = new Node("n_1", 100, 4);
-            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
             assertThat(assignments.get(node), equalTo(4));
         }
         // Two nodes
         {
             Node node1 = new Node("n_1", 100, 4);
             Node node2 = new Node("n_2", 100, 2);
-            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(model)).computePlan();
-            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
             assertThat(assignments.get(node1), equalTo(4));
             assertThat(assignments.get(node2), equalTo(2));
         }
@@ -108,9 +108,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node1 = new Node("n_1", 100, 4);
             Node node2 = new Node("n_2", 100, 2);
             Node node3 = new Node("n_3", 100, 3);
-            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(model)).computePlan();
-            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
             assertThat(assignments.get(node1), equalTo(4));
             assertThat(assignments.get(node2), equalTo(2));
             assertThat(assignments.get(node3), equalTo(3));
@@ -122,33 +122,35 @@ public class AssignmentPlannerTests extends ESTestCase {
         Node node2 = new Node("n_2", 100, 7);
         Node node3 = new Node("n_3", 100, 2);
         Node node4 = new Node("n_4", 100, 2);
-        Model model1 = new Model("m_1", 50, 2, 4, Map.of(), 0);
-        Model model2 = new Model("m_2", 50, 2, 3, Map.of(), 0);
-        Model model3 = new Model("m_3", 50, 1, 2, Map.of(), 0);
-        Model model4 = new Model("m_4", 50, 2, 1, Map.of(), 0);
+        Deployment deployment1 = new Deployment("m_1", 50, 2, 4, Map.of(), 0);
+        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", 50, 2, 3, Map.of(), 0);
+        Deployment deployment3 = new AssignmentPlan.Deployment("m_3", 50, 1, 2, Map.of(), 0);
+        AssignmentPlan.Deployment deployment4 = new AssignmentPlan.Deployment("m_4", 50, 2, 1, Map.of(), 0);
 
-        AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2, node3, node4), List.of(model1, model2, model3, model4))
-            .computePlan();
+        AssignmentPlan plan = new AssignmentPlanner(
+            List.of(node1, node2, node3, node4),
+            List.of(deployment1, deployment2, deployment3, deployment4)
+        ).computePlan();
 
         {
-            assertThat(plan.assignments(model1).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(model1).get();
+            assertThat(plan.assignments(deployment1).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment1).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(1));
             assertThat(assignments.get(node3), is(nullValue()));
             assertThat(assignments.get(node4), is(nullValue()));
         }
         {
-            assertThat(plan.assignments(model2).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(model2).get();
+            assertThat(plan.assignments(deployment2).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment2).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(1));
             assertThat(assignments.get(node3), is(nullValue()));
             assertThat(assignments.get(node4), is(nullValue()));
         }
         {
-            assertThat(plan.assignments(model3).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(model3).get();
+            assertThat(plan.assignments(deployment3).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment3).get();
             assertThat(assignments.get(node1), is(nullValue()));
             assertThat(assignments.get(node2), is(nullValue()));
             // Will either be on node 3 or 4
@@ -158,8 +160,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             assertThat(assignments.get(otherNode), is(nullValue()));
         }
         {
-            assertThat(plan.assignments(model4).isPresent(), is(true));
-            Map<Node, Integer> assignments = plan.assignments(model4).get();
+            assertThat(plan.assignments(deployment4).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(deployment4).get();
             assertThat(assignments.get(node1), is(nullValue()));
             assertThat(assignments.get(node2), is(nullValue()));
             // Will either be on node 3 or 4
@@ -171,22 +173,22 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testModelWithMoreAllocationsThanAvailableCores_GivenThreeThreadsPerAllocation() {
-        Model model = new Model("m_1", 30, 10, 3, Map.of(), 0);
+        Deployment deployment = new AssignmentPlan.Deployment("m_1", 30, 10, 3, Map.of(), 0);
         // Single node
         {
             Node node = new Node("n_1", 100, 4);
-            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
             assertThat(assignments.get(node), equalTo(1));
         }
         // Two nodes
         {
             Node node1 = new Node("n_1", 100, 4);
             Node node2 = new Node("n_2", 100, 8);
-            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(model)).computePlan();
-            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(2));
         }
@@ -195,9 +197,9 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node1 = new Node("n_1", 100, 4);
             Node node2 = new Node("n_2", 100, 7);
             Node node3 = new Node("n_3", 100, 15);
-            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(model)).computePlan();
-            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
+            AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment)).computePlan();
+            assertThat(assignmentPlan.assignments(deployment).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(2));
             assertThat(assignments.get(node3), equalTo(5));
@@ -206,11 +208,11 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public void testModelWithPreviousAssignmentAndNoMoreCoresAvailable() {
         Node node = new Node("n_1", 100, 4);
-        Model model = new Model("m_1", 30, 4, 1, Map.of("n_1", 4), 0);
-        AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 30, 4, 1, Map.of("n_1", 4), 0);
+        AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(deployment)).computePlan();
 
-        assertThat(plan.assignments(model).isPresent(), is(true));
-        assertThat(plan.assignments(model).get(), equalTo(Map.of(node, 4)));
+        assertThat(plan.assignments(deployment).isPresent(), is(true));
+        assertThat(plan.assignments(deployment).get(), equalTo(Map.of(node, 4)));
     }
 
     public void testFullCoreUtilization_GivenModelsWithSingleThreadPerAllocation() {
@@ -222,31 +224,31 @@ public class AssignmentPlannerTests extends ESTestCase {
             new Node("n_5", ByteSizeValue.ofGb(16).getBytes(), 16),
             new Node("n_6", ByteSizeValue.ofGb(8).getBytes(), 16)
         );
-        List<Model> models = List.of(
-            new Model("m_1", ByteSizeValue.ofGb(4).getBytes(), 10, 1, Map.of("n_1", 5), 0),
-            new Model("m_2", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of("n_3", 2), 0),
-            new Model("m_3", ByteSizeValue.ofGb(3).getBytes(), 3, 1, Map.of(), 0),
-            new Model("m_4", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of("n_3", 2), 0),
-            new Model("m_5", ByteSizeValue.ofGb(6).getBytes(), 2, 1, Map.of(), 0),
-            new Model("m_6", ByteSizeValue.ofGb(1).getBytes(), 12, 1, Map.of(), 0),
-            new Model("m_7", ByteSizeValue.ofGb(1).getBytes() / 2, 12, 1, Map.of("n_2", 6), 0),
-            new Model("m_8", ByteSizeValue.ofGb(2).getBytes(), 4, 1, Map.of(), 0),
-            new Model("m_9", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of(), 0),
-            new Model("m_10", ByteSizeValue.ofGb(7).getBytes(), 7, 1, Map.of(), 0),
-            new Model("m_11", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of(), 0),
-            new Model("m_12", ByteSizeValue.ofGb(1).getBytes(), 10, 1, Map.of(), 0)
+        List<Deployment> deployments = List.of(
+            new Deployment("m_1", ByteSizeValue.ofGb(4).getBytes(), 10, 1, Map.of("n_1", 5), 0),
+            new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of("n_3", 2), 0),
+            new AssignmentPlan.Deployment("m_3", ByteSizeValue.ofGb(3).getBytes(), 3, 1, Map.of(), 0),
+            new Deployment("m_4", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of("n_3", 2), 0),
+            new Deployment("m_5", ByteSizeValue.ofGb(6).getBytes(), 2, 1, Map.of(), 0),
+            new Deployment("m_6", ByteSizeValue.ofGb(1).getBytes(), 12, 1, Map.of(), 0),
+            new AssignmentPlan.Deployment("m_7", ByteSizeValue.ofGb(1).getBytes() / 2, 12, 1, Map.of("n_2", 6), 0),
+            new Deployment("m_8", ByteSizeValue.ofGb(2).getBytes(), 4, 1, Map.of(), 0),
+            new Deployment("m_9", ByteSizeValue.ofGb(1).getBytes(), 4, 1, Map.of(), 0),
+            new AssignmentPlan.Deployment("m_10", ByteSizeValue.ofGb(7).getBytes(), 7, 1, Map.of(), 0),
+            new Deployment("m_11", ByteSizeValue.ofGb(2).getBytes(), 3, 1, Map.of(), 0),
+            new Deployment("m_12", ByteSizeValue.ofGb(1).getBytes(), 10, 1, Map.of(), 0)
         );
 
-        AssignmentPlan assignmentPlan = new AssignmentPlanner(nodes, models).computePlan();
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(nodes, deployments).computePlan();
 
         int usedCores = 0;
-        for (Model m : models) {
+        for (AssignmentPlan.Deployment m : deployments) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
             usedCores += assignments.values().stream().mapToInt(Integer::intValue).sum();
         }
         assertThat(usedCores, equalTo(64));
 
-        assertPreviousAssignmentsAreSatisfied(models, assignmentPlan);
+        assertPreviousAssignmentsAreSatisfied(deployments, assignmentPlan);
     }
 
     public void testTooManyNodesAndModels_DoesNotThrowOOM_GivenNodesJustUnderLimit() {
@@ -287,17 +289,17 @@ public class AssignmentPlannerTests extends ESTestCase {
             int scale = randomIntBetween(0, 10);
             double load = randomDoubleBetween(0.1, 1.0, true);
             List<Node> nodes = randomNodes(scale);
-            List<Model> models = randomModels(scale, load);
+            List<Deployment> deployments = randomModels(scale, load);
             nodeSizes.add(nodes.size());
-            modelSizes.add(models.size());
-            logger.debug("Nodes = " + nodes.size() + "; Models = " + models.size());
-            AssignmentPlanner solver = new AssignmentPlanner(nodes, models);
+            modelSizes.add(deployments.size());
+            logger.debug("Nodes = " + nodes.size() + "; Models = " + deployments.size());
+            AssignmentPlanner solver = new AssignmentPlanner(nodes, deployments);
             StopWatch stopWatch = new StopWatch();
             stopWatch.start();
             AssignmentPlan assignmentPlan = solver.computePlan();
             stopWatch.stop();
 
-            Quality quality = computeQuality(nodes, models, assignmentPlan);
+            Quality quality = computeQuality(nodes, deployments, assignmentPlan);
             if (quality.coreUtilization > 0) {
                 coreUtilization.add(quality.coreUtilization);
             }
@@ -324,17 +326,17 @@ public class AssignmentPlannerTests extends ESTestCase {
         int scale = randomIntBetween(0, 10);
         double load = randomDoubleBetween(0.1, 1.0, true);
         List<Node> nodes = randomNodes(scale);
-        List<Model> models = randomModels(scale, load);
-        AssignmentPlan originalPlan = new AssignmentPlanner(nodes, models).computePlan();
+        List<AssignmentPlan.Deployment> deployments = randomModels(scale, load);
+        AssignmentPlan originalPlan = new AssignmentPlanner(nodes, deployments).computePlan();
 
-        List<Model> previousModelsPlusNew = new ArrayList<>(models.size() + 1);
-        for (Model m : models) {
+        List<Deployment> previousModelsPlusNew = new ArrayList<>(deployments.size() + 1);
+        for (Deployment m : deployments) {
             Map<Node, Integer> assignments = originalPlan.assignments(m).orElse(Map.of());
             Map<String, Integer> previousAssignments = assignments.entrySet()
                 .stream()
                 .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
             previousModelsPlusNew.add(
-                new Model(m.id(), m.memoryBytes(), m.allocations(), m.threadsPerAllocation(), previousAssignments, 0)
+                new AssignmentPlan.Deployment(m.id(), m.memoryBytes(), m.allocations(), m.threadsPerAllocation(), previousAssignments, 0)
             );
         }
         previousModelsPlusNew.add(randomModel("new"));
@@ -348,19 +350,27 @@ public class AssignmentPlannerTests extends ESTestCase {
         Node node1 = new Node("n_1", ByteSizeValue.ofGb(2).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofGb(2).getBytes(), 2);
         Node node3 = new Node("n_3", ByteSizeValue.ofGb(2).getBytes(), 2);
-        Model model1 = new Model("m_1", ByteSizeValue.ofMb(1200).getBytes(), 3, 1, Map.of("n_1", 2, "n_2", 1), 0);
-        Model model2 = new Model("m_2", ByteSizeValue.ofMb(1100).getBytes(), 2, 1, Map.of(), 0);
-        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(model1, model2)).computePlan();
+        Deployment deployment1 = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(1200).getBytes(),
+            3,
+            1,
+            Map.of("n_1", 2, "n_2", 1),
+            0
+        );
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 2, 1, Map.of(), 0);
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(deployment1, deployment2))
+            .computePlan();
         {
-            assertThat(assignmentPlan.assignments(model1).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model1).get();
+            assertThat(assignmentPlan.assignments(deployment1).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment1).get();
             assertThat(assignments.get(node1), equalTo(2));
             assertThat(assignments.get(node2), equalTo(1));
             assertThat(assignments.get(node3), is(nullValue()));
         }
         {
-            assertThat(assignmentPlan.assignments(model2).isPresent(), is(true));
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model2).get();
+            assertThat(assignmentPlan.assignments(deployment2).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(deployment2).get();
             assertThat(assignments.get(node1), is(nullValue()));
             assertThat(assignments.get(node2), is(nullValue()));
             assertThat(assignments.get(node3), equalTo(2));
@@ -370,10 +380,24 @@ public class AssignmentPlannerTests extends ESTestCase {
     public void testModelWithoutCurrentAllocationsGetsAssignedIfAllocatedPreviously() {
         Node node1 = new Node("n_1", ByteSizeValue.ofGb(4).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofGb(4).getBytes(), 2);
-        Model model1 = new Model("m_1", ByteSizeValue.ofMb(1200).getBytes(), 3, 1, Map.of("n_1", 2, "n_2", 1), 3);
-        Model model2 = new Model("m_2", ByteSizeValue.ofMb(1100).getBytes(), 1, 2, Map.of(), 1);
+        AssignmentPlan.Deployment deployment1 = new Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(1200).getBytes(),
+            3,
+            1,
+            Map.of("n_1", 2, "n_2", 1),
+            3
+        );
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment(
+            "m_2",
+            ByteSizeValue.ofMb(1100).getBytes(),
+            1,
+            2,
+            Map.of(),
+            1
+        );
 
-        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(model1, model2)).computePlan();
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1, deployment2)).computePlan();
 
         Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(assignmentPlan);
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2"));
@@ -383,10 +407,10 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     public void testGivenPreviouslyAssignedModels_CannotAllBeAllocated() {
         Node node1 = new Node("n_1", ByteSizeValue.ofGb(2).getBytes(), 2);
-        Model model1 = new Model("m_1", ByteSizeValue.ofMb(1200).getBytes(), 1, 1, Map.of(), 1);
-        Model model2 = new Model("m_2", ByteSizeValue.ofMb(1100).getBytes(), 1, 1, Map.of(), 1);
+        AssignmentPlan.Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(1200).getBytes(), 1, 1, Map.of(), 1);
+        AssignmentPlan.Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(1100).getBytes(), 1, 1, Map.of(), 1);
 
-        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1), List.of(model1, model2)).computePlan();
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1), List.of(deployment1, deployment2)).computePlan();
 
         assertThat(assignmentPlan.countPreviouslyAssignedModelsThatAreStillAssigned(), equalTo(1L));
     }
@@ -394,12 +418,12 @@ public class AssignmentPlannerTests extends ESTestCase {
     public void testGivenClusterResize_ShouldAllocateEachModelAtLeastOnce() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1200).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1200).getBytes(), 2);
-        Model model1 = new Model("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0);
-        Model model2 = new Model("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
-        Model model3 = new Model("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0);
+        Deployment deployment2 = new AssignmentPlan.Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0);
 
         // First only start m_1
-        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(model1)).computePlan();
+        AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(deployment1)).computePlan();
 
         Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(assignmentPlan);
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1"));
@@ -408,7 +432,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Then start m_2
         assignmentPlan = new AssignmentPlanner(
             List.of(node1, node2),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(model2)).toList()
+            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -419,7 +443,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         // Then start m_3
         assignmentPlan = new AssignmentPlanner(
             List.of(node1, node2),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(model3)).toList()
+            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -453,9 +477,9 @@ public class AssignmentPlannerTests extends ESTestCase {
         assertThat(assignmentPlan.getRemainingNodeCores("n_2"), equalTo(0));
     }
 
-    public static List<Model> createModelsFromPlan(AssignmentPlan plan) {
-        List<Model> models = new ArrayList<>();
-        for (Model m : plan.models()) {
+    public static List<Deployment> createModelsFromPlan(AssignmentPlan plan) {
+        List<Deployment> deployments = new ArrayList<>();
+        for (Deployment m : plan.models()) {
             Optional<Map<Node, Integer>> assignments = plan.assignments(m);
             Map<String, Integer> currentAllocations = Map.of();
             if (assignments.isPresent()) {
@@ -465,8 +489,8 @@ public class AssignmentPlannerTests extends ESTestCase {
                 }
             }
             int totalAllocations = currentAllocations.values().stream().mapToInt(Integer::intValue).sum();
-            models.add(
-                new Model(
+            deployments.add(
+                new Deployment(
                     m.id(),
                     m.memoryBytes(),
                     m.allocations(),
@@ -476,12 +500,12 @@ public class AssignmentPlannerTests extends ESTestCase {
                 )
             );
         }
-        return models;
+        return deployments;
     }
 
     public static Map<String, Map<String, Integer>> convertToIdIndexed(AssignmentPlan plan) {
         Map<String, Map<String, Integer>> result = new HashMap<>();
-        for (Model m : plan.models()) {
+        for (AssignmentPlan.Deployment m : plan.models()) {
             Optional<Map<Node, Integer>> assignments = plan.assignments(m);
             Map<String, Integer> allocationsPerNodeId = assignments.isPresent() ? new HashMap<>() : Map.of();
             for (Map.Entry<Node, Integer> nodeAssignments : assignments.orElse(Map.of()).entrySet()) {
@@ -492,7 +516,7 @@ public class AssignmentPlannerTests extends ESTestCase {
         return result;
     }
 
-    public static void assertModelFullyAssignedToNode(AssignmentPlan plan, Model m, Node n) {
+    public static void assertModelFullyAssignedToNode(AssignmentPlan plan, Deployment m, Node n) {
         Optional<Map<Node, Integer>> assignments = plan.assignments(m);
         assertThat(assignments.isPresent(), is(true));
         assertThat(assignments.get().size(), equalTo(1));
@@ -520,17 +544,17 @@ public class AssignmentPlannerTests extends ESTestCase {
         return nodes;
     }
 
-    public static List<Model> randomModels(int scale, double load) {
-        List<Model> models = new ArrayList<>();
+    public static List<Deployment> randomModels(int scale, double load) {
+        List<Deployment> deployments = new ArrayList<>();
         for (int i = 0; i < Math.max(2, Math.round(load * (1 + 8 * scale))); i++) {
-            models.add(randomModel(String.valueOf(i)));
+            deployments.add(randomModel(String.valueOf(i)));
         }
-        return models;
+        return deployments;
     }
 
-    public static Model randomModel(String idSuffix) {
+    public static Deployment randomModel(String idSuffix) {
         int allocations = randomIntBetween(1, 32);
-        return new Model(
+        return new Deployment(
             "m_" + idSuffix,
             randomLongBetween(ByteSizeValue.ofMb(100).getBytes(), ByteSizeValue.ofGb(10).getBytes()),
             randomIntBetween(1, 32),
@@ -540,8 +564,8 @@ public class AssignmentPlannerTests extends ESTestCase {
         );
     }
 
-    public static void assertPreviousAssignmentsAreSatisfied(List<Model> models, AssignmentPlan assignmentPlan) {
-        for (Model m : models.stream().filter(m -> m.currentAllocationsByNodeId().isEmpty() == false).toList()) {
+    public static void assertPreviousAssignmentsAreSatisfied(List<AssignmentPlan.Deployment> deployments, AssignmentPlan assignmentPlan) {
+        for (Deployment m : deployments.stream().filter(m -> m.currentAllocationsByNodeId().isEmpty() == false).toList()) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).get();
             Set<String> assignedNodeIds = new HashSet<>();
             int allocations = 0;
@@ -562,28 +586,31 @@ public class AssignmentPlannerTests extends ESTestCase {
         for (int i = 0; i < nodesSize; i++) {
             nodes.add(new Node("n_" + i, ByteSizeValue.ofGb(6).getBytes(), 100));
         }
-        List<Model> models = new ArrayList<>();
+        List<Deployment> deployments = new ArrayList<>();
         for (int i = 0; i < modelsSize; i++) {
-            models.add(new Model("m_" + i, ByteSizeValue.ofMb(200).getBytes(), 2, 1, Map.of(), 0));
+            deployments.add(new Deployment("m_" + i, ByteSizeValue.ofMb(200).getBytes(), 2, 1, Map.of(), 0));
         }
 
         // Check plan is computed without OOM exception
-        new AssignmentPlanner(nodes, models).computePlan();
+        new AssignmentPlanner(nodes, deployments).computePlan();
     }
 
-    private static Quality computeQuality(List<Node> nodes, List<Model> models, AssignmentPlan assignmentPlan) {
+    private static Quality computeQuality(List<Node> nodes, List<Deployment> deployments, AssignmentPlan assignmentPlan) {
         final int totalCores = nodes.stream().map(Node::cores).mapToInt(Integer::intValue).sum();
-        final int totalAllocationRequired = models.stream().map(Model::allocations).mapToInt(Integer::intValue).sum();
+        final int totalAllocationRequired = deployments.stream()
+            .map(AssignmentPlan.Deployment::allocations)
+            .mapToInt(Integer::intValue)
+            .sum();
         int usedCores = 0;
         int assignedAllocations = 0;
-        for (Model m : models) {
+        for (Deployment m : deployments) {
             for (Map.Entry<Node, Integer> assignment : assignmentPlan.assignments(m).orElse(Map.of()).entrySet()) {
                 assignedAllocations += assignment.getValue();
                 usedCores += assignment.getValue() * m.threadsPerAllocation();
             }
         }
         return new Quality(
-            (double) usedCores / Math.min(totalCores, models.stream().mapToInt(m -> m.allocations() * m.threadsPerAllocation()).sum()),
+            (double) usedCores / Math.min(totalCores, deployments.stream().mapToInt(m -> m.allocations() * m.threadsPerAllocation()).sum()),
             (double) assignedAllocations / totalAllocationRequired
         );
     }

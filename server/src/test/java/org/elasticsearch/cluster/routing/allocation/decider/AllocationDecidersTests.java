@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -116,11 +117,9 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     private static Decision.Multi collectToMultiDecision(List<Decision> decisions, Predicate<Decision> filter) {
-        return decisions.stream()
-            .filter(filter)
-            .collect(
-                Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> { throw new AssertionError("should not be called"); })
-            );
+        return decisions.stream().filter(filter).collect(Collector.of(Decision.Multi::new, Decision.Multi::add, (a, b) -> {
+            throw new AssertionError("should not be called");
+        }));
     }
 
     private void verifyDecidersCall(
@@ -139,7 +138,7 @@ public class AllocationDecidersTests extends ESTestCase {
             .build();
         ShardRouting shardRouting = createShardRouting(index.getIndex());
         RoutingNode routingNode = RoutingNodesHelper.routingNode("node", null);
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", new TransportAddress(TransportAddress.META_ADDRESS, 0), Version.CURRENT);
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("node", new TransportAddress(TransportAddress.META_ADDRESS, 0));
 
         List.<BiFunction<RoutingAllocation, AllocationDeciders, Decision>>of(
             (allocation, deciders) -> deciders.canAllocate(shardRouting, allocation),

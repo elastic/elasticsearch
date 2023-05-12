@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -50,7 +51,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -200,6 +200,9 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             gatewayAllocator,
             EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
+        );
+        assertCriticalWarnings(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
         logger.info("Building initial routing table");
 
@@ -412,7 +415,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         if (snapshotIndices.isEmpty() == false) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
             Map<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = new HashMap<>();
-            for (ShardRouting shard : routingTable.allShards()) {
+            for (ShardRouting shard : routingTable.allShardsIterator()) {
                 if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     final ShardId shardId = shard.shardId();
                     restoreShards.put(shardId, new RestoreInProgress.ShardRestoreStatus(node1.getId(), RestoreInProgress.State.INIT));
@@ -434,7 +437,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
 
-        return ClusterState.builder(CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(node1))
             .metadata(metadataBuilder.build())
             .routingTable(routingTable)

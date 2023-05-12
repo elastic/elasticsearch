@@ -39,7 +39,6 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +73,7 @@ public class IPFilterTests extends ESTestCase {
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             Stream.of(

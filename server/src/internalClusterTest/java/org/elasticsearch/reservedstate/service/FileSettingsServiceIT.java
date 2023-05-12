@@ -111,11 +111,11 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
-        Files.createDirectories(fileSettingsService.operatorSettingsDir());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);
+        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
         logger.info("--> New file settings: [{}]", Strings.format(json, version));
     }
 
@@ -306,11 +306,8 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         assertThat(clusterStateResponse.getState().metadata().persistentSettings().get("search.allow_expensive_queries"), nullValue());
 
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
-            Settings.builder().put("search.allow_expensive_queries", "false")
-        );
         // This should succeed, nothing was reserved
-        client().admin().cluster().updateSettings(req).get();
+        updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
     }
 
     public void testErrorSaved() throws Exception {
@@ -345,6 +342,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         logger.info("--> start master eligible nodes, 2 more for quorum");
         String masterNode1 = internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
         String masterNode2 = internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
+        internalCluster().validateClusterFormed();
         FileSettingsService master1FS = internalCluster().getInstance(FileSettingsService.class, masterNode1);
         FileSettingsService master2FS = internalCluster().getInstance(FileSettingsService.class, masterNode2);
 
@@ -360,12 +358,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
 
         internalCluster().stopCurrentMasterNode();
+        internalCluster().validateClusterFormed();
         ensureStableCluster(2);
 
         FileSettingsService masterFS = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
         assertTrue(masterFS.watching());
         logger.info("--> start another master eligible node to form a quorum");
         internalCluster().startNode(Settings.builder().put(masterNode()).put("discovery.initial_state_timeout", "1s"));
+        internalCluster().validateClusterFormed();
         ensureStableCluster(3);
 
         savedClusterState = setupCleanupClusterStateListener(internalCluster().getMasterName());

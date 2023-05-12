@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.action.ClusterStatsLevel;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends AbstractXContentSerializingTestCase<ClusterHealthResponse> {
-    private final ClusterHealthRequest.Level level = randomFrom(ClusterHealthRequest.Level.values());
+    private final ClusterStatsLevel level = randomFrom(ClusterStatsLevel.values());
 
     public void testIsTimeout() {
         ClusterHealthResponse res = new ClusterHealthResponse();
@@ -55,7 +55,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
     }
 
     public void testClusterHealth() throws IOException {
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
@@ -109,7 +109,7 @@ public class ClusterHealthResponsesTests extends AbstractXContentSerializingTest
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
         Map<String, ClusterIndexHealth> indices = Maps.newMapWithExpectedSize(indicesSize);
-        if (ClusterHealthRequest.Level.INDICES.equals(level) || ClusterHealthRequest.Level.SHARDS.equals(level)) {
+        if (level == ClusterStatsLevel.INDICES || level == ClusterStatsLevel.SHARDS) {
             for (int i = 0; i < indicesSize; i++) {
                 String indexName = randomAlphaOfLengthBetween(1, 5) + i;
                 indices.put(indexName, ClusterIndexHealthTests.randomIndexHealth(indexName, level));

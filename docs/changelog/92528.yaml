@@ -1,5 +1,0 @@
-pr: 92528
-summary: Scan stable plugins for named components upon install
-area: Infra/CLI
-type: enhancement
-issues: []

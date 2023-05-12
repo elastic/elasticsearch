@@ -21,6 +21,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * Provides a way to look up per-document values from docvalues, stored fields or _source
+ */
 public class SearchLookup implements SourceProvider {
     /**
      * The maximum depth of field dependencies.
@@ -47,20 +50,40 @@ public class SearchLookup implements SourceProvider {
         Supplier<SearchLookup>,
         MappedFieldType.FielddataOperation,
         IndexFieldData<?>> fieldDataLookup;
+    private final Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider;
 
     /**
-     * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
-     * stored fields, or _source.
+     * Create a new SearchLookup, using the default stored fields provider
+     * @param fieldTypeLookup   defines how to look up field types
+     * @param fieldDataLookup   defines how to look up field data
+     * @param sourceProvider    defines how to look up the source
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider
     ) {
+        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
+    }
+
+    /**
+     * Create a new SearchLookup, using the default stored fields provider
+     * @param fieldTypeLookup       defines how to look up field types
+     * @param fieldDataLookup       defines how to look up field data
+     * @param sourceProvider        defines how to look up the source
+     * @param fieldLookupProvider   defines how to look up stored fields
+     */
+    public SearchLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        SourceProvider sourceProvider,
+        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
+        this.fieldLookupProvider = fieldLookupProvider;
     }
 
     /**
@@ -75,6 +98,7 @@ public class SearchLookup implements SourceProvider {
         this.sourceProvider = searchLookup.sourceProvider;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
 
     /**
@@ -103,7 +127,7 @@ public class SearchLookup implements SourceProvider {
             context,
             new LeafDocLookup(fieldTypeLookup, this::getForField, context),
             sourceProvider,
-            new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor))
+            new LeafStoredFieldsLookup(fieldTypeLookup, fieldLookupProvider.apply(context))
         );
     }
 

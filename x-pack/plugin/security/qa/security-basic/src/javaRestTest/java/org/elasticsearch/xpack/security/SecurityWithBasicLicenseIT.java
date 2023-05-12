@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertAddRoleWithFLS(false);
 
         assertUserProfileFeatures(false);
+        checkRemoteIndicesXPackUsage();
     }
 
     public void testWithTrialLicense() throws Exception {
@@ -77,6 +79,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             keyRoleHasDlsFls = tuple.v2();
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
             assertUserProfileFeatures(true);
+            checkRemoteIndicesXPackUsage();
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -91,6 +94,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index42/_search", true);
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
             assertUserProfileFeatures(false);
+            checkRemoteIndicesXPackUsage();
         }
     }
 
@@ -130,6 +134,29 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
                 assertThat(ObjectPath.evaluate(usage, "security.realms." + realm + ".enabled"), equalTo(false));
             }
         }
+    }
+
+    private void checkRemoteIndicesXPackUsage() throws IOException {
+        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
+            return;
+        }
+        final var putRoleRequest = new Request("PUT", "/_security/role/role1");
+        putRoleRequest.setJsonEntity("""
+            {
+              "remote_indices": [
+                {
+                  "names": ["index-*"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        final var xpackRequest = new Request("GET", "/_xpack/usage");
+        final Map<String, Object> xPackUsageMap = entityAsMap(client().performRequest(xpackRequest));
+        assertThat(org.elasticsearch.xcontent.ObjectPath.eval("security.roles.file.remote_indices", xPackUsageMap), equalTo(1));
+        assertThat(org.elasticsearch.xcontent.ObjectPath.eval("security.roles.native.remote_indices", xPackUsageMap), equalTo(1));
     }
 
     private void checkAuthentication() throws IOException {

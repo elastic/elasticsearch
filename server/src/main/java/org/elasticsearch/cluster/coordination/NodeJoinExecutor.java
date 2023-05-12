@@ -9,6 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,10 +29,14 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -40,12 +45,27 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private static final Logger logger = LogManager.getLogger(NodeJoinExecutor.class);
 
+    /**
+     * The transport versions that are forbidden from joining a cluster with this node due to critical bugs with those versions
+     */
+    private static final Set<TransportVersion> FORBIDDEN_VERSIONS = Set.of();
+
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
+    private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
 
     public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
+        this(allocationService, rerouteService, Function.identity());
+    }
+
+    public NodeJoinExecutor(
+        AllocationService allocationService,
+        RerouteService rerouteService,
+        Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
+    ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
+        this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
     }
 
     @Override
@@ -98,6 +118,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+        Map<String, TransportVersion> transportVersions = new HashMap<>(newState.transportVersions());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -116,14 +137,18 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
                 } else {
                     try {
+                        TransportVersion transportVersion = nodeJoinTask.transportVersion();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
+                            ensureTransportVersionBarrier(transportVersion, transportVersions.values());
                         }
+                        blockForbiddenVersions(transportVersion);
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
+                        transportVersions.put(node.getId(), transportVersion);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -194,7 +219,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             }
 
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
-                newState.nodes(nodesBuilder).build()
+                newState.nodes(nodesBuilder).transportVersions(transportVersions).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
@@ -217,10 +242,23 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         List<? extends TaskContext<JoinTask>> taskContexts,
         long term
     ) {
+        final ClusterState initialState = currentState;
+        currentState = taskContexts.stream()
+            .map(TaskContext::getTask)
+            .map(JoinTask::initialState)
+            .filter(Objects::nonNull)
+            .max(Comparator.comparingLong(ClusterState::term).thenComparingLong(ClusterState::version))
+            .filter(
+                clusterState -> clusterState.term() > initialState.term()
+                    || (clusterState.term() == initialState.term() && clusterState.version() > initialState.version())
+            )
+            .orElse(currentState);
+
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
+        Map<String, TransportVersion> transportVersions = new HashMap<>(currentState.transportVersions());
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
 
         for (final var taskContext : taskContexts) {
@@ -229,6 +267,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
+                    transportVersions.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
@@ -238,6 +277,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         joiningNode
                     );
                     nodesBuilder.remove(nodeWithSameAddress.getId());
+                    transportVersions.remove(nodeWithSameAddress.getId());
                 }
             }
         }
@@ -246,6 +286,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
+            .transportVersions(transportVersions)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())
@@ -256,6 +297,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         logger.trace("becomeMasterAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();
         tmpState = PersistentTasksCustomMetadata.disassociateDeadNodes(tmpState);
+        tmpState = maybeReconfigureAfterMasterElection.apply(tmpState);
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 
@@ -263,6 +305,14 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
     public boolean runOnlyOnMaster() {
         // we validate that we are allowed to change the cluster state during cluster state processing
         return false;
+    }
+
+    private static void blockForbiddenVersions(TransportVersion joiningTransportVersion) {
+        if (FORBIDDEN_VERSIONS.contains(joiningTransportVersion)) {
+            throw new IllegalStateException(
+                "A node with transport version " + joiningTransportVersion + " is forbidden from joining this cluster"
+            );
+        }
     }
 
     /**
@@ -328,6 +378,28 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + "The cluster contains nodes with version ["
                     + minClusterNodeVersion
                     + "], which is incompatible."
+            );
+        }
+    }
+
+    /**
+     * ensures that the joining node's transport version is equal or higher to the minClusterTransportVersion. This is needed
+     * to ensure that the minimum transport version of the cluster doesn't go backwards.
+     **/
+    static void ensureTransportVersionBarrier(
+        TransportVersion joiningTransportVersion,
+        Collection<TransportVersion> existingTransportVersions
+    ) {
+        TransportVersion minClusterTransportVersion = existingTransportVersions.stream()
+            .min(Comparator.naturalOrder())
+            .orElse(TransportVersion.CURRENT);
+        if (joiningTransportVersion.before(minClusterTransportVersion)) {
+            throw new IllegalStateException(
+                "node with transport version ["
+                    + joiningTransportVersion
+                    + "] may not join a cluster with minimum transport version ["
+                    + minClusterTransportVersion
+                    + "]"
             );
         }
     }

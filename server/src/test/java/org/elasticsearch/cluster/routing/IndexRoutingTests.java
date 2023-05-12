@@ -689,7 +689,7 @@ public class IndexRoutingTests extends ESTestCase {
     private void flatten(Map<String, Object> result, String path, Map<?, ?> m) {
         for (Map.Entry<?, ?> e : m.entrySet()) {
             String subPath = path == null ? e.getKey().toString() : path + "." + e.getKey();
-            if (e.getValue()instanceof Map<?, ?> subM) {
+            if (e.getValue() instanceof Map<?, ?> subM) {
                 flatten(result, subPath, subM);
             } else {
                 result.put(subPath, e.getValue());

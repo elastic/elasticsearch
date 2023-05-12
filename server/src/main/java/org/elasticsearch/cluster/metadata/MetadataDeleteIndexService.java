@@ -96,7 +96,7 @@ public class MetadataDeleteIndexService {
         final Map<Index, DataStream> backingIndices = new HashMap<>();
         for (Index index : indices) {
             IndexMetadata im = meta.getIndexSafe(index);
-            IndexAbstraction.DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
+            DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
                 if (parent.getWriteIndex().equals(im.getIndex())) {
                     throw new IllegalArgumentException(
@@ -107,7 +107,7 @@ public class MetadataDeleteIndexService {
                             + "] and cannot be deleted"
                     );
                 } else {
-                    backingIndices.put(index, parent.getDataStream());
+                    backingIndices.put(index, parent);
                 }
             }
             indicesToDelete.add(im.getIndex());

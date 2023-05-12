@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
@@ -38,8 +38,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -82,7 +80,7 @@ public class GraphTests extends ESSingleNodeTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(indexSettings(2, 0))
                 .setMapping("decade", "type=keyword", "people", "type=keyword", "description", "type=text,fielddata=true")
         );
         createIndex("idx_unmapped");
@@ -147,7 +145,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
-        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        newSettings.put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         // newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         // newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);

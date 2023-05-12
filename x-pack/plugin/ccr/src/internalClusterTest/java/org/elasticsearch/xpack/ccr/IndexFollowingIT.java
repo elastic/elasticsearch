@@ -35,14 +35,13 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -188,7 +187,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertTrue(response.isFollowIndexShardsAcked());
             assertTrue(response.isIndexFollowingStarted());
 
-            ClusterHealthRequest healthRequest = Requests.clusterHealthRequest("index2").waitForNoRelocatingShards(true);
+            ClusterHealthRequest healthRequest = new ClusterHealthRequest("index2").waitForNoRelocatingShards(true);
             ClusterIndexHealth indexHealth = followerClient().admin().cluster().health(healthRequest).get().getIndices().get("index2");
             for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
                 if (waitOnAll) {
@@ -496,7 +495,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         int numberOfShards = between(1, 5);
         String leaderIndexSettings = getIndexSettings(numberOfShards, between(0, 1));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
-        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+        BulkProcessor2.Listener listener = new BulkProcessor2.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -504,12 +503,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {}
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+            public void afterBulk(long executionId, BulkRequest request, Exception failure) {}
         };
         int bulkSize = between(1, 20);
-        BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient()::bulk, listener, "IndexFollowingIT")
+        BulkProcessor2 bulkProcessor = BulkProcessor2.builder(leaderClient()::bulk, listener, leaderClient().threadPool())
             .setBulkActions(bulkSize)
-            .setConcurrentRequests(4)
             .build();
         AtomicBoolean run = new AtomicBoolean(true);
         Semaphore availableDocs = new Semaphore(0);

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,6 +36,10 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  * Contains the settings and some associated logic for the settings related to the Remote Access port, used by Remote Cluster Security 2.0.
  */
 public class RemoteClusterPortSettings {
+
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS = TransportVersion.V_8_8_0;
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCR = TransportVersion.V_8_9_0;
+
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";
 

@@ -51,7 +51,12 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         try {
-            TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool
+            );
 
             FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {

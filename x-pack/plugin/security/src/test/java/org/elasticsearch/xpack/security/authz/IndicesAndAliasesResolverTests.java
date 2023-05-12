@@ -127,13 +127,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     @Before
     public void setup() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 2))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-            .put("cluster.remote.remote.seeds", "127.0.0.1:" + randomIntBetween(9301, 9350))
-            .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 2), randomIntBetween(0, 1)).put(
+            "cluster.remote.remote.seeds",
+            "127.0.0.1:" + randomIntBetween(9301, 9350)
+        ).put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399)).build();
 
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
@@ -2310,8 +2307,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetadata.builder(index).settings(indexSettings(1, 0));
     }
 
     private ResolvedIndices resolveIndices(TransportRequest request, AuthorizedIndices authorizedIndices) {

@@ -1672,9 +1672,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             String[] result = indexNameExpressionResolver.indexAliases(state, index, x -> true, x -> true, false, resolvedExpressions);
             assertThat(result, nullValue());
         }
-
         {
-            // Only resolve aliases that refer to dataStreamName1 where the filter is not null
+            // Null is returned, because the wildcard expands to a list of aliases containing an unfiltered alias for dataStreamName1
             Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "l*");
             String index = backingIndex1.getIndex().getName();
             String[] result = indexNameExpressionResolver.indexAliases(
@@ -1685,7 +1684,49 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 true,
                 resolvedExpressions
             );
-            assertThat(result, arrayContainingInAnyOrder("logs", "logs_foo"));
+            assertThat(result, nullValue());
+        }
+        {
+            // Null is returned, because an unfiltered alias is targeting the same data stream
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "logs_bar", "logs");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, nullValue());
+        }
+        {
+            // The filtered alias is returned because although we target the data stream name, skipIdentity is true
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                true,
+                resolvedExpressions
+            );
+            assertThat(result, arrayContainingInAnyOrder("logs"));
+        }
+        {
+            // Null is returned because we target the data stream name and skipIdentity is false
+            Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, dataStreamName1, "logs");
+            String index = backingIndex1.getIndex().getName();
+            String[] result = indexNameExpressionResolver.indexAliases(
+                state,
+                index,
+                x -> true,
+                DataStreamAlias::filteringRequired,
+                false,
+                resolvedExpressions
+            );
+            assertThat(result, nullValue());
         }
     }
 
@@ -3241,12 +3282,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
-        return IndexMetadata.builder(index).settings(settings(additionalSettings));
+        return IndexMetadata.builder(index).settings(indexSettings(Version.CURRENT, 1, 0).put(additionalSettings));
     }
 
-    private static Settings.Builder settings(Settings additionalSettings) {
-        return settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(additionalSettings);
-    }
 }

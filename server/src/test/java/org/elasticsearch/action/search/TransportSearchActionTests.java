@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -244,13 +245,19 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testProcessRemoteShards() {
-        try (TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+        try (
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             RemoteClusterService service = transportService.getRemoteClusterService();
             assertFalse(service.isCrossClusterSearchEnabled());
             Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
-            DiscoveryNode[] nodes = new DiscoveryNode[] {
-                new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
-                new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT) };
+            DiscoveryNode[] nodes = new DiscoveryNode[] { TestDiscoveryNode.create("node1"), TestDiscoveryNode.create("node2") };
             Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
             indicesAndAliases.put("foo", AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"));
             indicesAndAliases.put("bar", AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
@@ -274,7 +281,7 @@ public class TransportSearchActionTests extends ESTestCase {
                         TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED) }
                 ) };
             searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
-            DiscoveryNode[] nodes2 = new DiscoveryNode[] { new DiscoveryNode("node3", buildNewFakeTransportAddress(), Version.CURRENT) };
+            DiscoveryNode[] nodes2 = new DiscoveryNode[] { TestDiscoveryNode.create("node3") };
             ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("xyz", "xyz_id", 0),
@@ -347,15 +354,13 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testBuildConnectionLookup() {
-        Function<String, DiscoveryNode> localNodes = (nodeId) -> new DiscoveryNode(
+        Function<String, DiscoveryNode> localNodes = (nodeId) -> TestDiscoveryNode.create(
             "local-" + nodeId,
-            new TransportAddress(TransportAddress.META_ADDRESS, 1024),
-            Version.CURRENT
+            new TransportAddress(TransportAddress.META_ADDRESS, 1024)
         );
-        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> new DiscoveryNode(
+        BiFunction<String, String, DiscoveryNode> remoteNodes = (clusterAlias, nodeId) -> TestDiscoveryNode.create(
             "remote-" + nodeId,
-            new TransportAddress(TransportAddress.META_ADDRESS, 2048),
-            Version.CURRENT
+            new TransportAddress(TransportAddress.META_ADDRESS, 2048)
         );
         BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection = (clusterAlias, node) -> new Transport.Connection() {
             @Override
@@ -454,6 +459,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 "node_remote" + i,
                 knownNodes,
                 Version.CURRENT,
+                TransportVersion.CURRENT,
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
@@ -490,7 +496,15 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
         Function<Boolean, AggregationReduceContext> reduceContext = finalReduce -> null;
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -547,7 +561,15 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -794,7 +816,15 @@ public class TransportSearchActionTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
         Settings settings = builder.build();
-        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+        try (
+            MockTransportService service = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool,
+                null
+            )
+        ) {
             service.start();
             service.acceptIncomingRequests();
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
@@ -1071,7 +1101,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50)));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null)));
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
@@ -1086,7 +1116,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50)));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null)));
             searchRequest.source(source);
 
             TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
@@ -1339,7 +1369,7 @@ public class TransportSearchActionTests extends ESTestCase {
             } else {
                 // relocated or no longer assigned
                 relocatedContexts.add(new ShardId(indexMetadata.getIndex(), shardId));
-                targetNode = randomFrom(clusterState.nodes()).getId();
+                targetNode = randomFrom(clusterState.nodes().getAllNodes()).getId();
             }
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), shardId),
@@ -1393,7 +1423,7 @@ public class TransportSearchActionTests extends ESTestCase {
             anotherShardId,
             new SearchContextIdForNode(
                 null,
-                randomFrom(clusterState.nodes()).getId(),
+                randomFrom(clusterState.nodes().getAllNodes()).getId(),
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)
             )
         );
@@ -1430,7 +1460,12 @@ public class TransportSearchActionTests extends ESTestCase {
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
         try {
-            TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool
+            );
 
             SearchRequest searchRequest = new SearchRequest();
             searchRequest.source(new SearchSourceBuilder().query(new DummyQueryBuilder() {

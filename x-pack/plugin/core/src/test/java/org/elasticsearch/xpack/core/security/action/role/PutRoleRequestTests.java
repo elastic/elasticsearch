@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -160,11 +161,11 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         if (randomBoolean()) {
-            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             logger.info("Serializing with version {}", version);
             out.setTransportVersion(version);
         }
-        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES);
+        final boolean mayIncludeRemoteIndices = out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS);
         final PutRoleRequest original = buildRandomRequest(mayIncludeRemoteIndices);
         original.writeTo(out);
 
@@ -180,10 +181,14 @@ public class PutRoleRequestTests extends ESTestCase {
 
     public void testSerializationWithRemoteIndicesThrowsOnUnsupportedVersions() throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
-            RoleDescriptor.TRANSPORT_VERSION_REMOTE_INDICES
+        final TransportVersion versionBeforeAdvancedRemoteClusterSecurity = TransportVersionUtils.getPreviousVersion(
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
         );
-        final TransportVersion version = TransportVersionUtils.randomPreviousCompatibleVersion(random(), versionBeforeRemoteIndices);
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.V_7_17_0,
+            versionBeforeAdvancedRemoteClusterSecurity
+        );
         out.setTransportVersion(version);
 
         final PutRoleRequest original = buildRandomRequest(randomBoolean());
@@ -192,7 +197,9 @@ public class PutRoleRequestTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 containsString(
-                    "versions of Elasticsearch before [8060099] can't handle remote indices privileges and attempted to send to ["
+                    "versions of Elasticsearch before ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                        + "] can't handle remote indices privileges and attempted to send to ["
                         + version
                         + "]"
                 )

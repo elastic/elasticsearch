@@ -39,7 +39,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
     static final ParseField SOURCE_FIELDS_NAME = new ParseField("source_fields");
     static final ParseField FILTER_DUPLICATE_TEXT_FIELD_NAME = new ParseField("filter_duplicate_text");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
         SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS;
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = SignificantTermsAggregationBuilder.DEFAULT_SIGNIFICANCE_HEURISTIC;
 

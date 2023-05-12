@@ -59,7 +59,7 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();

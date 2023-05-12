@@ -88,6 +88,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -237,6 +238,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
+    private FieldPermissionsCache fieldPermissionsCache;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private boolean shouldFailOperatorPrivilegesCheck = false;
     private boolean setFakeOriginatingAction = true;
@@ -245,6 +247,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         final Settings settings = Settings.builder().put("cluster.remote.other_cluster.seeds", "localhost:9999").build();
@@ -257,7 +260,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         auditTrail = mock(AuditTrail.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
         threadPool = mock(ThreadPool.class);
@@ -292,6 +295,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -1626,6 +1630,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -1673,6 +1678,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             settings,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -2624,7 +2630,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testProxyRequestFailsOnNonProxyAction() {
         TransportRequest request = TransportRequest.Empty.INSTANCE;
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("foo");
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, request);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         User user = new User("test user", "role");
@@ -2663,7 +2669,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testProxyRequestAuthenticationDenied() {
         final TransportRequest proxiedRequest = new SearchRequest();
-        final DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode node = TestDiscoveryNode.create("foo");
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, proxiedRequest);
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.QUERY_ACTION_NAME);
         final Authentication authentication = createAuthentication(new User("test user", "no_indices"));
@@ -2694,7 +2700,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         mockEmptyMetadata();
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("foo");
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         final TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
@@ -2719,7 +2725,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
         roleMap.put("a_all", role);
         mockEmptyMetadata();
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("foo");
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         final ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -2746,7 +2752,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("a_all", role);
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         mockEmptyMetadata();
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = TestDiscoveryNode.create("foo");
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
         String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
@@ -2768,6 +2774,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             Settings.EMPTY,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -2922,6 +2929,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(
             Settings.EMPTY,
             rolesStore,
+            fieldPermissionsCache,
             clusterService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
@@ -3037,8 +3045,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    public void testActionDeniedForRemoteAccessAuthentication() {
-        final Authentication authentication = AuthenticationTestHelper.builder().remoteAccess().build();
+    public void testActionDeniedForCrossClusterAccessAuthentication() {
+        final Authentication authentication = AuthenticationTestHelper.builder().crossClusterAccess().build();
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(
             Map.of(PRINCIPAL_ROLES_FIELD_NAME, randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(5, 8)))

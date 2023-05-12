@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -130,7 +131,7 @@ public class XContentHelper {
     @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
         throws ElasticsearchParseException {
-        return convertToMap(bytes, ordered, null);
+        return parseToType(ordered ? XContentParser::mapOrdered : XContentParser::map, bytes, null, XContentParserConfiguration.EMPTY);
     }
 
     /**
@@ -138,7 +139,12 @@ public class XContentHelper {
      * none of the fields are filtered
      */
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType) {
-        return convertToMap(bytes, ordered, xContentType, null, null);
+        return parseToType(
+            ordered ? XContentParser::mapOrdered : XContentParser::map,
+            bytes,
+            xContentType,
+            XContentParserConfiguration.EMPTY
+        );
     }
 
     /**
@@ -157,38 +163,30 @@ public class XContentHelper {
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        try {
-            final XContentType contentType;
-            InputStream input;
-            Compressor compressor = CompressorFactory.compressor(bytes);
-            if (compressor != null) {
-                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
-                if (compressedStreamInput.markSupported() == false) {
-                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
-                }
-                input = compressedStreamInput;
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            } else if (bytes.hasArray()) {
-                final byte[] raw = bytes.array();
-                final int offset = bytes.arrayOffset();
-                final int length = bytes.length();
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
-                return new Tuple<>(
-                    Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered, include, exclude)
-                );
-            } else {
-                input = bytes.streamInput();
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            }
-            try (InputStream stream = input) {
-                return new Tuple<>(
-                    Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
-                );
-            }
+        XContentParserConfiguration config = XContentParserConfiguration.EMPTY;
+        if (include != null || exclude != null) {
+            config = config.withFiltering(include, exclude, false);
+        }
+        return parseToType(ordered ? XContentParser::mapOrdered : XContentParser::map, bytes, xContentType, config);
+    }
+
+    /**
+     * Creates a parser based on the given {@link BytesReference} and uses {@param extractor} to get a parsed object.
+     * @deprecated if {@param xContentType} is null, this method relies on auto-detection of content type.  Provide a non-null XContentType
+     *             instead.
+     */
+    @Deprecated
+    public static <T> Tuple<XContentType, T> parseToType(
+        CheckedFunction<XContentParser, T, IOException> extractor,
+        BytesReference bytes,
+        @Nullable XContentType xContentType,
+        @Nullable XContentParserConfiguration config
+    ) throws ElasticsearchParseException {
+        config = config != null ? config : XContentParserConfiguration.EMPTY;
+        try (XContentParser parser = xContentType != null ? createParser(config, bytes, xContentType) : createParser(config, bytes)) {
+            return new Tuple<>(parser.contentType(), extractor.apply(parser));
         } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to map", e);
+            throw new ElasticsearchParseException("Failed to parse content to type", e);
         }
     }
 
@@ -499,6 +497,16 @@ public class XContentHelper {
     }
 
     /**
+     * Returns the bytes that represent the XContent output of the provided {@link ChunkedToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(ChunkedToXContent toXContent, XContentType xContentType, boolean humanReadable)
+        throws IOException {
+        return toXContent(ChunkedToXContent.wrapAsToXContent(toXContent), xContentType, humanReadable);
+    }
+
+    /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
@@ -516,6 +524,16 @@ public class XContentHelper {
             }
             return BytesReference.bytes(builder);
         }
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ChunkedToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(ChunkedToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
+        throws IOException {
+        return toXContent(ChunkedToXContent.wrapAsToXContent(toXContent), xContentType, params, humanReadable);
     }
 
     /**

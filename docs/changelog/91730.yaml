@@ -1,6 +1,0 @@
-pr: 91730
-summary: More accurate total ingest stats
-area: Ingest Node
-type: bug
-issues:
- - 91358

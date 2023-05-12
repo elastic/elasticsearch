@@ -1,5 +1,0 @@
-pr: 93247
-summary: Add `term` query support to `rank_features` mapped field
-area: Search
-type: enhancement
-issues: []

@@ -136,6 +136,35 @@ setup:
   - match: {index_templates.0.index_template.index_patterns: ["data-stream-with-lifecycle-*"]}
   - match: {index_templates.0.index_template.template.settings: {index: {number_of_shards: '1'}}}
   - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
+  - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
+
+---
+"Get data lifecycle with default rollover":
+  - skip:
+      version: " - 8.7.99"
+      reason: "Data lifecycle in index templates was added after 8.7"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test-lifecycle] has index patterns [data-stream-with-lifecycle-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-lifecycle] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-lifecycle
+        body:
+          index_patterns: data-stream-with-lifecycle-*
+          template:
+            lifecycle:
+              data_retention: "30d"
+          data_stream: {}
+  - do:
+      indices.get_index_template:
+        name: test-lifecycle
+        include_defaults: true
+
+  - match: {index_templates.0.name: test-lifecycle}
+  - match: {index_templates.0.index_template.index_patterns: ["data-stream-with-lifecycle-*"]}
+  - match: {index_templates.0.index_template.template.lifecycle.data_retention: "30d"}
+  - is_true: index_templates.0.index_template.template.lifecycle.rollover
 
 ---
 "Reject data lifecycle without data stream configuration":

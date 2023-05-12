@@ -98,6 +98,7 @@ The API returns the following result:
     "nodes": {
       "node-1": {
         "node_id": "UPYt8VwWTt-IADAEbqpLxA",
+        "roles": ["data_content"],
         "shard_count": 10,
         "forecast_write_load": 8.5,
         "forecast_disk_usage_bytes": 498435,
@@ -105,6 +106,7 @@ The API returns the following result:
       },
       "node-2": {
         "node_id": "bgC66tboTIeFQ0VgRGI4Gg",
+        "roles": ["data_content"],
         "shard_count": 15,
         "forecast_write_load": 3.25,
         "forecast_disk_usage_bytes": 384935,
@@ -112,6 +114,7 @@ The API returns the following result:
       },
       "node-3": {
         "node_id": "2x1VTuSOQdeguXPdN73yRw",
+        "roles": ["data_content"],
         "shard_count": 12,
         "forecast_write_load": 6.0,
         "forecast_disk_usage_bytes": 648766,
@@ -129,11 +132,12 @@ The API returns the following result:
             "node": "UPYt8VwWTt-IADAEbqpLxA",
             "node_is_desired": true,
             "relocating_node": null,
-            "relocating_node_is_desired": false,
+            "relocating_node_is_desired": null,
             "shard_id": 0,
             "index": "test",
             "forecast_write_load": 8.0,
-            "forecast_shard_size_in_bytes": 1024
+            "forecast_shard_size_in_bytes": 1024,
+            "tier_preference": ["data_content"]
           }
         ],
         "desired": {
@@ -157,7 +161,8 @@ The API returns the following result:
             "shard_id": 1,
             "index": "test",
             "forecast_write_load": null,
-            "forecast_shard_size_in_bytes": null
+            "forecast_shard_size_in_bytes": null,
+            "tier_preference": ["data_content"]
           }
         ],
         "desired": {
@@ -170,6 +175,42 @@ The API returns the following result:
         }
       }
     }
+  },
+  "cluster_info" : {
+      "nodes" : {
+        "UPYt8VwWTt-IADAEbqpLxA" : {
+          "node_name" : "node-1",
+          "least_available" : {
+            "path" : "/data",
+            "total_bytes" : 1440713945,
+            "used_bytes" : 1222486407,
+            "free_bytes" : 218227538,
+            "free_disk_percent" : 15.1,
+            "used_disk_percent" : 84.9
+          },
+          "most_available" : {
+            "path" : "/data",
+            "total_bytes" : 1440713945,
+            "used_bytes" : 1222486407,
+            "free_bytes" : 218227538,
+            "free_disk_percent" : 15.1,
+            "used_disk_percent" : 84.9
+          }
+        }
+      },
+      "shard_sizes" : {
+        "[test][0][p]_bytes" : 1720826288,
+        "[test][1][p]_bytes" : 1720826288
+      },
+      "shard_data_set_sizes" : {
+        "[test][0][p]_bytes" : 1720826288,
+        "[test][1][p]_bytes" : 1720826288
+      },
+      "shard_paths" : {
+        "NodeAndShard[nodeId=UPYt8VwWTt-IADAEbqpLxA, shardId=[test][0]]" : "/data",
+        "NodeAndShard[nodeId=bgC66tboTIeFQ0VgRGI4Gg, shardId=[test][0]]" : "/data"
+      },
+      "reserved_sizes" : []
   }
 }
 --------------------------------------------------

@@ -426,10 +426,10 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     }
 
     private static class ShardActiveRequest extends TransportRequest {
-        protected TimeValue timeout = null;
-        private ClusterName clusterName;
-        private String indexUUID;
-        private ShardId shardId;
+        private final TimeValue timeout;
+        private final ClusterName clusterName;
+        private final String indexUUID;
+        private final ShardId shardId;
 
         ShardActiveRequest(StreamInput in) throws IOException {
             super(in);

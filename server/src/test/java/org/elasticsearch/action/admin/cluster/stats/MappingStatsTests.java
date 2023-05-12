@@ -32,11 +32,7 @@ import java.util.List;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
-    private static final Settings SINGLE_SHARD_NO_REPLICAS = Settings.builder()
-        .put("index.number_of_replicas", 0)
-        .put("index.number_of_shards", 1)
-        .put("index.version.created", Version.CURRENT)
-        .build();
+    private static final Settings SINGLE_SHARD_NO_REPLICAS = indexSettings(Version.CURRENT, 1, 0).build();
 
     public static final String MAPPING_TEMPLATE = """
         {
@@ -469,12 +465,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testAccountsRegularIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping);
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(Version.CURRENT, 4, 1))
+            .putMapping(mapping);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         FieldStats expectedStats = new FieldStats("long");
@@ -486,11 +478,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testIgnoreSystemIndices() {
         String mapping = """
             {"properties":{"bar":{"type":"long"}}}""";
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping).system(true);
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
@@ -498,11 +486,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testChecksForCancellation() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 4, 1).build();
         IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping("{}");
         Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         expectThrows(
@@ -514,7 +498,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random(), TransportVersion.CURRENT);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);

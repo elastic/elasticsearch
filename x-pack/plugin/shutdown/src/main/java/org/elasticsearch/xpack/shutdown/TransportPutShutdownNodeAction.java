@@ -80,14 +80,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     private static void ackAndMaybeReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
         boolean shouldReroute = switch (request.getType()) {
-            case REMOVE, REPLACE -> true;
+            case REMOVE, SIGTERM, REPLACE -> true;
             default -> false;
         };
 
         if (shouldReroute) {
             rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                 @Override
-                public void onResponse(ClusterState clusterState) {}
+                public void onResponse(Void ignored) {}
 
                 @Override
                 public void onFailure(Exception e) {

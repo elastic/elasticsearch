@@ -376,6 +376,8 @@ public abstract class NlpTokenizer implements Releasable {
 
     public abstract String getMaskToken();
 
+    public abstract List<String> getVocabulary();
+
     public int getSpan() {
         return -1;
     }

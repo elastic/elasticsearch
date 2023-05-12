@@ -148,38 +148,43 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-        List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).toList();
-        for (IndexableField field : fields) {
-            FieldInfo fieldInfo = fieldInfo(field.name());
-            if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
-                continue;
-            }
-            if (field.numericValue() != null) {
-                Number v = field.numericValue();
-                if (v instanceof Integer) {
-                    visitor.intField(fieldInfo, v.intValue());
-                } else if (v instanceof Long) {
-                    visitor.longField(fieldInfo, v.longValue());
-                } else if (v instanceof Float) {
-                    visitor.floatField(fieldInfo, v.floatValue());
-                } else if (v instanceof Double) {
-                    visitor.doubleField(fieldInfo, v.doubleValue());
-                }
-            } else if (field.stringValue() != null) {
-                visitor.stringField(fieldInfo, field.stringValue());
-            } else if (field.binaryValue() != null) {
-                // We can't just pass field.binaryValue().bytes here as there may be offset/length
-                // considerations
-                byte[] data = new byte[field.binaryValue().length];
-                System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
-                visitor.binaryField(fieldInfo, data);
-            }
-        }
+        storedFields().document(docID, visitor);
     }
 
     @Override
     public StoredFields storedFields() throws IOException {
-        throw new UnsupportedOperationException();
+        return new StoredFields() {
+            @Override
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                List<IndexableField> fields = document.getFields().stream().filter(f -> f.fieldType().stored()).toList();
+                for (IndexableField field : fields) {
+                    FieldInfo fieldInfo = fieldInfo(field.name());
+                    if (visitor.needsField(fieldInfo) != StoredFieldVisitor.Status.YES) {
+                        continue;
+                    }
+                    if (field.numericValue() != null) {
+                        Number v = field.numericValue();
+                        if (v instanceof Integer) {
+                            visitor.intField(fieldInfo, v.intValue());
+                        } else if (v instanceof Long) {
+                            visitor.longField(fieldInfo, v.longValue());
+                        } else if (v instanceof Float) {
+                            visitor.floatField(fieldInfo, v.floatValue());
+                        } else if (v instanceof Double) {
+                            visitor.doubleField(fieldInfo, v.doubleValue());
+                        }
+                    } else if (field.stringValue() != null) {
+                        visitor.stringField(fieldInfo, field.stringValue());
+                    } else if (field.binaryValue() != null) {
+                        // We can't just pass field.binaryValue().bytes here as there may be offset/length
+                        // considerations
+                        byte[] data = new byte[field.binaryValue().length];
+                        System.arraycopy(field.binaryValue().bytes, field.binaryValue().offset, data, 0, data.length);
+                        visitor.binaryField(fieldInfo, data);
+                    }
+                }
+            }
+        };
     }
 
     @Override

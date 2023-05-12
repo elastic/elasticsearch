@@ -7,7 +7,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.11.4"
+  id "com.gradle.enterprise" version "3.13.1"
 }
 
 // Include all subdirectories as example projects
@@ -38,8 +38,8 @@ gradle.projectsEvaluated {
           // When using composite builds we need to tell Gradle to use the project names since we rename the published artifacts
           substitute module('org.elasticsearch:elasticsearch') using module("org.elasticsearch:server:${elasticsearchVersion}")
           substitute module('org.elasticsearch.client:elasticsearch-rest-client') using module("org.elasticsearch.client:rest:${elasticsearchVersion}")
-          substitute module('org.elasticsearch.plugin:x-pack-core') with module("org.elasticsearch.plugin:core:${elasticsearchVersion}")
-          substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with module("org.elasticsearch.plugin:spi:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.plugin:x-pack-core') using module("org.elasticsearch.plugin:core:${elasticsearchVersion}")
+          substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') using module("org.elasticsearch.plugin:spi:${elasticsearchVersion}")
           substitute module('org.elasticsearch.distribution.integ-test-zip:elasticsearch') using variant(module("org.elasticsearch.distribution.integ-test-zip:integ-test-zip:${elasticsearchVersion}")) {
             attributes {
               attribute(Attribute.of("composite", Boolean.class), true)

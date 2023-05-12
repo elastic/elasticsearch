@@ -11,11 +11,13 @@ package org.elasticsearch.search.dfs;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -23,7 +25,9 @@ import org.elasticsearch.search.profile.dfs.DfsProfiler;
 import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.InternalProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.query.SingleThreadCollectorManager;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -122,11 +126,11 @@ public class DfsPhase {
                 maybeStop.accept(DfsTimingType.CREATE_WEIGHT);
             }
             for (RescoreContext rescoreContext : context.rescore()) {
-                for (Query query : rescoreContext.getQueries()) {
+                for (ParsedQuery parsedQuery : rescoreContext.getParsedQueries()) {
                     final Query rewritten;
                     try {
                         maybeStart.accept(DfsTimingType.REWRITE);
-                        rewritten = searcher.rewrite(query);
+                        rewritten = searcher.rewrite(parsedQuery.query());
                     } finally {
                         maybeStop.accept(DfsTimingType.REWRITE);
                     }
@@ -175,19 +179,17 @@ public class DfsPhase {
         for (int i = 0; i < knnSearch.size(); i++) {
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
             TopScoreDocCollector topScoreDocCollector = TopScoreDocCollector.create(knnSearch.get(i).k(), Integer.MAX_VALUE);
-            Collector collector = topScoreDocCollector;
+            CollectorManager<Collector, Void> collectorManager = new SingleThreadCollectorManager(topScoreDocCollector);
             if (context.getProfilers() != null) {
-                InternalProfileCollector ipc = new InternalProfileCollector(
-                    topScoreDocCollector,
-                    CollectorResult.REASON_SEARCH_TOP_HITS,
-                    List.of()
+                InternalProfileCollectorManager ipcm = new InternalProfileCollectorManager(
+                    new InternalProfileCollector(collectorManager.newCollector(), CollectorResult.REASON_SEARCH_TOP_HITS)
                 );
-                QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipc);
-                collector = ipc;
+                QueryProfiler knnProfiler = context.getProfilers().getDfsProfiler().addQueryProfiler(ipcm);
+                collectorManager = ipcm;
                 // Set the current searcher profiler to gather query profiling information for gathering top K docs
                 context.searcher().setProfiler(knnProfiler);
             }
-            context.searcher().search(knnQuery, collector);
+            context.searcher().search(knnQuery, collectorManager);
             knnResults.add(new DfsKnnResults(topScoreDocCollector.topDocs().scoreDocs));
         }
         // Set profiler back after running KNN searches

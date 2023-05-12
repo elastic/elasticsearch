@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -81,9 +82,35 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         null,
         new String[] { "*" },
         MetadataUtils.DEFAULT_RESERVED_METADATA,
-        Collections.emptyMap()
+        Collections.emptyMap(),
+        TcpTransport.isUntrustedRemoteClusterEnabled()
+            ? new RoleDescriptor.RemoteIndicesPrivileges[] {
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
+                    "*"
+                ),
+                new RoleDescriptor.RemoteIndicesPrivileges(
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("*")
+                        .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                        .allowRestrictedIndices(true)
+                        .build(),
+                    "*"
+                ) }
+            : null
     );
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
+
+    private static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {
+        return new RoleDescriptor.RemoteIndicesPrivileges(
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(indexPattern)
+                .privileges("read", "read_cross_cluster")
+                .allowRestrictedIndices(false)
+                .build(),
+            "*"
+        );
+    }
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {
         return MapBuilder.<String, RoleDescriptor>newMapBuilder()
@@ -114,6 +141,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "read_cross_cluster")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
+                            .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
+                            .privileges("read", "read_cross_cluster")
+                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
                             .privileges("read", "read_cross_cluster")
                             .build() },
@@ -126,7 +157,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    TcpTransport.isUntrustedRemoteClusterEnabled()
+                        ? new RoleDescriptor.RemoteIndicesPrivileges[] {
+                            getRemoteIndicesReadPrivileges(".monitoring-*"),
+                            getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
+                            getRemoteIndicesReadPrivileges("metricbeat-*") }
+                        : null
                 )
             )
             .put(
@@ -773,7 +810,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".logs-endpoint.diagnostic.collection-*",
                         ".logs-endpoint.actions-*",
                         ".logs-osquery_manager.actions-*",
-                        ".logs-osquery_manager.action.responses-*"
+                        ".logs-osquery_manager.action.responses-*",
+                        "profiling-*"
                     )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
@@ -826,6 +864,32 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     )
                     .privileges("create_index", "delete_index", "read", "index", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build(),
+                // For destination indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-ti_*_latest.*")
+                    .privileges(
+                        // Require "create_index", "delete_index", "read", "index", "delete", IndicesAliasesAction.NAME, and
+                        // UpdateSettingsAction.NAME for transform
+                        "create_index",
+                        "delete_index",
+                        "read",
+                        "index",
+                        "delete",
+                        IndicesAliasesAction.NAME,
+                        UpdateSettingsAction.NAME
+                    )
+                    .build(),
+                // For source indices of the Threat Intel (ti_*) packages that ships a transform for supporting IOC expiration
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-ti_*.*-*")
+                    .privileges(
+                        // Require "delete_index" to perform ILM policy actions
+                        DeleteIndexAction.NAME,
+                        // Require "read" and "view_index_metadata" for transform
+                        "read",
+                        "view_index_metadata"
+                    )
+                    .build(),
                 // For src/dest indices of the example transform package
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("kibana_sample_data_*")
@@ -841,11 +905,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // For src/dest indices of the Cloud Security Posture packages that ships a transform
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-cloud_security_posture.findings-*")
+                    .indices("logs-cloud_security_posture.findings-*", "logs-cloud_security_posture.vulnerabilities-*")
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-cloud_security_posture.findings_latest-default*", "logs-cloud_security_posture.scores-default*")
+                    .indices(
+                        "logs-cloud_security_posture.findings_latest-default*",
+                        "logs-cloud_security_posture.scores-default*",
+                        "logs-cloud_security_posture.vulnerabilities_latest-default*"
+                    )
                     .privileges("create_index", "read", "index", "delete", IndicesAliasesAction.NAME, UpdateSettingsAction.NAME)
                     .build() },
             null,
@@ -854,7 +922,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 new WriteProfileDataPrivileges(Set.of("kibana*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null
+            null,
+            TcpTransport.isUntrustedRemoteClusterEnabled()
+                ? new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    getRemoteIndicesReadPrivileges(".monitoring-*"),
+                    getRemoteIndicesReadPrivileges("apm-*"),
+                    getRemoteIndicesReadPrivileges("logs-apm.*"),
+                    getRemoteIndicesReadPrivileges("metrics-apm.*"),
+                    getRemoteIndicesReadPrivileges("traces-apm.*"),
+                    getRemoteIndicesReadPrivileges("traces-apm-*") }
+                : null
         );
     }
 

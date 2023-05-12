@@ -43,7 +43,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .nodes(2)
         .setting("indices.memory.shard_inactive_time", "60m")
         .setting("xpack.security.enabled", "false")
-        .settings(s -> useFixture ? Map.of("ingest.geoip.downloader.endpoint", fixture.getAddress()) : Map.of())
+        .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

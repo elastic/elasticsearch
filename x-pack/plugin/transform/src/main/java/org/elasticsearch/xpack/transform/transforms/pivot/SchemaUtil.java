@@ -94,6 +94,7 @@ public final class SchemaUtil {
      */
     public static void deduceMappings(
         final Client client,
+        final Map<String, String> headers,
         final PivotConfig config,
         final String[] sourceIndex,
         final Map<String, Object> runtimeMappings,
@@ -142,6 +143,7 @@ public final class SchemaUtil {
 
         getSourceFieldMappings(
             client,
+            headers,
             sourceIndex,
             allFieldNames.values().stream().filter(Objects::nonNull).toArray(String[]::new),
             runtimeMappings,
@@ -244,6 +246,7 @@ public final class SchemaUtil {
      */
     static void getSourceFieldMappings(
         Client client,
+        Map<String, String> headers,
         String[] index,
         String[] fields,
         Map<String, Object> runtimeMappings,
@@ -257,7 +260,10 @@ public final class SchemaUtil {
             .fields(fields)
             .runtimeFields(runtimeMappings)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        client.execute(
+        ClientHelper.executeWithHeadersAsync(
+            headers,
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
             FieldCapabilitiesAction.INSTANCE,
             fieldCapabilitiesRequest,
             ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)

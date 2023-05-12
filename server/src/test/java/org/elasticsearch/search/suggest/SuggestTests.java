@@ -238,10 +238,11 @@ public class SuggestTests extends ESTestCase {
         assertTrue(option1.collateMatch());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95607")
     public void testSerialization() throws IOException {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.CURRENT.minimumCompatibilityVersion(),
+            TransportVersion.MINIMUM_COMPATIBLE,
             TransportVersion.CURRENT
         );
 

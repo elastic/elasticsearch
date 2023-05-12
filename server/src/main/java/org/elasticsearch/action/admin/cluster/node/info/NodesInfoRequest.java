@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.info;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -106,19 +107,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return this;
     }
 
-    /**
-     * Helper method for adding and removing metrics. Used when deserializing
-     * a NodesInfoRequest from an ordered list of booleans.
-     *
-     * @param addMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to include or remove.
-     */
-    private void optionallyAddMetric(boolean addMetric, String metricName) {
-        if (addMetric) {
-            requestedMetrics.add(metricName);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -152,6 +140,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         THREAD_POOL("thread_pool"),
         TRANSPORT("transport"),
         HTTP("http"),
+        REMOTE_CLUSTER_SERVER("remote_cluster_server"),
         PLUGINS("plugins"),
         INGEST("ingest"),
         AGGREGATIONS("aggregations"),
@@ -168,7 +157,10 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         }
 
         public static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
+            return Arrays.stream(values())
+                .filter(metric -> TcpTransport.isUntrustedRemoteClusterEnabled() || metric != REMOTE_CLUSTER_SERVER)
+                .map(Metric::metricName)
+                .collect(Collectors.toSet());
         }
     }
 }

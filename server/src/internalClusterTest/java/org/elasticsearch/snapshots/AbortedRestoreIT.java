@@ -36,7 +36,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode(SMALL_SNAPSHOT_POOL_SETTINGS);
 
         final String indexName = "test-abort-restore";
-        createIndex(indexName, indexSettingsNoReplicas(1).build());
+        createIndex(indexName, 1, 0);
         indexRandomDocs(indexName, scaledRandomIntBetween(10, 1_000));
         ensureGreen();
         forceMerge();
@@ -53,9 +53,7 @@ public class AbortedRestoreIT extends AbstractSnapshotIntegTestCase {
         failReadsAllDataNodes(repositoryName);
 
         logger.info("--> starting restore");
-        final ActionFuture<RestoreSnapshotResponse> future = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repositoryName, snapshotName)
+        final ActionFuture<RestoreSnapshotResponse> future = clusterAdmin().prepareRestoreSnapshot(repositoryName, snapshotName)
             .setWaitForCompletion(true)
             .setIndices(indexName)
             .execute();

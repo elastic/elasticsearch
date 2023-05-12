@@ -532,7 +532,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             Query query = queryParser.parse("first foo-bar-foobar* last");
             Query expectedQuery = new BooleanQuery.Builder().add(
@@ -572,7 +572,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockRepeatAnalyzer());
             Query query = queryParser.parse("first foo-bar-foobar* last");
@@ -631,10 +631,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createSearchExecutionContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockSynonymAnalyzer());
             queryParser.setAutoGenerateMultiTermSynonymsPhraseQuery(false);

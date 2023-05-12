@@ -15,7 +15,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,13 +29,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -48,13 +47,13 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
-import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -125,6 +124,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -146,8 +146,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-
-    private final ReplicationTracker.Factory replicationTrackerFactory;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -180,8 +178,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener,
-        ReplicationTracker.Factory replicationTrackerFactory
+        Engine.IndexCommitListener indexCommitListener
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -193,9 +190,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
+                clusterService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -256,7 +255,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        this.replicationTrackerFactory = replicationTrackerFactory;
         updateFsyncTaskIfNecessary();
     }
 
@@ -358,7 +356,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     bitsetFilterCache,
                     indexCache,
                     indexFieldData,
-                    mapperService,
+                    indexAnalyzers,
                     refreshTask,
                     fsyncTask,
                     trimTranslogTask,
@@ -434,7 +432,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ShardLock lock = null;
         eventListener.beforeIndexShardCreated(routing, indexSettings);
         try {
-            lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
+            // Try and acquire the shard lock, but we are on the cluster applier thread so we do not wait if it is unavailable; in that
+            // case, the IndicesClusterStateService will try again (in the background)
+            lock = nodeEnv.shardLock(shardId, "starting shard");
             ShardPath path;
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
@@ -525,16 +525,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener,
-                replicationTrackerFactory
+                indexCommitListener
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;
-        } catch (ShardLockObtainFailedException e) {
-            throw new IOException("failed to obtain in-memory shard lock", e);
         } finally {
             if (success == false) {
                 if (lock != null) {
@@ -771,6 +768,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
+        public void onCache(ShardId shardId, String fieldName, GlobalOrdinalsAccounting info) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
+                if (shard != null) {
+                    shard.fieldData().onCache(shardId, fieldName, info);
+                }
+            }
+        }
+
+        @Override
         public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
@@ -976,7 +983,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                     && e instanceof ShardNotInPrimaryModeException == false) {
                                     logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
-                            }, ThreadPool.Names.SAME, source + " sync");
+                            }, ThreadPool.Names.SAME);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

@@ -1,5 +1,0 @@
-pr: 93699
-summary: Skip `DiskThresholdMonitor` when cluster state is not recovered
-area: Allocation
-type: bug
-issues: []

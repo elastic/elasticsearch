@@ -8,8 +8,10 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.Nullable;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -129,6 +132,10 @@ public abstract class SearchContext implements Releasable {
     public abstract SuggestionSearchContext suggest();
 
     public abstract void suggest(SuggestionSearchContext suggest);
+
+    public abstract RankShardContext rankShardContext();
+
+    public abstract void rankShardContext(RankShardContext rankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
@@ -262,7 +269,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * The query to execute in its rewritten form.
      */
-    public final Query rewrittenQuery() {
+    public Query rewrittenQuery() {
         if (query() == null) {
             throw new IllegalStateException("preProcess must be called first");
         }
@@ -315,11 +322,33 @@ public abstract class SearchContext implements Releasable {
 
     public abstract DfsSearchResult dfsResult();
 
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link DfsSearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addDfsResult();
+
     public abstract QuerySearchResult queryResult();
+
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link QuerySearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addQueryResult();
+
+    public abstract TotalHits getTotalHits();
+
+    public abstract float getMaxScore();
 
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
+
+    /**
+     * Indicates that the caller will be using, and thus owning, a {@link FetchSearchResult} object.  It is the caller's responsibility
+     * to correctly cleanup this result object.
+     */
+    public abstract void addFetchResult();
 
     /**
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
@@ -346,8 +375,15 @@ public abstract class SearchContext implements Releasable {
      */
     public abstract long getRelativeTimeInMillis();
 
-    /** Return a view of the additional query collectors that should be run for this context. */
-    public abstract Map<Class<?>, Collector> queryCollectors();
+    /**
+     * Registers the collector to be run for the aggregations phase
+     */
+    public abstract void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager);
+
+    /**
+     * Returns the collector to be run for the aggregations phase
+     */
+    public abstract CollectorManager<Collector, Void> getAggsCollectorManager();
 
     public abstract SearchExecutionContext getSearchExecutionContext();
 

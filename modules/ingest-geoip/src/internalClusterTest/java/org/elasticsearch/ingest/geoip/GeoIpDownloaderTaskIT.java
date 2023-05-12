@@ -20,8 +20,6 @@ import org.junit.After;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-
 public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
 
     @Override
@@ -38,29 +36,17 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
     }
 
     @After
-    public void cleanUp() throws Exception {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
-                        .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
-                        .putNull("ingest.geoip.database_validity")
-                )
-                .get()
+    public void cleanUp() {
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
+                .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
+                .putNull("ingest.geoip.database_validity")
         );
     }
 
     public void testTaskRemovedAfterCancellation() throws Exception {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
         assertBusy(() -> {
             PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
             assertNotNull(task);
@@ -73,13 +59,7 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
                 .actionGet();
             assertEquals(1, tasks.getTasks().size());
         });
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
         assertBusy(() -> {
             ListTasksResponse tasks2 = client().admin()
                 .cluster()

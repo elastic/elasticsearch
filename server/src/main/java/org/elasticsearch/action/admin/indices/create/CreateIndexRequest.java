@@ -45,12 +45,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 
 /**
- * A request to create an index. Best created with {@link org.elasticsearch.client.internal.Requests#createIndexRequest(String)}.
+ * A request to create an index.
  * <p>
  * The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.elasticsearch.client.internal.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {

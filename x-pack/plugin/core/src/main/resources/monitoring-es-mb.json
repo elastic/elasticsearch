@@ -1351,6 +1351,13 @@
                         },
                         "evictions": {
                           "type": "long"
+                        },
+                        "global_ordinals": {
+                          "properties": {
+                            "build_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
                         }
                       }
                     },
@@ -2042,7 +2049,26 @@
                   "type": "keyword"
                 },
                 "read_exceptions": {
-                  "type": "nested"
+                  "type": "nested",
+                  "properties": {
+                    "from_seq_no": {
+                      "type": "long"
+                    },
+                    "retries": {
+                      "type": "integer"
+                    },
+                    "exception": {
+                      "type": "object",
+                      "properties": {
+                        "type" : {
+                          "type": "keyword"
+                        },
+                        "reason": {
+                          "type": "text"
+                        }
+                      }
+                    }
+                  }
                 },
                 "shard_id": {
                   "type": "long"
@@ -2377,6 +2403,10 @@
                 },
                 "start_time_in_millis": {
                   "path": "elasticsearch.index.recovery.start_time.ms",
+                  "type": "alias"
+                },
+                "total_time_in_millis": {
+                  "path": "elasticsearch.index.recovery.total_time.ms",
                   "type": "alias"
                 }
               }
@@ -3208,6 +3238,7 @@
       }
     },
     "settings": {
+      "index.auto_expand_replicas": "0-1",
       "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }

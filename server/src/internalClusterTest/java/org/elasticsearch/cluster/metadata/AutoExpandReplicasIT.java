@@ -44,7 +44,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
             );
         });
 
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", "non-existing-node"));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._id", "non-existing-node"), indexName);
 
         assertBusy(() -> {
             assertThat(
@@ -59,7 +59,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
         });
 
         // Remove the setting
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", ""));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._id", ""), indexName);
 
         assertBusy(() -> {
             assertThat(

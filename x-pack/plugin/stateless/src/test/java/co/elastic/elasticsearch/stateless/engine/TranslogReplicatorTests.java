@@ -474,10 +474,11 @@ public class TranslogReplicatorTests extends ESTestCase {
         currentLocation += operationsBytes[3].length();
 
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        translogReplicator.sync(shardId1, finalLocationShard1, future);
+        translogReplicator.syncAll(shardId1, future);
         future.actionGet();
-
-        assertThat(compoundFiles.size(), equalTo(1));
+        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        translogReplicator.syncAll(shardId2, future2);
+        future2.actionGet();
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),
@@ -488,10 +489,6 @@ public class TranslogReplicatorTests extends ESTestCase {
             new Translog.Operation[] { operations[0], operations[1], operations[3] }
         );
 
-        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
-        translogReplicator.sync(shardId2, intermediateLocationShard2, future2);
-        assertTrue(future2.isDone());
-
         Translog.Location finalLocationShard2 = new Translog.Location(0, currentLocation, operationsBytes[2].length());
 
         PlainActionFuture<Void> future3 = PlainActionFuture.newFuture();
@@ -500,8 +497,6 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         translogReplicator.add(shardId2, operationsBytes[2], 2, finalLocationShard2);
         future3.actionGet();
-
-        assertThat(compoundFiles.size(), equalTo(2));
 
         assertTranslogContains(
             new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId1),

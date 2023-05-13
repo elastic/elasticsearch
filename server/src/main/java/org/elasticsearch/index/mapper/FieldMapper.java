@@ -345,9 +345,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public final FieldMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
-        if (mergeWith == this) {
-            return this;
-        }
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
                 "mapper ["

@@ -490,13 +490,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         MapperBuilderContext objectBuilderContext = createChildContext(parentBuilderContext, simpleName());
-        Map<String, Mapper> mergedMappers = null;
-        for (Mapper mergeWithMapper : mergeWith) {
-            Mapper mergeIntoMapper = (mergedMappers == null ? mappers : mergedMappers).get(mergeWithMapper.simpleName());
+        Map<String, Mapper> mergedMappers = new HashMap<>();
+
+        Stream.concat(mappers.values().stream(), mergeWith.mappers.values().stream()).forEach(mergeWithMapper -> {
+            Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.simpleName());
 
             Mapper merged;
             if (mergeIntoMapper == null) {
-                merged = mergeWithMapper;
+                // merge with self to apply builder context
+                merged = mergeWithMapper.merge(mergeWithMapper, objectBuilderContext);
             } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason, objectBuilderContext);
             } else {
@@ -515,14 +517,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     merged = mergeIntoMapper.merge(mergeWithMapper, objectBuilderContext);
                 }
             }
-            if (mergedMappers == null) {
-                mergedMappers = new HashMap<>(mappers);
-            }
             mergedMappers.put(merged.simpleName(), merged);
-        }
-        if (mergedMappers != null) {
-            mappers = Map.copyOf(mergedMappers);
-        }
+        });
+        mappers = Map.copyOf(mergedMappers);
     }
 
     @Override

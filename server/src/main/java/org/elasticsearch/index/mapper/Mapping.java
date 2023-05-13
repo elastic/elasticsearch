@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -124,6 +126,14 @@ public final class Mapping implements ToXContentFragment {
         return sfm != null && sfm.isSynthetic();
     }
 
+    private boolean isDataStreamTimestamp(Mapping mergeWith) {
+        return Stream.of(this, mergeWith)
+            .map(m -> Optional.of((DataStreamTimestampFieldMapper) m.metadataMappersByName.get(DataStreamTimestampFieldMapper.NAME)))
+            .filter(o -> o.isPresent())
+            .map(Optional::get)
+            .anyMatch(DataStreamTimestampFieldMapper::isEnabled);
+    }
+
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
     }
@@ -136,7 +146,11 @@ public final class Mapping implements ToXContentFragment {
      * @return the resulting merged mapping.
      */
     Mapping merge(Mapping mergeWith, MergeReason reason) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, MapperBuilderContext.root(isSourceSynthetic()));
+        RootObjectMapper mergedRoot = root.merge(
+            mergeWith.root,
+            reason,
+            MapperBuilderContext.root(isSourceSynthetic(), isDataStreamTimestamp(mergeWith))
+        );
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we

@@ -3,8 +3,7 @@
     "mappings": {
       "properties": {
         "@timestamp": {
-          "type": "date",
-          "ignore_malformed": false
+          "type": "date"
         },
         "data_stream": {
           "properties": {

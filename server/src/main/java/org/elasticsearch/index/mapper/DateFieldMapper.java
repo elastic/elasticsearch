@@ -356,6 +356,14 @@ public final class DateFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue()
             );
+            // data streams don't allow the @timestamp field to ignore malformed values
+            // in case ignore malformed is enabled on the index level, disable it for data stream timestamp fields
+            if (ignoreMalformed.get()
+                && ignoreMalformed.isConfigured() == false
+                && name.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                && context.isDataStream()) {
+                ignoreMalformed.setValue(false);
+            }
 
             Long nullTimestamp = parseNullValue(ft);
             return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);

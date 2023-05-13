@@ -22,7 +22,11 @@ public class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic) {
-        return new MapperBuilderContext(null, () -> isSourceSynthetic);
+        return root(isSourceSynthetic, false);
+    }
+
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
+        return new MapperBuilderContext(null, () -> isSourceSynthetic, () -> isDataStream);
     }
 
     /**
@@ -31,19 +35,21 @@ public class MapperBuilderContext {
     public static MapperBuilderContext forMetadata() {
         return new MapperBuilderContext(null, () -> {
             throw new UnsupportedOperationException("metadata fields can't check if _source is synthetic");
-        });
+        }, () -> { throw new UnsupportedOperationException("metadata fields can't check the mapping is defined for a data stream"); });
     }
 
     private final String path;
     private final BooleanSupplier isSourceSynthetic;
+    private final BooleanSupplier isDataStream;
 
     MapperBuilderContext(String path, boolean isSourceSynthetic) {
-        this(Objects.requireNonNull(path), () -> isSourceSynthetic);
+        this(Objects.requireNonNull(path), () -> isSourceSynthetic, () -> false);
     }
 
-    private MapperBuilderContext(String path, BooleanSupplier isSourceSynthetic) {
+    private MapperBuilderContext(String path, BooleanSupplier isSourceSynthetic, BooleanSupplier isDataStream) {
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
+        this.isDataStream = isDataStream;
     }
 
     /**
@@ -52,7 +58,7 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic);
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream);
     }
 
     /**
@@ -70,5 +76,9 @@ public class MapperBuilderContext {
      */
     public boolean isSourceSynthetic() {
         return isSourceSynthetic.getAsBoolean();
+    }
+
+    public boolean isDataStream() {
+        return isDataStream.getAsBoolean();
     }
 }

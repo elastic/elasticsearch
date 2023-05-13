@@ -1,0 +1,5 @@
+pr: 96081
+summary: Ignore index-level `ignore_malformed` for data stream @timestamp mappings
+area: Data streams
+type: enhancement
+issues: []

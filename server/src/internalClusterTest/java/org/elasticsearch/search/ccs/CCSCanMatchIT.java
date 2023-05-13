@@ -46,6 +46,7 @@ import java.util.Optional;
 import static org.hamcrest.Matchers.in;
 
 public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
+    static final String REMOTE_CLUSTER = "cluster_a";
 
     @Override
     protected Collection<String> remoteClusterAlias() {
@@ -129,10 +130,10 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
     public void testCanMatchOnTimeRange() throws Exception {
         long timestamp = randomLongBetween(10_000_000, 50_000_000);
         createIndexAndIndexDocs(LOCAL_CLUSTER, "local_old_index", timestamp - 10_000, true);
-        createIndexAndIndexDocs("cluster_a", "remote_old_index", timestamp - 10_000, true);
+        createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_old_index", timestamp - 10_000, true);
         int localDocs = createIndexAndIndexDocs(LOCAL_CLUSTER, "local_new_index", timestamp, randomBoolean());
-        int remoteDocs = createIndexAndIndexDocs("cluster_a", "remote_new_index", timestamp, randomBoolean());
-        for (String cluster : List.of(LOCAL_CLUSTER, "cluster_a")) {
+        int remoteDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", timestamp, randomBoolean());
+        for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
             for (TransportService ts : cluster(cluster).getInstances(TransportService.class)) {
                 MockTransportService mockTransportService = (MockTransportService) ts;
                 mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -151,11 +152,11 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
         }
         try {
             SearchSourceBuilder source = new SearchSourceBuilder().query(new RangeQueryBuilder("@timestamp").from(timestamp));
-            SearchRequest request = new SearchRequest("local_*", "cluster_a:remote_*");
+            SearchRequest request = new SearchRequest("local_*", "*:remote_*");
             request.source(source).setCcsMinimizeRoundtrips(randomBoolean());
             ElasticsearchAssertions.assertHitCount(client().search(request).actionGet(), localDocs + remoteDocs);
         } finally {
-            for (String cluster : List.of(LOCAL_CLUSTER, "cluster_a")) {
+            for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
                 for (TransportService ts : cluster(cluster).getInstances(TransportService.class)) {
                     MockTransportService mockTransportService = (MockTransportService) ts;
                     mockTransportService.clearAllRules();

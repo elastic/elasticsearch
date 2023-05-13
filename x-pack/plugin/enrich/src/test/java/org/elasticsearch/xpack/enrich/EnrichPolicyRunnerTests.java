@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
@@ -54,6 +55,7 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -72,6 +74,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -156,9 +159,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         validateMappingMetadata(mapping, policyName, policy);
         assertEnrichMapping(mapping, """
             {
-                "field1": {"type": "keyword", "doc_values": false},
-                "field2": {"type": "long", "index": false},
-                "field5": {"type": "text", "index": false}
+              "field1": {
+                "type": "keyword",
+                "doc_values": false
+              },
+              "field2": {
+                "type": "long",
+                "index": false
+              },
+              "field5": {
+                "type": "text",
+                "index": false
+              }
             }
             """);
         // Validate document structure
@@ -308,19 +320,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         validateMappingMetadata(mapping, policyName, policy);
-        assertThat(mapping.get("dynamic"), is("false"));
-        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
-        assertThat(
-            properties,
-            equalTo(
-                Map.of(
-                    "range",
-                    Map.of("type", rangeType + "_range", "doc_values", false),
-                    "zipcode",
-                    Map.of("type", "long", "index", false)
-                )
-            )
-        );
+        assertEnrichMapping(mapping, String.format(Locale.ROOT, """
+            {
+                "range": {
+                    "type": "%s",
+                    "doc_values": false
+                },
+                "zipcode": {
+                    "type": "long",
+                    "index": false
+                }
+            }
+            """, rangeType + "_range"));
 
         // Validate document structure
         SearchResponse enrichSearchResponse = client().search(
@@ -604,11 +615,26 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         assertEnrichMapping(mapping, """
             {
-              "key": {"type": "keyword", "doc_values": false},
-              "idx": {"type": "long", "index": false},
-              "field1": {"type": "text", "index": false},
-              "field2": {"type": "long", "index": false},
-              "field5": {"type": "text", "index": false}
+              "key": {
+                "type": "keyword",
+                "doc_values": false
+              },
+              "idx": {
+                "type": "long",
+                "index": false
+              },
+              "field1": {
+                "type": "text",
+                "index": false
+              },
+              "field2": {
+                "type": "long",
+                "index": false
+              },
+              "field5": {
+                "type": "text",
+                "index": false
+              }
             }
             """);
         // Validate document structure
@@ -1012,12 +1038,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         validateMappingMetadata(mapping, policyName, policy);
         assertEnrichMapping(mapping, """
             {
-             "data": {
+              "data": {
                 "properties": {
-                    "field1": {"type": "keyword", "doc_values": false},
-                    "field2": {"type": "integer", "index": false}
+                  "field1": {
+                    "type": "keyword",
+                    "doc_values": false
+                  },
+                  "field2": {
+                    "type": "integer",
+                    "index": false
+                  }
                 }
-             }
+              }
             }
             """);
         SearchResponse enrichSearchResponse = client().search(
@@ -1118,18 +1150,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         validateMappingMetadata(mapping, policyName, policy);
         assertEnrichMapping(mapping, """
             {
-                "data": {
-                    "properties": {
-                        "field1": {
-                            "type": "keyword",
-                            "doc_values": false
-                        },
-                        "field2": {
-                            "type": "integer",
-                            "index": false
-                        }
-                    }
+              "data": {
+                "properties": {
+                  "field1": {
+                    "type": "keyword",
+                    "doc_values": false
+                  },
+                  "field2": {
+                    "type": "integer",
+                    "index": false
+                  }
                 }
+              }
             }
             """);
         SearchResponse enrichSearchResponse = client().search(
@@ -1353,16 +1385,22 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         validateMappingMetadata(mapping, policyName, policy);
         assertEnrichMapping(mapping, """
             {
-             "data": {
-               "properties": {
+              "data": {
+                "properties": {
                   "fields": {
                     "properties": {
-                        "field1": {"type": "keyword", "doc_values": false},
-                        "field2": {"type": "integer", "index": false}
+                      "field1": {
+                        "type": "keyword",
+                        "doc_values": false
+                      },
+                      "field2": {
+                        "type": "integer",
+                        "index": false
+                      }
                     }
                   }
-               }
-             }
+                }
+              }
             }
             """);
 
@@ -1740,12 +1778,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         validateMappingMetadata(mapping, policyName, policy);
         assertEnrichMapping(mapping, """
             {
-                "data": {
-                    "properties": {
-                        "field1": {"type": "keyword", "doc_values": false},
-                        "field2": {"type": "integer", "index": false}
-                    }
+              "data": {
+                "properties": {
+                  "field1": {
+                    "type": "keyword",
+                    "doc_values": false
+                  },
+                  "field2": {
+                    "type": "integer",
+                    "index": false
+                  }
                 }
+              }
             }
             """);
         SearchResponse enrichSearchResponse = client().search(
@@ -1894,9 +1938,18 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
         assertEnrichMapping(mapping, """
             {
-             "field1": {"type": "keyword", "doc_values": false},
-             "field2": {"type": "long", "index": false},
-             "field5": {"type": "text", "index": false}
+              "field1": {
+                "type": "keyword",
+                "doc_values": false
+              },
+              "field2": {
+                "type": "long",
+                "index": false
+              },
+              "field5": {
+                "type": "text",
+                "index": false
+              }
             }
             """);
         // Validate document structure
@@ -2026,7 +2079,109 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         latch.await();
         Exception e = exception.get();
         assertThat(e, notNullValue());
-        assertThat(e.getMessage(), equalTo("Match field 'field1' doesn't have a correct mapping type for policy type 'range'"));
+        assertThat(e.getMessage(), equalTo("Field 'field1' has type [object] which doesn't appear to be a range type"));
+    }
+
+    public void testEnrichFieldsConflictMappingTypes() {
+        createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
+        client().prepareIndex("source-1")
+            .setSource("user", "u1", "name", "n", "zipcode", 90000)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "zipcode", "type=long");
+
+        client().prepareIndex("source-2").setSource("""
+            {
+              "user": "u2",
+              "name": {
+                "first": "f",
+                "last": "l"
+              },
+              "zipcode": 90001
+            }
+            """, XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        EnrichPolicy policy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of("source-1", "source-2"),
+            "user",
+            List.of("name", "zipcode")
+        );
+        String policyName = "test1";
+        final long createTime = randomNonNegativeLong();
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        PlainActionFuture<ExecuteEnrichPolicyStatus> future = new PlainActionFuture<>();
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, future, createdEnrichIndex);
+        enrichPolicyRunner.run();
+        future.actionGet();
+
+        // Validate Index definition
+        GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
+        assertEnrichMapping(mapping, """
+            {
+              "user": {
+                "type": "keyword",
+                "doc_values": false
+              },
+              "zipcode": {
+                "type": "long",
+                "index": false
+              }
+            }
+            """);
+        // Validate document structure
+        SearchResponse searchResponse = client().search(new SearchRequest(".enrich-test1")).actionGet();
+        ElasticsearchAssertions.assertHitCount(searchResponse, 2L);
+        Map<String, Object> hit0 = searchResponse.getHits().getAt(0).getSourceAsMap();
+        assertThat(hit0, equalTo(Map.of("user", "u1", "name", "n", "zipcode", 90000)));
+        Map<String, Object> hit1 = searchResponse.getHits().getAt(1).getSourceAsMap();
+        assertThat(hit1, equalTo(Map.of("user", "u2", "name", Map.of("first", "f", "last", "l"), "zipcode", 90001)));
+    }
+
+    public void testEnrichMappingConflictFormats() {
+        createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy");
+        client().prepareIndex("source-1")
+            .setSource("user", "u1", "date", "2023")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        createIndex("source-2", Settings.EMPTY, "_doc", "user", "type=keyword", "date", "type=date,format=yyyy-MM");
+
+        client().prepareIndex("source-2").setSource("""
+            {
+              "user": "u2",
+              "date": "2023-05"
+            }
+            """, XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source-1", "source-2"), "user", List.of("date"));
+        String policyName = "test1";
+        final long createTime = randomNonNegativeLong();
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
+        PlainActionFuture<ExecuteEnrichPolicyStatus> future = new PlainActionFuture<>();
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, future, createdEnrichIndex);
+        enrichPolicyRunner.run();
+        future.actionGet();
+
+        // Validate Index definition
+        GetIndexResponse enrichIndex = getGetIndexResponseAndCheck(createdEnrichIndex);
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).sourceAsMap();
+        assertEnrichMapping(mapping, """
+            {
+              "user": {
+                "type": "keyword",
+                "doc_values": false
+              }
+            }
+            """);
+        // Validate document structure
+        SearchResponse searchResponse = client().search(new SearchRequest(".enrich-test1")).actionGet();
+        ElasticsearchAssertions.assertHitCount(searchResponse, 2L);
+        Map<String, Object> hit0 = searchResponse.getHits().getAt(0).getSourceAsMap();
+        assertThat(hit0, equalTo(Map.of("user", "u1", "date", "2023")));
+        Map<String, Object> hit1 = searchResponse.getHits().getAt(1).getSourceAsMap();
+        assertThat(hit1, equalTo(Map.of("user", "u2", "date", "2023-05")));
     }
 
     private EnrichPolicyRunner createPolicyRunner(
@@ -2151,6 +2306,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(actual.get("dynamic"), is("false"));
         Object actualProperties = actual.get("properties");
         Map<String, Object> mappings = XContentHelper.convertToMap(JsonXContent.jsonXContent, expectedMapping, false);
-        assertThat(mappings, equalTo(actualProperties));
+        assertThat(actualProperties, equalTo(mappings));
     }
 }

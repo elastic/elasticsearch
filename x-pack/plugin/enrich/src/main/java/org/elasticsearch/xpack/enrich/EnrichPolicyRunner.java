@@ -181,9 +181,9 @@ public class EnrichPolicyRunner implements Runnable {
         }
         // Validate the key and values
         try {
-            getFieldMapping(mapping, policy.getMatchField(), true);
+            getMappingTypeAndFormat(mapping, policy.getMatchField(), true);
             for (String valueFieldName : policy.getEnrichFields()) {
-                getFieldMapping(mapping, valueFieldName, false);
+                getMappingTypeAndFormat(mapping, valueFieldName, false);
             }
         } catch (ElasticsearchException e) {
             throw new ElasticsearchException(
@@ -202,42 +202,45 @@ public class EnrichPolicyRunner implements Runnable {
     private static MappingTypeAndFormat getMappingTypeAndFormat(
         String fieldName,
         EnrichPolicy policy,
-        boolean required,
+        boolean strictlyRequired,
         List<Map<String, Object>> sourceMappings
     ) {
         var fieldMappings = sourceMappings.stream()
-            .map(mapping -> getFieldMapping(mapping, fieldName, required))
+            .map(mapping -> getMappingTypeAndFormat(mapping, fieldName, strictlyRequired))
             .filter(Objects::nonNull)
             .toList();
-        Set<String> types = fieldMappings.stream().map(p -> (String) p.get("type")).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<String> types = fieldMappings.stream().map(tf -> tf.type).collect(Collectors.toSet());
         if (types.size() > 1) {
-            throw new ElasticsearchException(
-                "Multiple distinct mapping types for field '{}' - indices({})  types({})",
-                fieldName,
-                Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                Strings.collectionToCommaDelimitedString(types)
-            );
+            if (strictlyRequired) {
+                throw new ElasticsearchException(
+                    "Multiple distinct mapping types for field '{}' - indices({})  types({})",
+                    fieldName,
+                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                    Strings.collectionToCommaDelimitedString(types)
+                );
+            }
+            return null;
         }
         if (types.isEmpty()) {
             return null;
         }
-        Set<String> formats = fieldMappings.stream()
-            .map(p -> (String) p.get("format"))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+        Set<String> formats = fieldMappings.stream().map(tf -> tf.format).filter(Objects::nonNull).collect(Collectors.toSet());
         if (formats.size() > 1) {
-            throw new ElasticsearchException(
-                "Multiple distinct formats specified for field '{}' - indices({})  format entries({})",
-                policy.getMatchField(),
-                Strings.collectionToCommaDelimitedString(policy.getIndices()),
-                Strings.collectionToCommaDelimitedString(formats)
-            );
+            if (strictlyRequired) {
+                throw new ElasticsearchException(
+                    "Multiple distinct formats specified for field '{}' - indices({})  format entries({})",
+                    policy.getMatchField(),
+                    Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                    Strings.collectionToCommaDelimitedString(formats)
+                );
+            }
+            return null;
         }
         return new MappingTypeAndFormat(Iterables.get(types, 0), formats.isEmpty() ? null : Iterables.get(formats, 0));
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> getFieldMapping(Map<String, Object> properties, String fieldName, boolean fieldRequired) {
+    private static MappingTypeAndFormat getMappingTypeAndFormat(Map<String, Object> properties, String fieldName, boolean fieldRequired) {
         assert Strings.isEmpty(fieldName) == false : "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();
@@ -286,7 +289,12 @@ public class EnrichPolicyRunner implements Runnable {
             }
             parent.append(fieldPart);
         }
-        return currentField;
+        if (currentField == null) {
+            return null;
+        }
+        final String type = (String) currentField.getOrDefault("type", "object");
+        final String format = (String) currentField.get("format");
+        return new MappingTypeAndFormat(type, format);
     }
 
     static final Set<String> RANGE_TYPES = Set.of("integer_range", "float_range", "long_range", "double_range", "ip_range", "date_range");
@@ -324,6 +332,27 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private XContentBuilder createEnrichMapping(List<Map<String, Object>> sourceMappings) {
+        Map<String, Map<String, Object>> fieldMappings = new HashMap<>();
+        Map<String, Object> mappingForMatchField = mappingForMatchField(policy, sourceMappings);
+        for (String enrichField : policy.getEnrichFields()) {
+            if (enrichField.equals(policy.getMatchField())) {
+                mappingForMatchField = new HashMap<>(mappingForMatchField);
+                mappingForMatchField.remove("doc_values"); // enable doc_values
+            } else {
+                var typeAndFormat = getMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
+                if (typeAndFormat != null) {
+                    Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
+                    mapping.put("type", typeAndFormat.type);
+                    if (typeAndFormat.format != null) {
+                        mapping.put("format", typeAndFormat.format);
+                    }
+                    mapping.put("index", false); // disable index
+                    fieldMappings.put(enrichField, mapping);
+                }
+            }
+        }
+        fieldMappings.put(policy.getMatchField(), mappingForMatchField);
+
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -339,26 +368,6 @@ public class EnrichPolicyRunner implements Runnable {
                     builder.endObject();
                     builder.startObject("properties");
                     {
-                        Map<String, Map<String, Object>> fieldMappings = new HashMap<>();
-                        Map<String, Object> mappingForMatchField = mappingForMatchField(policy, sourceMappings);
-                        fieldMappings.put(policy.getMatchField(), mappingForMatchField);
-                        for (String enrichField : policy.getEnrichFields()) {
-                            if (enrichField.equals(policy.getMatchField())) {
-                                mappingForMatchField = new HashMap<>(mappingForMatchField);
-                                mappingForMatchField.remove("doc_values"); // enable doc_values
-                            } else {
-                                var typeAndFormat = getMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
-                                if (typeAndFormat != null) {
-                                    Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
-                                    mapping.put("type", typeAndFormat.type);
-                                    if (typeAndFormat.format != null) {
-                                        mapping.put("format", typeAndFormat.format);
-                                    }
-                                    mapping.put("index", false); // disable index
-                                    fieldMappings.put(enrichField, mapping);
-                                }
-                            }
-                        }
                         builder.mapContents(fieldMappings);
                     }
                     builder.endObject();

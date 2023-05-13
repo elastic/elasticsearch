@@ -246,128 +246,116 @@ public class TransportSearchActionTests extends ESTestCase {
     }
 
     public void testProcessRemoteShards() {
-        try (
-            TransportService transportService = MockTransportService.createNewService(
-                Settings.EMPTY,
-                Version.CURRENT,
-                TransportVersion.CURRENT,
-                threadPool,
-                null
-            )
-        ) {
-            RemoteClusterService service = transportService.getRemoteClusterService();
-            assertFalse(service.isCrossClusterSearchEnabled());
-            Map<String, SearchShardsResponse> searchShardsResponseMap = new LinkedHashMap<>();
-            // first cluster - new response
-            {
-                List<DiscoveryNode> nodes = List.of(TestDiscoveryNode.create("node1"), TestDiscoveryNode.create("node2"));
-                Map<String, AliasFilter> aliasFilters1 = Map.of(
-                    "foo_id",
-                    AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"),
-                    "bar_id",
-                    AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY)
-                );
-                List<SearchShardsGroup> groups = List.of(
-                    new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), true, false),
-                    new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, true),
-                    new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), true, false)
-                );
-                searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, nodes, aliasFilters1));
-            }
-            // second cluster - legacy response
-            {
-                DiscoveryNode[] nodes2 = new DiscoveryNode[] { TestDiscoveryNode.create("node3") };
-                ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
-                    new ClusterSearchShardsGroup(
-                        new ShardId("xyz", "xyz_id", 0),
-                        new ShardRouting[] { TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED) }
-                    ) };
-                Map<String, AliasFilter> aliasFilters2 = Map.of("xyz", AliasFilter.of(null, "some_alias_for_xyz"));
-                searchShardsResponseMap.put(
-                    "test_cluster_2",
-                    SearchShardsResponse.fromLegacyResponse(new ClusterSearchShardsResponse(groups2, nodes2, aliasFilters2))
-                );
-            }
-            Map<String, OriginalIndices> remoteIndicesByCluster = Map.of(
-                "test_cluster_1",
-                new OriginalIndices(new String[] { "fo*", "ba*" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+        Map<String, SearchShardsResponse> searchShardsResponseMap = new LinkedHashMap<>();
+        // first cluster - new response
+        {
+            List<DiscoveryNode> nodes = List.of(TestDiscoveryNode.create("node1"), TestDiscoveryNode.create("node2"));
+            Map<String, AliasFilter> aliasFilters1 = Map.of(
+                "foo_id",
+                AliasFilter.of(new TermsQueryBuilder("foo", "bar"), "some_alias_for_foo", "some_other_foo_alias"),
+                "bar_id",
+                AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY)
+            );
+            List<SearchShardsGroup> groups = List.of(
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), true, false),
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, true),
+                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), true, false)
+            );
+            searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, nodes, aliasFilters1));
+        }
+        // second cluster - legacy response
+        {
+            DiscoveryNode[] nodes2 = new DiscoveryNode[] { TestDiscoveryNode.create("node3") };
+            ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
+                new ClusterSearchShardsGroup(
+                    new ShardId("xyz", "xyz_id", 0),
+                    new ShardRouting[] { TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED) }
+                ) };
+            Map<String, AliasFilter> aliasFilters2 = Map.of("xyz", AliasFilter.of(null, "some_alias_for_xyz"));
+            searchShardsResponseMap.put(
                 "test_cluster_2",
-                new OriginalIndices(new String[] { "x*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+                SearchShardsResponse.fromLegacyResponse(new ClusterSearchShardsResponse(groups2, nodes2, aliasFilters2))
             );
-            Map<String, AliasFilter> aliasFilters = new HashMap<>();
-            searchShardsResponseMap.values().forEach(r -> aliasFilters.putAll(r.getAliasFilters()));
-            List<SearchShardIterator> iteratorList = TransportSearchAction.getRemoteShardsIterator(
-                searchShardsResponseMap,
-                remoteIndicesByCluster,
-                aliasFilters
-            );
-            assertThat(iteratorList, hasSize(4));
-            {
-                SearchShardIterator shardIt = iteratorList.get(0);
-                assertTrue(shardIt.prefiltered());
-                assertFalse(shardIt.skip());
-                assertThat(shardIt.shardId(), equalTo(new ShardId("foo", "foo_id", 0)));
-                assertArrayEquals(new String[] { "some_alias_for_foo", "some_other_foo_alias" }, shardIt.getOriginalIndices().indices());
-                assertEquals("test_cluster_1", shardIt.getClusterAlias());
-                assertEquals("foo", shardIt.shardId().getIndexName());
-                SearchShardTarget shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "foo");
-                assertThat(shard.getNodeId(), equalTo("node1"));
-                shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "foo");
-                assertThat(shard.getNodeId(), equalTo("node2"));
-                assertNull(shardIt.nextOrNull());
-            }
-            {
-                SearchShardIterator shardIt = iteratorList.get(1);
-                assertTrue(shardIt.prefiltered());
-                assertTrue(shardIt.skip());
-                assertThat(shardIt.shardId(), equalTo(new ShardId("foo", "foo_id", 1)));
-                assertArrayEquals(new String[] { "some_alias_for_foo", "some_other_foo_alias" }, shardIt.getOriginalIndices().indices());
-                assertEquals("test_cluster_1", shardIt.getClusterAlias());
-                assertEquals("foo", shardIt.shardId().getIndexName());
-                SearchShardTarget shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "foo");
-                assertThat(shard.getNodeId(), equalTo("node2"));
-                shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "foo");
-                assertThat(shard.getNodeId(), equalTo("node1"));
-                assertNull(shardIt.nextOrNull());
-            }
-            {
-                SearchShardIterator shardIt = iteratorList.get(2);
-                assertTrue(shardIt.prefiltered());
-                assertFalse(shardIt.skip());
-                assertThat(shardIt.shardId(), equalTo(new ShardId("bar", "bar_id", 0)));
-                assertArrayEquals(new String[] { "bar" }, shardIt.getOriginalIndices().indices());
-                assertEquals("test_cluster_1", shardIt.getClusterAlias());
-                SearchShardTarget shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "bar");
-                assertThat(shard.getNodeId(), equalTo("node2"));
-                shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "bar");
-                assertThat(shard.getNodeId(), equalTo("node1"));
-                assertNull(shardIt.nextOrNull());
-            }
-            {
-                SearchShardIterator shardIt = iteratorList.get(3);
-                assertFalse(shardIt.prefiltered());
-                assertFalse(shardIt.skip());
-                assertArrayEquals(new String[] { "some_alias_for_xyz" }, shardIt.getOriginalIndices().indices());
-                assertThat(shardIt.shardId(), equalTo(new ShardId("xyz", "xyz_id", 0)));
-                assertEquals("test_cluster_2", shardIt.getClusterAlias());
-                SearchShardTarget shard = shardIt.nextOrNull();
-                assertNotNull(shard);
-                assertEquals(shard.getShardId().getIndexName(), "xyz");
-                assertThat(shard.getNodeId(), equalTo("node3"));
-                assertNull(shardIt.nextOrNull());
-            }
+        }
+        Map<String, OriginalIndices> remoteIndicesByCluster = Map.of(
+            "test_cluster_1",
+            new OriginalIndices(new String[] { "fo*", "ba*" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            "test_cluster_2",
+            new OriginalIndices(new String[] { "x*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)
+        );
+        Map<String, AliasFilter> aliasFilters = new HashMap<>();
+        searchShardsResponseMap.values().forEach(r -> aliasFilters.putAll(r.getAliasFilters()));
+        List<SearchShardIterator> iteratorList = TransportSearchAction.getRemoteShardsIterator(
+            searchShardsResponseMap,
+            remoteIndicesByCluster,
+            aliasFilters
+        );
+        assertThat(iteratorList, hasSize(4));
+        {
+            SearchShardIterator shardIt = iteratorList.get(0);
+            assertTrue(shardIt.prefiltered());
+            assertFalse(shardIt.skip());
+            assertThat(shardIt.shardId(), equalTo(new ShardId("foo", "foo_id", 0)));
+            assertArrayEquals(new String[] { "some_alias_for_foo", "some_other_foo_alias" }, shardIt.getOriginalIndices().indices());
+            assertEquals("test_cluster_1", shardIt.getClusterAlias());
+            assertEquals("foo", shardIt.shardId().getIndexName());
+            SearchShardTarget shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "foo");
+            assertThat(shard.getNodeId(), equalTo("node1"));
+            shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "foo");
+            assertThat(shard.getNodeId(), equalTo("node2"));
+            assertNull(shardIt.nextOrNull());
+        }
+        {
+            SearchShardIterator shardIt = iteratorList.get(1);
+            assertTrue(shardIt.prefiltered());
+            assertTrue(shardIt.skip());
+            assertThat(shardIt.shardId(), equalTo(new ShardId("foo", "foo_id", 1)));
+            assertArrayEquals(new String[] { "some_alias_for_foo", "some_other_foo_alias" }, shardIt.getOriginalIndices().indices());
+            assertEquals("test_cluster_1", shardIt.getClusterAlias());
+            assertEquals("foo", shardIt.shardId().getIndexName());
+            SearchShardTarget shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "foo");
+            assertThat(shard.getNodeId(), equalTo("node2"));
+            shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "foo");
+            assertThat(shard.getNodeId(), equalTo("node1"));
+            assertNull(shardIt.nextOrNull());
+        }
+        {
+            SearchShardIterator shardIt = iteratorList.get(2);
+            assertTrue(shardIt.prefiltered());
+            assertFalse(shardIt.skip());
+            assertThat(shardIt.shardId(), equalTo(new ShardId("bar", "bar_id", 0)));
+            assertArrayEquals(new String[] { "bar" }, shardIt.getOriginalIndices().indices());
+            assertEquals("test_cluster_1", shardIt.getClusterAlias());
+            SearchShardTarget shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "bar");
+            assertThat(shard.getNodeId(), equalTo("node2"));
+            shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "bar");
+            assertThat(shard.getNodeId(), equalTo("node1"));
+            assertNull(shardIt.nextOrNull());
+        }
+        {
+            SearchShardIterator shardIt = iteratorList.get(3);
+            assertFalse(shardIt.prefiltered());
+            assertFalse(shardIt.skip());
+            assertArrayEquals(new String[] { "some_alias_for_xyz" }, shardIt.getOriginalIndices().indices());
+            assertThat(shardIt.shardId(), equalTo(new ShardId("xyz", "xyz_id", 0)));
+            assertEquals("test_cluster_2", shardIt.getClusterAlias());
+            SearchShardTarget shard = shardIt.nextOrNull();
+            assertNotNull(shard);
+            assertEquals(shard.getShardId().getIndexName(), "xyz");
+            assertThat(shard.getNodeId(), equalTo("node3"));
+            assertNull(shardIt.nextOrNull());
         }
     }
 

@@ -103,8 +103,9 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     @Override
     public void testCacheability() throws IOException {
         TermsSetQueryBuilder queryBuilder = createTestQueryBuilder();
-        boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null || (queryBuilder.getMinimumShouldMatchScript() != null
-            && queryBuilder.getValues().isEmpty()) || queryBuilder.getMinimumShouldMatch() != null;
+        boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null
+            || (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty())
+            || queryBuilder.getMinimumShouldMatch() != null;
         SearchExecutionContext context = createSearchExecutionContext();
         rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
@@ -228,18 +229,23 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             try (IndexReader ir = DirectoryReader.open(directory)) {
                 SearchExecutionContext context = createSearchExecutionContext();
                 Query queryWithMinimumShouldMatchField = new TermsSetQueryBuilder("message", Arrays.asList("c", "d"))
-                    .setMinimumShouldMatchField("m_s_m").doToQuery(context);
+                    .setMinimumShouldMatchField("m_s_m")
+                    .doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
-                TopDocs topDocsWithMinimumShouldMatchField = searcher
-                    .search(queryWithMinimumShouldMatchField, 10, new Sort(SortField.FIELD_DOC));
+                TopDocs topDocsWithMinimumShouldMatchField = searcher.search(
+                    queryWithMinimumShouldMatchField,
+                    10,
+                    new Sort(SortField.FIELD_DOC)
+                );
                 assertThat(topDocsWithMinimumShouldMatchField.totalHits.value, equalTo(3L));
                 assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[0].doc, equalTo(1));
                 assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[1].doc, equalTo(3));
                 assertThat(topDocsWithMinimumShouldMatchField.scoreDocs[2].doc, equalTo(4));
 
                 context = createSearchExecutionContext();
-                Query queryWithMinimumShouldMatch = new TermsSetQueryBuilder("message", Arrays.asList("c", "d", "a"))
-                    .setMinimumShouldMatch("2").doToQuery(context);
+                Query queryWithMinimumShouldMatch = new TermsSetQueryBuilder("message", Arrays.asList("c", "d", "a")).setMinimumShouldMatch(
+                    "2"
+                ).doToQuery(context);
                 searcher = new IndexSearcher(ir);
                 TopDocs topDocsWithMinimumShouldMatch = searcher.search(queryWithMinimumShouldMatch, 10, new Sort(SortField.FIELD_DOC));
                 assertThat(topDocsWithMinimumShouldMatch.totalHits.value, equalTo(5L));
@@ -251,10 +257,14 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
 
                 context = createSearchExecutionContext();
                 Query queryWithMinimumShouldMatchNegative = new TermsSetQueryBuilder("message", Arrays.asList("c", "g", "f"))
-                    .setMinimumShouldMatch("-1").doToQuery(context);
+                    .setMinimumShouldMatch("-1")
+                    .doToQuery(context);
                 searcher = new IndexSearcher(ir);
-                TopDocs topDocsWithMinimumShouldMatchNegative = searcher.search(queryWithMinimumShouldMatchNegative, 10,
-                    new Sort(SortField.FIELD_DOC));
+                TopDocs topDocsWithMinimumShouldMatchNegative = searcher.search(
+                    queryWithMinimumShouldMatchNegative,
+                    10,
+                    new Sort(SortField.FIELD_DOC)
+                );
                 assertThat(topDocsWithMinimumShouldMatchNegative.totalHits.value, equalTo(1L));
                 assertThat(topDocsWithMinimumShouldMatchNegative.scoreDocs[0].doc, equalTo(5));
             }

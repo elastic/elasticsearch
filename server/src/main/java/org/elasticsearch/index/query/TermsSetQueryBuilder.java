@@ -102,7 +102,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     public TermsSetQueryBuilder setMinimumShouldMatchField(String minimumShouldMatchField) {
-        if (minimumShouldMatchScript != null || minimumShouldMatch !=null) {
+        if (minimumShouldMatchScript != null || minimumShouldMatch != null) {
             throw new IllegalArgumentException("A script has already been specified. Cannot specify both a field and script");
         }
         this.minimumShouldMatchField = minimumShouldMatchField;
@@ -287,7 +287,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
         if (minimumShouldMatch != null) {
-            longValuesSource =  LongValuesSource.constant(Queries.calculateMinShouldMatch(values.size(), minimumShouldMatch));
+            longValuesSource = LongValuesSource.constant(Queries.calculateMinShouldMatch(values.size(), minimumShouldMatch));
         } else if (minimumShouldMatchField != null) {
             MappedFieldType msmFieldType = context.getFieldType(minimumShouldMatchField);
             if (msmFieldType == null) {

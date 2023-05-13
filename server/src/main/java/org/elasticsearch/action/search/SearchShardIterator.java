@@ -54,6 +54,18 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         this(clusterAlias, shardId, shards.stream().map(ShardRouting::currentNodeId).toList(), originalIndices, null, null, false, false);
     }
 
+    /**
+     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     *
+     * @param clusterAlias           the alias of the cluster where the shard is located
+     * @param shardId                shard id of the group
+     * @param targetNodeIds          the list of nodes hosting shard copies
+     * @param originalIndices        the indices that the search request originally related to (before any rewriting happened)
+     * @param searchContextId        the point-in-time specified for this group if exists
+     * @param searchContextKeepAlive the time interval that data nodes should extend the keep alive of the point-in-time
+     * @param prefiltered            if true, then this group already executed the can_match phase
+     * @param skip                   if true, then this group won't have matches, and it can be safely skipped from the search
+     */
     public SearchShardIterator(
         @Nullable String clusterAlias,
         ShardId shardId,

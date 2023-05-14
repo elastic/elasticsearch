@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
 import java.io.IOException;
@@ -46,6 +46,6 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
             request = new SearchApplicationSearchRequest(searchAppName);
         }
         final SearchApplicationSearchRequest finalRequest = request;
-        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

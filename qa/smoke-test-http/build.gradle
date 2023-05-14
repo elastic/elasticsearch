@@ -11,8 +11,10 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
   javaRestTestImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  javaRestTestImplementation project(':modules:rest-root')
 }
 
 testClusters.configureEach {
+  module ':modules:rest-root'
   setting 'xpack.security.enabled', 'false'
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -21,11 +22,19 @@ public class IngestPipelineConfig {
     private final int version;
     private final String versionProperty;
 
-    public IngestPipelineConfig(String id, String resource, int version, String versionProperty) {
+    /**
+     * A list of this pipeline's dependencies, for example- such referred to through a pipeline processor.
+     * This list is used to enforce proper ordering of pipeline installation, so that a pipeline gets installed only if all its
+     * dependencies are already installed.
+     */
+    private final List<String> dependencies;
+
+    public IngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
         this.id = Objects.requireNonNull(id);
         this.resource = Objects.requireNonNull(resource);
         this.version = version;
         this.versionProperty = Objects.requireNonNull(versionProperty);
+        this.dependencies = dependencies;
     }
 
     public String getId() {
@@ -38,6 +47,10 @@ public class IngestPipelineConfig {
 
     public String getVersionProperty() {
         return versionProperty;
+    }
+
+    public List<String> getDependencies() {
+        return dependencies;
     }
 
     public BytesReference loadConfig() {

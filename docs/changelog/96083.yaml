@@ -1,0 +1,6 @@
+pr: 96083
+summary: Json parse logs
+area: Data streams
+type: enhancement
+issues:
+ - 95522

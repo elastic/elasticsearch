@@ -25,6 +25,11 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
     }
 
     @Override
+    protected Matcher<Object> singleValueMatcher(Object o) {
+        return o == null ? nullValue() : equalTo(1);
+    }
+
+    @Override
     protected DataType[] supportedTypes() {
         return representable();
     }

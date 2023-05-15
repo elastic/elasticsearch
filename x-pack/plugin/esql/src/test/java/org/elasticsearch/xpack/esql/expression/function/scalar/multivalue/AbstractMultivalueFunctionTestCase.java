@@ -33,6 +33,13 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
 
     protected abstract DataType[] supportedTypes();
 
+    /**
+     * Matcher for single valued fields.
+     */
+    protected Matcher<Object> singleValueMatcher(Object o) {
+        return equalTo(o);
+    }
+
     @Override
     protected final List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
         return List.of(required(supportedTypes()));
@@ -77,7 +84,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             Block result = evaluator(expression).get().eval(new Page(BlockUtils.fromList(data)));
             assertThat(result.asVector(), type == DataTypes.NULL ? nullValue() : notNullValue());
             for (int p = 0; p < data.size(); p++) {
-                assertThat(toJavaObject(result, p), equalTo(data.get(p).get(0)));
+                assertThat(toJavaObject(result, p), singleValueMatcher(data.get(p).get(0)));
             }
         }
     }
@@ -109,7 +116,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             Literal lit = randomLiteral(type);
             Expression expression = build(Source.EMPTY, lit);
             assertTrue(expression.foldable());
-            assertThat(expression.fold(), equalTo(lit.value()));
+            assertThat(expression.fold(), singleValueMatcher(lit.value()));
         }
     }
 

@@ -57,7 +57,7 @@ public class MvCount extends AbstractMultivalueFunction {
         return NodeInfo.create(this, MvCount::new, field());
     }
 
-    private static class Evaluator extends AbstractMultivalueFunction.AbstractEvaluator {
+    private static class Evaluator extends AbstractEvaluator {
         protected Evaluator(EvalOperator.ExpressionEvaluator field) {
             super(field);
         }
@@ -65,6 +65,14 @@ public class MvCount extends AbstractMultivalueFunction {
         @Override
         protected String name() {
             return "MvCount";
+        }
+
+        @Override
+        protected Block evalSingleValued(Block fieldVal) {
+            if (fieldVal.mayHaveNulls()) {
+                return evalNullable(fieldVal);
+            }
+            return IntBlock.newConstantBlockWith(1, fieldVal.getPositionCount());
         }
 
         @Override

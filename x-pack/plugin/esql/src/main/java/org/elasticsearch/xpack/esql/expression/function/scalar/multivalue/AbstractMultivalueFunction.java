@@ -63,6 +63,13 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         protected abstract String name();
 
         /**
+         * Called to evaluate single valued fields.
+         */
+        protected Block evalSingleValued(Block fieldVal) {
+            return fieldVal;
+        }
+
+        /**
          * Called when evaluating a {@link Block} that contains null values.
          */
         protected abstract Block evalNullable(Block fieldVal);
@@ -80,7 +87,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         public final Block eval(Page page) {
             Block fieldVal = field.eval(page);
             if (fieldVal.mayHaveMultivaluedFields() == false) {
-                return fieldVal;
+                return evalSingleValued(fieldVal);
             }
             if (fieldVal.mayHaveNulls()) {
                 return evalNullable(fieldVal);

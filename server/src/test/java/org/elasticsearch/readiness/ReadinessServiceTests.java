@@ -42,8 +42,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
-
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
     private ReadinessService readinessService;

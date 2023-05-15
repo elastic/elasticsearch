@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
@@ -486,8 +485,15 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         discoveredNodes.set(
             List.of(
-                TestDiscoveryNode.builder(randomAlphaOfLength(10)).name(otherNode1.getName()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build(),
-                TestDiscoveryNode.builder(randomAlphaOfLength(10)).name("yet-another-node").address(otherNode1.getAddress()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
+                TestDiscoveryNode.builder(randomAlphaOfLength(10))
+                    .name(otherNode1.getName())
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                    .build(),
+                TestDiscoveryNode.builder(randomAlphaOfLength(10))
+                    .name("yet-another-node")
+                    .address(otherNode1.getAddress())
+                    .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+                    .build()
             )
         );
 

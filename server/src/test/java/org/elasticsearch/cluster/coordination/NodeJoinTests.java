@@ -66,7 +66,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
@@ -528,7 +527,10 @@ public class NodeJoinTests extends ESTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
 
-        DiscoveryNode knownJoiningNode = TestDiscoveryNode.builder("newNodeId").name("knownNodeName").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        DiscoveryNode knownJoiningNode = TestDiscoveryNode.builder("newNodeId")
+            .name("knownNodeName")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
+            .build();
         long newTerm = initialTerm + randomLongBetween(1, 10);
         long newerTerm = newTerm + randomLongBetween(1, 10);
 

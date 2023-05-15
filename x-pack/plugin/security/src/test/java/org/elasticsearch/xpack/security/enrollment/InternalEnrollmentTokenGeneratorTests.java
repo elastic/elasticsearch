@@ -52,7 +52,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -222,22 +221,22 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                            Version.CURRENT,
-                            TransportVersion.CURRENT,
-                            null,
-                            TestDiscoveryNode.builder("1").name("node-name").roles(Set.of()).build(),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
+                        Version.CURRENT,
+                        TransportVersion.CURRENT,
+                        null,
+                        TestDiscoveryNode.builder("1").name("node-name").roles(Set.of()).build(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 ),
                 List.of()
@@ -255,28 +254,28 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 new ClusterName("cluster_name"),
                 List.of(
                     new NodeInfo(
-                            Version.CURRENT,
-                            TransportVersion.CURRENT,
-                            null,
-                            TestDiscoveryNode.builder("1").name("node-name").roles(Set.of()).build(),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new HttpInfo(
-                                    new BoundTransportAddress(
-                                            new TransportAddress[]{new TransportAddress(InetAddress.getByName("0.0.0.0"), 9200)},
-                                            new TransportAddress(InetAddress.getByName("192.168.1.2"), 9200)
-                                    ),
-                                    0L
+                        Version.CURRENT,
+                        TransportVersion.CURRENT,
+                        null,
+                        TestDiscoveryNode.builder("1").name("node-name").roles(Set.of()).build(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new HttpInfo(
+                            new BoundTransportAddress(
+                                new TransportAddress[] { new TransportAddress(InetAddress.getByName("0.0.0.0"), 9200) },
+                                new TransportAddress(InetAddress.getByName("192.168.1.2"), 9200)
                             ),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
+                            0L
+                        ),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
                 ),
                 List.of()

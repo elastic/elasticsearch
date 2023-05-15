@@ -1,5 +1,0 @@
-pr: 96067
-summary: Support file secrets in locally mounted secrets
-area: Infra/Settings
-type: bug
-issues: []

@@ -16,6 +16,9 @@ query.
 The instructions in this tutorial shows you how to use ELSER to perform semantic 
 search on your data.
 
+NOTE: Only the first 512 extracted tokens per field are considered during 
+semantic search with ELSER v1.
+
 
 [discrete]
 [[requirements]]
@@ -98,9 +101,6 @@ processor.
 
 In this step, you load the data that you later use in the {infer} ingest 
 pipeline to extract tokens from it.
-
-NOTE: Only the first 512 extracted tokens of the ingested docs are considered 
-during semantic search with ELSER v1.
 
 Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS 
 MACRO Passage Ranking data set. It consists of 200 queries, each accompanied by 
@@ -222,4 +222,5 @@ weights.
 === Further reading
 
 * {ml-docs}/ml-nlp-elser.html[How to download and deploy ELSER]
+* {ml-docs}/ml-nlp-limitations.html#ml-nlp-elser-v1-limit-512[ELSER v1 limitation]
 // TO DO: refer to the ELSER blog post

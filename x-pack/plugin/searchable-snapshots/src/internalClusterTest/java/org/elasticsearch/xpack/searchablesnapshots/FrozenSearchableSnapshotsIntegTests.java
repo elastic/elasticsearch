@@ -166,7 +166,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         if (randomBoolean()) {
             indexSettingsBuilder.put(
                 SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomLongBetween(10, 100_000))
+                ByteSizeValue.ofBytes(randomLongBetween(10, 100_000))
             );
         }
         final int expectedReplicas;
@@ -373,18 +373,14 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            dataNode.getName()
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                    dataNode.getName()
+                ),
+            restoredIndexName
         );
 
         assertFalse(
@@ -402,15 +398,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, false, nonCachedExtensions);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()),
+            restoredIndexName
         );
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
@@ -457,12 +449,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .indices()
                 .prepareCreate("test-index")
                 .setMapping("f", "type=date")
-                .setSettings(
-                    Settings.builder()
-                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                )
+                .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
                 .get()
         );
         indexRandom(

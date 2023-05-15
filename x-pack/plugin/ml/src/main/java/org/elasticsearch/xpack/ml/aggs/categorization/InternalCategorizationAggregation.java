@@ -108,7 +108,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
         public Bucket(StreamInput in) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (in.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
                 throw new ElasticsearchException(
                     "["
                         + CategorizeTextAggregationBuilder.NAME
@@ -126,7 +126,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-            if (out.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+            if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
                 throw new ElasticsearchException(
                     "["
                         + CategorizeTextAggregationBuilder.NAME
@@ -145,6 +145,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), serializableCategory.getNumMatches());
             builder.field(CommonFields.KEY.getPreferredName());
             key.toXContent(builder, params);
+            builder.field(CategoryDefinition.REGEX.getPreferredName(), serializableCategory.getRegex());
             builder.field(CategoryDefinition.MAX_MATCHING_LENGTH.getPreferredName(), serializableCategory.maxMatchingStringLen());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
@@ -237,7 +238,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (in.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+        if (in.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
             throw new ElasticsearchException(
                 "["
                     + CategorizeTextAggregationBuilder.NAME
@@ -255,7 +256,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
-        if (out.getVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
+        if (out.getTransportVersion().before(CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION)) {
             throw new ElasticsearchException(
                 "["
                     + CategorizeTextAggregationBuilder.NAME

@@ -1,5 +1,5 @@
 [[discovery]]
-== Discovery Plugins
+== Discovery plugins
 
 Discovery plugins extend Elasticsearch by adding new seed hosts providers that
 can be used to extend the {ref}/modules-discovery.html[cluster formation

@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotConfig> {
+public class ModelPlotConfigTests extends AbstractXContentSerializingTestCase<ModelPlotConfig> {
 
     public void testConstructorDefaults() {
         ModelPlotConfig modelPlotConfig = new ModelPlotConfig();
@@ -33,6 +33,11 @@ public class ModelPlotConfigTests extends AbstractSerializingTestCase<ModelPlotC
     @Override
     protected ModelPlotConfig createTestInstance() {
         return createRandomized();
+    }
+
+    @Override
+    protected ModelPlotConfig mutateInstance(ModelPlotConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static ModelPlotConfig createRandomized() {

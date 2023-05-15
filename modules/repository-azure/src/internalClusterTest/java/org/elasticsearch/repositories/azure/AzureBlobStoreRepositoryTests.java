@@ -16,6 +16,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -30,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
@@ -44,6 +46,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -131,8 +134,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                         RetryPolicyType.EXPONENTIAL,
                         azureStorageSettings.getMaxRetries() + 1,
                         60,
-                        50L,
-                        100L,
+                        5L,
+                        10L,
                         null
                     );
                 }
@@ -266,6 +269,26 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             BlobContainer container = store.blobContainer(BlobPath.EMPTY.add("nested").add("dir"));
             NoSuchFileException exception = expectThrows(NoSuchFileException.class, () -> container.readBlob("blob"));
             assertThat(exception.getMessage(), containsString("nested/dir/blob] not found"));
+        }
+    }
+
+    public void testReadByteByByte() throws Exception {
+        try (BlobStore store = newBlobStore()) {
+            BlobContainer container = store.blobContainer(BlobPath.EMPTY.add(UUIDs.randomBase64UUID()));
+            var data = randomBytes(randomIntBetween(128, 512));
+            String blobName = randomName();
+            container.writeBlob(blobName, new ByteArrayInputStream(data), data.length, true);
+
+            var originalDataInputStream = new ByteArrayInputStream(data);
+            try (var azureInputStream = container.readBlob(blobName)) {
+                for (int i = 0; i < data.length; i++) {
+                    assertThat(originalDataInputStream.read(), is(equalTo(azureInputStream.read())));
+                }
+
+                assertThat(azureInputStream.read(), is(equalTo(-1)));
+                assertThat(originalDataInputStream.read(), is(equalTo(-1)));
+            }
+            container.delete();
         }
     }
 }

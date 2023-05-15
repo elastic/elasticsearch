@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(':x-pack:plugin:core')

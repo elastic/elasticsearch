@@ -70,9 +70,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
         List<FailedNodeException> failedNodeExceptions
     ) {
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
-            taskOperationFailures.stream()
-                .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
-                .collect(Collectors.toList())
+            taskOperationFailures.stream().map(ExceptionsHelper::taskOperationFailureToStatusException).collect(Collectors.toList())
         );
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(failedNodeExceptions);
         return new KillProcessAction.Response(true);

@@ -192,7 +192,7 @@ public class BootstrapForTesting {
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
                 for (URL url : Collections.list(
-                    BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.ES_PLUGIN_PROPERTIES)
+                    BootstrapForTesting.class.getClassLoader().getResources(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME)
                 )) {
                     Properties properties = new Properties();
                     try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
@@ -219,6 +219,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
+        addClassCodebase(codebases, "elasticsearch-preallocate", "org.elasticsearch.preallocate.Preallocate");
         addClassCodebase(codebases, "framework", "org.elasticsearch.test.ESTestCase");
         return codebases;
     }

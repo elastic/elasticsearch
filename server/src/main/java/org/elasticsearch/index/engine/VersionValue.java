@@ -13,10 +13,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.translog.Translog;
 
-import java.util.Collection;
-import java.util.Collections;
-
-abstract class VersionValue implements Accountable {
+public abstract class VersionValue implements Accountable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
 
@@ -44,11 +41,6 @@ abstract class VersionValue implements Accountable {
     }
 
     @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -70,7 +62,7 @@ abstract class VersionValue implements Accountable {
 
     @Override
     public String toString() {
-        return "VersionValue{" + "version=" + version + ", seqNo=" + seqNo + ", term=" + term + '}';
+        return "VersionValue{version=" + version + ", seqNo=" + seqNo + ", term=" + term + '}';
     }
 
     /**

@@ -15,19 +15,19 @@ public class SearchUtilsTests extends ESTestCase {
     public void testConfigureMaxClauses() {
 
         // Heap below 1 Gb
-        assertEquals(8192, SearchUtils.calculateMaxClauseValue(4, 0.5));
+        assertEquals(16368, SearchUtils.calculateMaxClauseValue(4, 1023));
 
         // Number of processors not available
-        assertEquals(1024, SearchUtils.calculateMaxClauseValue(-1, 1));
+        assertEquals(1024, SearchUtils.calculateMaxClauseValue(-1, 1024));
 
         // Insanely high configured search thread pool size
-        assertEquals(1024, SearchUtils.calculateMaxClauseValue(1024, 1));
+        assertEquals(1024, SearchUtils.calculateMaxClauseValue(1024, 1024));
 
         // 1Gb heap, 8 processors
-        assertEquals(5041, SearchUtils.calculateMaxClauseValue(13, 1));
+        assertEquals(5041, SearchUtils.calculateMaxClauseValue(13, 1024));
 
         // 30Gb heap, 48 processors
-        assertEquals(26932, SearchUtils.calculateMaxClauseValue(73, 30));
+        assertEquals(26932, SearchUtils.calculateMaxClauseValue(73, 30 * 1024));
     }
 
 }

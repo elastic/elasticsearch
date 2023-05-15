@@ -59,4 +59,9 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
 
         StandardValidator.instance(true).validate(new Circle(200, 10, 1, 20));
     }
+
+    @Override
+    protected Circle mutateInstance(Circle instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

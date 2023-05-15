@@ -18,6 +18,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -56,7 +57,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getDeploymentId()), parentTask, headers);
         this.params = Objects.requireNonNull(taskParams);
         this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAssignmentNodeService,
@@ -68,6 +69,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     void init(InferenceConfig inferenceConfig) {
         if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
+            // track the model usage not the deployment Id
             licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
         }
     }
@@ -75,15 +77,22 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public void updateNumberOfAllocations(int numberOfAllocations) {
         params = new TaskParams(
             params.getModelId(),
+            params.getDeploymentId(),
             params.getModelBytes(),
             numberOfAllocations,
             params.getThreadsPerAllocation(),
-            params.getQueueCapacity()
+            params.getQueueCapacity(),
+            params.getCacheSize().orElse(null),
+            params.getPriority()
         );
     }
 
     public String getModelId() {
         return params.getModelId();
+    }
+
+    public String getDeploymentId() {
+        return params.getDeploymentId();
     }
 
     public long estimateMemoryUsageBytes() {
@@ -99,8 +108,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void markAsStopped(String reason) {
+        // stop tracking the model usage
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
-        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        logger.debug("[{}] Stopping due to reason [{}]", getDeploymentId(), reason);
         stoppedReasonHolder.trySet(reason);
         stopped = true;
     }
@@ -116,25 +126,28 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        logger.info("[{}] task cancelled due to reason [{}]", getModelId(), reason);
+        logger.info("[{}] task cancelled due to reason [{}]", getDeploymentId(), reason);
         stop(
             reason,
             ActionListener.wrap(
                 acknowledgedResponse -> {},
-                e -> logger.error(() -> "[" + getModelId() + "] error stopping the model after task cancellation", e)
+                e -> logger.error(() -> "[" + getDeploymentId() + "] error stopping the deployment after task cancellation", e)
             )
         );
     }
 
     public void infer(
-        Map<String, Object> doc,
+        NlpInferenceInput input,
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
+        Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("Trained model deployment [{}] is not initialized", params.getDeploymentId())
+            );
             return;
         }
         if (update.isSupported(inferenceConfigHolder.get()) == false) {
@@ -149,11 +162,23 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, skipQueue, timeout, listener);
+        trainedModelAssignmentNodeService.infer(
+            this,
+            update.apply(inferenceConfigHolder.get()),
+            input,
+            skipQueue,
+            timeout,
+            parentActionTask,
+            listener
+        );
     }
 
     public Optional<ModelStats> modelStats() {
         return trainedModelAssignmentNodeService.modelStats(this);
+    }
+
+    public void clearCache(ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAssignmentNodeService.clearCache(this, listener);
     }
 
     public void setFailed(String reason) {

@@ -9,7 +9,7 @@
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:s3-fixture')

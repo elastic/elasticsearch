@@ -67,6 +67,7 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.nio.conn.NoopIOSessionStrategy;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
@@ -125,6 +126,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_PORT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_SCHEME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_TCP_KEEP_ALIVE;
 
 /**
  * Handles an OpenID Connect Authentication response as received by the facilitator. In the case of an implicit flow, validates
@@ -288,12 +290,12 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(
-                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
-                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                            claimsListener.onFailure(ex);
-                        })
-                    );
+                    .triggerReload(ActionListener.wrap(v -> {
+                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
+                    }, ex -> {
+                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                        claimsListener.onFailure(ex);
+                    }));
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
@@ -691,7 +693,9 @@ public class OpenIdConnectAuthenticator {
         try {
             SpecialPermission.check();
             return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
-                ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
+                ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor(
+                    IOReactorConfig.custom().setSoKeepAlive(realmConfig.getSetting(HTTP_TCP_KEEP_ALIVE)).build()
+                );
                 final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
                 final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
                 final SSLContext clientContext = sslService.sslContext(sslConfiguration);

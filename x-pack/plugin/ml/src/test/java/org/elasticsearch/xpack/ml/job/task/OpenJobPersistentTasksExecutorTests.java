@@ -107,7 +107,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                 )
             )
         );
-        clusterService = new ClusterService(settings, clusterSettings, tp);
+        clusterService = new ClusterService(settings, clusterSettings, tp, null);
         autodetectProcessManager = mock(AutodetectProcessManager.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
@@ -167,7 +167,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertEquals(
             "Not opening [unavailable_index_with_lazy_node], "
                 + "because not all primary shards are active for the following indices [.ml-state]",
-            executor.getAssignment(params, csBuilder.nodes(), csBuilder.build()).getExplanation()
+            executor.getAssignment(params, csBuilder.nodes().getAllNodes(), csBuilder.build()).getExplanation()
         );
     }
 
@@ -186,7 +186,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         when(job.allowLazyOpen()).thenReturn(true);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("lazy_job");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.nodes(), csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+            params,
+            csBuilder.nodes().getAllNodes(),
+            csBuilder.build()
+        );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
@@ -203,7 +207,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         Job job = mock(Job.class);
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
         params.setJob(job);
-        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.nodes(), csBuilder.build());
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(
+            params,
+            csBuilder.nodes().getAllNodes(),
+            csBuilder.build()
+        );
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());
@@ -259,10 +267,11 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                 shardId,
                 true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
             );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            shardRouting = shardRouting.moveToStarted();
+            shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             routingTable.add(
                 IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting))
             );
@@ -293,7 +302,8 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             mlMemoryTracker,
             client,
             TestIndexNameExpressionResolver.newInstance(),
-            licenseState
+            licenseState,
+            true
         );
     }
 }

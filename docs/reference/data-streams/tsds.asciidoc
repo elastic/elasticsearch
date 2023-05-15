@@ -1,15 +1,11 @@
-ifeval::["{release-state}"=="unreleased"]
 [[tsds]]
 == Time series data stream (TSDS)
-
-preview::[]
 
 A time series data stream (TSDS) models timestamped metrics data as one or
 more time series.
 
-// TODO: Replace XX% with actual percentage
 You can use a TSDS to store metrics data more efficiently. In our benchmarks,
-metrics data stored in a TSDS used 44% less disk space than a regular data
+metrics data stored in a TSDS used 70% less disk space than a regular data
 stream.
 
 [discrete]
@@ -30,7 +26,7 @@ logs or traces, use a regular data stream.
 A TSDS works like a regular data stream with some key differences:
 
 * The matching index template for a TSDS requires a `data_stream` object with
-the <<time-series-mode,`index_mode: time_series`>> option. This option enables
+the <<time-series-mode,`index.mode: time_series`>> option. This option enables
 most TSDS-related functionality.
 
 * In addition to a `@timestamp`, each document in a TSDS must contain one or
@@ -90,7 +86,7 @@ A TSDS document is uniquely identified by its time series and timestamp, both of
 which are used to generate the document `_id`. So, two documents with the same
 dimensions and the same timestamp are considered to be duplicates. When you use
 the `_bulk` endpoint to add documents to a TSDS, a second document with the same
-timestamp and dimensions overwrites the first. When you use the 
+timestamp and dimensions overwrites the first. When you use the
 `PUT /<target>/_create/<_id>` format to add an individual document and a document
 with the same `_id` already exists, an error is generated.
 
@@ -106,16 +102,19 @@ parameter:
 * <<number,`long`>>
 * <<number,`unsigned_long`>>
 
-[[dimension-limits]] 
-.Dimension limits 
-**** 
+For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
+
+[[dimension-limits]]
+.Dimension limits
+****
 In a TSDS, {es} uses dimensions to
 generate the document `_id` and <<tsid,`_tsid`>> values. The resulting `_id` is
 always a short encoded hash. To prevent the `_tsid` value from being overly
 large, {es} limits the number of dimensions for an index using the
 <<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
 index setting. While you can increase this limit, the resulting document `_tsid`
-value can't exceed 32KB. 
+value can't exceed 32KB. Additionally the field name of a dimension cannot be
+longer than 512 bytes and the each dimension value can't exceed 1kb.
 ****
 
 [discrete]
@@ -150,6 +149,8 @@ example, a count of errors or completed tasks.
 Only numeric and `aggregate_metric_double` fields support the `counter` metric
 type.
 
+NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
+
 // tag::time-series-metric-gauge[]
 `gauge`:: A number that can increase or decrease. For example, a temperature or
 available disk space.
@@ -157,20 +158,6 @@ available disk space.
 +
 Only numeric and `aggregate_metric_double` fields support the `gauge` metric
 type.
-
-// tag::time-series-metric-histogram[]
-`histogram`:: A pair of numeric arrays that measure the distribution of values
-across predefined buckets. For example, server response times by percentile.
-// end::time-series-metric-histogram[]
-+
-Only `histogram` fields support the `histogram` metric type.
-
-// tag::time-series-metric-summary[]
-`summary`:: An array of aggregated values, such as `sum`, `avg`, `value_count`,
-`min`, and `max`.
-// end::time-series-metric-summary[]
-+
-Only `aggregate_metric_double` fields support the `gauge` metric type.
 
 // tag::time-series-metric-null[]
 `null` (Default):: Not a time series metric.
@@ -203,6 +190,9 @@ The `_tsid` field is not queryable or updatable. You also can't retrieve a
 document's `_tsid` using a <<docs-get,get document>> request. However, you can
 use the `_tsid` field in aggregations and retrieve the `_tsid` value in searches
 using the <<search-fields-param,`fields` parameter>>.
+
+WARNING: The format of the `_tsid` field shouldn't be relied upon. It may change
+from version to version.
 
 [discrete]
 [[time-bound-indices]]
@@ -258,6 +248,26 @@ ensures the `@timestamp` ranges for neighboring backing indices always border
 but never overlap.
 
 [discrete]
+[[tsds-accepted-time-range]]
+==== Accepted time range for adding data
+
+A TSDS is designed to ingest current metrics data. When the TSDS is first
+created the initial backing index has:
+
+* an `index.time_series.start_time` value set to `now - index.look_ahead_time`
+* an `index.time_series.end_time` value set to `now + index.look_ahead_time`
+
+Only data that falls inside that range can be indexed.
+
+In our <<tsds-create-index-settings-component-template,TSDS example>>,
+`index.look_ahead_time` is set to three hours, so only documents with a
+`@timestamp` value that is within three hours previous or subsequent to the
+present time are accepted for indexing.
+
+You can use the <<indices-get-data-stream,get data stream API>> to check the
+accepted time range for writing to any TSDS.
+
+[discrete]
 [[dimension-based-routing]]
 ==== Dimension-based routing
 
@@ -305,4 +315,6 @@ Now that you know the basics, you're ready to <<set-up-tsds,create a TSDS>> or
 
 include::set-up-tsds.asciidoc[]
 include::tsds-index-settings.asciidoc[]
-endif::[]
+include::downsampling.asciidoc[]
+include::downsampling-manual.asciidoc[]
+include::downsampling-ilm.asciidoc[]

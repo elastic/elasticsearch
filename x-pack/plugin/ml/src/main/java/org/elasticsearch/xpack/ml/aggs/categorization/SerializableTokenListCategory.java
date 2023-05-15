@@ -37,6 +37,8 @@ public class SerializableTokenListCategory implements Writeable {
      */
     public static final int KEY_BUDGET = 10000;
 
+    private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
+
     final BytesRef[] baseTokens;
     final int[] baseTokenWeights;
     final int baseUnfilteredLength;
@@ -158,6 +160,16 @@ public class SerializableTokenListCategory implements Writeable {
 
     public BytesRef[] getKeyTokens() {
         return Arrays.stream(keyTokenIndexes).mapToObj(index -> baseTokens[index]).toArray(BytesRef[]::new);
+    }
+
+    public String getRegex() {
+        if (keyTokenIndexes.length == 0 || orderedCommonTokenBeginIndex == orderedCommonTokenEndIndex) {
+            return ".*";
+        }
+        return Arrays.stream(keyTokenIndexes)
+            .filter(index -> index >= orderedCommonTokenBeginIndex && index < orderedCommonTokenEndIndex)
+            .mapToObj(index -> baseTokens[index].utf8ToString().replaceAll(REGEX_NEEDS_ESCAPE_PATTERN, "\\\\$1"))
+            .collect(Collectors.joining(".+?", ".*?", ".*?"));
     }
 
     @Override

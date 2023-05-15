@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +42,7 @@ public class ClosePointInTimeRequest extends ActionRequest implements ToXContent
     @Override
     public ActionRequestValidationException validate() {
         if (Strings.isEmpty(id)) {
-            throw new IllegalArgumentException("reader id must be specified");
+            return ValidateActions.addValidationError("id is empty", null);
         }
         return null;
     }

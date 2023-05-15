@@ -1,5 +1,0 @@
-pr: 87354
-summary: Allow pipeline processor to ignore missing pipelines
-area: Ingest
-type: enhancement
-issues: []

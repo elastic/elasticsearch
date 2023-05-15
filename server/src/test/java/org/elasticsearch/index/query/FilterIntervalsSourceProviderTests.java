@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.IntervalFilter;
 
-public class FilterIntervalsSourceProviderTests extends AbstractSerializingTestCase<IntervalFilter> {
+public class FilterIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<IntervalFilter> {
 
     @Override
     protected IntervalFilter createTestInstance() {
@@ -29,7 +29,7 @@ public class FilterIntervalsSourceProviderTests extends AbstractSerializingTestC
     }
 
     @Override
-    protected IntervalFilter mutateInstance(IntervalFilter instance) throws IOException {
+    protected IntervalFilter mutateInstance(IntervalFilter instance) {
         return mutateFilter(instance);
     }
 

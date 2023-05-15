@@ -13,6 +13,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
@@ -30,6 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  *
  * @see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
 
     public RestPutRoleMappingAction(Settings settings, XPackLicenseState licenseState) {

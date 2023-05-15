@@ -151,6 +151,27 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
     }
 
+    public void testAudit() throws IOException {
+        Level level = randomFrom(Level.ERROR, Level.INFO, Level.WARNING);
+
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.audit(level, "r_id", "Here is my audit");
+
+        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+        assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
+        assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        assertThat(auditMessage.getResourceId(), equalTo("r_id"));
+        assertThat(auditMessage.getMessage(), equalTo("Here is my audit"));
+        assertThat(auditMessage.getLevel(), equalTo(level));
+        assertThat(
+            auditMessage.getTimestamp().getTime(),
+            allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis()))
+        );
+        assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
+    }
+
     public void testAuditingBeforeTemplateInstalled() throws Exception {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(

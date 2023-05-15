@@ -29,7 +29,7 @@ public class GetSLMStatusAction extends ActionType<GetSLMStatusAction.Response> 
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private OperationMode mode;
+        private final OperationMode mode;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -43,6 +43,10 @@ public class GetSLMStatusAction extends ActionType<GetSLMStatusAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this.mode);
+        }
+
+        public OperationMode getOperationMode() {
+            return this.mode;
         }
 
         @Override

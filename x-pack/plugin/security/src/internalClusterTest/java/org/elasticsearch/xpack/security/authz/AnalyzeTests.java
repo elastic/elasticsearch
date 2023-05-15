@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 
@@ -35,7 +36,7 @@ public class AnalyzeTests extends SecurityIntegTestCase {
     @Override
     protected String configRoles() {
         // role that has analyze indices privileges only
-        return """
+        return Strings.format("""
             %s
             analyze_indices:
               indices:
@@ -44,7 +45,7 @@ public class AnalyzeTests extends SecurityIntegTestCase {
             analyze_cluster:
               cluster:
                 - cluster:admin/analyze
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     public void testAnalyzeWithIndices() {

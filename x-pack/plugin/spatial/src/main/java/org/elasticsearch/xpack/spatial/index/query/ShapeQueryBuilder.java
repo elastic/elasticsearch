@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.spatial.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -174,7 +174,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_4_0;
     }
 }

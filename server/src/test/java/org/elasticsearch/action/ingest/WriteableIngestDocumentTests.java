@@ -71,7 +71,10 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         if (randomBoolean()) {
             numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
             for (int i = 0; i < numFields; i++) {
-                Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
+                Tuple<String, Object> metadata = randomValueOtherThanMany(
+                    t -> t.v2().equals(sourceAndMetadata.get(t.v1())),
+                    TestIngestDocument::randomMetadata
+                );
                 otherSourceAndMetadata.put(metadata.v1(), metadata.v2());
             }
             changed = true;
@@ -148,19 +151,18 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
-        for (Map.Entry<String, Object> metadata : metadataMap.entrySet()) {
-            String fieldName = metadata.getKey();
-            if (metadata.getValue() == null) {
+        for (String fieldName : ingestDocument.getMetadata().keySet()) {
+            Object value = ingestDocument.getMetadata().get(fieldName);
+            if (value == null) {
                 assertThat(toXContentDoc.containsKey(fieldName), is(false));
             } else {
-                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue().toString()));
+                assertThat(toXContentDoc.get(fieldName), equalTo(value.toString()));
             }
         }
 
-        Map<String, Object> sourceAndMetadata = Maps.newMapWithExpectedSize(toXContentSource.size() + metadataMap.size());
+        Map<String, Object> sourceAndMetadata = Maps.newMapWithExpectedSize(toXContentSource.size() + ingestDocument.getMetadata().size());
         sourceAndMetadata.putAll(toXContentSource);
-        sourceAndMetadata.putAll(metadataMap);
+        ingestDocument.getMetadata().keySet().forEach(k -> sourceAndMetadata.put(k, ingestDocument.getMetadata().get(k)));
         IngestDocument serializedIngestDocument = new IngestDocument(sourceAndMetadata, toXContentIngestMetadata);
         // TODO(stu): is this test correct? Comparing against ingestDocument fails due to incorrectly failed byte array comparisons
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));

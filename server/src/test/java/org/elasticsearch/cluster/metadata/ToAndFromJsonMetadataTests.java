@@ -8,12 +8,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
@@ -46,22 +48,22 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         IndexMetadata idx1 = createFirstBackingIndex("data-stream1").build();
         IndexMetadata idx2 = createFirstBackingIndex("data-stream2").build();
 
-        ImmutableStateHandlerMetadata hmOne = new ImmutableStateHandlerMetadata("one", Set.of("a", "b"));
-        ImmutableStateHandlerMetadata hmTwo = new ImmutableStateHandlerMetadata("two", Set.of("c", "d"));
+        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
+        ReservedStateHandlerMetadata hmTwo = new ReservedStateHandlerMetadata("two", Set.of("c", "d"));
 
-        ImmutableStateErrorMetadata emOne = new ImmutableStateErrorMetadata(
+        ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
             1L,
-            ImmutableStateErrorMetadata.ErrorKind.VALIDATION,
+            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
 
-        ImmutableStateMetadata immutableStateMetadata = ImmutableStateMetadata.builder("namespace_one")
+        ReservedStateMetadata reservedStateMetadata = ReservedStateMetadata.builder("namespace_one")
             .errorMetadata(emOne)
             .putHandler(hmOne)
             .putHandler(hmTwo)
             .build();
 
-        ImmutableStateMetadata immutableStateMetadata1 = ImmutableStateMetadata.builder("namespace_two").putHandler(hmTwo).build();
+        ReservedStateMetadata reservedStateMetadata1 = ReservedStateMetadata.builder("namespace_two").putHandler(hmTwo).build();
 
         Metadata metadata = Metadata.builder()
             .put(
@@ -126,8 +128,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(idx2, false)
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
-            .put(immutableStateMetadata)
-            .put(immutableStateMetadata1)
+            .put(reservedStateMetadata)
+            .put(reservedStateMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -202,9 +204,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
 
-        // immutable 'operator' metadata
-        assertEquals(immutableStateMetadata, parsedMetadata.immutableStateMetadata().get(immutableStateMetadata.namespace()));
-        assertEquals(immutableStateMetadata1, parsedMetadata.immutableStateMetadata().get(immutableStateMetadata1.namespace()));
+        // reserved 'operator' metadata
+        assertEquals(reservedStateMetadata, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata.namespace()));
+        assertEquals(reservedStateMetadata1, parsedMetadata.reservedStateMetadata().get(reservedStateMetadata1.namespace()));
     }
 
     private static final String MAPPING_SOURCE1 = """
@@ -226,10 +228,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -272,9 +274,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "immutable_state" : { }
+                "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
@@ -314,10 +316,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .build();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -368,9 +370,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "immutable_state" : { }
+                "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -385,10 +387,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "meta-data" : {
                 "version" : 0,
@@ -433,9 +435,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "immutable_state" : { }
+                "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
@@ -451,10 +453,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -536,9 +538,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "immutable_state" : { }
+                "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -554,10 +556,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -645,12 +647,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "immutable_state" : { }
+                "reserved_state" : { }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
-    public void testToXContentAPIImmutableMetadata() throws IOException {
+    public void testToXContentAPIReservedMetadata() throws IOException {
         Map<String, String> mapParams = new HashMap<>() {
             {
                 put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
@@ -661,38 +663,38 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
 
         Metadata metadata = buildMetadata();
 
-        ImmutableStateHandlerMetadata hmOne = new ImmutableStateHandlerMetadata("one", Set.of("a", "b"));
-        ImmutableStateHandlerMetadata hmTwo = new ImmutableStateHandlerMetadata("two", Set.of("c", "d"));
-        ImmutableStateHandlerMetadata hmThree = new ImmutableStateHandlerMetadata("three", Set.of("e", "f"));
+        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
+        ReservedStateHandlerMetadata hmTwo = new ReservedStateHandlerMetadata("two", Set.of("c", "d"));
+        ReservedStateHandlerMetadata hmThree = new ReservedStateHandlerMetadata("three", Set.of("e", "f"));
 
-        ImmutableStateErrorMetadata emOne = new ImmutableStateErrorMetadata(
+        ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
             1L,
-            ImmutableStateErrorMetadata.ErrorKind.VALIDATION,
+            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
             List.of("Test error 1", "Test error 2")
         );
 
-        ImmutableStateErrorMetadata emTwo = new ImmutableStateErrorMetadata(
+        ReservedStateErrorMetadata emTwo = new ReservedStateErrorMetadata(
             2L,
-            ImmutableStateErrorMetadata.ErrorKind.TRANSIENT,
+            ReservedStateErrorMetadata.ErrorKind.TRANSIENT,
             List.of("Test error 3", "Test error 4")
         );
 
-        ImmutableStateMetadata omOne = ImmutableStateMetadata.builder("namespace_one")
+        ReservedStateMetadata omOne = ReservedStateMetadata.builder("namespace_one")
             .errorMetadata(emOne)
             .putHandler(hmOne)
             .putHandler(hmTwo)
             .build();
 
-        ImmutableStateMetadata omTwo = ImmutableStateMetadata.builder("namespace_two").errorMetadata(emTwo).putHandler(hmThree).build();
+        ReservedStateMetadata omTwo = ReservedStateMetadata.builder("namespace_two").errorMetadata(emTwo).putHandler(hmThree).build();
 
         metadata = Metadata.builder(metadata).put(omOne).put(omTwo).build();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
-        metadata.toXContent(builder, new ToXContent.MapParams(mapParams));
+        ChunkedToXContent.wrapAsToXContent(metadata).toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals("""
+        assertEquals(Strings.format("""
             {
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
@@ -780,9 +782,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 "index-graveyard" : {
                   "tombstones" : [ ]
                 },
-                "immutable_state" : {
+                "reserved_state" : {
                   "namespace_one" : {
-                    "version" : 0,
+                    "version" : -1,
                     "handlers" : {
                       "one" : {
                         "keys" : [
@@ -807,7 +809,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   },
                   "namespace_two" : {
-                    "version" : 0,
+                    "version" : -1,
                     "handlers" : {
                       "three" : {
                         "keys" : [
@@ -827,7 +829,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
+            }""", Version.CURRENT.id, Version.CURRENT.id), Strings.toString(builder));
     }
 
     private Metadata buildMetadata() throws IOException {
@@ -899,8 +901,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.CURRENT;
         }
 
         @Override

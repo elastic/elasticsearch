@@ -8,12 +8,15 @@
 
 package org.elasticsearch.transport.netty4;
 
+import jdk.net.ExtendedSocketOptions;
+
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.net.SocketOption;
 import java.net.StandardSocketOptions;
 import java.nio.channels.NetworkChannel;
-import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Utilities for network-related methods.
@@ -22,37 +25,31 @@ public class NetUtils {
 
     private NetUtils() {}
 
+    // Accessors to the extended socket options reduce the proliferation of the non-portable
+    // ExtendedSocketOptions type.
+
     /**
-     * Returns the extended TCP_KEEPIDLE socket option, if available on this JDK
+     * Returns the extended TCP_KEEPIDLE socket option.
      */
-    public static SocketOption<Integer> getTcpKeepIdleSocketOptionOrNull() {
-        return getExtendedSocketOptionOrNull("TCP_KEEPIDLE");
+    @SuppressForbidden(reason = "access to non-portable socket option required")
+    public static SocketOption<Integer> getTcpKeepIdleSocketOption() {
+        return ExtendedSocketOptions.TCP_KEEPIDLE;
     }
 
     /**
-     * Returns the extended TCP_KEEPINTERVAL socket option, if available on this JDK
+     * Returns the extended TCP_KEEPINTERVAL socket option.
      */
-    public static SocketOption<Integer> getTcpKeepIntervalSocketOptionOrNull() {
-        return getExtendedSocketOptionOrNull("TCP_KEEPINTERVAL");
+    @SuppressForbidden(reason = "access to non-portable socket option required")
+    public static SocketOption<Integer> getTcpKeepIntervalSocketOption() {
+        return ExtendedSocketOptions.TCP_KEEPINTERVAL;
     }
 
     /**
-     * Returns the extended TCP_KEEPCOUNT socket option, if available on this JDK
+     * Returns the extended TCP_KEEPCOUNT socket option.
      */
-    public static SocketOption<Integer> getTcpKeepCountSocketOptionOrNull() {
-        return getExtendedSocketOptionOrNull("TCP_KEEPCOUNT");
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> SocketOption<T> getExtendedSocketOptionOrNull(String fieldName) {
-        try {
-            final Class<?> extendedSocketOptionsClass = Class.forName("jdk.net.ExtendedSocketOptions");
-            final Field field = extendedSocketOptionsClass.getField(fieldName);
-            return (SocketOption<T>) field.get(null);
-        } catch (Exception t) {
-            // ignore
-            return null;
-        }
+    @SuppressForbidden(reason = "access to non-portable socket option required")
+    public static SocketOption<Integer> getTcpKeepCountSocketOption() {
+        return ExtendedSocketOptions.TCP_KEEPCOUNT;
     }
 
     /**
@@ -67,13 +64,9 @@ public class NetUtils {
             if (socketChannel.supportedOptions().contains(StandardSocketOptions.SO_KEEPALIVE)) {
                 final Boolean keepalive = socketChannel.getOption(StandardSocketOptions.SO_KEEPALIVE);
                 assert keepalive != null;
-                if (keepalive.booleanValue()) {
-                    for (SocketOption<Integer> option : Arrays.asList(
-                        NetUtils.getTcpKeepIdleSocketOptionOrNull(),
-                        NetUtils.getTcpKeepIntervalSocketOptionOrNull()
-                    )) {
-                        setMinValueForSocketOption(socketChannel, option, 300);
-                    }
+                if (keepalive) {
+                    setMinValueForSocketOption(socketChannel, getTcpKeepIdleSocketOption(), 300);
+                    setMinValueForSocketOption(socketChannel, getTcpKeepIntervalSocketOption(), 300);
                 }
             }
         } catch (Exception e) {
@@ -84,7 +77,8 @@ public class NetUtils {
     }
 
     private static void setMinValueForSocketOption(NetworkChannel socketChannel, SocketOption<Integer> option, int minValue) {
-        if (option != null && socketChannel.supportedOptions().contains(option)) {
+        Objects.requireNonNull(option);
+        if (socketChannel.supportedOptions().contains(option)) {
             try {
                 final Integer currentIdleVal = socketChannel.getOption(option);
                 assert currentIdleVal != null;

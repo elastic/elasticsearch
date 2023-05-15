@@ -98,7 +98,14 @@ public class SchemaUtilTests extends ESTestCase {
         try (Client client = new FieldCapsMockClient(getTestName())) {
             // fields is null
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, new String[] { "index-1", "index-2" }, null, emptyMap(), listener),
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new String[] { "index-1", "index-2" },
+                    null,
+                    emptyMap(),
+                    listener
+                ),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -109,6 +116,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] { "index-1", "index-2" },
                     new String[] {},
                     emptyMap(),
@@ -122,7 +130,14 @@ public class SchemaUtilTests extends ESTestCase {
 
             // indices is null
             this.<Map<String, String>>assertAsync(
-                listener -> SchemaUtil.getSourceFieldMappings(client, null, new String[] { "field-1", "field-2" }, emptyMap(), listener),
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    null,
+                    new String[] { "field-1", "field-2" },
+                    emptyMap(),
+                    listener
+                ),
                 mappings -> {
                     assertNotNull(mappings);
                     assertTrue(mappings.isEmpty());
@@ -133,6 +148,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] {},
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
@@ -148,6 +164,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] { "index-1", "index-2" },
                     new String[] { "field-1", "field-2" },
                     emptyMap(),
@@ -174,6 +191,7 @@ public class SchemaUtilTests extends ESTestCase {
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
+                    emptyMap(),
                     new String[] { "index-1", "index-2" },
                     new String[] { "field-1", "field-2" },
                     runtimeMappings,

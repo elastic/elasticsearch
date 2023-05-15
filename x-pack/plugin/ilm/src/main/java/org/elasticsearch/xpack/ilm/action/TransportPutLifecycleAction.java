@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,6 +52,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
@@ -144,8 +146,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         /**
-         * Used by the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} for ILM
-         * {@link ImmutableLifecycleAction}
+         * Used by the {@link ReservedClusterStateHandler} for ILM
+         * {@link ReservedLifecycleAction}
          * <p>
          * It disables verbose logging and has no filtered headers.
          */
@@ -189,7 +191,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                     logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
                 }
             }
-            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentState));
             stateBuilder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
             ClusterState nonRefreshedState = stateBuilder.build();
             if (oldPolicy == null) {
@@ -310,12 +312,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
     }
 
     @Override
-    protected Optional<String> immutableStateHandlerName() {
-        return Optional.of(ImmutableLifecycleAction.NAME);
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedLifecycleAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(Request request) {
+    public Set<String> modifiedKeys(Request request) {
         return Set.of(request.getPolicy().getName());
     }
 }

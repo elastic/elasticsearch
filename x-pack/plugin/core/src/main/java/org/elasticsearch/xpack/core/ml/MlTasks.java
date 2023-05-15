@@ -37,6 +37,15 @@ public final class MlTasks {
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
 
+    /**
+     * A set of all ML persistent tasks that have an associated native process.
+     */
+    public static final Set<String> ML_PROCESS_TASKS = Set.of(
+        JOB_TASK_NAME,
+        DATA_FRAME_ANALYTICS_TASK_NAME,
+        JOB_SNAPSHOT_UPGRADE_TASK_NAME
+    );
+
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
@@ -99,8 +108,10 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelAssignmentTaskDescription(String modelId) {
-        return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
+    public static String trainedModelAssignmentTaskDescription(String deploymentId) {
+        // A description containing deployment_id[XXX] is more accurate
+        // than model_id[XXX] but the legacy description cannot be changed now
+        return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + deploymentId + "]";
     }
 
     @Nullable
@@ -446,6 +457,23 @@ public final class MlTasks {
             case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> getSnapshotUpgradeState(task);
             case DATA_FRAME_ANALYTICS_TASK_NAME -> getDataFrameAnalyticsState(task);
             default -> throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        };
+    }
+
+    public static Set<PersistentTasksCustomMetadata.PersistentTask<?>> findMlProcessTasks(@Nullable PersistentTasksCustomMetadata tasks) {
+        if (tasks == null) {
+            return Set.of();
+        }
+        return tasks.tasks().stream().filter(p -> ML_PROCESS_TASKS.contains(p.getTaskName())).collect(Collectors.toSet());
+    }
+
+    public static String prettyPrintTaskName(String taskName) {
+        return switch (taskName) {
+            case JOB_TASK_NAME -> "anomaly detection";
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> "snapshot upgrade (anomaly detection)";
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> "data frame analytics";
+            case DATAFEED_TASK_NAME -> "datafeed";
+            default -> throw new IllegalArgumentException("unexpected task type [" + taskName + "]");
         };
     }
 }

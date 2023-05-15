@@ -5,15 +5,14 @@
  * 2.0.
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.BwcVersions
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.transform.UnzipTransform
-import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -47,12 +46,12 @@ restResources {
   }
 }
 
-if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+if (OS.current() == OS.MAC && Architecture.current() == Architecture.AARCH64) {
   jdks.legacy.vendor = 'zulu'
   jdks.legacy.distributionVersion = '8.56.0.23'
 }
 
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (OS.current() == OS.WINDOWS) {
   logger.warn("Disabling repository-old-versions tests because we can't get the pid file on windows")
 } else {
   /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
@@ -114,8 +113,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         false,
         "path.repo: ${repoLocation}",
         "path.data: ${dataPath}"
-      if (version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) {
-        // We need to explicitly disable ML when running old ES versions on ARM
+      if ((version.onOrAfter('6.8.0') && Architecture.current() == Architecture.AARCH64) || (version.onOrAfter("6.4.0") && BwcVersions.isMlCompatible(version) == false)) {
+        // We need to explicitly disable ML when running old ES versions on ARM or on systems with newer GLIBC
         args 'xpack.ml.enabled: false'
       }
       doFirst {

@@ -13,6 +13,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,6 +27,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestResetJobAction extends BaseRestHandler {
 
     @Override
@@ -42,6 +45,7 @@ public class RestResetJobAction extends BaseRestHandler {
         ResetJobAction.Request request = new ResetJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 
         if (restRequest.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.execute(ResetJobAction.INSTANCE, request, new RestToXContentListener<>(channel));

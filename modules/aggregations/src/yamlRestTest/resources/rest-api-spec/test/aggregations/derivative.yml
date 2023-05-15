@@ -1,0 +1,372 @@
+setup:
+  - do:
+      bulk:
+        index: no_gaps
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "n": 10, "@timestamp": "2022-01-01T00:00:00", "v": 1 }
+          - { "index": { } }
+          - { "n": 20, "@timestamp": "2022-01-01T01:00:00", "v": 2 }
+          - { "index": { } }
+          - { "n": 30, "@timestamp": "2022-01-01T02:00:00", "v": 1 }
+          - { "index": { } }
+          - { "n": 40, "@timestamp": "2022-01-01T03:00:00", "v": 4 }
+          - { "index": { } }
+          - { "n": 50, "@timestamp": "2022-01-01T04:00:00", "v": 5 }
+          - { "index": { } }
+          - { "n": 60, "@timestamp": "2022-01-01T05:00:00", "v": 9 }
+
+  - do:
+      bulk:
+        index: gaps
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T00:00:00", "v": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T01:00:00", "v": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T02:00:00", "v": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T04:00:00", "v": 5 }
+          - { "index": { } }
+          - { "@timestamp": "2022-01-01T05:00:00", "v": 9 }
+
+---
+in date_histogram:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value:  3.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+
+---
+in histogram:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            n:
+              histogram:
+                field: n
+                interval: 10
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.n.buckets: 6 }
+  - is_false: aggregations.n.buckets.0.d.value
+  - close_to: { aggregations.n.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.n.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.n.buckets.3.d.value: { value:  3.000, error: 0.0005 } }
+  - close_to: { aggregations.n.buckets.4.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.n.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+
+---
+partially mapped:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps,no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                n: { avg: { field: n } }
+                d:
+                  derivative:
+                    buckets_path: "n"
+  - match: { hits.total.value: 11 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value: 10.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: 10.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value: 10.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value: 10.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value: 10.000, error: 0.0005 } }
+
+---
+format:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+                    format: "0.00"
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value:  3.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+  - is_false: aggregations.@timestamp.buckets.0.d.value_as_string
+  - match: { aggregations.@timestamp.buckets.1.d.value_as_string:  "1.00" }
+  - match: { aggregations.@timestamp.buckets.2.d.value_as_string: "-1.00" }
+  - match: { aggregations.@timestamp.buckets.3.d.value_as_string:  "3.00" }
+  - match: { aggregations.@timestamp.buckets.4.d.value_as_string:  "1.00" }
+  - match: { aggregations.@timestamp.buckets.5.d.value_as_string:  "4.00" }
+
+---
+gap_policy=skip:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+                    gap_policy: skip
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - is_false: aggregations.@timestamp.buckets.3.d.value
+  - is_false: aggregations.@timestamp.buckets.4.d.value
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value: 4.000, error: 0.0005 } }
+
+---
+gap_policy=insert_zeros:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+                    gap_policy: insert_zeros
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value:  5.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+
+---
+gap_policy=keep_values:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+                    gap_policy: keep_values
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - is_false: aggregations.@timestamp.buckets.3.d.value
+  - is_false: aggregations.@timestamp.buckets.4.d.value
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+
+---
+dotted name:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                "v.v": { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v.v.value"
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value:  3.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+
+---
+dotted value:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v:
+                  percentiles:
+                    field: v
+                    percents: [ 50, 99.9 ]
+                d:
+                  derivative:
+                    buckets_path: "v[99.9]"
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.@timestamp.buckets: 6 }
+  - is_false: aggregations.@timestamp.buckets.0.d.value
+  - close_to: { aggregations.@timestamp.buckets.1.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.2.d.value: { value: -1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.3.d.value: { value:  3.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.4.d.value: { value:  1.000, error: 0.0005 } }
+  - close_to: { aggregations.@timestamp.buckets.5.d.value: { value:  4.000, error: 0.0005 } }
+
+---
+no results:
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "v"
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.@timestamp.buckets: 0 }
+
+---
+bad path:
+  - do:
+      catch: '/Validation Failed: 1: No aggregation found for path \[missing\];/'
+      search:
+        index: no_gaps
+        body:
+          size: 0
+          query:
+            match:
+              missing_field: not found
+          aggs:
+            "@timestamp":
+              date_histogram:
+                field: "@timestamp"
+                fixed_interval: 1h
+              aggs:
+                v: { avg: { field: v } }
+                d:
+                  derivative:
+                    buckets_path: "missing"
+
+---
+Not under date_histo:
+  - do:
+      catch: /derivative aggregation \[d\] must have a histogram, date_histogram or auto_date_histogram as parent but doesn't have a parent/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          size: 0
+          aggs:
+            the_avg:
+              avg:
+                field: "value_field"
+            d:
+              derivative:
+                buckets_path: "the_avg"

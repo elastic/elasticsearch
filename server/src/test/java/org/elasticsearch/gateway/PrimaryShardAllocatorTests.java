@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -469,7 +469,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
 
         final Snapshot snapshot = new Snapshot("test", new SnapshotId("test", UUIDs.randomBase64UUID()));
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsRestore(
                 metadata.index(shardId.getIndex()),
                 new SnapshotRecoverySource(
@@ -480,7 +480,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                 )
             )
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
@@ -507,14 +507,14 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                     .putInSyncAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds))
             )
             .build();
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         switch (reason) {
             case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
             case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
             case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
             default -> throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))

@@ -31,6 +31,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
@@ -91,7 +92,11 @@ public class AnalysisRegistryTests extends ESTestCase {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         emptyRegistry = emptyAnalysisRegistry(settings);
         // Module loaded to register in-built normalizers for testing
-        AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(new MockAnalysisPlugin()));
+        AnalysisModule module = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            singletonList(new MockAnalysisPlugin()),
+            new StablePluginsRegistry()
+        );
         nonEmptyRegistry = module.getAnalysisRegistry();
     }
 
@@ -106,6 +111,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
+        assertThat(indexAnalyzers.get(AnalysisRegistry.DEFAULT_ANALYZER_NAME).name(), equalTo("default"));
     }
 
     public void testOverrideDefaultAnalyzer() throws IOException {
@@ -253,9 +259,11 @@ public class AnalysisRegistryTests extends ESTestCase {
                 return singletonMap("mock", MockFactory::new);
             }
         };
-        IndexAnalyzers indexAnalyzers = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin))
-            .getAnalysisRegistry()
-            .build(idxSettings);
+        IndexAnalyzers indexAnalyzers = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            singletonList(plugin),
+            new StablePluginsRegistry()
+        ).getAnalysisRegistry().build(idxSettings);
 
         // This shouldn't contain English stopwords
         try (NamedAnalyzer custom_analyser = indexAnalyzers.get("custom_analyzer_with_camel_case")) {

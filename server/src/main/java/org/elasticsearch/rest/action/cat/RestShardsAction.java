@@ -40,6 +40,8 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
@@ -50,6 +52,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestShardsAction extends AbstractCatAction {
 
     @Override
@@ -257,8 +260,7 @@ public class RestShardsAction extends AbstractCatAction {
     // package private for testing
     Table buildTable(RestRequest request, ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = getTableWithHeader(request);
-
-        for (ShardRouting shard : state.getState().routingTable().allShards()) {
+        for (ShardRouting shard : state.getState().routingTable().allShardsIterator()) {
             ShardStats shardStats = stats.asMap().get(shard);
             CommonStats commonStats = null;
             CommitStats commitStats = null;
@@ -379,7 +381,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(getOrNull(commonStats, CommonStats::getSearch, i -> i.getTotal().getScrollCount()));
 
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getSegments, ss -> new ByteSizeValue(0)));
+            table.addCell(getOrNull(commonStats, CommonStats::getSegments, ss -> ByteSizeValue.ZERO));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getIndexWriterMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getVersionMapMemory));
             table.addCell(getOrNull(commonStats, CommonStats::getSegments, SegmentsStats::getBitsetMemory));

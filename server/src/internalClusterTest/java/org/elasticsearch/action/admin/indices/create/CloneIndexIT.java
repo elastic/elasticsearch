@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
+import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,20 +47,14 @@ public class CloneIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
 
         final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-            )
-            .get();
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         try {
 
             final boolean createWithReplicas = randomBoolean();
@@ -74,6 +69,7 @@ public class CloneIndexIT extends ESIntegTestCase {
                     .get()
             );
             ensureGreen();
+            assertNoResizeSourceIndexSettings("target");
 
             final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
             assertThat(targetStats.getIndex("target").getIndexShards().keySet().size(), equalTo(numPrimaryShards));
@@ -90,11 +86,7 @@ public class CloneIndexIT extends ESIntegTestCase {
 
             if (createWithReplicas == false) {
                 // bump replicas
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("target")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                    .get();
+                setReplicaCount(1, "target");
                 ensureGreen();
                 assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
             }
@@ -112,13 +104,9 @@ public class CloneIndexIT extends ESIntegTestCase {
             assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
         } finally {
             // clean up
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
-                )
-                .get();
+            updateClusterSettings(
+                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+            );
         }
 
     }

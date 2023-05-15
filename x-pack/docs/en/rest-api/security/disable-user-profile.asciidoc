@@ -5,7 +5,10 @@
 <titleabbrev>Disable user profile</titleabbrev>
 ++++
 
-beta::[]
+NOTE: The user profile feature is designed only for use by {kib} and
+Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
+users and external applications should not call this API directly. Elastic reserves
+the right to change or remove this feature in future releases without prior notice.
 
 Disables a user profile so it's not visible in
 <<security-api-suggest-user-profile,user profile searches>>.

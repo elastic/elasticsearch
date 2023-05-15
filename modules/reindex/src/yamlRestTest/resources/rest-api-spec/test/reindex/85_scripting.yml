@@ -440,3 +440,43 @@
             lang: painless
             source: syntax errors are fun!
   - match: {error.reason: 'compile error'}
+
+---
+"Script Write Field":
+  - skip:
+      version: " - 8.4.99"
+      reason: "Write fields api introduced in 8.5.0"
+
+  - do:
+      index:
+        index:  testw1
+        id:     "1"
+        body:
+          foo:    bar
+          count:  1
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: testw1
+          dest:
+            index: testw2
+          script:
+            source: field('foo').transform(x -> x + '-baz'); field('nest').doc().field('bar').set(200)
+            lang: painless
+
+  - match: {created: 1}
+
+  - do:
+      get:
+        index: testw2
+        id: "1"
+
+  - match: { _source.foo: bar-baz }
+  - match: { _source.nest.bar: 200 }
+  - match: { found: true }

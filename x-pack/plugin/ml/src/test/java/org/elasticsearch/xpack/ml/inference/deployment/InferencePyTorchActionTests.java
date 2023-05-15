@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -21,6 +27,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
@@ -64,15 +71,16 @@ public class InferencePyTorchActionTests extends ESTestCase {
         AtomicInteger timeoutCount = new AtomicInteger();
         when(processContext.getTimeoutCount()).thenReturn(timeoutCount);
 
-        ListenerCounter listener = new ListenerCounter();
+        TestListenerCounter listener = new TestListenerCounter();
         InferencePyTorchAction action = new InferencePyTorchAction(
             "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
+            null,
             listener
         );
         action.init();
@@ -91,8 +99,9 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
+            null,
             listener
         );
         action.init();
@@ -112,8 +121,9 @@ public class InferencePyTorchActionTests extends ESTestCase {
             TimeValue.MAX_VALUE,
             processContext,
             new PassThroughConfig(null, null, null),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             tp,
+            null,
             listener
         );
         action.init();
@@ -134,7 +144,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
         AtomicInteger timeoutCount = new AtomicInteger();
         when(processContext.getTimeoutCount()).thenReturn(timeoutCount);
 
-        ListenerCounter listener = new ListenerCounter();
+        TestListenerCounter listener = new TestListenerCounter();
         {
             InferencePyTorchAction action = new InferencePyTorchAction(
                 "test-model",
@@ -142,8 +152,9 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TimeValue.MAX_VALUE,
                 processContext,
                 new PassThroughConfig(null, null, null),
-                Map.of(),
+                NlpInferenceInput.fromText("foo"),
                 tp,
+                null,
                 listener
             );
             action.init();
@@ -159,8 +170,9 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 TimeValue.MAX_VALUE,
                 processContext,
                 new PassThroughConfig(null, null, null),
-                Map.of(),
+                NlpInferenceInput.fromText("foo"),
                 tp,
+                null,
                 listener
             );
             action.init();
@@ -170,7 +182,52 @@ public class InferencePyTorchActionTests extends ESTestCase {
         }
     }
 
-    static class ListenerCounter implements ActionListener<InferenceResults> {
+    public void testCallingRunAfterParentTaskCancellation() throws Exception {
+        DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
+        PyTorchResultProcessor resultProcessor = mock(PyTorchResultProcessor.class);
+        when(processContext.getResultProcessor()).thenReturn(resultProcessor);
+        AtomicInteger timeoutCount = new AtomicInteger();
+        when(processContext.getTimeoutCount()).thenReturn(timeoutCount);
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, tp, Set.of());
+        TestListenerCounter listener = new TestListenerCounter();
+        CancellableTask cancellableTask = (CancellableTask) taskManager.register("test_task", "testAction", new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+            }
+        });
+        InferencePyTorchAction action = new InferencePyTorchAction(
+            "test-model",
+            1,
+            TimeValue.MAX_VALUE,
+            processContext,
+            new PassThroughConfig(null, null, null),
+            NlpInferenceInput.fromText("foo"),
+            tp,
+            cancellableTask,
+            listener
+        );
+        action.init();
+        taskManager.cancel(cancellableTask, "test", () -> {});
+
+        action.doRun();
+        assertThat(listener.failureCounts, equalTo(1));
+        assertThat(listener.responseCounts, equalTo(0));
+        verify(resultProcessor, never()).registerRequest(anyString(), any());
+    }
+
+    static class TestListenerCounter implements ActionListener<InferenceResults> {
         private int responseCounts;
         private int failureCounts;
 

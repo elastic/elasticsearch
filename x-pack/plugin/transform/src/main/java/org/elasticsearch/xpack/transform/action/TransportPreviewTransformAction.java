@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,17 +26,18 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -63,7 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.DUMMY_DEST_INDEX_FOR_PREVIEW;
-import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
+import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
 public class TransportPreviewTransformAction extends HandledTransportAction<Request, Response> {
 
@@ -113,24 +115,22 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
         TransformNodes.throwIfNoTransformNodes(clusterState);
 
-        // Redirection can only be performed between nodes that are at least 7.13.
-        if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
-            boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
-            if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                clusterState,
-                nodeSettings,
-                requiresRemote,
-                transportService,
-                actionName,
-                request,
-                Response::new,
-                listener
-            )) {
-                return;
-            }
+        boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
+        if (TransformNodes.redirectToAnotherNodeIfNeeded(
+            clusterState,
+            nodeSettings,
+            requiresRemote,
+            transportService,
+            actionName,
+            request,
+            Response::new,
+            listener
+        )) {
+            return;
         }
 
         final TransformConfig config = request.getConfig();
@@ -138,17 +138,17 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         // <4> Validate transform query
         ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
-            validateConfigResponse -> useSecondaryAuthIfAvailable(
-                securityContext,
-                () -> getPreview(
-                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                    function,
-                    config.getSource(),
-                    config.getDestination().getPipeline(),
-                    config.getDestination().getIndex(),
-                    config.getSyncConfig(),
-                    listener
-                )
+            validateConfigResponse -> getPreview(
+                parentTaskId,
+                request.timeout(),
+                config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                function,
+                config.getSource(),
+                config.getDestination().getPipeline(),
+                config.getDestination().getIndex(),
+                config.getDestination().getAliases(),
+                config.getSyncConfig(),
+                listener
             ),
             listener::onFailure
         );
@@ -176,32 +176,44 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         if (XPackSettings.SECURITY_ENABLED.get(nodeSettings)) {
             TransformPrivilegeChecker.checkPrivileges(
                 "preview",
+                nodeSettings,
                 securityContext,
                 indexNameExpressionResolver,
                 clusterState,
-                client,
+                new ParentTaskAssigningClient(client, parentTaskId),
                 config,
                 // We don't want to check privileges for a dummy (placeholder) index and the placeholder is inserted as config.dest.index
                 // early in the REST action so the only possibility we have here is string comparison.
                 DUMMY_DEST_INDEX_FOR_PREVIEW.equals(config.getDestination().getIndex()) == false,
                 checkPrivilegesListener
             );
-        } else { // No security enabled, just create the transform
+        } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);
         }
     }
 
     @SuppressWarnings("unchecked")
     private void getPreview(
+        TaskId parentTaskId,
+        TimeValue timeout,
         String transformId,
         Function function,
         SourceConfig source,
         String pipeline,
         String dest,
+        List<DestAlias> aliases,
         SyncConfig syncConfig,
         ActionListener<Response> listener
     ) {
+        Client parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
+
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
+
+        final Map<String, String> filteredHeaders = getSecurityHeadersPreferringSecondary(
+            threadPool,
+            securityContext,
+            clusterService.state()
+        );
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
             List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
@@ -260,7 +272,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     builder.endObject();
                     var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                     pipelineRequest.setId(pipeline);
-                    client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+                    parentTaskAssigningClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }
             }
         }, listener::onFailure);
@@ -268,8 +280,9 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
             function.preview(
-                client,
-                ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state()),
+                parentTaskAssigningClient,
+                timeout,
+                filteredHeaders,
                 source,
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
@@ -277,6 +290,6 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
         }, listener::onFailure);
 
-        function.deduceMappings(client, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskAssigningClient, filteredHeaders, source, deduceMappingsListener);
     }
 }

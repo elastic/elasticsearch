@@ -11,7 +11,6 @@ package org.elasticsearch.cluster;
 import org.apache.lucene.tests.mockfile.FilterFileStore;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -27,6 +26,8 @@ import org.junit.Before;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.DirectoryIteratorException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -155,8 +156,8 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                 }
                 try {
                     return Files.size(path);
-                } catch (NoSuchFileException | FileNotFoundException e) {
-                    // probably removed
+                } catch (NoSuchFileException | FileNotFoundException | AccessDeniedException e) {
+                    // probably removed (Windows sometimes throws AccessDeniedException after a file has been deleted)
                     return 0L;
                 }
             } else if (path.getFileName().toString().equals("_state") || path.getFileName().toString().equals("translog")) {
@@ -169,12 +170,22 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                         total += getTotalFileSize(subpath);
                     }
                     return total;
-                } catch (NotDirectoryException | NoSuchFileException | FileNotFoundException e) {
-                    // probably removed
-                    return 0L;
+                } catch (IOException | DirectoryIteratorException e) {
+                    if (isFileNotFoundException(e) || e instanceof AccessDeniedException) {
+                        // probably removed (Windows sometimes throws AccessDeniedException after a file has been deleted)
+                        return 0L;
+                    }
+                    throw e;
                 }
             }
         }
+    }
+
+    private static boolean isFileNotFoundException(Exception e) {
+        if (e instanceof DirectoryIteratorException) {
+            e = ((DirectoryIteratorException) e).getCause();
+        }
+        return e instanceof NotDirectoryException || e instanceof NoSuchFileException || e instanceof FileNotFoundException;
     }
 
     private static class TestFileSystemProvider extends FilterFileSystemProvider {
@@ -212,9 +223,9 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
                 return fileStore;
             }
 
-            // On Linux, and only Linux, Lucene obtains a filestore for the index in order to determine whether it's on a spinning disk or
-            // not so it can configure the merge scheduler accordingly
-            assertTrue(path + " not tracked and not on Linux", Constants.LINUX);
+            // We check the total size available for translog in InternalEngine constructor and we allow that here,
+            // expecting to match a unique root path.
+            assertTrue(path + " not tracked and not translog", path.getFileName().toString().equals("translog"));
             final Set<Path> containingPaths = trackedPaths.keySet().stream().filter(path::startsWith).collect(Collectors.toSet());
             assertThat(path + " not contained in a unique tracked path", containingPaths, hasSize(1));
             return trackedPaths.get(containingPaths.iterator().next());

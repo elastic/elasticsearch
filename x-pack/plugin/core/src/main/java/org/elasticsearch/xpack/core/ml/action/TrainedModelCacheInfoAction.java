@@ -87,8 +87,8 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
 
             public CacheInfo(StreamInput in) throws IOException {
                 super(in);
-                jvmInferenceMax = new ByteSizeValue(in);
-                jvmInference = new ByteSizeValue(in);
+                jvmInferenceMax = ByteSizeValue.readFrom(in);
+                jvmInference = ByteSizeValue.readFrom(in);
             }
 
             public ByteSizeValue getJvmInferenceMax() {

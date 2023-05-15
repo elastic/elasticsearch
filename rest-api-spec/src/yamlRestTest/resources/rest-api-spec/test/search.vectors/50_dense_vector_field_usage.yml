@@ -24,6 +24,7 @@ setup:
   - do:
       index:
         index: futest
+        id: "1"
         body:
           name: cow.jpg
           vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
@@ -52,7 +53,10 @@ setup:
   - skip:
       version: ' - 8.0.99'
       reason: 'dense_vector field usage was added in 8.1'
+      features: ["allowed_warnings"]
   - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: futest
         body:
@@ -62,12 +66,6 @@ setup:
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
             k: 2
             num_candidates: 3
-
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
-
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
   - do:
       indices.field_usage_stats: { index: futest }

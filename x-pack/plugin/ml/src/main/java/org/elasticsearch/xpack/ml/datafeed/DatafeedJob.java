@@ -137,6 +137,10 @@ class DatafeedJob {
         return maxEmptySearches;
     }
 
+    public long numberOfSearchesIn24Hours() {
+        return (60_000 * 60 * 24) / frequencyMs;
+    }
+
     public void finishReportingTimingStats() {
         timingStatsReporter.finishReporting();
     }

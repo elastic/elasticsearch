@@ -43,7 +43,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         private List<String> expandedIds;
 
         public Request(String deploymentId) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, InferModelAction.Request.DEPLOYMENT_ID);
             this.expandedIds = Collections.singletonList(deploymentId);
         }
 

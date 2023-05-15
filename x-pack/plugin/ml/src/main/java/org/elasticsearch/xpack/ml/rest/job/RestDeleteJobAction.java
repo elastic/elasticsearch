@@ -13,6 +13,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteJobAction extends BaseRestHandler {
 
     @Override
@@ -49,6 +52,7 @@ public class RestDeleteJobAction extends BaseRestHandler {
         deleteJobRequest.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), deleteJobRequest.isForce()));
         deleteJobRequest.timeout(restRequest.paramAsTime("timeout", deleteJobRequest.timeout()));
         deleteJobRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", deleteJobRequest.masterNodeTimeout()));
+        deleteJobRequest.setDeleteUserAnnotations(restRequest.paramAsBoolean("delete_user_annotations", false));
 
         if (restRequest.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.execute(DeleteJobAction.INSTANCE, deleteJobRequest, new RestToXContentListener<>(channel));

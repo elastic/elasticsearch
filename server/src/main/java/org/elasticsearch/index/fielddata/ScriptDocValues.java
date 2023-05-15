@@ -11,9 +11,11 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
@@ -220,9 +222,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public abstract static class Geometry<T> extends ScriptDocValues<T> {
+    public abstract static class BaseGeometry<T extends SpatialPoint, V> extends ScriptDocValues<V> {
 
-        public Geometry(Supplier<T> supplier) {
+        public BaseGeometry(Supplier<V> supplier) {
             super(supplier);
         }
 
@@ -230,35 +232,52 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public abstract int getDimensionalType();
 
         /** Returns the bounding box of this geometry  */
-        public abstract GeoBoundingBox getBoundingBox();
+        public abstract BoundingBox<T> getBoundingBox();
 
         /** Returns the suggested label position  */
-        public abstract GeoPoint getLabelPosition();
+        public abstract T getLabelPosition();
 
         /** Returns the centroid of this geometry  */
-        public abstract GeoPoint getCentroid();
+        public abstract T getCentroid();
+    }
+
+    public interface Geometry {
+        /** Returns the dimensional type of this geometry */
+        int getDimensionalType();
+
+        /** Returns the bounding box of this geometry  */
+        GeoBoundingBox getBoundingBox();
+
+        /** Returns the suggested label position  */
+        GeoPoint getLabelPosition();
+
+        /** Returns the centroid of this geometry  */
+        GeoPoint getCentroid();
+
+        /** returns the size of the geometry */
+        int size();
 
         /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
-        public abstract double getMercatorWidth();
+        double getMercatorWidth();
 
         /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
-        public abstract double getMercatorHeight();
+        double getMercatorHeight();
     }
 
-    public interface GeometrySupplier<T> extends Supplier<T> {
+    public interface GeometrySupplier<T extends SpatialPoint, V> extends Supplier<V> {
 
-        GeoPoint getInternalCentroid();
+        T getInternalCentroid();
 
-        GeoBoundingBox getInternalBoundingBox();
+        BoundingBox<T> getInternalBoundingBox();
 
-        GeoPoint getInternalLabelPosition();
+        T getInternalLabelPosition();
     }
 
-    public static class GeoPoints extends Geometry<GeoPoint> {
+    public static class GeoPoints extends BaseGeometry<GeoPoint, GeoPoint> implements Geometry {
 
-        private final GeometrySupplier<GeoPoint> geometrySupplier;
+        private final GeometrySupplier<GeoPoint, GeoPoint> geometrySupplier;
 
-        public GeoPoints(GeometrySupplier<GeoPoint> supplier) {
+        public GeoPoints(GeometrySupplier<GeoPoint, GeoPoint> supplier) {
             super(supplier);
             geometrySupplier = supplier;
         }
@@ -366,7 +385,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
+            return size() == 0 ? null : (GeoBoundingBox) geometrySupplier.getInternalBoundingBox();
         }
 
         @Override

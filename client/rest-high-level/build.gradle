@@ -25,9 +25,9 @@ restResources {
 dependencies {
   api project(':modules:mapper-extras')
   api project(':modules:parent-join')
-  api project(':modules:aggs-matrix-stats')
   api project(':modules:rank-eval')
   api project(':modules:lang-mustache')
+  api project(':modules:aggregations')
 
   // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')

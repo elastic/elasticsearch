@@ -33,22 +33,28 @@ import java.io.IOException;
 
 public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> {
 
-    public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction();
-    public static final String NAME = "internal:admin/ccr/restore/session/put";
+    public static final PutCcrRestoreSessionAction INTERNAL_INSTANCE = new PutCcrRestoreSessionAction();
+    public static final String INTERNAL_NAME = "internal:admin/ccr/restore/session/put";
+    public static final String NAME = "indices:internal/admin/ccr/restore/session/put";
+    public static final PutCcrRestoreSessionAction INSTANCE = new PutCcrRestoreSessionAction(NAME);
 
     private PutCcrRestoreSessionAction() {
-        super(NAME, PutCcrRestoreSessionResponse::new);
+        super(INTERNAL_NAME, PutCcrRestoreSessionResponse::new);
     }
 
-    public static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
+    private PutCcrRestoreSessionAction(String name) {
+        super(name, PutCcrRestoreSessionResponse::new);
+    }
+
+    abstract static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
         PutCcrRestoreSessionRequest,
         PutCcrRestoreSessionResponse> {
 
         private final IndicesService indicesService;
         private final CcrRestoreSourceService ccrRestoreService;
 
-        @Inject
-        public TransportPutCcrRestoreSessionAction(
+        private TransportPutCcrRestoreSessionAction(
+            String actionName,
             ThreadPool threadPool,
             ClusterService clusterService,
             ActionFilters actionFilters,
@@ -58,7 +64,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
             CcrRestoreSourceService ccrRestoreService
         ) {
             super(
-                NAME,
+                actionName,
                 threadPool,
                 clusterService,
                 transportService,
@@ -99,11 +105,41 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         }
     }
 
+    public static class InternalTransportAction extends TransportPutCcrRestoreSessionAction {
+        @Inject
+        public InternalTransportAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver resolver,
+            TransportService transportService,
+            IndicesService indicesService,
+            CcrRestoreSourceService ccrRestoreService
+        ) {
+            super(INTERNAL_NAME, threadPool, clusterService, actionFilters, resolver, transportService, indicesService, ccrRestoreService);
+        }
+    }
+
+    public static class TransportAction extends TransportPutCcrRestoreSessionAction {
+        @Inject
+        public TransportAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver resolver,
+            TransportService transportService,
+            IndicesService indicesService,
+            CcrRestoreSourceService ccrRestoreService
+        ) {
+            super(NAME, threadPool, clusterService, actionFilters, resolver, transportService, indicesService, ccrRestoreService);
+        }
+    }
+
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
-        private DiscoveryNode node;
-        private Store.MetadataSnapshot storeFileMetadata;
-        private long mappingVersion;
+        private final DiscoveryNode node;
+        private final Store.MetadataSnapshot storeFileMetadata;
+        private final long mappingVersion;
 
         PutCcrRestoreSessionResponse(DiscoveryNode node, Store.MetadataSnapshot storeFileMetadata, long mappingVersion) {
             this.node = node;

@@ -1,8 +1,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
   name 'constant-keyword'
@@ -15,15 +14,10 @@ archivesBaseName = 'x-pack-constant-keyword'
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
-  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-tasks.named('internalClusterTestTestingConventions').configure {
-  baseClass 'org.elasticsearch.index.mapper.MapperTestCase'
 }
 
 if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("internalClusterTest").configure {
+  tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

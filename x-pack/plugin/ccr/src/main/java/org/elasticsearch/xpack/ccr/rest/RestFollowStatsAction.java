@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.ccr.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 
 import java.util.List;
@@ -19,6 +23,8 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestFollowStatsAction extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(RestFollowStatsAction.class);
 
     @Override
     public List<Route> routes() {
@@ -34,7 +40,14 @@ public class RestFollowStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final FollowStatsAction.StatsRequest request = new FollowStatsAction.StatsRequest();
         request.setIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
-        return channel -> client.execute(FollowStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            FollowStatsAction.INSTANCE,
+            request,
+            new ThreadedActionListener<>(
+                client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+                new RestChunkedToXContentListener<>(channel)
+            )
+        );
     }
 
 }

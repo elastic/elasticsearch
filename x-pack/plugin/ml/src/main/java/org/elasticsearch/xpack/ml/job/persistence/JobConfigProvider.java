@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -150,11 +151,14 @@ public class JobConfigProvider {
      * error.
      *
      * @param jobId The job ID
+     * @param parentTaskId the parent task ID if available
      * @param jobListener Job listener
      */
-    public void getJob(String jobId, ActionListener<Job.Builder> jobListener) {
+    public void getJob(String jobId, @Nullable TaskId parentTaskId, ActionListener<Job.Builder> jobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
-
+        if (parentTaskId != null) {
+            getRequest.setParentTask(parentTaskId);
+        }
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -220,7 +224,7 @@ public class JobConfigProvider {
     public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new DelegatingActionListener<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
@@ -353,11 +357,15 @@ public class JobConfigProvider {
      * @param jobId             The jobId to check
      * @param errorIfMissing    If true and the job is missing the listener fails with
      *                          a ResourceNotFoundException else false is returned.
+     * @param parentTaskId      The parent task ID if available
      * @param listener          Exists listener
      */
-    public void jobExists(String jobId, boolean errorIfMissing, ActionListener<Boolean> listener) {
+    public void jobExists(String jobId, boolean errorIfMissing, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+        if (parentTaskId != null) {
+            getRequest.setParentTask(parentTaskId);
+        }
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
             if (getResponse.isExists() == false) {
@@ -726,7 +734,7 @@ public class JobConfigProvider {
      * @param listener Validation listener
      */
     public void validateDatafeedJob(DatafeedConfig config, ActionListener<Boolean> listener) {
-        getJob(config.getJobId(), ActionListener.wrap(jobBuilder -> {
+        getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
             try {
                 DatafeedJobValidator.validate(config, jobBuilder.build(), xContentRegistry);
                 listener.onResponse(Boolean.TRUE);

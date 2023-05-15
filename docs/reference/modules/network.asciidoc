@@ -38,7 +38,7 @@ proceeding.
 Most users will need to configure only the following network settings.
 
 `network.host`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 Sets the address of this node for both HTTP and transport traffic. The node
 will bind to this address and will also use it as its publish address. Accepts
 an IP address, a hostname, or a <<network-interface-values,special value>>.
@@ -46,7 +46,7 @@ an IP address, a hostname, or a <<network-interface-values,special value>>.
 Defaults to `_local_`.
 
 `http.port`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, integer)
 The port to bind for HTTP client communication. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port
 in the range.
@@ -54,7 +54,7 @@ in the range.
 Defaults to `9200-9300`.
 
 `transport.port`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, integer)
 The port to bind for communication between nodes. Accepts a single value or a
 range. If a range is specified, the node will bind to the first available port
 in the range. Set this setting to a single port, not a range, on every
@@ -137,12 +137,18 @@ interface and one for its transport interface. These two addresses can be
 anything, and don't need to be addresses of the network interfaces on the host.
 The only requirements are that each node must be:
 
-* Accessible at its transport publish address by all other
-  nodes in its cluster, and by any remote clusters that will discover it using
+* Accessible at its HTTP publish address by all clients that will discover it
+  using sniffing.
+
+* Accessible at its transport publish address by all other nodes in its
+  cluster, and by any remote clusters that will discover it using
   <<sniff-mode>>.
 
-* Accessible at its HTTP publish address by all clients
-  that will discover it using sniffing.
+If you specify the transport publish address using a hostname then {es} will
+resolve this hostname to an IP address once during startup, and other nodes
+will use the resulting IP address instead of resolving the name again
+themselves. To avoid confusion, use a hostname which resolves to the node's
+address in all network locations.
 
 ===== Using a single address
 
@@ -170,7 +176,7 @@ you should not use them if you can use the <<common-network-settings,commonly
 used settings>> instead.
 
 `network.bind_host`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 The network address(es) to which the node should bind in order to listen for
 incoming connections. Accepts a list of IP addresses, hostnames, and
 <<network-interface-values,special values>>. Defaults to the address given by
@@ -178,7 +184,7 @@ incoming connections. Accepts a list of IP addresses, hostnames, and
 different addresses for publishing and binding.
 
 `network.publish_host`::
-(<<static-cluster-setting,Static>>)
+(<<static-cluster-setting,Static>>, string)
 The network address that clients and other nodes can use to contact this node.
 Accepts an IP address, a hostname, or a <<network-interface-values,special
 value>>. Defaults to the address given by `network.host`. Use this setting only
@@ -199,53 +205,53 @@ each node is accessible at all possible publish addresses.
 Use the following settings to control the low-level parameters of the TCP
 connections used by the HTTP and transport interfaces.
 
-`network.tcp.no_delay`::
-(<<static-cluster-setting,Static>>)
-Enable or disable the {wikipedia}/Nagle%27s_algorithm[TCP no delay]
-setting. Defaults to `true`.
-
 `network.tcp.keep_alive`::
-(<<static-cluster-setting,Static>>)
-Configures the `SO_KEEPALIVE` option for this socket, which
-determines whether it sends TCP keepalive probes.
+(<<static-cluster-setting,Static>>, boolean)
+Configures the `SO_KEEPALIVE` option for network sockets, which determines
+whether each connection sends TCP keepalive probes. Defaults to `true`.
 
 `network.tcp.keep_idle`::
-(<<static-cluster-setting,Static>>)
-Configures the `TCP_KEEPIDLE` option for this socket, which
-determines the time in seconds that a connection must be idle before
-starting to send TCP keepalive probes. Defaults to `-1`, which uses
-the system default. This value cannot exceed `300` seconds. Only applicable on Linux and macOS,
-and requires Java 11 or newer.
+(<<static-cluster-setting,Static>>, integer)
+Configures the `TCP_KEEPIDLE` option for network sockets, which determines the
+time in seconds that a connection must be idle before starting to send TCP
+keepalive probes. Defaults to `-1`, which means to use the system default. This
+value cannot exceed `300` seconds. Only applicable on Linux and macOS.
 
 `network.tcp.keep_interval`::
-(<<static-cluster-setting,Static>>)
-Configures the `TCP_KEEPINTVL` option for this socket,
-which determines the time in seconds between sending TCP keepalive probes.
-Defaults to `-1`, which uses the system default. This value cannot exceed `300` seconds.
-Only applicable on Linux and macOS, and requires Java 11 or newer.
+(<<static-cluster-setting,Static>>, integer)
+Configures the `TCP_KEEPINTVL` option for network sockets, which determines the
+time in seconds between sending TCP keepalive probes. Defaults to `-1`, which
+means to use the system default. This value cannot exceed `300` seconds. Only
+applicable on Linux and macOS.
 
 `network.tcp.keep_count`::
-(<<static-cluster-setting,Static>>)
-Configures the `TCP_KEEPCNT` option for this socket, which
-determines the number of unacknowledged TCP keepalive probes that may be
-sent on a connection before it is dropped. Defaults to `-1`,
-which uses the system default. Only applicable on Linux and macOS, and requires
-Java 11 or newer.
+(<<static-cluster-setting,Static>>, integer)
+Configures the `TCP_KEEPCNT` option for network sockets, which determines the
+number of unacknowledged TCP keepalive probes that may be sent on a connection
+before it is dropped. Defaults to `-1`, which means to use the system default.
+Only applicable on Linux and macOS.
+
+`network.tcp.no_delay`::
+(<<static-cluster-setting,Static>>, boolean)
+Configures the `TCP_NODELAY` option on network sockets, which determines
+whether {wikipedia}/Nagle%27s_algorithm[TCP no delay] is enabled. Defaults to
+`true`.
 
 `network.tcp.reuse_address`::
-(<<static-cluster-setting,Static>>)
-Should an address be reused or not. Defaults to `true` on non-windows
-machines.
+(<<static-cluster-setting,Static>>, boolean)
+Configures the `SO_REUSEADDR` option for network sockets, which determines
+whether the address can be reused or not. Defaults to `false` on Windows and
+`true` otherwise.
 
 `network.tcp.send_buffer_size`::
-(<<static-cluster-setting,Static>>)
-The size of the TCP send buffer (specified with <<size-units,size units>>).
-By default not explicitly set.
+(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
+Configures the size of the TCP send buffer for network sockets. Defaults to
+`-1` which means to use the system default.
 
 `network.tcp.receive_buffer_size`::
-(<<static-cluster-setting,Static>>)
-The size of the TCP receive buffer (specified with <<size-units,size units>>).
-By default not explicitly set.
+(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
+Configures the size of the TCP receive buffer. Defaults to `-1` which means to
+use the system default.
 
 include::http.asciidoc[]
 

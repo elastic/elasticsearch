@@ -54,9 +54,46 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest();
         final var response = updateDesiredNodes(updateDesiredNodesRequest);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(false)));
+        assertThat(response.dryRun(), is(equalTo(false)));
 
         final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
         assertStoredDesiredNodesAreCorrect(updateDesiredNodesRequest, latestDesiredNodes);
+    }
+
+    public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
+            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+        );
+        assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
+
+        expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
+    }
+
+    public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
+        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        assertThat(response.dryRun(), is(equalTo(false)));
+
+        DesiredNodes desiredNodes = getLatestDesiredNodes();
+
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
+            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
+        );
+        assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
+
+        assertEquals(getLatestDesiredNodes(), desiredNodes);
+    }
+
+    public void testSettingsAreValidatedWithDryRun() {
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> updateDesiredNodes(
+                randomDryRunUpdateDesiredNodesRequest(
+                    Version.CURRENT,
+                    Settings.builder().put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE).build()
+                )
+            )
+        );
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
     }
 
     public void testUpdateDesiredNodesIsIdempotent() {
@@ -71,7 +108,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var equivalentUpdateRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
-            desiredNodesList
+            desiredNodesList,
+            false
         );
 
         updateDesiredNodes(equivalentUpdateRequest);
@@ -88,7 +126,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var backwardsUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() - 1,
-            updateDesiredNodesRequest.getNodes()
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
 
         final VersionConflictException exception = expectThrows(
@@ -105,7 +144,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var updateDesiredNodesRequestWithSameHistoryIdAndVersionAndDifferentSpecs = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
-            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
+            false
         );
 
         final IllegalArgumentException exception = expectThrows(
@@ -228,7 +268,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                         Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors + 1).build(),
                         numProcessors
                     )
-                )
+                ),
+                false
             );
 
             final IllegalArgumentException exception = expectThrows(
@@ -265,7 +306,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                         Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
                         numProcessors
                     )
-                )
+                ),
+                false
             );
 
             updateDesiredNodes(updateDesiredNodesRequest);
@@ -329,7 +371,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             future.actionGet();
         }
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
@@ -377,7 +419,17 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
-            randomList(2, 10, () -> randomDesiredNode(version, settings))
+            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            false
+        );
+    }
+
+    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Version version, Settings settings) {
+        return new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(2, 20),
+            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            true
         );
     }
 

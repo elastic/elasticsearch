@@ -58,7 +58,7 @@ public class SecondaryAuthentication {
     }
 
     public User getUser() {
-        return authentication.getUser();
+        return authentication.getEffectiveSubject().getUser();
     }
 
     public <T> T execute(Function<ThreadContext.StoredContext, T> body) {

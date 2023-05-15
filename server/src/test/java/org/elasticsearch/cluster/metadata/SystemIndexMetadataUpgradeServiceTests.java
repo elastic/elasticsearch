@@ -12,7 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -20,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -206,7 +206,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())
-            .customs(ImmutableOpenMap.of())
+            .customs(Map.of())
             .build();
 
         // Get a metadata upgrade task and execute it on the initial cluster state
@@ -224,7 +224,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())
-            .customs(ImmutableOpenMap.of())
+            .customs(Map.of())
             .build();
 
         // Get a metadata upgrade task and execute it on the initial cluster state
@@ -236,9 +236,6 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     }
 
     private static Settings.Builder getSettingsBuilder() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+        return indexSettings(Version.CURRENT, 1, 0);
     }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
 public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> {
     public static final String NAME = "query";
@@ -39,7 +39,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
-                return parseInnerQueryBuilder(p);
+                return parseTopLevelQuery(p);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
@@ -93,8 +93,8 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     /**
@@ -168,7 +168,7 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
     public QueryRescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(windowSize);
         // query is rewritten at this point already
-        queryRescoreContext.setQuery(queryBuilder.toQuery(context));
+        queryRescoreContext.setQuery(context.toQuery(queryBuilder));
         queryRescoreContext.setQueryWeight(this.queryWeight);
         queryRescoreContext.setRescoreQueryWeight(this.rescoreQueryWeight);
         queryRescoreContext.setScoreMode(this.scoreMode);

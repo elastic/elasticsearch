@@ -45,7 +45,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         assertFalse(TransportPutLifecycleAction.isNoopUpdate(null, policy1, headers1));
     }
 
-    public void testImmutableStateHandler() throws Exception {
+    public void testReservedStateHandler() throws Exception {
         TransportPutLifecycleAction putAction = new TransportPutLifecycleAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -56,19 +56,19 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             mock(XPackLicenseState.class),
             mock(Client.class)
         );
-        assertEquals(ImmutableLifecycleAction.NAME, putAction.immutableStateHandlerName().get());
+        assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 
         String json = """
             {
-                "policy": {
-                    "phases": {
-                        "warm": {
-                            "min_age": "10s",
-                            "actions": {
-                            }
-                        }
+              "policy": {
+                "phases": {
+                  "warm": {
+                    "min_age": "10s",
+                    "actions": {
                     }
+                  }
                 }
+              }
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {

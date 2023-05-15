@@ -114,7 +114,7 @@ public class Netty4Utils {
     public static Recycler<BytesRef> createRecycler(Settings settings) {
         // If this method is called by super ctor the processors will not be set. Accessing NettyAllocator initializes netty's internals
         // setting the processors. We must do it ourselves first just in case.
-        setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        setAvailableProcessors(EsExecutors.allocatedProcessors(settings));
         return NettyAllocator.getRecycler();
     }
 }

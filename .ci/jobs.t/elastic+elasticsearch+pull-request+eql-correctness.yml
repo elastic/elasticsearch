@@ -20,7 +20,6 @@
           cancel-builds-on-update: true
           black-list-target-branches:
             - 6.8
-            - feature/desired-balance-allocator
           excluded-regions:
             - ^docs/.*
           black-list-labels:
@@ -30,7 +29,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           set +x

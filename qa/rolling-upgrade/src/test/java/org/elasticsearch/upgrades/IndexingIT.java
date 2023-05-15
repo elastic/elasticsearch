@@ -135,10 +135,10 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testAutoIdWithOpTypeCreate() throws IOException {
         final String indexName = "auto_id_and_op_type_create_index";
-        String b = """
+        String b = Strings.format("""
             {"create": {"_index": "%s"}}
             {"f1": "v"}
-            """.formatted(indexName);
+            """, indexName);
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity(b);
@@ -325,10 +325,10 @@ public class IndexingIT extends AbstractRollingTestCase {
         long delta = TimeUnit.SECONDS.toMillis(20);
         double value = (timeStart - TSDB_TIMES[0]) / TimeUnit.SECONDS.toMillis(20) * rate;
         for (long t = timeStart; t < timeEnd; t += delta) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index": {"_index": "tsdb"}}
                 {"@timestamp": %s, "dim": "%s", "value": %s}
-                """.formatted(t, dim, value));
+                """, t, dim, value));
             value += rate;
         }
     }
@@ -361,7 +361,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testSyntheticSource() throws IOException {
-        assumeTrue("added in 8.3.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_0));
+        assumeTrue("added in 8.4.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0));
 
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -369,7 +369,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
                 indexSpec.startObject("mappings");
                 {
-                    indexSpec.startObject("_source").field("synthetic", true).endObject();
+                    indexSpec.startObject("_source").field("mode", "synthetic").endObject();
                     indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
                 }
                 indexSpec.endObject();

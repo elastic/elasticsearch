@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -157,7 +157,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_6_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_6_0;
     }
 }

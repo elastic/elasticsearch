@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -37,7 +38,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
 
     @Override
     public String configRoles() {
-        return """
+        return Strings.format("""
             %s
             my_kibana_user:
               indices:
@@ -45,7 +46,7 @@ public class KibanaUserRoleIntegTests extends NativeRealmIntegTestCase {
                   privileges:
                     - view_index_metadata
                     - read
-            """.formatted(super.configRoles());
+            """, super.configRoles());
     }
 
     @Override

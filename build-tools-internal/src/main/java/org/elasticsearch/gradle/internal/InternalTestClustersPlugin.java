@@ -10,7 +10,9 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.ProviderFactory;
@@ -36,6 +38,16 @@ public class InternalTestClustersPlugin implements Plugin<Project> {
             version -> (version.equals(VersionProperties.getElasticsearchVersion()) && BuildParams.isSnapshotBuild() == false)
                 || BuildParams.getBwcVersions().unreleasedInfo(version) == null
         );
+
+        if (shouldConfigureTestClustersWithOneProcessor()) {
+            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
+                .getExtensions()
+                .getByName(TestClustersPlugin.EXTENSION_NAME);
+            testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.setting("node.processors", "1"));
+        }
     }
 
+    private boolean shouldConfigureTestClustersWithOneProcessor() {
+        return Boolean.parseBoolean(System.getProperty("tests.configure_test_clusters_with_one_processor", "false"));
+    }
 }

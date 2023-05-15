@@ -68,7 +68,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         type = in.readEnum(ResizeType.class);
         copySettings = in.readOptionalBoolean();
         if (in.readBoolean()) {
-            maxPrimaryShardSize = new ByteSizeValue(in);
+            maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
     }
 

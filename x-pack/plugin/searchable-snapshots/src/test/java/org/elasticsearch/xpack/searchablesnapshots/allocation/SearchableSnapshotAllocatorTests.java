@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -63,7 +64,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
@@ -137,7 +138,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId);
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
@@ -159,11 +160,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
-            client,
-            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); },
-            testFrozenCacheSizeService()
-        );
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            throw new AssertionError("Expecting no reroutes");
+        }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertTrue(allocation.routingNodesChanged());
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
@@ -176,7 +175,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final Metadata metadata = buildSingleShardIndexMetadata(shardId, builder -> builder.put(SNAPSHOT_PARTIAL_SETTING.getKey(), true));
-        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsRestore(metadata.index(shardId.getIndex()), randomSnapshotSource(shardId));
 
         final ClusterState state = buildClusterState(nodes, metadata, routingTableBuilder);
@@ -198,11 +197,9 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(
-            client,
-            (reason, priority, listener) -> { throw new AssertionError("Expecting no reroutes"); },
-            testFrozenCacheSizeService()
-        );
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            throw new AssertionError("Expecting no reroutes");
+        }, testFrozenCacheSizeService());
         allocateAllUnassigned(allocation, allocator);
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
         assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
@@ -236,7 +233,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         for (DiscoveryNode node : nodes) {
             nodesBuilder.add(node);
         }
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .nodes(nodesBuilder)

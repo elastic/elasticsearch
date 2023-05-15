@@ -46,7 +46,7 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             validateQueryRequest.explain(false);
             ShardValidateQueryRequest request = new ShardValidateQueryRequest(
                 new ShardId("index", "foobar", 1),
-                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"),
+                AliasFilter.of(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"),
                 validateQueryRequest
             );
             request.writeTo(output);

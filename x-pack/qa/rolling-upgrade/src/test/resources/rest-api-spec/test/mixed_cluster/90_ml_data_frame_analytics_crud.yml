@@ -37,6 +37,7 @@
   - do:
       ml.stop_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
+        timeout: "60s"
   - match: { stopped: true }
 
   - do:
@@ -82,6 +83,7 @@
   - do:
       ml.stop_data_frame_analytics:
         id: "old_cluster_regression_job"
+        timeout: "60s"
   - match: { stopped: true }
 
   - do:
@@ -158,6 +160,7 @@
   - do:
       ml.stop_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
+        timeout: "60s"
   - match: { stopped: true }
 
   - do:
@@ -239,3 +242,27 @@
       ml.delete_data_frame_analytics:
         id: mixed_cluster_job_to_delete
   - match: { acknowledged: true }
+---
+"Explain data frame analytics":
+  - do:
+      ml.explain_data_frame_analytics:
+        body: >
+          {
+            "source": {
+              "index": "bwc_ml_outlier_detection_job_source"
+            },
+            "dest": {
+              "index": "mixed_cluster_job_to_delete_results"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - is_true: memory_estimation.expected_memory_without_disk
+  - is_true: memory_estimation.expected_memory_with_disk
+  - is_true: field_selection
+
+  - do:
+      ml.explain_data_frame_analytics:
+        id: "old_cluster_outlier_detection_job"
+  - is_true: memory_estimation.expected_memory_without_disk
+  - is_true: memory_estimation.expected_memory_with_disk
+  - is_true: field_selection

@@ -40,10 +40,6 @@ public class ArchiveSettingValidationIntegTests extends AbstractArchiveTestCase 
         assertNotNull(iae.getCause());
         assertThat(iae.getCause().getMessage(), containsString("Cannot remove write block from archive index"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true), indexName);
     }
 }

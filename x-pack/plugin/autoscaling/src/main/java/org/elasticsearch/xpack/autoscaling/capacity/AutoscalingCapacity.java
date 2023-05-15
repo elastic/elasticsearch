@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,33 +24,30 @@ import java.util.Objects;
 /**
  * Represents current/required capacity of a single tier.
  */
-public class AutoscalingCapacity implements ToXContent, Writeable {
+public class AutoscalingCapacity implements ToXContentObject, Writeable {
 
     private final AutoscalingResources total;
     private final AutoscalingResources node;
 
-    public static class AutoscalingResources implements ToXContent, Writeable {
+    public static class AutoscalingResources implements ToXContentObject, Writeable {
         private final ByteSizeValue storage;
         private final ByteSizeValue memory;
-        private final Float processors;
+        private final Processors processors;
 
-        public static final AutoscalingResources ZERO = new AutoscalingResources(ByteSizeValue.ZERO, ByteSizeValue.ZERO, 0.0f);
+        public static final AutoscalingResources ZERO = new AutoscalingResources(ByteSizeValue.ZERO, ByteSizeValue.ZERO, Processors.ZERO);
 
-        public AutoscalingResources(ByteSizeValue storage, ByteSizeValue memory, Float processors) {
+        public AutoscalingResources(ByteSizeValue storage, ByteSizeValue memory, Processors processors) {
             assert storage != null || memory != null || processors != null;
             this.storage = storage;
             this.memory = memory;
-            if (processors != null && processors < 0.0f) {
-                throw new IllegalArgumentException("[processors] must be a non-negative number; provided [" + processors + "]");
-            }
             this.processors = processors;
         }
 
         public AutoscalingResources(StreamInput in) throws IOException {
-            this.storage = in.readOptionalWriteable(ByteSizeValue::new);
-            this.memory = in.readOptionalWriteable(ByteSizeValue::new);
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.processors = in.readOptionalFloat();
+            this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+                this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
             }
@@ -66,7 +64,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         @Nullable
-        public Float processors() {
+        public Processors processors() {
             return processors;
         }
 
@@ -87,16 +85,11 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         @Override
-        public boolean isFragment() {
-            return false;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-                out.writeOptionalFloat(processors);
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+                out.writeOptionalWriteable(processors);
             }
         }
 
@@ -149,10 +142,10 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
                 return v1;
             }
 
-            return new ByteSizeValue(v1.getBytes() + v2.getBytes());
+            return ByteSizeValue.ofBytes(v1.getBytes() + v2.getBytes());
         }
 
-        private static Float max(Float v1, Float v2) {
+        private static Processors max(Processors v1, Processors v2) {
             if (v1 == null) {
                 return v2;
             }
@@ -163,7 +156,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             return v1.compareTo(v2) < 0 ? v2 : v1;
         }
 
-        private static Float add(Float v1, Float v2) {
+        private static Processors add(Processors v1, Processors v2) {
             if (v1 == null) {
                 return v2;
             }
@@ -171,7 +164,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
                 return v1;
             }
 
-            return v1 + v2;
+            return v1.plus(v2);
         }
 
         @Override
@@ -243,11 +236,6 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         return builder;
     }
 
-    @Override
-    public boolean isFragment() {
-        return false;
-    }
-
     public static AutoscalingCapacity upperBound(AutoscalingCapacity c1, AutoscalingCapacity c2) {
         return new AutoscalingCapacity(AutoscalingResources.max(c1.total, c2.total), AutoscalingResources.max(c1.node, c2.node));
     }
@@ -286,11 +274,11 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             return this;
         }
 
-        public Builder total(Long storage, Long memory, Float processors) {
-            return total(byteSizeValue(storage), byteSizeValue(memory), processors);
+        public Builder total(Long storage, Long memory, Double processors) {
+            return total(byteSizeValue(storage), byteSizeValue(memory), Processors.of(processors));
         }
 
-        public Builder total(ByteSizeValue storage, ByteSizeValue memory, Float processors) {
+        public Builder total(ByteSizeValue storage, ByteSizeValue memory, Processors processors) {
             return total(new AutoscalingResources(storage, memory, processors));
         }
 
@@ -299,11 +287,11 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
             return this;
         }
 
-        public Builder node(Long storage, Long memory, Float processors) {
-            return node(byteSizeValue(storage), byteSizeValue(memory), processors);
+        public Builder node(Long storage, Long memory, Double processors) {
+            return node(byteSizeValue(storage), byteSizeValue(memory), Processors.of(processors));
         }
 
-        public Builder node(ByteSizeValue storage, ByteSizeValue memory, Float processors) {
+        public Builder node(ByteSizeValue storage, ByteSizeValue memory, Processors processors) {
             return node(new AutoscalingResources(storage, memory, processors));
         }
 
@@ -317,7 +305,7 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         }
 
         private ByteSizeValue byteSizeValue(Long memory) {
-            return memory == null ? null : new ByteSizeValue(memory);
+            return memory == null ? null : ByteSizeValue.ofBytes(memory);
         }
     }
 }

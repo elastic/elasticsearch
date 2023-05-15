@@ -11,8 +11,6 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCase<ShardLongFieldRange> {
     @Override
     protected Writeable.Reader<ShardLongFieldRange> instanceReader() {
@@ -39,7 +37,7 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected ShardLongFieldRange mutateInstance(ShardLongFieldRange instance) throws IOException {
+    protected ShardLongFieldRange mutateInstance(ShardLongFieldRange instance) {
         if (instance == ShardLongFieldRange.UNKNOWN) {
             return randomBoolean() ? ShardLongFieldRange.EMPTY : randomSpecificRange();
         }

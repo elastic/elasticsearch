@@ -12,6 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.io.IOException;
@@ -41,6 +42,11 @@ public final class ExplainPhase implements FetchSubPhase {
                 }
                 // we use the top level doc id, since we work with the top level searcher
                 hitContext.hit().explanation(explanation);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
         };
     }

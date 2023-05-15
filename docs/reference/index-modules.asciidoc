@@ -320,7 +320,7 @@ Defaults to `*`, which matches all fields eligible for
     Default <<ingest,ingest pipeline>> for the index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
-    no ingest pipeline should be run.
+    no default ingest pipeline will run.
 
 [[index-final-pipeline]]
 `index.final_pipeline`::
@@ -328,7 +328,7 @@ Final <<ingest,ingest pipeline>> for the index. Indexing requests
 will fail if the final pipeline is set and the pipeline does not exist.
 The final pipeline always runs after the request pipeline (if specified) and
 the default pipeline (if it exists). The special pipeline name `_none`
-indicates no ingest pipeline will run.
+indicates no final ingest pipeline will run.
 +
 NOTE: You can't use a final pipeline to change the `_index` field. If the
 pipeline attempts to change the `_index` field, the indexing request will fail.

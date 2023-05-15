@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -53,7 +54,7 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder();
         addCommonBuilderParameters(transformConfigBuilder);
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
-        transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
+        transformConfigBuilder.setDest(new DestConfig(NAME, null, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
         var groupConfig = TransformRestTestCase.createGroupConfig(
@@ -83,7 +84,8 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
     @Override
     @SuppressWarnings("unchecked")
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String query = """
+        Object[] args = new Object[] { timestampField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField };
+        String query = Strings.format("""
             {
               "aggs": {
                 "some-timestamp": {
@@ -103,7 +105,7 @@ public class TermsOnDateGroupByIT extends ContinuousTestCase {
                 }
               }
             }
-            """.formatted(timestampField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "", metricField);
+            """, args);
 
         Response searchResponseSource = search(
             CONTINUOUS_EVENTS_SOURCE_INDEX,

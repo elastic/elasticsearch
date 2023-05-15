@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -48,7 +48,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     public ValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             int typesSize = in.readVInt();
             if (typesSize > 0) {
                 for (int i = 0; i < typesSize; i++) {
@@ -137,7 +137,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeVInt(0);   // no types to filter
         }
         out.writeBoolean(explain);

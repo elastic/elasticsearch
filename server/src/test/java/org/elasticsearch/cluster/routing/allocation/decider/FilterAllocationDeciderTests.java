@@ -8,9 +8,12 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,35 +21,42 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testFilterInitialRecovery() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = createBuiltInClusterSettings();
         FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             Arrays.asList(
                 filterAllocationDecider,
-                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                new SameShardAllocationDecider(clusterSettings),
                 new ReplicaAfterPrimaryActiveAllocationDecider()
             )
         );
@@ -55,7 +65,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE
+            EmptySnapshotsInfoService.INSTANCE,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         ClusterState state = createInitialClusterState(
             service,
@@ -66,7 +77,11 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         // we can initially only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shard(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shard(0).currentNodeId(), "node2");
-        routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shard(0), randomBoolean()).routingTable();
+        routingTable = service.applyFailedShards(
+            state,
+            List.of(new FailedShard(routingTable.index("idx").shard(0).shard(0), null, null, randomBoolean())),
+            List.of()
+        ).routingTable();
         state = ClusterState.builder(state).routingTable(routingTable).build();
         assertEquals(routingTable.index("idx").shard(0).shard(0).state(), UNASSIGNED);
         assertNull(routingTable.index("idx").shard(0).shard(0).currentNodeId());
@@ -98,7 +113,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             assertEquals("initial allocation of the index is only allowed on nodes [_id:\"node2\"]", decision.getExplanation());
         }
 
-        state = service.reroute(state, "try allocate again");
+        state = service.reroute(state, "try allocate again", ActionListener.noop());
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node2");
@@ -122,10 +137,18 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             true,
             "test"
         );
-        state = service.applyFailedShard(state, routingTable.index("idx").shard(0).primaryShard(), randomBoolean());
+        state = service.applyFailedShards(
+            state,
+            List.of(new FailedShard(routingTable.index("idx").shard(0).primaryShard(), null, null, randomBoolean())),
+            List.of()
+        );
 
         // now bring back node1 and see it's assigned
-        state = service.reroute(ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node1)).build(), "test");
+        state = service.reroute(
+            ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node1)).build(),
+            "test",
+            ActionListener.noop()
+        );
         routingTable = state.routingTable();
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
@@ -174,18 +197,16 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             .numberOfReplicas(1);
         final IndexMetadata indexMetadata = indexMetadataBuilder.build();
         metadata.put(indexMetadata, false);
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsFromCloseToOpen(sourceIndex);
         routingTableBuilder.addAsNew(indexMetadata);
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
-        return service.reroute(clusterState, "reroute");
+        return service.reroute(clusterState, "reroute", ActionListener.noop());
     }
 
     public void testInvalidIPFilter() {
@@ -269,5 +290,40 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             Settings.builder(),
             "test ip validation"
         );
+    }
+
+    public void testGetForcedInitialShardAllocationToNodes() {
+        var index = IndexMetadata.builder("index")
+            .settings(
+                indexSettings(Version.CURRENT, 1, 0).put("index.routing.allocation.initial_recovery._id", "node-1")
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+            )
+            .build();
+        var clusterState = ClusterState.builder(new ClusterName("test-cluster"))
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(index, false))
+            .build();
+
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        var decider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
+        var allocation = new RoutingAllocation(new AllocationDeciders(List.of(decider)), clusterState, null, null, 0);
+
+        var localRecoveryShard = ShardRouting.newUnassigned(
+            new ShardId(index.getIndex(), 0),
+            true,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+            ShardRouting.Role.DEFAULT
+        );
+        assertThat(decider.getForcedInitialShardAllocationToNodes(localRecoveryShard, allocation), equalTo(Optional.of(Set.of("node-1"))));
+
+        var newShard = ShardRouting.newUnassigned(
+            new ShardId(index.getIndex(), 0),
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
+            ShardRouting.Role.DEFAULT
+        );
+        assertThat(decider.getForcedInitialShardAllocationToNodes(newShard, allocation), equalTo(Optional.empty()));
     }
 }

@@ -6,8 +6,6 @@ setup:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               name:
@@ -17,13 +15,20 @@ setup:
                 dims: 5
                 index: true
                 similarity: l2_norm
+              another_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
 
   - do:
       index:
         index: test
+        id: "1"
         body:
           name: cow.jpg
           vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          another_vector: [130.0, 115.0, -1.02, 15.555, -100.0]
 
   - do:
       index:
@@ -32,6 +37,7 @@ setup:
         body:
           name: moose.jpg
           vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          another_vector: [-0.5, 50.0, -1, 1, 120]
 
   - do:
       index:
@@ -40,13 +46,172 @@ setup:
         body:
           name: rabbit.jpg
           vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+          another_vector: [-0.5, 11.0, 0, 12, 111.0]
 
   - do:
       indices.refresh: {}
 
 ---
-"Basic kNN search":
+"kNN search only":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
   - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+---
+"kNN multi-field search only":
+  - skip:
+      version: ' - 8.6.99'
+      reason: 'multi-field kNN search added to search endpoint in 8.7'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+           - {field: vector, query_vector: [-0.5, 90.0, -10, 14.8, -156.0], k: 2, num_candidates: 3}
+           - {field: another_vector, query_vector: [-0.5, 11.0, 0, 12, 111.0], k: 2, num_candidates: 3}
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+---
+"kNN search plus query":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+          query:
+            term:
+              name: cow.jpg
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.0.fields.name.0: "cow.jpg"}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.2._id: "3"}
+  - match: {hits.hits.2.fields.name.0: "rabbit.jpg"}
+---
+"kNN multi-field search with query":
+  - skip:
+      version: ' - 8.6.99'
+      reason: 'multi-field kNN search added to search endpoint in 8.7'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            - {field: vector, query_vector: [-0.5, 90.0, -10, 14.8, -156.0], k: 2, num_candidates: 3}
+            - {field: another_vector, query_vector: [-0.5, 11.0, 0, 12, 111.0], k: 2, num_candidates: 3}
+          query:
+            term:
+              name: cow.jpg
+
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1.fields.name.0: "cow.jpg"}
+
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2.fields.name.0: "moose.jpg"}
+---
+"kNN search with filter":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+            filter:
+              term:
+                name: "rabbit.jpg"
+
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+            filter:
+              - term:
+                  name: "rabbit.jpg"
+              - term:
+                  _id: 2
+
+  - match: {hits.total.value: 0}
+
+---
+"kNN search with explicit search_type":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        search_type: query_then_fetch
+        body:
+          fields: [ "name" ]
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "cannot set [search_type] when using [knn] search, since the search type is determined automatically" }
+
+---
+"kNN search in _knn_search endpoint":
+  - skip:
+      features: ["allowed_warnings"]
+  - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: test
         body:
@@ -64,11 +229,14 @@ setup:
   - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
 
 ---
-"kNN search with filter":
+"kNN search with filter in _knn_search endpoint":
   - skip:
       version: ' - 8.1.99'
       reason: 'kNN with filtering added in 8.2'
+      features: ["allowed_warnings"]
   - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: test
         body:
@@ -87,6 +255,8 @@ setup:
   - match: {hits.hits.0.fields.name.0: "rabbit.jpg"}
 
   - do:
+      allowed_warnings:
+        - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:
         index: test
         body:
@@ -106,9 +276,12 @@ setup:
 
 ---
 "Test nonexistent field":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'kNN added to search endpoint in 8.4'
   - do:
       catch: bad_request
-      knn_search:
+      search:
         index: test
         body:
           fields: [ "name" ]
@@ -122,6 +295,9 @@ setup:
 
 ---
 "Direct kNN queries are disallowed":
+  - skip:
+      version: ' - 8.3.99'
+      reason: 'error message changed in 8.4'
   - do:
       catch: bad_request
       search:
@@ -133,4 +309,62 @@ setup:
               query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
               num_candidates: 1
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead" }
+  - match: { error.root_cause.0.reason: "[knn] queries cannot be provided directly, use the [knn] body parameter instead" }
+---
+"KNN Vector similarity search only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 11
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+---
+"Vector similarity with filter only":
+  - skip:
+      version: ' - 8.7.99'
+      reason: 'kNN similarity added in 8.8'
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 11
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            filter: {"term": {"name": "moose.jpg"}}
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 110
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            filter: {"term": {"name": "cow.jpg"}}
+
+  - length: {hits.hits: 0}

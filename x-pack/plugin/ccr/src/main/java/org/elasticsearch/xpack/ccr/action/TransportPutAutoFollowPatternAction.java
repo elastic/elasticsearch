@@ -120,14 +120,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             });
         };
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear();
-        clusterStateRequest.metadata(true);
-
         CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
-            clusterStateRequest,
+            new ClusterStateRequest().clear().metadata(true),
             listener::onFailure,
             consumer
         );

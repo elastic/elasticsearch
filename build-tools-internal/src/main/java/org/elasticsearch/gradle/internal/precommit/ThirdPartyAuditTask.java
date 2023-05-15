@@ -58,9 +58,7 @@ import javax.inject.Inject;
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
 
-    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
-    );
+    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile("DEBUG: Class '(.*)' cannot be loaded \\(.*\\)\\.");
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
     private static final int SIG_KILL_EXIT_VALUE = 137;
@@ -79,7 +77,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     private File signatureFile;
 
-    private String javaHome;
+    private Property<String> javaHome;
 
     private final Property<JavaVersion> targetCompatibility;
 
@@ -106,6 +104,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         this.fileSystemOperations = fileSystemOperations;
         this.projectLayout = projectLayout;
         this.targetCompatibility = objectFactory.property(JavaVersion.class);
+        this.javaHome = objectFactory.property(String.class);
     }
 
     @Input
@@ -127,14 +126,9 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         this.signatureFile = signatureFile;
     }
 
-    @Input
-    @Optional
-    public String getJavaHome() {
+    @Internal
+    public Property<String> getJavaHome() {
         return javaHome;
-    }
-
-    public void setJavaHome(String javaHome) {
-        this.javaHome = javaHome;
     }
 
     @Internal
@@ -335,13 +329,13 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
         ExecResult result = execOperations.javaexec(spec -> {
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());
@@ -368,8 +362,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.setStandardOutput(standardOut);
         });

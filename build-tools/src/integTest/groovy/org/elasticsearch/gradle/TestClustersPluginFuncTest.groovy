@@ -103,7 +103,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def runner = gradleRunner("myTask", '-i', '-g', 'guh')
+        def runner = gradleRunner("myTask", '-i', '-g', gradleUserHome)
         def runningClosure = { GradleRunner r -> r.build() }
         withMockedDistributionDownload(runner, runningClosure)
         def result = inputProperty == "distributionClasspath" ?
@@ -155,12 +155,12 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        withMockedDistributionDownload(gradleRunner("myTask", '-g', 'guh')) {
+        withMockedDistributionDownload(gradleRunner("myTask", '-g', gradleUserHome)) {
             build()
         }
         fileChange.delegate = this
         fileChange.call(this)
-        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', 'guh')) {
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i', '-g', gradleUserHome)) {
             build()
         }
 

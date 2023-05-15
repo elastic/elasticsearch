@@ -16,13 +16,16 @@ archivesBaseName = 'x-pack-ilm'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
   testImplementation project(':modules:data-streams')
+  testImplementation project(':modules:dlm')
 }
 
 addQaCheckDependencies(project)
 
-tasks.named("test").configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.dlm_feature_flag_enabled', 'true'
   }
 }
+

@@ -12,12 +12,12 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,8 +40,8 @@ import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -63,14 +63,15 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 "field",
                 true,
                 true,
+                randomBoolean(),
                 Orientation.RIGHT,
                 null,
                 null,
-                Collections.emptyMap()
+                Map.of()
             );
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -91,16 +92,26 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     "another_field",
                     true,
                     true,
+                    randomBoolean(),
                     Orientation.RIGHT,
                     null,
                     null,
-                    Collections.emptyMap()
+                    Map.of()
                 );
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
 
-                fieldType = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, null, Collections.emptyMap());
-                result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                fieldType = new GeoShapeWithDocValuesFieldType(
+                    "field",
+                    true,
+                    true,
+                    randomBoolean(),
+                    Orientation.RIGHT,
+                    null,
+                    null,
+                    Map.of()
+                );
+                result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
@@ -125,12 +136,13 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     "another_field",
                     true,
                     true,
+                    randomBoolean(),
                     Orientation.RIGHT,
                     null,
                     null,
-                    Collections.emptyMap()
+                    Map.of()
                 );
-                InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
                 assertThat(result.centroid(), equalTo(expectedCentroid));
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
@@ -199,21 +211,22 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             "field",
             true,
             true,
+            randomBoolean(),
             Orientation.RIGHT,
             null,
             null,
-            Collections.emptyMap()
+            Map.of()
         );
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");
         try (IndexReader reader = w.getReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
-            InternalGeoCentroid result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+            InternalGeoCentroid result = searchAndReduce(searcher, new AggTestConfig(aggBuilder, fieldType));
 
             assertEquals("my_agg", result.getName());
-            GeoPoint centroid = result.centroid();
+            SpatialPoint centroid = result.centroid();
             assertNotNull(centroid);
-            assertEquals(expectedCentroid.getLat(), centroid.getLat(), GEOHASH_TOLERANCE);
-            assertEquals(expectedCentroid.getLon(), centroid.getLon(), GEOHASH_TOLERANCE);
+            assertEquals(expectedCentroid.getX(), centroid.getX(), GEOHASH_TOLERANCE);
+            assertEquals(expectedCentroid.getY(), centroid.getY(), GEOHASH_TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
     }

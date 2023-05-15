@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -57,7 +58,7 @@ public class GroupOrJobLookup {
     }
 
     public Set<String> expandJobIds(String expression, boolean allowNoMatch) {
-        return new GroupOrJobResolver().expand(expression, allowNoMatch);
+        return new GroupOrJobResolver().expand(expression, allowNoMatch, Optional.of(","));
     }
 
     public boolean isGroupOrJob(String id) {

@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -25,6 +27,8 @@ import java.util.Optional;
 public class TextEmbeddingConfig implements NlpConfig {
 
     public static final String NAME = "text_embedding";
+
+    public static ParseField EMBEDDING_SIZE = new ParseField("embedding_size");
 
     public static TextEmbeddingConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
@@ -41,7 +45,7 @@ public class TextEmbeddingConfig implements NlpConfig {
         ConstructingObjectParser<TextEmbeddingConfig, Void> parser = new ConstructingObjectParser<>(
             NAME,
             ignoreUnknownFields,
-            a -> new TextEmbeddingConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2])
+            a -> new TextEmbeddingConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2], (Integer) a[3])
         );
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (ignoreUnknownFields == false) {
@@ -58,22 +62,33 @@ public class TextEmbeddingConfig implements NlpConfig {
             TOKENIZATION
         );
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
+        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), EMBEDDING_SIZE);
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
     private final String resultsField;
+    private final Integer embeddingSize;
 
     public TextEmbeddingConfig(
         @Nullable VocabularyConfig vocabularyConfig,
         @Nullable Tokenization tokenization,
-        @Nullable String resultsField
+        @Nullable String resultsField,
+        @Nullable Integer embeddingSize
     ) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.resultsField = resultsField;
+        if (embeddingSize != null && embeddingSize <= 0) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be a number greater than 0; configured size [{}]",
+                EMBEDDING_SIZE.getPreferredName(),
+                embeddingSize
+            );
+        }
+        this.embeddingSize = embeddingSize;
         if (this.tokenization.span != -1) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] does not support windowing long text sequences; configured span [{}]",
@@ -87,6 +102,11 @@ public class TextEmbeddingConfig implements NlpConfig {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            embeddingSize = in.readOptionalVInt();
+        } else {
+            embeddingSize = null;
+        }
     }
 
     @Override
@@ -96,6 +116,9 @@ public class TextEmbeddingConfig implements NlpConfig {
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
+        if (embeddingSize != null) {
+            builder.field(EMBEDDING_SIZE.getPreferredName(), embeddingSize);
         }
         builder.endObject();
         return builder;
@@ -111,6 +134,9 @@ public class TextEmbeddingConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            out.writeOptionalVInt(embeddingSize);
+        }
     }
 
     @Override
@@ -119,8 +145,13 @@ public class TextEmbeddingConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public Version getMinimalSupportedNodeVersion() {
         return Version.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.V_8_0_0;
     }
 
     @Override
@@ -141,12 +172,13 @@ public class TextEmbeddingConfig implements NlpConfig {
         TextEmbeddingConfig that = (TextEmbeddingConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
-            && Objects.equals(resultsField, that.resultsField);
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(embeddingSize, that.embeddingSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization, resultsField);
+        return Objects.hash(vocabularyConfig, tokenization, resultsField, embeddingSize);
     }
 
     @Override
@@ -162,5 +194,9 @@ public class TextEmbeddingConfig implements NlpConfig {
     @Override
     public String getResultsField() {
         return resultsField;
+    }
+
+    public Integer getEmbeddingSize() {
+        return embeddingSize;
     }
 }

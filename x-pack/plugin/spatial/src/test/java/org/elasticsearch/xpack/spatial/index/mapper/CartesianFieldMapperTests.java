@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -21,10 +21,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /** Base class for testing cartesian field mappers */
 public abstract class CartesianFieldMapperTests extends MapperTestCase {
@@ -53,7 +51,7 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
 
     protected abstract void assertXYPointField(IndexableField field, float x, float y);
 
-    protected abstract void assertGeoJSONParseException(MapperParsingException e, String missingField);
+    protected abstract void assertGeoJSONParseException(DocumentParsingException e, String missingField);
 
     public void testWKT() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
@@ -63,8 +61,8 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
 
     public void testGeoJSONMissingCoordinates() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("type", "Point").endObject()))
         );
         assertGeoJSONParseException(e, "coordinates");
@@ -74,7 +72,7 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         double[] coords = new double[] { 0.0, 0.0 };
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("coordinates", coords).endObject()))
         );
         assertThat(e.getMessage(), containsString("failed to parse"));
@@ -90,92 +88,9 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
         assertXYPointField(doc.rootDoc().getField(FIELD_NAME), 2000.1f, 305.6f);
     }
 
-    public void testInvalidPointValuesIgnored() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", getFieldName());
-            b.field("ignore_malformed", true);
-        }));
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "1234.333"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "-").endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("geohash", stringEncode(0, 0)).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "-").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "-,1.3"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "1.3,-"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("lon", 1.3).field("y", 1.3).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("lat", 1.3).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", "NaN").endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", 1.3).endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject()))
-                .rootDoc()
-                .getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,NaN"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "10,NaN"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,12"))).rootDoc().getField(FIELD_NAME), nullValue());
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).nullField("y").endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
-
-        assertThat(
-            mapper.parse(source(b -> b.startObject(FIELD_NAME).nullField("x").field("y", 1.3).endObject())).rootDoc().getField(FIELD_NAME),
-            nullValue()
-        );
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
     }
 
     public void testZValueWKT() throws IOException {
@@ -193,8 +108,8 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
             b.field("ignore_z_value", false);
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper2.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
@@ -219,11 +134,11 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
             b.field("ignore_z_value", false);
         }));
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper2.parse(source(b -> b.startObject(FIELD_NAME).field("type", "Point").field("coordinates", coords).endObject()))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
-        assertThat(e.getRootCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
+        assertThat(e.getCause().getMessage(), containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
     }
 }

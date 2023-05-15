@@ -18,7 +18,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -46,7 +48,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -56,6 +58,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .put(XPackSettings.CCR_ENABLED_SETTING.getKey(), true)
             .build();
     }
 
@@ -64,7 +67,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         startWarmOnlyNode();
         ensureGreen();
 
-        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null);
+        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
         ShrinkAction shrinkAction = new ShrinkAction(1, null);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));

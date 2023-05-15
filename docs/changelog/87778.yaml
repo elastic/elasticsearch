@@ -1,6 +1,0 @@
-pr: 87778
-summary: Make Desired Nodes API operator-only
-area: Distributed
-type: enhancement
-issues:
- - 87777

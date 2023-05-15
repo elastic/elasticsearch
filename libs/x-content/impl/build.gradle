@@ -10,8 +10,7 @@ apply plugin: 'elasticsearch.java'
 
 archivesBaseName = "x-content-impl"
 
-String jacksonVersion = "2.13.2"
-String snakeyamlVersion = "1.30"
+String jacksonVersion = "2.15.0"
 
 dependencies {
   compileOnly project(':libs:elasticsearch-core')
@@ -20,7 +19,7 @@ dependencies {
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
-  implementation "org.yaml:snakeyaml:${snakeyamlVersion}"
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
@@ -35,6 +34,12 @@ tasks.named('forbiddenApisMain').configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
+}
+
+// workaround for (/com/fasterxml/jackson/core/JsonFactory.class): warning: Cannot find annotation method
+// 'value()' in type 'ServiceProvider': class file for aQute.bnd.annotation.spi.ServiceProvider not found
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs.add("-Xlint:-classfile")
 }
 
 // not published, so no need for javadoc

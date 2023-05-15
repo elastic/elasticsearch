@@ -9,10 +9,13 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -30,7 +33,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,8 +43,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -64,15 +69,17 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
+
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
+
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0f)
+                    indexSettings(1, 1).put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0f)
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1ms")
@@ -97,7 +104,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             );
         }
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
         }
@@ -114,6 +121,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     blockRecovery.await();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
                 }
             }
             connection.sendRequest(requestId, action, request, options);
@@ -122,17 +130,9 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         recoveryStarted.await();
         nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // AllocationService only calls GatewayAllocator if there are unassigned shards
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("dummy-index")
-                // make sure the new index does not get allocated to the node with the existing replica to prevent rebalancing from
-                // randomly moving the replica off of this node after the noop recovery
-                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", nodeWithReplica))
-                .setWaitForActiveShards(0)
-        );
+        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0));
         ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), hasItem(nodeWithReplica));
+        assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
         assertNoOpRecoveries(indexName);
         blockRecovery.countDown();
         transportServiceOnPrimary.clearAllRules();
@@ -150,10 +150,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 0.1f)
+                    indexSettings(1, 1).put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 0.1f)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1ms")
@@ -170,7 +167,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
             indexRandom(
                 randomBoolean(),
@@ -223,7 +220,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         );
         internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
         // need to wait for events to ensure the reroute has happened since we perform it async when a new node joins.
-        client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
+        clusterAdmin().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
         blockRecovery.countDown();
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));
@@ -244,10 +241,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
+                    indexSettings(1, numOfReplicas).put(
+                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                        randomIntBetween(10, 100) + "kb"
+                    )
                         .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 0.5)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
@@ -274,20 +271,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         if (randomBoolean()) {
             assertAcked(client().admin().indices().prepareClose(indexName));
         }
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries"));
         internalCluster().fullRestart();
         ensureYellow(indexName);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
-        );
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }
@@ -301,10 +288,10 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    indexSettings(1, 1).put(
+                        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                        randomIntBetween(10, 100) + "kb"
+                    )
                         .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 3.0)
                         .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0ms")
@@ -321,7 +308,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush(indexName).get();
         String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithLowerMatchingSettings = internalCluster().dataPathSettings(nodeWithLowerMatching);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithLowerMatching));
+        internalCluster().stopNode(nodeWithLowerMatching);
         ensureGreen(indexName);
 
         indexRandom(
@@ -333,7 +320,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
+        internalCluster().stopNode(nodeWithHigherMatching);
         if (usually()) {
             indexRandom(
                 randomBoolean(),
@@ -343,19 +330,13 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             );
         }
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
-        );
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries"));
         nodeWithLowerMatching = internalCluster().startNode(nodeWithLowerMatchingSettings);
         nodeWithHigherMatching = internalCluster().startNode(nodeWithHigherMatchingSettings);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
         );
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));
@@ -373,10 +354,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    indexSettings(1, 0).put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                         .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                 )
         );
@@ -406,15 +384,21 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-        );
+        setReplicaCount(1, indexName);
         internalCluster().startDataOnlyNode();
         newNodeStarted.countDown();
-        ensureGreen(indexName);
+
+        var allocator = internalCluster().getInstance(ShardsAllocator.class);
+        if (allocator instanceof BalancedShardsAllocator) {
+            // BalancedShardsAllocator will try other node once retries are exhausted
+            ensureGreen(indexName);
+        } else if (allocator instanceof DesiredBalanceShardsAllocator) {
+            // DesiredBalanceShardsAllocator will keep shard in the error state if it could not be allocated on the desired node
+            ensureYellow(indexName);
+        } else {
+            fail("Unknown allocator used");
+        }
+
         transportService.clearAllRules();
     }
 
@@ -423,10 +407,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         createIndex(
             indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            indexSettings(1, 0).put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                 .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                 .build()
         );
@@ -440,19 +421,13 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(indexName));
         int numberOfReplicas = randomIntBetween(1, 2);
         internalCluster().ensureAtLeastNumDataNodes(2 + numberOfReplicas);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas))
-        );
+        setReplicaCount(numberOfReplicas, indexName);
         ensureGreen(indexName);
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build())
+        updateClusterSettings(
+            Settings.builder()
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+                .put(CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
         );
         internalCluster().fullRestart();
         ensureYellow(indexName);
@@ -460,12 +435,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareOpen(indexName));
             client().admin().indices().prepareForceMerge(indexName).get();
         }
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
-        );
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
     }

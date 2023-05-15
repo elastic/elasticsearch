@@ -1,6 +1,0 @@
-pr: 87793
-summary: Geoip processor should respect the `ignore_missing` in case of missing database
-area: Ingest
-type: bug
-issues:
- - 87345

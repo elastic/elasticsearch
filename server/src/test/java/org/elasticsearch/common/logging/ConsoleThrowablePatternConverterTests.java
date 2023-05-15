@@ -26,17 +26,29 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 public class ConsoleThrowablePatternConverterTests extends ESTestCase {
-    static final ConsoleThrowablePatternConverter converter = ConsoleThrowablePatternConverter.newInstance(null, null);
+    static final ConsoleThrowablePatternConverter converter = ConsoleThrowablePatternConverter.newInstance(null, null, true);
 
-    String format(Throwable e) {
+    String format(ConsoleThrowablePatternConverter converter, Throwable e) {
         LogEvent event = Log4jLogEvent.newBuilder().setThrown(e).build();
         var builder = new StringBuilder();
         converter.format(event, builder);
         return builder.toString();
     }
 
+    String format(Throwable e) {
+        return format(converter, e);
+    }
+
     public void testNoException() {
         assertThat(format(null), emptyString());
+    }
+
+    public void testDisabledPassthrough() {
+        // mimic no interactive console
+        var converter = ConsoleThrowablePatternConverter.newInstance(null, null, false);
+        var e = new StartupException(new RuntimeException("a cause"));
+        // the cause of StartupException is not extracted by the parent pattern converter
+        assertThat(format(converter, e), allOf(containsString("StartupException: "), containsString("RuntimeException: a cause")));
     }
 
     public void testStartupExceptionUnwrapped() {

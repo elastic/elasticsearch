@@ -15,7 +15,7 @@ Retrieves anomaly records for an {anomaly-job}.
 [[ml-get-record-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 [[ml-get-record-desc]]
@@ -76,6 +76,7 @@ default, the records are sorted by the `record_score` value.
 (Optional, string) Returns records with timestamps after this time. Defaults to
 `-1`, which means it is unset and results are not limited to specific timestamps.
 
+[role="child_attributes"]
 [[ml-get-record-request-body]]
 == {api-request-body-title}
 
@@ -96,6 +97,7 @@ You can also specify the query parameters in the request body; the exception are
 to `100`.
 ====
 
+[role="child_attributes"]
 [[ml-get-record-results]]
 == {api-response-body-title}
 
@@ -103,6 +105,56 @@ The API returns an array of record objects, which have the following properties:
 
 `actual`::
 (array) The actual value for the bucket.
+
+//Begin anomaly_score_explanation
+`anomaly_score_explanation`::
+(object) When present, it provides information about the factors impacting the
+initial anomaly score.
++
+.Properties of `anomaly_score_explanation`
+[%collapsible%open]
+====
+`anomaly_characteristics_impact`::::
+(Optional, integer) Impact from the duration and magnitude of the detected anomaly 
+relative to the historical average.
+
+`anomaly_length`::::
+(Optional, integer) Length of the detected anomaly in the number of buckets.
+
+`anomaly_type`::::
+(Optional, string) Type of the detected anomaly: spike or dip.
+
+`high_variance_penalty`::::
+(Optional, boolean) Indicates reduction of anomaly score for the bucket with large 
+confidence intervals. If a bucket has large confidence intervals, the score is reduced.
+
+`incomplete_bucket_penalty`::::
+(Optional, boolean) If the bucket contains fewer samples than expected, the score is 
+reduced. If the bucket contains fewer samples than expected, the score is reduced.
+
+`lower_confidence_bound`::::
+(Optional, double) Lower bound of the 95% confidence interval.
+
+`multimodal_distribution`::::
+(Optional, boolean) Indicates whether the bucket values' probability distribution has 
+several modes. When there are multiple modes, the typical value may not be the most 
+likely.
+
+`multi_bucket_impact`::::
+(Optional, integer) Impact of the deviation between actual and typical values in the 
+past 12 buckets.
+
+`single_bucket_impact`::::
+(Optional, integer) Impact of the deviation between actual and typical values in the 
+current bucket.
+
+`typical_value`::::
+(Optional, double) Typical (expected) value for this bucket.
+
+`upper_confidence_bound`::::
+(Optional, double) Upper bound of the 95% confidence interval.
+====
+//End anomaly_score_explanation
 
 `bucket_span`::
 (number)
@@ -121,9 +173,10 @@ This property contains an array of anomaly records that are the causes for the
 anomaly that has been identified for the over field. If no over fields exist,
 this field is not present. This sub-resource contains the most anomalous records
 for the `over_field_name`. For scalability reasons, a maximum of the 10 most
-significant causes of the anomaly are returned. As part of the core analytical modeling, these low-level anomaly records are aggregated for their parent over
+significant causes of the anomaly are returned. As part of the core analytical 
+modeling, these low-level anomaly records are aggregated for their parent over
 field record. The causes resource contains similar elements to the record
-resource, namely `actual`, `typical`, `geo_results.actual_point`, 
+resource, namely `actual`, `typical`, `geo_results.actual_point`,
 `geo_results.typical_point`, `*_field_name` and `*_field_value`. Probability and
 scores are not applicable to causes.
 
@@ -142,15 +195,19 @@ configuration. For example, `max`.
 (string) The description of the function in which the anomaly occurs, as
 specified in the detector configuration.
 
-`geo_results.actual_point`::
-(string) The actual value for the bucket formatted as a `geo_point`. If the
-detector function is `lat_long`, this is a comma delimited string of the
-latitude and longitude.
+`geo_results`::
+(optional, object) If the detector function is `lat_long`, this object contains
+comma delimited strings for the latitude and longitude of the actual and typical values.  
++
+.Properties of `geo_results`
+[%collapsible%open]
+====
+`actual_point`::
+(string) The actual value for the bucket formatted as a `geo_point`.
 
-`geo_results.typical_point`::
-(string) The typical value for the bucket formatted as a `geo_point`. If the
-detector function is `lat_long`, this is a comma delimited string of the
-latitude and longitude.
+`typical_point`::
+(string) The typical value for the bucket formatted as a `geo_point`.
+====
 
 `influencers`::
 (array) If `influencers` was specified in the detector configuration, this array
@@ -168,6 +225,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 `job_id`::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`multi_bucket_impact`::
+(number) An indication of how strongly an anomaly is multi bucket or single
+bucket. The value is on a scale of `-5.0` to `+5.0` where `-5.0` means the
+anomaly is purely single bucket and `+5.0` means the anomaly is purely multi
+bucket.
 
 `over_field_name`::
 (string)
@@ -188,12 +251,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 0 to 1. For example, 0.0000772031. This value can be held to a high precision
 of over 300 decimal places, so the `record_score` is provided as a
 human-readable and friendly interpretation of this.
-
-`multi_bucket_impact`::
-(number) An indication of how strongly an anomaly is multi bucket or single
-bucket. The value is on a scale of `-5.0` to `+5.0` where `-5.0` means the
-anomaly is purely single bucket and `+5.0` means the anomaly is purely multi
-bucket.
 
 `record_score`::
 (number) A normalized score between 0-100, which is based on the probability of

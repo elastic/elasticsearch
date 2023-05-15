@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity.nodeinfo;
 
+import org.elasticsearch.common.unit.Processors;
+
 /**
  * Record for containing memory and processors for given node
  * @param memory node total memory
  * @param processors allocated processors
  */
-public record AutoscalingNodeInfo(long memory, float processors) {
+public record AutoscalingNodeInfo(long memory, Processors processors) {
 
     static Builder builder() {
         return new Builder();
@@ -20,15 +22,15 @@ public record AutoscalingNodeInfo(long memory, float processors) {
 
     static class Builder {
         private Long memory;
-        private Float processors;
+        private Processors processors;
 
         Builder setMemory(long memory) {
             this.memory = memory;
             return this;
         }
 
-        Builder setProcessors(float processors) {
-            this.processors = processors;
+        Builder setProcessors(double processors) {
+            this.processors = Processors.of(processors);
             return this;
         }
 

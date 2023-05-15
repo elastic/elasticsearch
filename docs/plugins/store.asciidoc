@@ -1,5 +1,5 @@
 [[store]]
-== Store Plugins
+== Store plugins
 
 Store plugins offer alternatives to default Lucene stores.
 

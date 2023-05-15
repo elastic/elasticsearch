@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -93,11 +92,7 @@ public class NaNSortingIT extends ESIntegTestCase {
 
         public String name;
 
-        public abstract
-            ValuesSourceAggregationBuilder.LeafOnly<
-                ValuesSource.Numeric,
-                ? extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, ?>>
-            builder();
+        public abstract ValuesSourceAggregationBuilder.LeafOnly<? extends ValuesSourceAggregationBuilder.LeafOnly<?>> builder();
 
         public String sortKey() {
             return name;

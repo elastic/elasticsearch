@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -52,6 +53,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     public static final ParseField FILTERS_FIELD = new ParseField("filters");
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
+    public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
     public static class KeyedFilter implements Writeable, ToXContentFragment {
         private final String key;
@@ -127,6 +129,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         List<QueryToFilterAdapter> filters,
         boolean keyed,
         String otherBucketKey,
+        boolean keyedBucket,
         AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
@@ -136,6 +139,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             new FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator>(
                 name,
                 keyed,
+                keyedBucket,
                 otherBucketKey,
                 context,
                 parent,
@@ -156,11 +160,23 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (filterByFilter != null) {
             return filterByFilter;
         }
-        return new FiltersAggregator.Compatible(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
+        return new FiltersAggregator.Compatible(
+            name,
+            factories,
+            filters,
+            keyed,
+            keyedBucket,
+            otherBucketKey,
+            context,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 
     private final List<QueryToFilterAdapter> filters;
     private final boolean keyed;
+    private final boolean keyedBucket;
     protected final String otherBucketKey;
 
     FiltersAggregator(
@@ -168,15 +184,17 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         AggregatorFactories factories,
         List<QueryToFilterAdapter> filters,
         boolean keyed,
+        boolean keyedBucket,
         String otherBucketKey,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
+        super(name, factories, aggCtx, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
         this.filters = List.copyOf(filters);
         this.keyed = keyed;
+        this.keyedBucket = keyedBucket;
         this.otherBucketKey = otherBucketKey;
     }
 
@@ -195,12 +213,13 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                         filters.get(offsetInOwningOrd).key().toString(),
                         docCount,
                         subAggregationResults,
-                        keyed
+                        keyed,
+                        keyedBucket
                     );
                 }
-                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed);
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed, keyedBucket);
             },
-            buckets -> new InternalFilters(name, buckets, keyed, metadata())
+            buckets -> new InternalFilters(name, buckets, keyed, keyedBucket, metadata())
         );
     }
 
@@ -209,16 +228,22 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key().toString(), 0, subAggs, keyed);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(
+                filter.key().toString(),
+                0,
+                subAggs,
+                keyed,
+                keyedBucket
+            );
             buckets.add(bucket);
         }
 
         if (otherBucketKey != null) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed, keyedBucket);
             buckets.add(bucket);
         }
 
-        return new InternalFilters(name, buckets, keyed, metadata());
+        return new InternalFilters(name, buckets, keyed, keyedBucket, metadata());
     }
 
     @Override
@@ -247,13 +272,14 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             AggregatorFactories factories,
             List<QueryToFilterAdapter> filters,
             boolean keyed,
+            boolean keyedBucket,
             String otherBucketKey,
             AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, filters, keyed, otherBucketKey, context, parent, cardinality, metadata);
+            super(name, factories, filters, keyed, keyedBucket, otherBucketKey, context, parent, cardinality, metadata);
             if (otherBucketKey == null) {
                 this.totalNumKeys = filters.size();
             } else {
@@ -262,10 +288,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             IntPredicate[] docFilters = new IntPredicate[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx);
+                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(aggCtx.getLeafReaderContext());
             }
             return new LeafBucketCollectorBase(sub, null) {
                 @Override

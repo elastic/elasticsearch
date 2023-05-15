@@ -12,6 +12,8 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractJavaGradleFuncTest
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.tree.ClassNode
 
@@ -22,6 +24,19 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
     public static final GString JAVA_BASE_MODULE = "java.base:${System.getProperty("java.version")}"
 
     public static final String ES_VERSION = VersionProperties.getElasticsearch()
+
+    public static final String COMPILE_JAVA_CONFIG = """
+        def sep = org.elasticsearch.gradle.OS.current() == org.elasticsearch.gradle.OS.WINDOWS ? ':' : ';'
+        tasks.named('compileJava').configure {
+            doLast {
+                println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(sep)
+                println "COMPILE_JAVA_CLASSPATH "  + classpath.asPath
+            }
+        }
+    """
+
+    @Rule
+    TemporaryFolder rootBuild = new TemporaryFolder()
 
     def setup() {
         clazz("org.acme.JavaMainClass")
@@ -49,19 +64,14 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
 
             allprojects {
                 version = '1.2.3'
+                group = 'test'
             }
 
             dependencies {
                 implementation project('some-lib')
             }
 
-            tasks.named('compileJava').configure {
-                doLast {
-                    def sep = org.gradle.internal.os.OperatingSystem.current().isWindows() ? ':' : ';'
-                    println "COMPILE_JAVA_COMPILER_ARGS " + options.allCompilerArgs.join(sep)
-                    println "COMPILE_JAVA_CLASSPATH "  + classpath.asPath
-                }
-            }
+            $COMPILE_JAVA_CONFIG
         """
     }
 
@@ -157,6 +167,74 @@ class ElasticsearchJavaModulePathPluginFuncTest extends AbstractJavaGradleFuncTe
         assertCompileClasspath([], normalized(result.output))
         file('build/classes/java/main/module-info.class').exists()
         assertModuleInfo(file('build/classes/java/main/module-info.class'), 'rootModule', [JAVA_BASE_MODULE])
+    }
+
+    def "included build with non module dependencies"() {
+        given:
+        file(rootBuild.root, 'settings.gradle') << """
+        includeBuild '${projectDir.path.replace('\\', '\\\\')}'
+        """
+
+        file(rootBuild.root, 'build.gradle') << """
+            plugins {
+                id 'java'
+                id 'elasticsearch.java-module'
+            }
+
+            dependencies {
+                implementation 'test:some-lib:1.2.3'
+            }
+
+            $COMPILE_JAVA_CONFIG
+        """
+
+        and:
+        writeClazz('org.parent.Main', null, file(rootBuild.root, "src/main/java/org/parent/Main.java"), null)
+
+        when:
+        def result = gradleRunner(rootBuild.root, "compileJava").build()
+
+        then:
+        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
+
+        assertModulePathClasspath([], normalized(result.output))
+        assertCompileClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
+    }
+
+    def "included build with module dependencies"() {
+        given:
+        file(rootBuild.root, 'settings.gradle') << """
+        includeBuild '${projectDir.path.replace('\\', '\\\\')}'
+        """
+
+        file(rootBuild.root, 'build.gradle') << """
+            plugins {
+                id 'java'
+                id 'elasticsearch.java-module'
+            }
+
+            dependencies {
+                implementation 'test:some-lib:1.2.3'
+            }
+
+            $COMPILE_JAVA_CONFIG
+        """
+
+        and:
+        file('some-lib/src/main/java/module-info.java') << """
+        module someLibModule {
+        }
+        """
+        writeClazz('org.parent.Main', null, file(rootBuild.root, "src/main/java/org/parent/Main.java"), null)
+
+        when:
+        def result = gradleRunner(rootBuild.root, "compileJava").build()
+
+        then:
+        result.task(":compileJava").outcome == TaskOutcome.SUCCESS
+
+        assertModulePathClasspath(['./some-lib/build/classes/java/main', './some-other-lib/build/classes/java/main'], normalized(result.output))
+        assertCompileClasspath([], normalized(result.output))
     }
 
     private def assertModulePathClasspath(List<String> expectedEntries, String output) {

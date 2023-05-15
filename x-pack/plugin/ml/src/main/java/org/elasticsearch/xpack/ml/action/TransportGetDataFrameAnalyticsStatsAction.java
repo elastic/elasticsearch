@@ -158,7 +158,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
         GetDataFrameAnalyticsStatsAction.Request request,
         ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
     ) {
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
         ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {

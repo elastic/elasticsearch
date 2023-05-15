@@ -8,13 +8,13 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -32,18 +32,22 @@ public class ClusterStateResponseTests extends AbstractWireSerializingTestCase<C
         if (randomBoolean()) {
             ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName).version(randomNonNegativeLong());
             if (randomBoolean()) {
-                final DiscoveryNode masterNode = new DiscoveryNode(
+                final DiscoveryNode masterNode = TestDiscoveryNode.create(
                     randomAlphaOfLength(4),
                     ESTestCase.buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles()),
-                    Version.CURRENT
+                    new HashSet<>(DiscoveryNodeRole.roles())
                 );
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().add(masterNode).masterNodeId(masterNode.getId()).build());
             }
             clusterState = clusterStateBuilder.build();
         }
         return new ClusterStateResponse(clusterName, clusterState, randomBoolean());
+    }
+
+    @Override
+    protected ClusterStateResponse mutateInstance(ClusterStateResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

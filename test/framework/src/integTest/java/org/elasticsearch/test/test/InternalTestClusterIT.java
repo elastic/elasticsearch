@@ -48,7 +48,8 @@ public class InternalTestClusterIT extends ESIntegTestCase {
         ensureGreen();
 
         while (internalCluster().size() > 1) {
-            internalCluster().stopRandomNode(s -> true);
+            internalCluster().stopNode(internalCluster().getRandomNodeName());
+
         }
 
         ensureGreen();

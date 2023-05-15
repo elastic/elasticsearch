@@ -13,6 +13,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
@@ -93,12 +94,13 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
         final String id,
         final List<DiscoveryNode> knownNodes,
         final Version version,
+        final TransportVersion transportVersion,
         final ThreadPool threadPool
     ) {
         boolean success = false;
         final Settings s = Settings.builder().put("node.name", id).build();
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
-        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
+        MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool, null);
         try {
             newService.registerRequestHandler(
                 ClusterSearchShardsAction.NAME,
@@ -161,7 +163,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     }
 
     public void testSearchSkipUnavailable() throws IOException {
-        try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "node0",
+                new CopyOnWriteArrayList<>(),
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             updateRemoteClusterSettings(Collections.singletonMap("seeds", remoteNode.getAddress().toString()));
@@ -259,7 +269,15 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
     }
 
     public void testSkipUnavailableDependsOnSeeds() throws IOException {
-        try (MockTransportService remoteTransport = startTransport("node0", new CopyOnWriteArrayList<>(), Version.CURRENT, threadPool)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "node0",
+                new CopyOnWriteArrayList<>(),
+                Version.CURRENT,
+                TransportVersion.CURRENT,
+                threadPool
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             {

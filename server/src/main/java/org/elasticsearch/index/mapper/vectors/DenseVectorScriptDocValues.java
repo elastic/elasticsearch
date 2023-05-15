@@ -51,18 +51,6 @@ public class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
         return getCheckedVector().getMagnitude();
     }
 
-    public double dotProduct(float[] queryVector) {
-        return getCheckedVector().dotProduct(queryVector);
-    }
-
-    public double l1Norm(float[] queryVector) {
-        return getCheckedVector().l1Norm(queryVector);
-    }
-
-    public double l2Norm(float[] queryVector) {
-        return getCheckedVector().l2Norm(queryVector);
-    }
-
     @Override
     public BytesRef get(int index) {
         throw new UnsupportedOperationException(

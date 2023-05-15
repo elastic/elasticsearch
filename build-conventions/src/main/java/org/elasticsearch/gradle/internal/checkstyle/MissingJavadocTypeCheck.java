@@ -32,9 +32,9 @@ import com.puppycrawl.tools.checkstyle.utils.CommonUtil;
 import com.puppycrawl.tools.checkstyle.utils.ScopeUtil;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * This is a copy of Checkstyle's {@link com.puppycrawl.tools.checkstyle.checks.javadoc.MissingJavadocTypeCheck},
@@ -59,10 +59,10 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
     private Pattern ignorePattern = Pattern.compile("^$");
 
     /**
-     * Specify the list of annotations that allow missed documentation.
+     * Specify the set of annotations that allow missed documentation.
      * Only short names are allowed, e.g. {@code Generated}.
      */
-    private List<String> skipAnnotations = Collections.singletonList("Generated");
+    private Set<String> skipAnnotations = Set.of("Generated");
 
     /**
      * Setter to specify the visibility scope where Javadoc comments are checked.
@@ -89,7 +89,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
      * @param userAnnotations user's value.
      */
     public void setSkipAnnotations(String... userAnnotations) {
-        skipAnnotations = Arrays.asList(userAnnotations);
+        skipAnnotations = Arrays.stream(userAnnotations).collect(Collectors.toSet());
     }
 
     /**
@@ -149,10 +149,7 @@ public class MissingJavadocTypeCheck extends AbstractCheck {
 
         return customScope.isIn(scope)
             && (surroundingScope == null || surroundingScope.isIn(scope))
-            && (excludeScope == null
-                || !customScope.isIn(excludeScope)
-                || surroundingScope != null
-                && !surroundingScope.isIn(excludeScope))
+            && (excludeScope == null || !customScope.isIn(excludeScope) || surroundingScope != null && !surroundingScope.isIn(excludeScope))
             && !AnnotationUtil.containsAnnotation(ast, skipAnnotations)
             && ignorePattern.matcher(outerTypeName).find() == false;
     }

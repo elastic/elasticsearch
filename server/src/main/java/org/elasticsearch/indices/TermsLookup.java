@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,7 +56,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public TermsLookup(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             in.readOptionalString();
         }
         id = in.readString();
@@ -67,7 +67,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);

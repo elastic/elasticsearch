@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -131,12 +131,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     }
 
     @Override
-    protected Optional<String> immutableStateHandlerName() {
-        return Optional.of(ImmutableClusterSettingsAction.NAME);
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedClusterSettingsAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
+    public Set<String> modifiedKeys(ClusterUpdateSettingsRequest request) {
         Settings allSettings = Settings.builder().put(request.persistentSettings()).put(request.transientSettings()).build();
         return allSettings.keySet();
     }
@@ -196,13 +196,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     return;
                 }
 
-                // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulated in
+                // The reason the reroute needs to be sent as separate update task, is that all the *cluster* settings are encapsulated in
                 // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
                 // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
                 // completed.
                 clusterService.getRerouteService().reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
                     @Override
-                    public void onResponse(ClusterState clusterState) {
+                    public void onResponse(Void ignored) {
                         listener.onResponse(
                             new ClusterUpdateSettingsResponse(
                                 updateSettingsAcked,
@@ -257,7 +257,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         }
 
         /**
-         * Used by the immutable state handler {@link ImmutableClusterSettingsAction}
+         * Used by the reserved state handler {@link ReservedClusterSettingsAction}
          */
         public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
             this(clusterSettings, Priority.IMMEDIATE, request, null);

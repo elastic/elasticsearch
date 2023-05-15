@@ -8,6 +8,7 @@
 
 package org.elasticsearch.core;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -47,7 +48,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     public final boolean decRef() {
         touch();
         int i = refCount.decrementAndGet();
-        assert i >= 0;
+        assert i >= 0 : "invalid decRef call: already closed";
         if (i == 0) {
             try {
                 closeInternal();
@@ -94,11 +95,18 @@ public abstract class AbstractRefCounted implements RefCounted {
      * Construct an {@link AbstractRefCounted} which runs the given {@link Runnable} when all references are released.
      */
     public static AbstractRefCounted of(Runnable onClose) {
+        Objects.requireNonNull(onClose);
         return new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
                 onClose.run();
             }
+
+            @Override
+            public String toString() {
+                return "refCounted[" + onClose + "]";
+            }
         };
     }
+
 }

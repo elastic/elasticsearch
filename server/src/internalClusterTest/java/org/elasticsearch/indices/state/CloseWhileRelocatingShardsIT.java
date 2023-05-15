@@ -111,14 +111,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         }
 
         ensureGreen(TimeValue.timeValueSeconds(60L), indices);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
-                )
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
         );
 
         final String targetNode = internalCluster().startDataOnlyNode();
@@ -195,7 +189,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 }
             }
 
-            assertAcked(client().admin().cluster().reroute(new ClusterRerouteRequest().commands(commands)).get());
+            assertAcked(clusterAdmin().reroute(new ClusterRerouteRequest().commands(commands)).get());
 
             // start index closing threads
             final List<Thread> threads = new ArrayList<>();
@@ -270,14 +264,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
-                    )
-            );
+            updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
         }
     }
 }

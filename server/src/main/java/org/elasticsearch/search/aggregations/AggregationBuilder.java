@@ -124,7 +124,9 @@ public abstract class AggregationBuilder
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
         if (rewritten != this) {
-            return rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
+            return getMetadata() == null
+                ? rewritten.subAggregations(rewrittenSubAggs)
+                : rewritten.setMetadata(getMetadata()).subAggregations(rewrittenSubAggs);
         } else if (rewrittenSubAggs != factoriesBuilder) {
             return shallowCopy(rewrittenSubAggs, getMetadata());
         } else {
@@ -215,6 +217,18 @@ public abstract class AggregationBuilder
             }
         }
         return false;
+    }
+
+    /**
+     * Return false if this aggregation or any of the child aggregations does not support concurrent search
+     */
+    public boolean supportsConcurrentExecution() {
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.supportsConcurrentExecution() == false) {
+                return false;
+            }
+        }
+        return isInSortOrderExecutionRequired() == false;
     }
 
     /**

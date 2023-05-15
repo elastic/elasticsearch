@@ -1,10 +1,17 @@
 [[synthetic-source]]
 ==== Synthetic `_source`
 
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
 Though very handy to have around, the source field takes up a significant amount
 of space on disk. Instead of storing source documents on disk exactly as you
 send them, Elasticsearch can reconstruct source content on the fly upon retrieval.
-Enable this by setting `synthetic: true` in `_source`:
+Enable this by setting `mode: synthetic` in `_source`:
 
 [source,console,id=enable-synthetic-source-example]
 ----
@@ -12,7 +19,7 @@ PUT idx
 {
   "mappings": {
     "_source": {
-      "synthetic": true
+      "mode": "synthetic"
     }
   }
 }
@@ -25,25 +32,37 @@ space. There are a couple of restrictions to be aware of:
 
 * When you retrieve synthetic `_source` content it undergoes minor
 <<synthetic-source-modifications,modifications>> compared to the original JSON.
+* The `params._source` is unavailable in scripts. Instead use the
+{painless}/painless-field-context.html[`doc`] API or the <<script-fields-api, `field`>>.
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 
+** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
+** <<date-synthetic-source,`date`>>
+** <<date-nanos-synthetic-source,`date_nanos`>>
+** <<dense-vector-synthetic-source,`dense_vector`>>
 ** <<numeric-synthetic-source,`double`>>
+** <<flattened-synthetic-source, `flattened`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
 ** <<numeric-synthetic-source,`half_float`>>
+** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>
 ** <<numeric-synthetic-source,`long`>>
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
-** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
+** <<text-synthetic-source,`text`>>
+** <<version-synthetic-source,`version`>>
+** <<wildcard-synthetic-source,`wildcard`>>
+
+Runtime fields cannot, at this stage, use synthetic `_source`.
 
 [[synthetic-source-modifications]]
-===== Synthetic source modifications
+===== Synthetic `_source` modifications
 
 When synthetic `_source` is enabled, retrieved documents undergo some
 modifications compared to the original JSON.
@@ -75,6 +94,37 @@ Will become:
 {
   "foo": {
     "bar": [1, 2]
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+This can cause some arrays to vanish:
+
+[source,console,id=synthetic-source-leaf-arrays-example-sneaky]
+----
+PUT idx/_doc/1
+{
+  "foo": [
+    {
+      "bar": 1
+    },
+    {
+      "baz": 2
+    }
+  ]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "foo": {
+    "bar": 1,
+    "baz": 2
   }
 }
 ----

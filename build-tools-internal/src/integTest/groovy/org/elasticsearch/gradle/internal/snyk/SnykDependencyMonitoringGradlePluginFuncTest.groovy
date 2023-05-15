@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.snyk
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
+import org.gradle.util.GradleVersion
 import org.skyscreamer.jsonassert.JSONAssert
 
 import static java.net.HttpURLConnection.HTTP_CREATED
@@ -57,7 +58,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
             },
             "depGraphJSON": {
                 "pkgManager": {
-                    "version": "7.4.2",
+                    "version": "${GradleVersion.current().version}",
                     "name": "gradle"
                 },
                 "schemaVersion": "1.2.0",

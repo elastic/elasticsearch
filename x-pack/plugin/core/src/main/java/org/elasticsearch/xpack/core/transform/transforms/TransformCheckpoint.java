@@ -46,7 +46,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class TransformCheckpoint implements Writeable, ToXContentObject {
 
-    public static TransformCheckpoint EMPTY = new TransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L);
+    public static String EMPTY_NAME = "_empty";
+    public static TransformCheckpoint EMPTY = createEmpty(0);
+
+    public static TransformCheckpoint createEmpty(long timestampMillis) {
+        return new TransformCheckpoint(EMPTY_NAME, timestampMillis, -1L, Collections.emptyMap(), timestampMillis);
+    }
 
     // the own checkpoint
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
@@ -128,7 +133,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
     }
 
     public boolean isEmpty() {
-        return this.equals(EMPTY);
+        return EMPTY_NAME.equals(transformId) && checkpoint == -1;
     }
 
     /**
@@ -258,7 +263,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
 
     public static String documentId(String transformId, long checkpoint) {
         if (checkpoint < 0) {
-            throw new IllegalArgumentException("checkpoint must be a positive number");
+            throw new IllegalArgumentException("checkpoint must be a non-negative number");
         }
 
         return NAME + "-" + transformId + "-" + checkpoint;

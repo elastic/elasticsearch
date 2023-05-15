@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -76,6 +77,34 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
                 assertThat(serialized, containsString("[automatic]"));
             }
         }
+    }
+
+    public void testLifecycleComposition() {
+        // No lifecycles result to null
+        {
+            List<DataLifecycle> lifecycles = List.of();
+            assertThat(DataLifecycle.compose(lifecycles), nullValue());
+        }
+        // One lifecycle results to this lifecycle as the final
+        {
+            DataLifecycle lifecycle = createTestInstance();
+            List<DataLifecycle> lifecycles = List.of(lifecycle);
+            assertThat(DataLifecycle.compose(lifecycles), equalTo(lifecycle));
+        }
+        // If the last lifecycle is missing a property we keep the latest from the previous ones
+        {
+            DataLifecycle lifecycleWithRetention = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycleWithRetention, new DataLifecycle());
+            assertThat(DataLifecycle.compose(lifecycles).getDataRetention(), equalTo(lifecycleWithRetention.getDataRetention()));
+        }
+        // If both lifecycle have all properties, then the latest one overwrites all the others
+        {
+            DataLifecycle lifecycle1 = new DataLifecycle(randomMillisUpToYear9999());
+            DataLifecycle lifecycle2 = new DataLifecycle(randomMillisUpToYear9999());
+            List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
+            assertThat(DataLifecycle.compose(lifecycles), equalTo(lifecycle2));
+        }
+
     }
 
     public void testDefaultClusterSetting() {

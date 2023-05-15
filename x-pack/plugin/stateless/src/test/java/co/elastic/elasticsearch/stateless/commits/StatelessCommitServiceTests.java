@@ -48,7 +48,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
@@ -76,23 +78,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
     public void testCommitUpload() throws Exception {
         Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Map<Long, Collection<String>> requiredFiles = new HashMap<>();
-        try (var testHarness = createNode(fileCapture(uploadedFiles), (compoundCommitFile, runnable) -> {
-            long generation = Long.parseLong(compoundCommitFile.split(StatelessCompoundCommit.NAME)[1]);
-            Collection<String> required = requiredFiles.get(generation);
-            assertThat(
-                "Expected that all required files "
-                    + required
-                    + " for generation ["
-                    + generation
-                    + "] to have been uploaded "
-                    + uploadedFiles,
-                uploadedFiles,
-                hasItems(required.toArray(String[]::new))
-            );
-
-            uploadedFiles.add(compoundCommitFile);
-            runnable.run();
-        })) {
+        try (var testHarness = createNode(fileCapture(uploadedFiles), validateRequiredFiles(uploadedFiles, requiredFiles))) {
 
             List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, randomIntBetween(3, 8));
             commitRefs.forEach(
@@ -125,13 +111,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 hasItems(commitFiles.toArray(String[]::new))
             );
 
-            // Must be assert busy as the generation listener could have been triggered by a newer commit finishing
-            assertBusy(
-                () -> assertThat(
-                    "Expected that all compound commit files " + compoundCommitFiles + " have been uploaded " + uploadedFiles,
-                    uploadedFiles,
-                    hasItems(compoundCommitFiles.toArray(String[]::new))
-                )
+            assertThat(
+                "Expected that all compound commit files " + compoundCommitFiles + " have been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItems(compoundCommitFiles.toArray(String[]::new))
             );
         }
     }
@@ -178,13 +161,108 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 hasItems(commitFiles.toArray(String[]::new))
             );
 
-            // Must be assert busy as the generation listener could have been triggered by a newer commit finishing
-            assertBusy(
-                () -> assertThat(
-                    "Expected that all compound commit files " + compoundCommitFiles + " have been uploaded " + uploadedFiles,
-                    uploadedFiles,
-                    hasItems(compoundCommitFiles.toArray(String[]::new))
+            assertThat(
+                "Expected that all compound commit files " + compoundCommitFiles + " have been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItems(compoundCommitFiles.toArray(String[]::new))
+            );
+        }
+    }
+
+    public void testSecondCommitDefersSchedulingForFirstCommit() throws Exception {
+        Set<String> uploadedFiles = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Map<Long, Collection<String>> requiredFiles = new HashMap<>();
+        AtomicReference<String> commitFileToBlock = new AtomicReference<>();
+        AtomicReference<String> firstCommitFile = new AtomicReference<>();
+        AtomicReference<String> secondCommitFile = new AtomicReference<>();
+
+        CountDownLatch startingUpload = new CountDownLatch(1);
+        CountDownLatch blocking = new CountDownLatch(1);
+
+        CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> validateRequiredFiles = validateRequiredFiles(
+            uploadedFiles,
+            requiredFiles
+        );
+        try (var testHarness = createNode((fileName, runnable) -> {
+            if (fileName.equals(commitFileToBlock.get())) {
+                try {
+                    startingUpload.countDown();
+                    blocking.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            uploadedFiles.add(fileName);
+            runnable.run();
+
+        }, (compoundCommitFile, runnable) -> {
+            if (compoundCommitFile.equals(firstCommitFile.get())) {
+                assertFalse(uploadedFiles.contains(secondCommitFile.get()));
+            } else {
+                assertEquals(compoundCommitFile, secondCommitFile.get());
+                assertTrue(uploadedFiles.contains(firstCommitFile.get()));
+            }
+            validateRequiredFiles.accept(compoundCommitFile, runnable);
+        })) {
+
+            List<StatelessCommitRef> commitRefs = generateIndexCommits(testHarness, 2);
+            StatelessCommitRef firstCommit = commitRefs.get(0);
+            StatelessCommitRef secondCommit = commitRefs.get(1);
+
+            commitRefs.forEach(
+                statelessCommitRef -> requiredFiles.put(
+                    statelessCommitRef.getGeneration(),
+                    statelessCommitRef.getCommitFiles()
+                        .stream()
+                        .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                        .collect(Collectors.toList())
                 )
+            );
+
+            commitFileToBlock.set(
+                firstCommit.getAdditionalFiles()
+                    .stream()
+                    .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                    .findFirst()
+                    .get()
+            );
+
+            List<String> commitFiles = commitRefs.stream()
+                .flatMap(ref -> ref.getCommitFiles().stream())
+                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
+                .toList();
+
+            List<String> compoundCommitFiles = commitRefs.stream().map(ref -> StatelessCompoundCommit.NAME + ref.getGeneration()).toList();
+            firstCommitFile.set(compoundCommitFiles.get(0));
+            secondCommitFile.set(compoundCommitFiles.get(1));
+
+            testHarness.commitService.onCommitCreation(firstCommit);
+            startingUpload.await();
+            assertThat(uploadedFiles, not(hasItems(commitFileToBlock.get())));
+            assertThat(uploadedFiles, not(hasItems(firstCommitFile.get())));
+
+            testHarness.commitService.onCommitCreation(secondCommit);
+
+            assertThat(uploadedFiles, not(hasItems(secondCommitFile.get())));
+
+            blocking.countDown();
+
+            for (StatelessCommitRef commitRef : commitRefs) {
+                PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                testHarness.commitService.addOrNotify(testHarness.shardId, commitRef.getGeneration(), future);
+                future.actionGet();
+            }
+
+            assertThat(
+                "Expected that all commit files " + commitFiles + " have been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItems(commitFiles.toArray(String[]::new))
+            );
+
+            assertThat(
+                "Expected that all compound commit files " + compoundCommitFiles + " have been uploaded " + uploadedFiles,
+                uploadedFiles,
+                hasItems(compoundCommitFiles.toArray(String[]::new))
             );
         }
     }
@@ -316,6 +394,29 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
             expectThrows(AlreadyClosedException.class, failedFuture::actionGet);
         }
+    }
+
+    private static CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> validateRequiredFiles(
+        Set<String> uploadedFiles,
+        Map<Long, Collection<String>> requiredFiles
+    ) {
+        return (compoundCommitFile, runnable) -> {
+            long generation = Long.parseLong(compoundCommitFile.split(StatelessCompoundCommit.NAME)[1]);
+            Collection<String> required = requiredFiles.get(generation);
+            assertThat(
+                "Expected that all required files "
+                    + required
+                    + " for generation ["
+                    + generation
+                    + "] to have been uploaded "
+                    + uploadedFiles,
+                uploadedFiles,
+                hasItems(required.toArray(String[]::new))
+            );
+
+            uploadedFiles.add(compoundCommitFile);
+            runnable.run();
+        };
     }
 
     private static CheckedBiConsumer<String, CheckedRunnable<IOException>, IOException> fileCapture(Set<String> uploadedFiles) {

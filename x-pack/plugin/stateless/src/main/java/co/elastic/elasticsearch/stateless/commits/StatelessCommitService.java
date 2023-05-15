@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
@@ -33,12 +34,14 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -105,7 +108,6 @@ public class StatelessCommitService {
         var generation = reference.getGeneration();
 
         ShardCommitState commitState = getSafe(fileToBlobFile, reference.getShardId());
-
         if (commitState.recoveredGeneration == reference.getGeneration()) {
             logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
             IOUtils.closeWhileHandlingException(reference);
@@ -113,8 +115,7 @@ public class StatelessCommitService {
         }
 
         logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-
-        commitState.markNewCommit(reference.getCommitFiles(), reference.getAdditionalFiles());
+        commitState.markNewCommit(generation, reference.getCommitFiles(), reference.getAdditionalFiles());
         CommitUpload commitUpload = new CommitUpload(commitState, ActionListener.wrap(new ActionListener<>() {
             @Override
             public void onResponse(StatelessCompoundCommit commit) {
@@ -182,12 +183,7 @@ public class StatelessCommitService {
         }
 
         @Override
-        public void tryAction(ActionListener<StatelessCompoundCommit> originalListener) {
-            ActionListener<StatelessCompoundCommit> listener = originalListener.delegateResponse((l, e) -> {
-                logger.info(() -> format("%s failed attempt to upload commit [%s] to object store, will retry", shardId, generation), e);
-                l.onFailure(e);
-            });
-
+        public void tryAction(ActionListener<StatelessCompoundCommit> listener) {
             try {
                 // Only do this once across multiple retries since file lengths should not change
                 if (this.commitFilesToLength.get() == null) {
@@ -199,9 +195,24 @@ public class StatelessCommitService {
                     this.commitFilesToLength.set(Collections.unmodifiableMap(mutableCommitFiles));
                 }
 
-                ActionListener<Void> missingUploadedListener = listener.delegateFailure((l, v) -> uploadStatelessCommitFile(l));
-                ActionListener<Void> additionalUploadedListener = missingUploadedListener.delegateFailure((l, v) -> uploadMissingFiles(l));
-                uploadAdditionalFiles(additionalUploadedListener);
+            } catch (Exception e) {
+                assert e instanceof IOException : e;
+                logger.info(() -> format("%s exception while reading file sizes to upload [%s] to object store", shardId, generation), e);
+                listener.onFailure(e);
+                return;
+            }
+
+            executeUpload(listener.delegateResponse((l, e) -> {
+                logger.info(() -> format("%s failed attempt to upload commit [%s] to object store, will retry", shardId, generation), e);
+                l.onFailure(e);
+            }));
+        }
+
+        private void executeUpload(ActionListener<StatelessCompoundCommit> listener) {
+            try {
+                ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadStatelessCommitFile(l));
+                ActionListener<Void> additionalListener = uploadReadyListener.delegateFailure((l, v) -> checkReadyToUpload(l, listener));
+                uploadAdditionalFiles(additionalListener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -220,15 +231,18 @@ public class StatelessCommitService {
             uploadFiles(additionalFiles, listener);
         }
 
-        private void uploadMissingFiles(ActionListener<Void> listener) {
-            final List<String> missingFiles = reference.getCommitFiles()
-                .stream()
-                .filter(file -> file.startsWith(IndexFileNames.SEGMENTS) == false)
-                .filter(f -> shardCommitState.fileMap.get(f).isUploaded() == false)
-                .toList();
-
-            logger.trace("{} uploading [{}] missing files for commit [{}]", shardId, missingFiles.size(), generation);
-            uploadFiles(missingFiles, listener);
+        private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<StatelessCompoundCommit> notReadyListener) {
+            OptionalLong missing = shardCommitState.pendingUploadGenerations.stream().mapToLong(l -> l).filter(g -> g < generation).max();
+            if (missing.isPresent()) {
+                long missingGeneration = missing.getAsLong();
+                logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, missingGeneration, generation);
+                shardCommitState.addOrNotify(
+                    missingGeneration,
+                    notReadyListener.delegateFailure((l, unused) -> executeUpload(notReadyListener))
+                );
+            } else {
+                readyListener.onResponse(null);
+            }
         }
 
         private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
@@ -338,7 +352,7 @@ public class StatelessCommitService {
     private class ShardCommitState {
 
         private final ShardId shardId;
-
+        private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
         private final Map<String, BlobFile> fileMap = new ConcurrentHashMap<>();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private volatile long recoveredGeneration = -1;
@@ -356,7 +370,7 @@ public class StatelessCommitService {
                 blobFile.setBlobLocation(location);
                 fileMap.put(fileName, blobFile);
             });
-            markCommitUploaded(recoveredCommit);
+            markUploadedGeneration(recoveredCommit.generation());
         }
 
         public void markFileUploaded(String name, BlobLocation objectStoreLocation) {
@@ -388,7 +402,8 @@ public class StatelessCommitService {
             return writer;
         }
 
-        public void markNewCommit(Collection<String> commitFiles, Set<String> additionalFiles) {
+        public void markNewCommit(long generation, Collection<String> commitFiles, Set<String> additionalFiles) {
+            pendingUploadGenerations.add(generation);
             for (String file : commitFiles) {
                 if (additionalFiles.contains(file)) {
                     BlobFile existing = fileMap.put(file, new BlobFile());
@@ -409,6 +424,8 @@ public class StatelessCommitService {
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
+            boolean removed = pendingUploadGenerations.remove(commit.generation());
+            assert removed;
             markUploadedGeneration(commit.generation());
         }
 

@@ -2,7 +2,7 @@
   "processors": [
     {
       "rename": {
-        "if": "ctx?.message?.startsWith('{') && ctx?.message?.endsWith('}')",
+        "if": "ctx?.message?.startsWith('{') == true && ctx?.message?.endsWith('}') == true",
         "field": "message",
         "target_field": "_tmp_json_message",
         "ignore_missing": true

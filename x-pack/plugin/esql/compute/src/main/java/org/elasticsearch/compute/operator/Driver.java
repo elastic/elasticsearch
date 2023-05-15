@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.ann.Experimental;
 import org.elasticsearch.compute.data.Page;
@@ -208,6 +208,10 @@ public class Driver implements Runnable, Releasable, Describable {
         }
     }
 
+    private boolean isCancelled() {
+        return cancelReason.get() != null;
+    }
+
     private void ensureNotCancelled() {
         String reason = cancelReason.get();
         if (reason != null) {
@@ -221,8 +225,22 @@ public class Driver implements Runnable, Releasable, Describable {
         schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
     }
 
+    // Drains all active operators and closes them.
+    private void drainAndCloseOperators(Exception e) {
+        Iterator<Operator> itr = activeOperators.iterator();
+        while (itr.hasNext()) {
+            try {
+                Releasables.closeWhileHandlingException(itr.next());
+            } catch (Exception x) {
+                e.addSuppressed(x);
+            }
+            itr.remove();
+        }
+        Releasables.closeWhileHandlingException(releasable);
+    }
+
     private static void schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver, ActionListener<Void> listener) {
-        executor.execute(new ActionRunnable<>(listener) {
+        executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
@@ -234,13 +252,20 @@ public class Driver implements Runnable, Releasable, Describable {
                     schedule(maxTime, maxIterations, executor, driver, listener);
                 } else {
                     synchronized (driver) {
-                        driver.ensureNotCancelled();
-                        driver.blocked.set(fut);
+                        if (driver.isCancelled() == false) {
+                            driver.blocked.set(fut);
+                        }
                     }
                     fut.addListener(
-                        ActionListener.wrap(ignored -> schedule(maxTime, maxIterations, executor, driver, listener), listener::onFailure)
+                        ActionListener.wrap(ignored -> schedule(maxTime, maxIterations, executor, driver, listener), this::onFailure)
                     );
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                driver.drainAndCloseOperators(e);
+                listener.onFailure(e);
             }
         });
     }

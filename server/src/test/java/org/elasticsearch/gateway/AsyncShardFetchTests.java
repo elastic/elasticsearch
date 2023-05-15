@@ -35,21 +35,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = TestDiscoveryNode.create(
-        "node1",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
-    );
+    private final DiscoveryNode node1 = TestDiscoveryNode.builder("node1")
+        .roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final Response response1 = new Response(node1);
     private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = TestDiscoveryNode.create(
-        "node2",
-        buildNewFakeTransportAddress(),
-        Collections.emptyMap(),
-        Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
-    );
+    private final DiscoveryNode node2 = TestDiscoveryNode.builder("node2")
+        .roles(Collections.singleton(DiscoveryNodeRole.DATA_ROLE))
+        .build();
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
 

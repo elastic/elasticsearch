@@ -54,7 +54,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -492,14 +491,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static ClusterState state() {
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(
-                TestDiscoveryNode.create(
-                    "1",
-                    ESTestCase.buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    new HashSet<>(DiscoveryNodeRole.roles())
-                )
-            )
+            .add(TestDiscoveryNode.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
             .masterNodeId("1")
             .localNodeId("1")
             .build();

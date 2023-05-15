@@ -200,7 +200,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
-        return TestDiscoveryNode.create(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles);
+        return TestDiscoveryNode.builder(nodeId).roles(roles).build();
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {

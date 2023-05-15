@@ -38,7 +38,6 @@ import org.junit.Before;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING;
@@ -181,7 +180,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     }
 
     public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
-        remoteNode = TestDiscoveryNode.create("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        remoteNode = TestDiscoveryNode.builder("remote-node").roles(emptySet()).build();
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";
 

@@ -52,7 +52,6 @@ import java.io.OutputStream;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,12 +73,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         nodeEnvironment = newNodeEnvironment();
-        localNode = TestDiscoveryNode.create(
-            "node1",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)
-        );
+        localNode = TestDiscoveryNode.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.MASTER_ROLE)).build();
         clusterName = new ClusterName(randomAlphaOfLength(10));
         final Settings.Builder settingsBuilder = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value());
         if (randomBoolean()) {
@@ -377,12 +371,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final List<Closeable> cleanup = new ArrayList<>(2);
 
         try {
-            DiscoveryNode localNode = TestDiscoveryNode.create(
-                "node1",
-                buildNewFakeTransportAddress(),
-                Collections.emptyMap(),
-                Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)
-            );
+            DiscoveryNode localNode = TestDiscoveryNode.builder("node1").roles(Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE)).build();
             Settings settings = Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value())
                 .put(nonMasterNode())

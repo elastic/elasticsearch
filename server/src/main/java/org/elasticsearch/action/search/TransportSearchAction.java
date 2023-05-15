@@ -340,8 +340,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
+                    // TODO: pass parentTaskId
                     collectSearchShards(
-                        parentTaskId,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
@@ -596,7 +596,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void collectSearchShards(
-        TaskId parentTask,
         IndicesOptions indicesOptions,
         String preference,
         String routing,
@@ -663,7 +662,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         allowPartialResults,
                         clusterAlias
                     );
-                    searchShardsRequest.setParentTask(parentTask);
                     transportService.sendRequest(
                         connection,
                         SearchShardsAction.NAME,
@@ -676,7 +674,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         .local(true)
                         .preference(preference)
                         .routing(routing);
-                    searchShardsRequest.setParentTask(parentTask);
                     transportService.sendRequest(
                         connection,
                         ClusterSearchShardsAction.NAME,

@@ -840,7 +840,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 AtomicInteger skippedClusters = new AtomicInteger();
                 TransportSearchAction.collectSearchShards(
-                    new TaskId("n", 1),
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -869,7 +868,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 TransportSearchAction.collectSearchShards(
-                    new TaskId("n", 1),
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
                     null,
@@ -917,7 +915,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 TransportSearchAction.collectSearchShards(
-                    new TaskId("n", 1),
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -947,7 +944,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 TransportSearchAction.collectSearchShards(
-                    new TaskId("n", 1),
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -993,7 +989,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 TransportSearchAction.collectSearchShards(
-                    new TaskId("t", 1),
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,

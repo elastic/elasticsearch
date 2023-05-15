@@ -275,6 +275,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(daysBetween, is(7L));
 
         assertThat(getApiKeyDocument(response.getId()).get("type"), equalTo("rest"));
+        assertThat(getApiKeyInfo(client(), response.getId(), randomBoolean(), randomBoolean()).getType(), is(ApiKey.Type.REST));
 
         // create simple api key
         final CreateApiKeyResponse simple = new CreateApiKeyRequestBuilder(client).setName("simple").get();

@@ -803,9 +803,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             metadataBuilder.transientSettings(clusterSettings);
         }
         Metadata metadata = metadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
             c -> c.apply(nodettings, pluginsAndModules, clusterState, licenseState)

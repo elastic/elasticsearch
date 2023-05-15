@@ -240,6 +240,10 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
+    private static <T> T extractValues(Map<String, Object> properties, String path) {
+        return (T) properties.get(path);
+    }
+
     private static MappingTypeAndFormat getMappingTypeAndFormat(Map<String, Object> properties, String fieldName, boolean fieldRequired) {
         assert Strings.isEmpty(fieldName) == false : "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
@@ -257,7 +261,7 @@ public class EnrichPolicyRunner implements Runnable {
                     type
                 );
             }
-            Map<String, Object> currentProperties = ((Map<String, Object>) currentField.get("properties"));
+            Map<String, Object> currentProperties = extractValues(currentField, "properties");
             if (currentProperties == null) {
                 if (fieldRequired) {
                     throw new ElasticsearchException(
@@ -269,7 +273,7 @@ public class EnrichPolicyRunner implements Runnable {
                     return null;
                 }
             }
-            currentField = ((Map<String, Object>) currentProperties.get(fieldPart));
+            currentField = extractValues(currentProperties, fieldPart);
             if (currentField == null) {
                 if (fieldRequired) {
                     throw new ElasticsearchException(

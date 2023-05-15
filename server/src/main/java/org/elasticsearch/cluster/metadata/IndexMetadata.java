@@ -1298,6 +1298,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * @return whether this index has a time series timestamp range
+     */
+    public boolean hasTimeSeriesTimestampRange() {
+        return indexMode != null && indexMode.getTimestampBound(this) != null;
+    }
+
+    /**
+     * @param dateFieldType the date field type of '@timestamp' field and
+     *                      used to convert the start and end times recorded in index metadata
+     *                      to the right format that is being used by '@timestamp' field.
+     *                      For example, the '@timestamp' can be configured to nanosecond precision.
      * @return the time range this index represents if this index is in time series mode.
      *         Otherwise <code>null</code> is returned.
      */
@@ -1307,10 +1318,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (bounds != null) {
             long start = bounds.startTime();
             long end = bounds.endTime();
-            if (dateFieldType != null) {
-                start = dateFieldType.resolution().convert(Instant.ofEpochMilli(start));
-                end = dateFieldType.resolution().convert(Instant.ofEpochMilli(end));
-            }
+            start = dateFieldType.resolution().convert(Instant.ofEpochMilli(start));
+            end = dateFieldType.resolution().convert(Instant.ofEpochMilli(end));
             return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(start, end));
         } else {
             return null;

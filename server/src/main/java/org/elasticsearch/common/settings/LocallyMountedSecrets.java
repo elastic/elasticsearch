@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -234,14 +235,26 @@ public class LocallyMountedSecrets implements SecureSettings {
     record LocalFileSecrets(Map<String, byte[]> entries, ReservedStateVersion metadata) implements Writeable {
 
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
-            // TODO[wrb]: version checks
+            if (in.getTransportVersion().before(TransportVersion.V_8_500_001)) {
+                return new LocalFileSecrets(
+                    in.readMap(StreamInput::readString, i -> i.readString().getBytes(StandardCharsets.UTF_8)),
+                    ReservedStateVersion.readFrom(in)
+                );
+            }
             return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            // TODO[wrb]: version checks
-            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
+            if (out.getTransportVersion().before(TransportVersion.V_8_500_001)) {
+                out.writeMap(
+                    (entries == null) ? Map.of() : entries,
+                    StreamOutput::writeString,
+                    (o, byteArray) -> o.writeString(new String(byteArray, StandardCharsets.UTF_8))
+                );
+            } else {
+                out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
+            }
             metadata.writeTo(out);
         }
     }

@@ -1246,7 +1246,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1353,7 +1358,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1402,7 +1412,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),

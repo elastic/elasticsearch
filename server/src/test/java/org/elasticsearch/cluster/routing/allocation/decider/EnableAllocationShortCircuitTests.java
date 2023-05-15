@@ -66,7 +66,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             routingTableBuilder.addAsNew(indexMetadata);
         }
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodesBuilder)
             .metadata(metadataBuilder)
             .routingTable(routingTableBuilder.build())
@@ -188,7 +188,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")))

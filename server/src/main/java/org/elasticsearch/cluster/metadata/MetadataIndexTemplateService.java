@@ -91,7 +91,9 @@ public class MetadataIndexTemplateService {
     static {
         final Map<String, Map<String, String>> defaultTimestampField = Map.of(
             DEFAULT_TIMESTAMP_FIELD,
-            Map.of("type", DateFieldMapper.CONTENT_TYPE)
+            // We inject ignore_malformed false so that if a user does not add the timestamp field it will explicitly skip applying any
+            // other ignore_malformed configurations from the index settings.
+            Map.of("type", DateFieldMapper.CONTENT_TYPE, "ignore_malformed", "false")
         );
         try {
             DEFAULT_TIMESTAMP_MAPPING = new CompressedXContent(

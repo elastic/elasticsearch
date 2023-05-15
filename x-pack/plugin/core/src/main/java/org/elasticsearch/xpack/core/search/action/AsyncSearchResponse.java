@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -194,7 +195,7 @@ public class AsyncSearchResponse extends ActionResponse implements StatusToXCont
 
         if (searchResponse != null) {
             builder.field("response");
-            searchResponse.toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(searchResponse).toXContent(builder, params);
         }
         if (error != null) {
             builder.startObject("error");

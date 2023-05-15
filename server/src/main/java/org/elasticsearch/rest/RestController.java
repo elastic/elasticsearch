@@ -263,6 +263,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (RESERVED_PATHS.contains(path)) {
             throw new IllegalArgumentException("path [" + path + "] is a reserved path and may not be registered");
         }
+        // the HTTP OPTIONS method is treated internally, not by handlers, see {@code #handleNoHandlerFound}
+        assert method != RestRequest.Method.OPTIONS : "There should be no handlers registered for the OPTIONS HTTP method";
         handlers.insertOrUpdate(
             path,
             new MethodHandlers(path).addMethod(method, version, handler),

@@ -1088,7 +1088,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
-            totalOutgoingMoves.put("node-" + i, new AtomicInteger());
+            var nodeId = "node-" + i;
+            if (isReconciled(clusterState.getRoutingNodes().node(nodeId), balance) == false) {
+                totalOutgoingMoves.put(nodeId, new AtomicInteger());
+            }
         }
 
         while (true) {
@@ -1106,6 +1109,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
 
             var summary = totalOutgoingMoves.values().stream().mapToInt(AtomicInteger::get).summaryStatistics();
+            // ensure that we do not cause hotspots by round-robin unreconciled source nodes when picking next rebalance
+            // (already reconciled nodes are excluded as they are no longer causing new moves)
             assertThat(
                 "Every node expect to have similar amount of outgoing rebalances: " + totalOutgoingMoves,
                 summary.getMax() - summary.getMin(),

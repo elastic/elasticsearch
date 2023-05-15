@@ -1,5 +1,0 @@
-pr: 96080
-summary: "[Fleet] Give `kibana_system` delete privilege on .fleet-secrets index"
-area: Infra/Plugins
-type: feature
-issues: []

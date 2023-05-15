@@ -1,0 +1,5 @@
+pr: 96114
+summary: Build search analyzers on shard recovery
+area: "Distributed, Analysis"
+type: enhancement
+issues: []

@@ -425,7 +425,7 @@ specifying the right path for the (single) metric to be passed to the wrapping a
 
 [source,console]
 ----
-POST /node/_search?filter_path=aggregations
+POST /test*/_search?filter_path=aggregations
 {
   "aggs": {
     "ip": {
@@ -436,7 +436,7 @@ POST /node/_search?filter_path=aggregations
         "tm": {
           "top_metrics": {
             "metrics": {"field": "m"},
-            "sort": {"date": "desc"},
+            "sort": {"s": "desc"},
             "size": 1
           }
         },
@@ -453,6 +453,7 @@ POST /node/_search?filter_path=aggregations
   }
 }
 ----
-// TESTRESPONSE
+// TEST[continued]
 
-The `bucket_path` uses the `top_metrics` name `tm` and a keyword for the metric providing the aggregate value, namely `m`.
+The `bucket_path` uses the `top_metrics` name `tm` and a keyword for the metric providing the aggregate value,
+namely `m`.

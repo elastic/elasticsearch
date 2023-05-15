@@ -463,7 +463,7 @@ POST /sales/_search?size=0
 }
 
 --------------------------------------------------
-// TESTRESPONSE
+// TEST[setup:sales]
 
 The `bucket_path` uses the `top_hits` name `top_sales_hits` and a keyword for the field providing the aggregate value,
 namely `_source` field `price` in the example above. This is equivalent to using the path

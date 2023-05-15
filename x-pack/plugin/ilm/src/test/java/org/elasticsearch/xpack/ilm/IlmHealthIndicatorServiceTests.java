@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.ACTION_STUCK_DEFINITIONS;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.NAME;
 import static org.elasticsearch.xpack.ilm.IlmHealthIndicatorService.RULES_BY_ACTION_CONFIG;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -259,6 +260,25 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(
             IlmHealthIndicatorService.ILM_NOT_RUNNING.definition().getUniqueId(),
             equalTo("elasticsearch:health:ilm:diagnosis:ilm_disabled")
+        );
+        var definitionIds = ACTION_STUCK_DEFINITIONS.values()
+            .stream()
+            .map(fn -> fn.apply("some-policy"))
+            .map(Diagnosis.Definition::getUniqueId)
+            .toList();
+
+        assertThat(
+            definitionIds,
+            containsInAnyOrder(
+                "elasticsearch:health:ilm:diagnosis:stuck_action:rollover",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:migrate",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:searchable_snapshot",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:delete",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:shrink",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:forcemerge",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:allocate",
+                "elasticsearch:health:ilm:diagnosis:stuck_action:downsample"
+            )
         );
     }
 

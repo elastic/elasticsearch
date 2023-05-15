@@ -570,12 +570,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * This method is usually used when the {@link Exception} is rendered as a full XContent object, and its output can be parsed
      * by the {@link #failureFromXContent(XContentParser)} method.
      */
-    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
+    public static XContentBuilder generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
         throws IOException {
         // No exception to render as an error
         if (e == null) {
-            builder.field(ERROR, "unknown");
-            return;
+            return builder.field(ERROR, "unknown");
         }
 
         // Render the exception with a simple message
@@ -589,8 +588,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
                 t = t.getCause();
             }
-            builder.field(ERROR, message);
-            return;
+            return builder.field(ERROR, message);
         }
 
         // Render the exception with all details
@@ -606,7 +604,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.endArray();
         }
         generateThrowableXContent(builder, params, e);
-        builder.endObject();
+        return builder.endObject();
     }
 
     /**

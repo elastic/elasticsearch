@@ -16,10 +16,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public final class SearchHits implements Writeable, ToXContentFragment, Iterable<SearchHit> {
+public final class SearchHits implements Writeable, ChunkedToXContent, Iterable<SearchHit> {
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
     public static final SearchHits EMPTY_WITH_TOTAL_HITS = new SearchHits(EMPTY, new TotalHits(0, Relation.EQUAL_TO), 0);
@@ -170,31 +171,27 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.HITS);
-        boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
-        if (totalHitAsInt) {
-            long total = totalHits == null ? -1 : totalHits.value;
-            builder.field(Fields.TOTAL, total);
-        } else if (totalHits != null) {
-            builder.startObject(Fields.TOTAL);
-            builder.field("value", totalHits.value);
-            builder.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
-            builder.endObject();
-        }
-        if (Float.isNaN(maxScore)) {
-            builder.nullField(Fields.MAX_SCORE);
-        } else {
-            builder.field(Fields.MAX_SCORE, maxScore);
-        }
-        builder.field(Fields.HITS);
-        builder.startArray();
-        for (SearchHit hit : hits) {
-            hit.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(Iterators.single((b, p) -> b.startObject(Fields.HITS)), Iterators.single((b, p) -> {
+            boolean totalHitAsInt = params.paramAsBoolean(RestSearchAction.TOTAL_HITS_AS_INT_PARAM, false);
+            if (totalHitAsInt) {
+                long total = totalHits == null ? -1 : totalHits.value;
+                b.field(Fields.TOTAL, total);
+            } else if (totalHits != null) {
+                b.startObject(Fields.TOTAL);
+                b.field("value", totalHits.value);
+                b.field("relation", totalHits.relation == Relation.EQUAL_TO ? "eq" : "gte");
+                b.endObject();
+            }
+            return b;
+        }), Iterators.single((b, p) -> {
+            if (Float.isNaN(maxScore)) {
+                b.nullField(Fields.MAX_SCORE);
+            } else {
+                b.field(Fields.MAX_SCORE, maxScore);
+            }
+            return b;
+        }), ChunkedToXContentHelper.array(Fields.HITS, Iterators.forArray(hits)), ChunkedToXContentHelper.endObject());
     }
 
     public static SearchHits fromXContent(XContentParser parser) throws IOException {

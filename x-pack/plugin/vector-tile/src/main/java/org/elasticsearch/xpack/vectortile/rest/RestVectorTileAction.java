@@ -19,6 +19,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -414,7 +415,7 @@ public class RestVectorTileAction extends BaseRestHandler {
             final Rectangle tile = request.getBoundingBox();
             featureBuilder.mergeFrom(featureFactory.box(tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat()));
         }
-        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, response);
+        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, ChunkedToXContent.wrapAsToXContent(response));
         metaLayerBuilder.addFeatures(featureBuilder);
         VectorTileUtils.addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;

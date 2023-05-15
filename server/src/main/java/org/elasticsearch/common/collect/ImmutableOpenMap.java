@@ -129,6 +129,23 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         return (es = entrySet) == null ? (entrySet = new EntrySet<>(map)) : es;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof ImmutableOpenMap<?, ?> immutableOpenMap) {
+            return map.equals(immutableOpenMap.map);
+        }
+        return super.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        // noop override to make checkstyle happy since we override equals
+        return super.hashCode();
+    }
+
     private static final class ConversionIterator<KType, VType> implements Iterator<Map.Entry<KType, VType>> {
 
         private final Iterator<ObjectObjectCursor<KType, VType>> original;

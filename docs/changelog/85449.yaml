@@ -1,6 +1,0 @@
-pr: 85449
-summary: Format runtime `geo_points`
-area: Geo
-type: bug
-issues:
- - 85245

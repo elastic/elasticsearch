@@ -356,9 +356,9 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
     ) {
         if (request.getExpandedIds().size() != tasks.size()) {
             if (taskOperationFailures.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+                throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
             } else if (failedNodeExceptions.isEmpty() == false) {
-                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+                throw failedNodeExceptions.get(0);
             } else {
                 // This can happen when the actual task in the node no longer exists,
                 // which means the data frame analytic(s) have already been closed.

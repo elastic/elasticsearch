@@ -86,6 +86,8 @@ public abstract class SourceGenerator {
             if (container.limit().offset() > 0) {
                 source.from(container.limit().offset());
             }
+        } else {
+            source.size(0);
         }
 
         optimize(container, source);

@@ -17,20 +17,27 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.stats.HealthApiStats;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
@@ -41,7 +48,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         super(NAME, GetHealthAction.Response::new);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContent {
 
         private final ClusterName clusterName;
         @Nullable
@@ -77,24 +84,42 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 .orElseThrow(() -> new NoSuchElementException("Indicator [" + name + "] is not found"));
         }
 
+        public List<HealthIndicatorResult> getIndicatorResults() {
+            return indicators;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            if (status != null) {
-                builder.field("status", status.xContentValue());
-            }
-            builder.field("cluster_name", clusterName.value());
-            builder.startObject("indicators");
-            for (HealthIndicatorResult result : indicators) {
-                builder.field(result.name(), result, params);
-            }
-            builder.endObject();
-            return builder.endObject();
+        @SuppressWarnings("unchecked")
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
+                builder.startObject();
+                if (status != null) {
+                    builder.field("status", status.xContentValue());
+                }
+                builder.field("cluster_name", clusterName.value());
+                builder.startObject("indicators");
+                return builder;
+            }),
+                Iterators.concat(
+                    indicators.stream()
+                        .map(
+                            indicator -> Iterators.concat(
+                                // having the indicator name printed here prevents us from flat mapping all
+                                // indicators however the affected resources which are the O(indices) fields are
+                                // flat mapped over all diagnoses within the indicator
+                                Iterators.single((ToXContent) (builder, params) -> builder.field(indicator.name())),
+                                indicator.toXContentChunked(outerParams)
+                            )
+                        )
+                        .toArray(Iterator[]::new)
+                ),
+                Iterators.single((b, p) -> b.endObject().endObject())
+            );
         }
 
         @Override
@@ -122,22 +147,31 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static class Request extends ActionRequest {
         private final String indicatorName;
-        private final boolean explain;
+        private final boolean verbose;
+        private final int size;
 
-        public Request(boolean explain) {
-            // We never compute details if no indicator name is given because of the runtime cost:
-            this.indicatorName = null;
-            this.explain = explain;
+        public Request(boolean verbose, int size) {
+            this(null, verbose, size);
         }
 
-        public Request(String indicatorName, boolean explain) {
+        public Request(String indicatorName, boolean verbose, int size) {
             this.indicatorName = indicatorName;
-            this.explain = explain;
+            this.verbose = verbose;
+            this.size = size;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (size < 0) {
+                validationException = addValidationError("The size parameter must be a positive integer", validationException);
+            }
+            return validationException;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
     }
 
@@ -146,6 +180,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterService clusterService;
         private final HealthService healthService;
         private final NodeClient client;
+        private final HealthApiStats healthApiStats;
 
         @Inject
         public TransportAction(
@@ -153,27 +188,33 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             TransportService transportService,
             ClusterService clusterService,
             HealthService healthService,
-            NodeClient client
+            NodeClient client,
+            HealthApiStats healthApiStats
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
             this.clusterService = clusterService;
             this.healthService = healthService;
             this.client = client;
+            this.healthApiStats = healthApiStats;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
+            assert task instanceof CancellableTask;
             healthService.getHealth(
                 client,
                 request.indicatorName,
-                request.explain,
-                responseListener.map(
-                    healthIndicatorResults -> new Response(
+                request.verbose,
+                request.size,
+                responseListener.map(healthIndicatorResults -> {
+                    Response response = new Response(
                         clusterService.getClusterName(),
                         healthIndicatorResults,
                         request.indicatorName == null
-                    )
-                )
+                    );
+                    healthApiStats.track(request.verbose, response);
+                    return response;
+                })
             );
         }
     }

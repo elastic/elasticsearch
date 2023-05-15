@@ -32,7 +32,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -88,7 +87,10 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
         assertThat(getEndTime(result, dataStreamName, 1), not(equalTo(previousEndTime2)));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(
+            getEndTime(result, dataStreamName, 1),
+            equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
     }
 
     public void testUpdateTimeSeriesTemporalRange_customLookAHeadTime() {
@@ -114,7 +116,6 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         Instant previousStartTime1 = getStartTime(in, dataStreamName, 0);
         Instant previousEndTime1 = getEndTime(in, dataStreamName, 0);
         Instant previousStartTime2 = getStartTime(in, dataStreamName, 1);
-        Instant previousEndTime2 = getEndTime(in, dataStreamName, 1);
 
         now = now.plus(1, ChronoUnit.HOURS);
         var result = instance.updateTimeSeriesTemporalRange(in, now);
@@ -122,7 +123,10 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(getStartTime(result, dataStreamName, 0), equalTo(previousStartTime1));
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval)));
+        assertThat(
+            getEndTime(result, dataStreamName, 1),
+            equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval).truncatedTo(ChronoUnit.SECONDS))
+        );
     }
 
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseReplicated() {
@@ -146,7 +150,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     true,
                     d.isSystem(),
                     d.isAllowCustomRouting(),
-                    d.getIndexMode()
+                    d.getIndexMode(),
+                    d.getLifecycle()
                 )
             )
             .build();
@@ -187,8 +192,14 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(mbBuilder).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
-        assertThat(getEndTime(result, dataStreamName1, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
-        assertThat(getEndTime(result, dataStreamName2, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(
+            getEndTime(result, dataStreamName1, 0),
+            equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
+        assertThat(
+            getEndTime(result, dataStreamName2, 0),
+            equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS))
+        );
         assertThat(getEndTime(result, dataStreamName3, 0), equalTo(start));
     }
 

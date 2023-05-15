@@ -2,8 +2,6 @@
 [[security-domain]]
 === Security domains
 
-beta::[]
-
 Security domains are a method of grouping multiple <<realms,realms>> under the
 same domain so that the {stack} can recognize when a single user authenticates
 with these realms. Users can authenticate with any of the realms in the domain

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -299,10 +299,10 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_7_11_0)) {
+            if (out.getTransportVersion().before(TransportVersion.V_7_11_0)) {
                 throw new IllegalArgumentException(
-                    "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to ["
-                        + out.getVersion()
+                    "transport versions before [7110099] can't handle non-numeric sort values, attempted to send to ["
+                        + out.getTransportVersion()
                         + "]"
                 );
             }

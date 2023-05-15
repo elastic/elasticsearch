@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -50,7 +51,9 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -169,13 +172,30 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             );
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
-            ActionListener<Boolean> modelSnapshotValidationListener = ActionListener.wrap(
+            ActionListener<Boolean> referencedRuleFiltersPresentListener = ActionListener.wrap(
                 response -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(
                     jobParams.getJobId(),
                     memoryRequirementRefreshListener
                 ),
                 listener::onFailure
             );
+
+            // Validate referenced rule filters are present
+            ActionListener<Boolean> modelSnapshotValidationListener = ActionListener.wrap(response -> {
+                Set<String> referencedRuleFilters = jobParams.getJob().getAnalysisConfig().extractReferencedFilters();
+                if (referencedRuleFilters.isEmpty()) {
+                    referencedRuleFiltersPresentListener.onResponse(true);
+                } else {
+                    GetFiltersAction.Request getFiltersRequest = new GetFiltersAction.Request();
+                    getFiltersRequest.setResourceId(referencedRuleFilters.stream().collect(Collectors.joining(",")));
+                    getFiltersRequest.setAllowNoResources(false);
+                    client.execute(
+                        GetFiltersAction.INSTANCE,
+                        getFiltersRequest,
+                        ActionListener.wrap(filtersResponse -> referencedRuleFiltersPresentListener.onResponse(true), listener::onFailure)
+                    );
+                }
+            }, listener::onFailure);
 
             // Validate the model snapshot is supported
             ActionListener<Boolean> getJobHandler = ActionListener.wrap(response -> {

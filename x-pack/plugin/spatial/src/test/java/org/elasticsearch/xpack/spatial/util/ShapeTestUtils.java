@@ -49,6 +49,24 @@ public class ShapeTestUtils {
         return new Point(randomValue(), randomValue());
     }
 
+    public static Point randomPointNotExtreme(boolean hasAlt) {
+        return ESTestCase.randomValueOtherThanMany(ShapeTestUtils::extremePoint, () -> ShapeTestUtils.randomPoint(hasAlt));
+    }
+
+    public static Point randomPointNotExtreme() {
+        return ShapeTestUtils.randomPointNotExtreme(ESTestCase.randomBoolean());
+    }
+
+    /**
+     * Since cartesian centroid is stored in Float values, and calculations perform averages over many,
+     * We cannot support points at the very edge of the range.
+     */
+    public static boolean extremePoint(Point point) {
+        double max = Float.MAX_VALUE / 100;
+        double min = -Float.MAX_VALUE / 100;
+        return point.getLon() > max || point.getLon() < min || point.getLat() > max || point.getLat() < min;
+    }
+
     public static double randomAlt() {
         return ESTestCase.randomDouble() * XShapeTestUtil.CENTER_SCALE_FACTOR;
     }

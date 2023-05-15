@@ -34,7 +34,7 @@ public class ClearDeploymentCacheAction extends ActionType<ClearDeploymentCacheA
         private final String deploymentId;
 
         public Request(String deploymentId) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, InferModelAction.Request.ID);
         }
 
         public Request(StreamInput in) throws IOException {

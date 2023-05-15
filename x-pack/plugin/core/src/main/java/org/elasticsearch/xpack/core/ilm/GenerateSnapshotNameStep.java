@@ -19,8 +19,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -52,7 +50,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return clusterState;
         }
 
@@ -80,7 +78,8 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
-            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
+            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + Strings.stripDisallowedChars(policyName) + ">") //
+                .toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {
@@ -135,12 +134,9 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        List<String> candidates = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(context, Collections.singletonList(name));
-        if (candidates.size() != 1) {
-            throw new IllegalStateException("resolving snapshot name " + name + " generated more than one candidate: " + candidates);
-        }
+        String candidate = IndexNameExpressionResolver.resolveDateMathExpression(name, context.getStartTime());
         // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
-        return candidates.get(0) + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+        return candidate + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
     }
 
     @Nullable

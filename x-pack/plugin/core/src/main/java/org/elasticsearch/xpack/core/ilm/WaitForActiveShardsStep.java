@@ -57,7 +57,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             // Index must have been since deleted
@@ -80,8 +80,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (indexAbstraction.getParentDataStream() != null) {
-            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
             if (dataStreamAbstraction.getWriteIndex() == null) {
@@ -145,7 +145,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             Locale.ROOT,
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
-            key.getAction()
+            key.action()
         );
 
         // Index must have been since deleted

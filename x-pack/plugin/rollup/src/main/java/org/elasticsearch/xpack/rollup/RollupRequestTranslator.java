@@ -454,7 +454,7 @@ public class RollupRequestTranslator {
      * @return The translated leaf aggregation
      */
     private static List<AggregationBuilder> translateVSLeaf(
-        ValuesSourceAggregationBuilder.LeafOnly<?, ?> metric,
+        ValuesSourceAggregationBuilder.LeafOnly<?> metric,
         NamedWriteableRegistry registry
     ) {
 

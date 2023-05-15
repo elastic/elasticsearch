@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpd
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -34,17 +35,33 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
     @Override
     protected InferTrainedModelDeploymentAction.Request createTestInstance() {
-        List<Map<String, Object>> docs = randomList(
-            5,
-            () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
-        );
+        boolean createQueryStringRequest = randomBoolean();
 
-        return new InferTrainedModelDeploymentAction.Request(
-            randomAlphaOfLength(4),
-            randomBoolean() ? null : randomInferenceConfigUpdate(),
-            docs,
-            randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
-        );
+        if (createQueryStringRequest) {
+            return InferTrainedModelDeploymentAction.Request.forTextInput(
+                randomAlphaOfLength(4),
+                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                Arrays.asList(generateRandomStringArray(4, 7, false)),
+                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            );
+        } else {
+            List<Map<String, Object>> docs = randomList(
+                5,
+                () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
+            );
+
+            return InferTrainedModelDeploymentAction.Request.forDocs(
+                randomAlphaOfLength(4),
+                randomBoolean() ? null : randomInferenceConfigUpdate(),
+                docs,
+                randomBoolean() ? null : TimeValue.parseTimeValue(randomTimeValue(), "timeout")
+            );
+        }
+    }
+
+    @Override
+    protected InferTrainedModelDeploymentAction.Request mutateInstance(InferTrainedModelDeploymentAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

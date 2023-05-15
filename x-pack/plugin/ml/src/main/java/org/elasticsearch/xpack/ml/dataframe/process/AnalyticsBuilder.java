@@ -86,7 +86,6 @@ public class AnalyticsBuilder {
             OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile), StandardCharsets.UTF_8);
             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
         ) {
-
             config.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             osw.write(Strings.toString(jsonBuilder));
         }

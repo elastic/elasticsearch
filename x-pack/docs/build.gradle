@@ -30,6 +30,15 @@ restResources {
   }
 }
 
+// TODO: Remove the following when RCS feature is released
+// The get-builtin-privileges doc test does not include the new cluster privilege for RCS
+// So we disable the test if the build is a snapshot where unreleased feature is enabled by default
+tasks.named("yamlRestTest").configure {
+  if (BuildParams.isSnapshotBuild()) {
+    systemProperty 'tests.rest.blacklist', '*/get-builtin-privileges/*'
+  }
+}
+
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("oidc/op-jwks.json")
   extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")

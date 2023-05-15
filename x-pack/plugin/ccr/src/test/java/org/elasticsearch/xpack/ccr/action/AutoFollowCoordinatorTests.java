@@ -723,7 +723,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 "1",
                 true,
                 ShardRoutingState.INITIALIZING
-            ).moveToStarted();
+            ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get(indexName).getIndex())
                 .addShard(shardRouting)
                 .build();
@@ -732,7 +732,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         imdBuilder.put(IndexMetadata.builder("logs-0").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
         ShardRouting shardRouting = TestShardRouting.newShardRouting("logs-0", 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+            .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get("logs-0").getIndex()).addShard(shardRouting).build();
         routingTableBuilder.add(indexRoutingTable);
 
@@ -804,7 +804,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(0).getName(), equalTo("index1"));
 
         // Start second shard:
-        shardRouting = shardRouting.moveToStarted();
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().indices().get("index2").getIndex())
             .addShard(shardRouting)
             .build();
@@ -1087,9 +1087,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1132,9 +1130,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1177,9 +1173,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1265,9 +1259,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             PutFollowAction.Request request = AutoFollower.generateRequest("remote", index, indexAbstraction, pattern);
@@ -1310,9 +1302,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             .build()
                     )
                     .build(),
-                new IndexAbstraction.DataStream(
-                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
-                )
+                new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
             );
 
             IllegalArgumentException e = expectThrows(
@@ -2526,7 +2516,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             "1",
             true,
             ShardRoutingState.INITIALIZING
-        ).moveToStarted();
+        ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
@@ -2557,7 +2547,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                             "1",
                             true,
                             ShardRoutingState.INITIALIZING
-                        ).moveToStarted()
+                        ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
                     )
                     .build()
             );
@@ -2632,7 +2622,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             "1",
             true,
             ShardRoutingState.INITIALIZING
-        ).moveToStarted();
+        ).moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }

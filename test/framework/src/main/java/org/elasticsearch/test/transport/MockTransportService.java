@@ -10,6 +10,7 @@ package org.elasticsearch.test.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
@@ -80,7 +81,7 @@ import java.util.function.Supplier;
  * (for example, @see org.elasticsearch.discovery.HandshakingTransportAddressConnector, which constructs
  * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
-public final class MockTransportService extends TransportService {
+public class MockTransportService extends TransportService {
     private static final Logger logger = LogManager.getLogger(MockTransportService.class);
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
@@ -90,23 +91,29 @@ public final class MockTransportService extends TransportService {
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
+            return List.of(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING);
         }
-    }
-
-    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool) {
-        return createNewService(settings, version, threadPool, null);
     }
 
     public static MockTransportService createNewService(
         Settings settings,
         Version version,
+        TransportVersion transportVersion,
+        ThreadPool threadPool
+    ) {
+        return createNewService(settings, version, transportVersion, threadPool, null);
+    }
+
+    public static MockTransportService createNewService(
+        Settings settings,
+        Version version,
+        TransportVersion transportVersion,
         ThreadPool threadPool,
         @Nullable ClusterSettings clusterSettings
     ) {
         return createNewService(
             settings,
-            newMockTransport(settings, version, threadPool),
+            newMockTransport(settings, transportVersion, threadPool),
             version,
             threadPool,
             clusterSettings,
@@ -114,7 +121,7 @@ public final class MockTransportService extends TransportService {
         );
     }
 
-    public static TcpTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
+    public static TcpTransport newMockTransport(Settings settings, TransportVersion version, ThreadPool threadPool) {
         settings = Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new Netty4Transport(
@@ -666,7 +673,7 @@ public final class MockTransportService extends TransportService {
         super.openConnection(node, connectionProfile, listener.delegateFailure((l, connection) -> {
             synchronized (openConnections) {
                 openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
-                connection.addCloseListener(ActionListener.wrap(() -> {
+                connection.addCloseListener(ActionListener.running(() -> {
                     synchronized (openConnections) {
                         List<Transport.Connection> connections = openConnections.get(node);
                         boolean remove = connections.remove(connection);

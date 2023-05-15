@@ -12,6 +12,7 @@ import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 public class InputStreamIndexInput extends InputStream {
 
@@ -40,8 +41,10 @@ public class InputStreamIndexInput extends InputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         if (b == null) {
             throw new NullPointerException();
-        } else if (off < 0 || len < 0 || len > b.length - off) {
-            throw new IndexOutOfBoundsException();
+        }
+        Objects.checkFromIndexSize(off, len, b.length);
+        if (len == 0) {
+            return 0;
         }
         if (indexInput.getFilePointer() >= indexInput.length()) {
             return -1;

@@ -29,6 +29,11 @@ public class SubstringProcessorTests extends AbstractWireSerializingTestCase<Sub
     }
 
     @Override
+    protected SubstringFunctionProcessor mutateInstance(SubstringFunctionProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SubstringFunctionProcessor> instanceReader() {
         return SubstringFunctionProcessor::new;
     }

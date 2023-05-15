@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -43,7 +44,7 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
     }
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes) {
-        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, threadPool);
+        return RemoteClusterConnectionTests.startTransport(id, knownNodes, Version.CURRENT, TransportVersion.CURRENT, threadPool);
     }
 
     public void testSearchShards() throws Exception {
@@ -57,7 +58,15 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 
@@ -105,7 +114,15 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
             Collections.shuffle(knownNodes, random());
             Settings.Builder builder = Settings.builder();
             builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
-            try (MockTransportService service = MockTransportService.createNewService(builder.build(), Version.CURRENT, threadPool, null)) {
+            try (
+                MockTransportService service = MockTransportService.createNewService(
+                    builder.build(),
+                    Version.CURRENT,
+                    TransportVersion.CURRENT,
+                    threadPool,
+                    null
+                )
+            ) {
                 service.start();
                 service.acceptIncomingRequests();
 

@@ -1,5 +1,0 @@
-pr: 89570
-summary: Option to return profile uid in `GetUser` response
-area: Security
-type: enhancement
-issues: []

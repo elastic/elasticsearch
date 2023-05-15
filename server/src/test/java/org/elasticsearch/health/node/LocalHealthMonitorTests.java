@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -20,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +44,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -83,23 +86,16 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 .floodStageWatermark(new RelativeByteSizeValue(ByteSizeValue.ofBytes(50)))
                 .frozenFloodStageWatermark(new RelativeByteSizeValue(ByteSizeValue.ofBytes(50)))
                 .frozenFloodStageMaxHeadroom(ByteSizeValue.ofBytes(10))
-                .build()
+                .build(),
+            HealthMetadata.ShardLimits.newBuilder().maxShardsPerNode(999).maxShardsPerNodeFrozen(100).build()
         );
-        node = new DiscoveryNode(
-            "node",
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        frozenNode = new DiscoveryNode(
+        node = TestDiscoveryNode.create("node", "node");
+        frozenNode = TestDiscoveryNode.create(
             "frozen-node",
             "frozen-node",
             ESTestCase.buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE),
-            Version.CURRENT
+            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
         );
         clusterState = ClusterStateCreationUtils.state(node, node, node, new DiscoveryNode[] { node, frozenNode })
             .copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
@@ -304,6 +300,47 @@ public class LocalHealthMonitorTests extends ESTestCase {
         LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
         DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterStateFrozenLocalNode);
         assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD)));
+    }
+
+    public void testYellowStatusForNonDataNode() {
+        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
+            "master-node",
+            "master-node-1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
+        );
+        clusterState = ClusterStateCreationUtils.state(
+            dedicatedMasterNode,
+            dedicatedMasterNode,
+            node,
+            new DiscoveryNode[] { node, dedicatedMasterNode }
+        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+
+        initializeIncreasedDiskSpaceUsage();
+        LocalHealthMonitor.DiskCheck diskMonitor = new LocalHealthMonitor.DiskCheck(nodeService);
+        DiskHealthInfo diskHealth = diskMonitor.getHealth(healthMetadata, clusterState);
+        assertThat(diskHealth, equalTo(new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD)));
+    }
+
+    public void testHasRelocatingShards() {
+        String indexName = "my-index";
+        final ClusterState state = state(indexName, true, ShardRoutingState.RELOCATING);
+        // local node coincides with the node hosting the (relocating) primary shard
+        DiscoveryNode localNode = state.nodes().getLocalNode();
+        assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(state, localNode), is(true));
+
+        DiscoveryNode dedicatedMasterNode = TestDiscoveryNode.create(
+            "master-node",
+            "master-node-1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.MASTER_ROLE)
+        );
+        ClusterState newState = ClusterState.builder(state)
+            .nodes(new DiscoveryNodes.Builder(state.nodes()).add(dedicatedMasterNode))
+            .build();
+        assertThat(LocalHealthMonitor.DiskCheck.hasRelocatingShards(newState, dedicatedMasterNode), is(false));
     }
 
     private void simulateDiskOutOfSpace() {

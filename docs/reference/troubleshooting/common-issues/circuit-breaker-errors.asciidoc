@@ -82,7 +82,7 @@ you've enabled fielddata and triggered the <<fielddata-circuit-breaker,fielddata
 circuit breaker>>, consider disabling it and using a `keyword` field instead.
 See <<fielddata>>.
 
-**Clear the fieldata cache**
+**Clear the fielddata cache**
 
 If you've triggered the fielddata circuit breaker and can't disable fielddata,
 use the <<indices-clearcache,clear cache API>> to clear the fielddata cache.

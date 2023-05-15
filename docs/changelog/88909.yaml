@@ -1,5 +1,0 @@
-pr: 88909
-summary: Add `synthetic_source` support to `aggregate_metric_double` fields
-area: Mapping
-type: enhancement
-issues: []

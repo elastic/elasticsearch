@@ -19,6 +19,7 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Painless invokedynamic bootstrap for the call site.
@@ -366,40 +367,42 @@ public final class DefBootstrap {
                 throw exc;
             }
 
-            final MethodHandle test;
+            MethodHandle test;
+            MethodHandle nullCheck = null;
             if (flavor == BINARY_OPERATOR || flavor == SHIFT_OPERATOR) {
                 // some binary operators support nulls, we handle them separate
                 Class<?> clazz0 = args[0] == null ? null : args[0].getClass();
                 Class<?> clazz1 = args[1] == null ? null : args[1].getClass();
                 if (type.parameterType(1) != Object.class) {
                     // case 1: only the receiver is unknown, just check that
+                    MethodType testType = MethodType.methodType(boolean.class, type.parameterType(0));
                     MethodHandle unaryTest = CHECK_LHS.bindTo(clazz0);
-                    test = unaryTest.asType(unaryTest.type().changeParameterType(0, type.parameterType(0)));
+                    test = unaryTest.asType(testType);
+                    nullCheck = NON_NULL.asType(testType);
                 } else if (type.parameterType(0) != Object.class) {
                     // case 2: only the argument is unknown, just check that
-                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz0).bindTo(clazz1);
-                    test = unaryTest.asType(
-                        unaryTest.type().changeParameterType(0, type.parameterType(0)).changeParameterType(1, type.parameterType(1))
-                    );
+                    MethodType testType = MethodType.methodType(boolean.class, type);
+                    MethodHandle unaryTest = CHECK_RHS.bindTo(clazz1);
+                    test = MethodHandles.dropArguments(unaryTest, 0, Object.class).asType(testType);
+                    nullCheck = MethodHandles.dropArguments(NON_NULL, 0, clazz0).asType(testType);
                 } else {
                     // case 3: check both receiver and argument
-                    MethodHandle binaryTest = CHECK_BOTH.bindTo(clazz0).bindTo(clazz1);
-                    test = binaryTest.asType(
-                        binaryTest.type().changeParameterType(0, type.parameterType(0)).changeParameterType(1, type.parameterType(1))
-                    );
+                    MethodType testType = MethodType.methodType(boolean.class, type);
+                    MethodHandle binaryTest = MethodHandles.insertArguments(CHECK_BOTH, 0, clazz0, clazz1);
+                    test = binaryTest.asType(testType);
+                    nullCheck = BOTH_NON_NULL.asType(testType);
                 }
             } else {
                 // unary operator
                 MethodHandle receiverTest = CHECK_LHS.bindTo(args[0].getClass());
-                test = receiverTest.asType(receiverTest.type().changeParameterType(0, type.parameterType(0)));
+                test = receiverTest.asType(MethodType.methodType(boolean.class, type.parameterType(0)));
             }
 
             MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
             // very special cases, where even the receiver can be null (see JLS rules for string concat)
-            // we wrap + with an NPE catcher, and use our generic method in that case.
+            // we wrap op with a null check, and use our generic method in that case.
             if (flavor == BINARY_OPERATOR && (flags & OPERATOR_ALLOWS_NULL) != 0) {
-                MethodHandle handler = MethodHandles.dropArguments(lookupGeneric().asType(type()), 0, NullPointerException.class);
-                guard = MethodHandles.catchException(guard, NullPointerException.class, handler);
+                guard = MethodHandles.guardWithTest(nullCheck, guard, lookupGeneric().asType(type()));
             }
 
             initialized = true;
@@ -420,7 +423,7 @@ public final class DefBootstrap {
          * guard method for inline caching: checks the first argument is the same
          * as the cached first argument.
          */
-        static boolean checkRHS(Class<?> left, Class<?> right, Object leftObject, Object rightObject) {
+        static boolean checkRHS(Class<?> right, Object rightObject) {
             return rightObject.getClass() == right;
         }
 
@@ -432,10 +435,20 @@ public final class DefBootstrap {
             return leftObject.getClass() == left && rightObject.getClass() == right;
         }
 
+        /**
+         * Null guard method for caching - ensures both left and right are non-null,
+         * so checkBoth can be called successfully
+         */
+        static boolean bothNonNull(Object leftObject, Object rightObject) {
+            return leftObject != null && rightObject != null;
+        }
+
         private static final MethodHandle CHECK_LHS;
         private static final MethodHandle CHECK_RHS;
         private static final MethodHandle CHECK_BOTH;
         private static final MethodHandle FALLBACK;
+        private static final MethodHandle NON_NULL;
+        private static final MethodHandle BOTH_NON_NULL;
         static {
             final MethodHandles.Lookup methodHandlesLookup = MethodHandles.lookup();
             try {
@@ -447,7 +460,7 @@ public final class DefBootstrap {
                 CHECK_RHS = methodHandlesLookup.findStatic(
                     methodHandlesLookup.lookupClass(),
                     "checkRHS",
-                    MethodType.methodType(boolean.class, Class.class, Class.class, Object.class, Object.class)
+                    MethodType.methodType(boolean.class, Class.class, Object.class)
                 );
                 CHECK_BOTH = methodHandlesLookup.findStatic(
                     methodHandlesLookup.lookupClass(),
@@ -458,6 +471,12 @@ public final class DefBootstrap {
                     methodHandlesLookup.lookupClass(),
                     "fallback",
                     MethodType.methodType(Object.class, Object[].class)
+                );
+                NON_NULL = methodHandlesLookup.findStatic(Objects.class, "nonNull", MethodType.methodType(boolean.class, Object.class));
+                BOTH_NON_NULL = methodHandlesLookup.findStatic(
+                    methodHandlesLookup.lookupClass(),
+                    "bothNonNull",
+                    MethodType.methodType(boolean.class, Object.class, Object.class)
                 );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);

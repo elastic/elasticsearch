@@ -1,0 +1,68 @@
+[
+  {
+    "host_ip": "10.0.0.1",
+    "event_type": "alert",
+    "host": "doom",
+    "uptime": 0,
+    "port": 12,
+    "os": "win10",
+    "id": 31
+  },
+  {
+    "event_type": "alert",
+    "host": "CS",
+    "os": "win10",
+    "id": 32
+  },
+  {
+    "event_type": "alert",
+    "host": "farcry",
+    "bool": true,
+    "os": "win10",
+    "id": 33
+  },
+  {
+    "event_type": "alert",
+    "host": "GTA",
+    "os": "slack",
+    "bool": true,
+    "id": 34
+  },
+  {
+    "event_type": "alert",
+    "host": "sniper 3d",
+    "os": "fedora",
+    "id": 35
+  },
+  {
+    "host_ip": "10.0.0.1",
+    "event_type": "alert",
+    "host": "doom",
+    "bool": true,
+    "os": "redhat",
+    "id": 36
+  },
+  {
+    "event_type": "failure",
+    "missing_keyword": "test",
+    "host": "doom",
+    "bool": true,
+    "os": "redhat",
+    "id": 37
+  },
+  {
+    "event_type": "success",
+    "host": "doom",
+    "os": "win10",
+    "id": 38,
+    "date": "1671235200000"
+  },
+  {
+    "host_ip": "10.0.0.5",
+    "event_type": "success",
+    "host": "GTA",
+    "bool": true,
+    "os": "win10",
+    "id": 39
+  }
+]

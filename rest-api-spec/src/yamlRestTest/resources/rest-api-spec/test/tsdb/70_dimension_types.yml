@@ -72,6 +72,396 @@ keyword dimension:
   - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 3.3, error: 0.01 }}
 
 ---
+flattened dimension:
+  - skip:
+      features: close_to
+      version: " - 8.7.99"
+      reason: flattened field support as dimension added in 8.8.0
+
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag", "version.major", "version.minor", "version.patch" ]
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.0, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.4, "deployment": { "build": { "tag": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3, "deployment": { "build": { "tag": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.6, "deployment": { "build": { "tag": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "tag": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+
+  - is_false: errors
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: { hits.total.value: 8}
+  - length: { aggregations.tsids.buckets: 4}
+
+  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: "1516op6778" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.minor: "8" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.patch: "0" }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.09, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.1.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: "1516op6885" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.minor: "8" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.patch: "0" }
+  - match: { aggregations.tsids.buckets.1.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.35, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.2.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: "16w3xaca09" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.minor: "8" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.patch: "1" }
+  - match: { aggregations.tsids.buckets.2.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 6.64, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.3.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: "16w3xacq34" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.minor: "8" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.patch: "1" }
+  - match: { aggregations.tsids.buckets.3.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.75, error: 0.01 }}
+
+---
+flattened empty dimension:
+  - skip:
+      features: close_to
+      version: " - 8.7.99"
+      reason: flattened field support as dimension added in 8.8.0
+
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: []
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.0, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.4, "deployment": { "build": { "tag": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3, "deployment": { "build": { "tag": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.6, "deployment": { "build": { "tag": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "tag": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+
+  - is_false: errors
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 2 }
+
+  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.doc_count: 4 }
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.22, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.doc_count: 4 }
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+
+
+---
+flattened field missing routing path field:
+  - skip:
+      features: close_to
+      version: " - 8.7.99"
+      reason: flattened field support as dimension added in 8.8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [uid, deployment.build.tag]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ build.branch, build.tag, version.major ]
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.0, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.4, "deployment": { "build": { "tag": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3, "deployment": { "build": { "sha": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.6, "deployment": { "build": { "tag": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "sha": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+
+  - is_false: errors
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 6 }
+
+  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.branch: "release-8.8" }
+  - match: { aggregations.tsids.buckets.0.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.0.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.30, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: null }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.branch: "release-8.8" }
+  - match: { aggregations.tsids.buckets.1.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.1.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.2.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: "1516op6778" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.branch: "release-8.8" }
+  - match: { aggregations.tsids.buckets.2.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.2.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.09, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.3.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: "1516op6885" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.branch: "release-8.8" }
+  - match: { aggregations.tsids.buckets.3.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.3.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 7.40, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.4.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.4.key.deployment\.build\.tag: "16w3xaca09" }
+  - match: { aggregations.tsids.buckets.4.key.deployment\.build\.branch: "release-8.8" }
+  - match: { aggregations.tsids.buckets.4.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.4.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.4.voltage.value: { value: 6.59, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.5.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.5.key.deployment\.build\.tag: "16w3xacq34" }
+  - match: { aggregations.tsids.buckets.5.key.deployment\.build\.branch: "release-8.8" }
+  - match: { aggregations.tsids.buckets.5.key.deployment\.version\.major: "8" }
+  - match: { aggregations.tsids.buckets.5.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.5.voltage.value: { value: 6.75, error: 0.01 }}
+
+---
+flattened field misspelled routing path field:
+  - skip:
+      features: close_to
+      version: " - 8.7.99"
+      reason: flattened field support as dimension added in 8.8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              # NOTE: 'reigion' here is misspelled on purpose
+              routing_path: [deployment.reigion, deployment.build.tag]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+              deployment:
+                type: flattened
+                # NOTE: 'reigion' here is misspelled on purpose
+                time_series_dimensions: [ reigion, build.tag ]
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.2, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.0, "deployment": { "build": { "tag": "1516op6778", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.4, "deployment": { "build": { "tag": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "947e4ced-1786-4e53-9e0c-5c447e959507", "voltage": 7.3, "deployment": { "build": { "sha": "1516op6885", "branch": "release-8.8" }, "region": "eu-west-1", "version": { "major": 8, "minor": 8, "patch": 0 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.6, "deployment": { "build": { "tag": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "sha": "16w3xaca09", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.7, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 6.8, "deployment": { "build": { "tag": "16w3xacq34", "branch": "release-8.8" }, "region": "eu-west-2", "version": { "major": 8, "minor": 8, "patch": 1 }}}'
+
+  - is_true: errors
+
+  - match: { items.3.index.error.reason: "Error extracting routing: source didn't contain any routing fields" }
+  - match: { items.5.index.error.reason: "Error extracting routing: source didn't contain any routing fields" }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: { hits.total.value: 6 }
+  - length: { aggregations.tsids.buckets: 4 }
+
+  - match: { aggregations.tsids.buckets.0.key.deployment\.build\.tag: "1516op6778" }
+  - match: { aggregations.tsids.buckets.0.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.09, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.1.key.deployment\.build\.tag: "1516op6885" }
+  - match: { aggregations.tsids.buckets.1.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.40, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.2.key.deployment\.build\.tag: "16w3xaca09" }
+  - match: { aggregations.tsids.buckets.2.doc_count: 1 }
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 6.59, error: 0.01 }}
+
+  - match: { aggregations.tsids.buckets.3.key.deployment\.build\.tag: "16w3xacq34" }
+  - match: { aggregations.tsids.buckets.3.doc_count: 2 }
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.75, error: 0.01 }}
+
+---
 long dimension:
   - skip:
       features: close_to
@@ -220,3 +610,54 @@ ip dimension:
   - match: {aggregations.tsids.buckets.1.key: { ip: "2001:db8:85a3::8a2e:370:7334", metricset: aa }}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
   - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 3.3, error: 0.01 }}
+
+---
+runtime time series dimension:
+  - skip:
+      version: " - 8.4.99"
+      reason: "downsample introduced in 8.5.0"
+
+  - do:
+      catch: '/unknown parameter \[time_series_dimension\] on runtime field \[metricset\] of type \[keyword\]/'
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            runtime:
+              metricset:
+                type: keyword
+                time_series_dimension: true
+                script:
+                  source: "emit('pod');"
+            properties:
+              time:
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                            time_series_metric: gauge
+                          rx:
+                            type: long
+                            time_series_metric: gauge

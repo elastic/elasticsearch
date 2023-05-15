@@ -68,7 +68,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) {
             // We already got the task created on the network layer - no need to create it again on the transport layer
-            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
+            execute(task, request, new ChannelActionListener<>(channel));
         }
     }
 

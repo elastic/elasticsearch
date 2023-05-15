@@ -15,6 +15,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
@@ -34,8 +35,17 @@ public class RestTestUtil {
      * Creates a {@link RestIntegTestTask} task with a custom name for the provided source set
      */
     public static TaskProvider<RestIntegTestTask> registerTestTask(Project project, SourceSet sourceSet, String taskName) {
+        return registerTestTask(project, sourceSet, taskName, RestIntegTestTask.class);
+    }
+
+    /**
+     * Creates a {@link T} task with a custom name for the provided source set
+     *
+     * @param <T> test task type
+     */
+    public static <T extends Test> TaskProvider<T> registerTestTask(Project project, SourceSet sourceSet, String taskName, Class<T> clazz) {
         // lazily create the test task
-        return project.getTasks().register(taskName, RestIntegTestTask.class, testTask -> {
+        return project.getTasks().register(taskName, clazz, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
             project.getPlugins().withType(JavaPlugin.class, t -> testTask.mustRunAfter(project.getTasks().named("test")));
@@ -49,10 +59,20 @@ public class RestTestUtil {
      * Setup the dependencies needed for the YAML REST tests.
      */
     public static void setupYamlRestTestDependenciesDefaults(Project project, SourceSet sourceSet) {
+        setupYamlRestTestDependenciesDefaults(project, sourceSet, false);
+    }
+
+    /**
+     * Setup the dependencies needed for the YAML REST tests.
+     */
+    public static void setupYamlRestTestDependenciesDefaults(Project project, SourceSet sourceSet, boolean useNewTestClusters) {
         Project yamlTestRunnerProject = project.findProject(":test:yaml-rest-runner");
         // we shield the project dependency to make integration tests easier
         if (yamlTestRunnerProject != null) {
             project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
+            if (useNewTestClusters) {
+                project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
+            }
         }
     }
 

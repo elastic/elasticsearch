@@ -80,7 +80,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         Function<String, TokenFilterFactory> allFilters
     ) {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
+        ReaderWithOrigin rulesFromSettings = getRulesFromSettings(environment);
+        final SynonymMap synonyms = buildSynonyms(analyzer, rulesFromSettings);
         final String name = name();
         return new TokenFilterFactory() {
             @Override
@@ -120,37 +121,37 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         );
     }
 
-    SynonymMap buildSynonyms(Analyzer analyzer, Reader rules) {
+    SynonymMap buildSynonyms(Analyzer analyzer, ReaderWithOrigin rules) {
         try {
             SynonymMap.Builder parser;
             if ("wordnet".equalsIgnoreCase(format)) {
                 parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer);
-                ((ESWordnetSynonymParser) parser).parse(rules);
+                ((ESWordnetSynonymParser) parser).parse(rules.reader);
             } else {
                 parser = new ESSolrSynonymParser(true, expand, lenient, analyzer);
-                ((ESSolrSynonymParser) parser).parse(rules);
+                ((ESSolrSynonymParser) parser).parse(rules.reader);
             }
             return parser.build();
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to build synonyms", e);
+            throw new IllegalArgumentException("failed to build synonyms from [" + rules.origin + "]", e);
         }
     }
 
-    Reader getRulesFromSettings(Environment env) {
-        Reader rulesReader;
+    protected ReaderWithOrigin getRulesFromSettings(Environment env) {
         if (settings.getAsList("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());
             }
-            rulesReader = new StringReader(sb.toString());
+            return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + name() + "' analyzer settings");
         } else if (settings.get("synonyms_path") != null) {
-            rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
+            String synonyms_path = settings.get("synonyms_path", null);
+            return new ReaderWithOrigin(Analysis.getReaderFromFile(env, synonyms_path, "synonyms_path"), synonyms_path);
         } else {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
-        return rulesReader;
     }
 
+    record ReaderWithOrigin(Reader reader, String origin) {};
 }

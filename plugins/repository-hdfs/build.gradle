@@ -15,8 +15,8 @@ import java.nio.file.Path
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
     description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -47,7 +47,7 @@ dependencies {
     }
     runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
     implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
-    api 'com.google.protobuf:protobuf-java:3.4.0'
+    api "com.google.protobuf:protobuf-java:${versions.protobuf}"
     api "commons-logging:commons-logging:${versions.commonslogging}"
     api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
     api 'commons-cli:commons-cli:1.2'
@@ -56,7 +56,9 @@ dependencies {
     api 'org.apache.commons:commons-lang3:3.11'
     api 'javax.servlet:javax.servlet-api:3.1.0'
     api "org.slf4j:slf4j-api:${versions.slf4j}"
-    api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+    runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+    //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+
     // Set the keytab files in the classpath so that we can access them from test code without the security manager
     // freaking out.
     if (isEclipse == false) {
@@ -121,7 +123,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
             env 'CLASSPATH', "${-> project.configurations.getByName("hdfs" + hadoopVer + "Fixture").asPath}"
 
             maxWaitInSeconds 60
-            onlyIf { BuildParams.inFipsJvm == false }
+            BuildParams.withFipsEnabledOnly(it)
             waitCondition = { fixture, ant ->
                 // the hdfs.MiniHDFS fixture writes the ports file when
                 // it's ready, so we can just wait for the file to exist
@@ -273,7 +275,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
     if (disabledIntegTestTaskNames.contains(name)) {
         enabled = false;
     }
-    onlyIf { BuildParams.inFipsJvm == false }
+    BuildParams.withFipsEnabledOnly(testTask)
 
     if (name.contains("Secure")) {
         if (disabledIntegTestTaskNames.contains(name) == false) {
@@ -304,8 +306,11 @@ tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses()
     ignoreViolations(
             // internal java api: sun.misc.Unsafe
+            'com.google.protobuf.MessageSchema',
             'com.google.protobuf.UnsafeUtil',
             'com.google.protobuf.UnsafeUtil$1',
+            'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
             'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
             'com.google.protobuf.UnsafeUtil$MemoryAccessor',
             'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper',

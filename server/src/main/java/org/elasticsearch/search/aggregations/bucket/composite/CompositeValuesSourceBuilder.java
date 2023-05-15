@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -55,7 +55,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             this.missingOrder = MissingOrder.readFromStream(in);
         }
         this.order = SortOrder.readFromStream(in);
@@ -77,7 +77,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
             missingOrder.writeTo(out);
         }
         order.writeTo(out);

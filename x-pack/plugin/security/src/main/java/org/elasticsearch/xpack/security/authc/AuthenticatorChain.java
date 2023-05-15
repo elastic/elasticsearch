@@ -73,6 +73,7 @@ class AuthenticatorChain {
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
         final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
             return authentication;
         });
@@ -216,7 +217,7 @@ class AuthenticatorChain {
                 logger.debug(
                     "Cannot find run-as user [{}] for authenticated user [{}]",
                     runAsUsername,
-                    authentication.getUser().principal()
+                    authentication.getAuthenticatingSubject().getUser().principal()
                 );
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
                 finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
@@ -240,7 +241,7 @@ class AuthenticatorChain {
             logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
-        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
+        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableHttpRequest) {
             throw context.getRequest().tamperedRequest();
         }
         return authentication;
@@ -316,9 +317,10 @@ class AuthenticatorChain {
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
-        if (authentication.getUser().enabled() == false || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
+        if (authentication.getEffectiveSubject().getUser().enabled() == false
+            || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
-            logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
+            logger.debug("user [{}] is disabled. failing authentication", authentication.getEffectiveSubject().getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
         } else {
             writeAuthToContext(context, authentication, listener);

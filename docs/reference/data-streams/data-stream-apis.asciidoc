@@ -12,6 +12,11 @@ The following APIs are available for managing <<data-streams,data streams>>:
 * <<promote-data-stream-api>>
 * <<modify-data-streams-api>>
 
+The following API is available for <<tsds,time series data streams>>:
+
+* <<indices-downsample-data-stream>>
+
+
 For concepts and tutorials, see <<data-streams>>.
 
 include::{es-repo-dir}/indices/create-data-stream.asciidoc[]
@@ -27,3 +32,5 @@ include::{es-repo-dir}/indices/data-stream-stats.asciidoc[]
 include::{es-repo-dir}/data-streams/promote-data-stream-api.asciidoc[]
 
 include::{es-repo-dir}/data-streams/modify-data-streams-api.asciidoc[]
+
+include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -15,47 +14,17 @@ import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 
-import java.util.Collection;
-import java.util.Collections;
-
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 
 public abstract class AbstractAtomicGeoShapeShapeFieldData extends LeafShapeFieldData<GeoShapeValues> {
 
-    private static class Empty extends AbstractAtomicGeoShapeShapeFieldData {
-        private final GeoShapeValues emptyValues;
-
-        Empty(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory, GeoShapeValues emptyValues) {
-            super(toScriptFieldFactory);
-            this.emptyValues = emptyValues;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        public GeoShapeValues getShapeValues() {
-            return emptyValues;
-        }
-    }
-
     public AbstractAtomicGeoShapeShapeFieldData(ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
         super(toScriptFieldFactory);
     }
 
-    public static AbstractAtomicGeoShapeShapeFieldData empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
-        return new Empty(toScriptFieldFactory, GeoShapeValues.EMPTY);
+    public static LeafShapeFieldData<GeoShapeValues> empty(final int maxDoc, ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory) {
+        return new LeafShapeFieldData.Empty<>(toScriptFieldFactory, GeoShapeValues.EMPTY);
     }
 
     public static final class GeoShapeScriptValues extends LeafShapeFieldData.ShapeScriptValues<GeoPoint, GeoShapeValues.GeoShapeValue>

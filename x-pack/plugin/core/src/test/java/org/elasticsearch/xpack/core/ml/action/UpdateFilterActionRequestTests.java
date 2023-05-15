@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction.Request;
 
@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-public class UpdateFilterActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class UpdateFilterActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     private String filterId = randomAlphaOfLength(20);
 
@@ -32,6 +32,11 @@ public class UpdateFilterActionRequestTests extends AbstractSerializingTestCase<
             request.setRemoveItems(generateRandomStrings());
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

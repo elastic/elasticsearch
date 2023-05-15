@@ -8,13 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -29,40 +30,37 @@ public class RecoveryResponseTests extends ESTestCase {
     public void testChunkedToXContent() {
         final int failedShards = randomIntBetween(0, 50);
         final int successfulShards = randomIntBetween(0, 50);
-        DiscoveryNode sourceNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode targetNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode sourceNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode targetNode = TestDiscoveryNode.create("bar", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final int shards = randomInt(50);
-        final RecoveryResponse recoveryResponse = new RecoveryResponse(
-            successfulShards + failedShards,
-            successfulShards,
-            failedShards,
-            IntStream.range(0, shards)
-                .boxed()
-                .collect(
-                    Collectors.toUnmodifiableMap(
-                        i -> "index-" + i,
-                        i -> List.of(
-                            new RecoveryState(
-                                ShardRouting.newUnassigned(
-                                    new ShardId("index-" + i, "index-uuid-" + i, 0),
-                                    randomBoolean(),
-                                    RecoverySource.PeerRecoverySource.INSTANCE,
-                                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-                                ).initialize(sourceNode.getId(), null, randomNonNegativeLong()),
-                                sourceNode,
-                                targetNode
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            new RecoveryResponse(
+                successfulShards + failedShards,
+                successfulShards,
+                failedShards,
+                IntStream.range(0, shards)
+                    .boxed()
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            i -> "index-" + i,
+                            i -> List.of(
+                                new RecoveryState(
+                                    ShardRouting.newUnassigned(
+                                        new ShardId("index-" + i, "index-uuid-" + i, 0),
+                                        false,
+                                        RecoverySource.PeerRecoverySource.INSTANCE,
+                                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+                                        ShardRouting.Role.DEFAULT
+                                    ).initialize(sourceNode.getId(), null, randomNonNegativeLong()),
+                                    sourceNode,
+                                    targetNode
+                                )
                             )
                         )
-                    )
-                ),
-            List.of()
+                    ),
+                List.of()
+            ),
+            ignored -> shards + 2
         );
-        final var iterator = recoveryResponse.toXContentChunked();
-        int chunks = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunks++;
-        }
-        assertEquals(shards + 2, chunks);
     }
 }

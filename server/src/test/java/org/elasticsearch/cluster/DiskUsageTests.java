@@ -8,11 +8,10 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,7 +30,10 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class DiskUsageTests extends ESTestCase {
     public void testDiskUsageCalc() {
@@ -98,7 +100,8 @@ public class DiskUsageTests extends ESTestCase {
             new ShardId(index, 0),
             false,
             PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
+            ShardRouting.Role.DEFAULT
         );
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
@@ -109,7 +112,8 @@ public class DiskUsageTests extends ESTestCase {
             new ShardId(index, 1),
             false,
             PeerRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"),
+            ShardRouting.Role.DEFAULT
         );
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
@@ -124,7 +128,7 @@ public class DiskUsageTests extends ESTestCase {
             new ShardStats(test_1, new ShardPath(false, test1Path, test1Path, test_1.shardId()), commonStats2, null, null, null) };
         Map<String, Long> shardSizes = new HashMap<>();
         Map<ShardId, Long> shardDataSetSizes = new HashMap<>();
-        Map<ShardRouting, String> routingToPath = new HashMap<>();
+        Map<ClusterInfo.NodeAndShard, String> routingToPath = new HashMap<>();
         InternalClusterInfoService.buildShardLevelInfo(
             RoutingTable.EMPTY_ROUTING_TABLE,
             stats,
@@ -133,23 +137,26 @@ public class DiskUsageTests extends ESTestCase {
             routingToPath,
             new HashMap<>()
         );
-        assertEquals(2, shardSizes.size());
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_0)));
-        assertTrue(shardSizes.containsKey(ClusterInfo.shardIdentifierFromRouting(test_1)));
-        assertEquals(100L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_0)).longValue());
-        assertEquals(1000L, shardSizes.get(ClusterInfo.shardIdentifierFromRouting(test_1)).longValue());
 
-        assertEquals(2, shardDataSetSizes.size());
-        assertTrue(shardDataSetSizes.containsKey(test_0.shardId()));
-        assertTrue(shardDataSetSizes.containsKey(test_1.shardId()));
-        assertEquals(101L, shardDataSetSizes.get(test_0.shardId()).longValue());
-        assertEquals(1001L, shardDataSetSizes.get(test_1.shardId()).longValue());
+        assertThat(
+            shardSizes,
+            allOf(
+                aMapWithSize(2),
+                hasEntry(ClusterInfo.shardIdentifierFromRouting(test_0), 100L),
+                hasEntry(ClusterInfo.shardIdentifierFromRouting(test_1), 1000L)
+            )
+        );
 
-        assertEquals(2, routingToPath.size());
-        assertTrue(routingToPath.containsKey(test_0));
-        assertTrue(routingToPath.containsKey(test_1));
-        assertEquals(test0Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_0));
-        assertEquals(test1Path.getParent().getParent().getParent().toAbsolutePath().toString(), routingToPath.get(test_1));
+        assertThat(shardDataSetSizes, allOf(aMapWithSize(2), hasEntry(test_0.shardId(), 101L), hasEntry(test_1.shardId(), 1001L)));
+
+        assertThat(
+            routingToPath,
+            allOf(
+                aMapWithSize(2),
+                hasEntry(ClusterInfo.NodeAndShard.from(test_0), test0Path.getParent().getParent().getParent().toAbsolutePath().toString()),
+                hasEntry(ClusterInfo.NodeAndShard.from(test_1), test1Path.getParent().getParent().getParent().toAbsolutePath().toString())
+            )
+        );
     }
 
     public void testLeastAndMostAvailableDiskSpace() {
@@ -159,7 +166,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sdb", 200, 190, 70),
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                TestDiscoveryNode.create("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 0,
                 null,
                 null,
@@ -186,7 +193,7 @@ public class DiskUsageTests extends ESTestCase {
         {
             FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", 100, 90, 80), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                TestDiscoveryNode.create("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 0,
                 null,
                 null,
@@ -215,7 +222,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/least", "/dev/sda", 100, 90, 70),
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 80), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                TestDiscoveryNode.create("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 0,
                 null,
                 null,
@@ -248,7 +255,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sdc", 300, 290, 280), };
 
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                TestDiscoveryNode.create("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 0,
                 null,
                 null,
@@ -276,7 +283,7 @@ public class DiskUsageTests extends ESTestCase {
         {
             FsInfo.Path[] nodeFSInfo = new FsInfo.Path[] { new FsInfo.Path("/least_most", "/dev/sda", -1, -1, -1), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                TestDiscoveryNode.create("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 0,
                 null,
                 null,
@@ -305,7 +312,7 @@ public class DiskUsageTests extends ESTestCase {
                 new FsInfo.Path("/most", "/dev/sda", 100, 90, 70),
                 new FsInfo.Path("/least", "/dev/sda", 10, -1, 0), };
             NodeStats nodeStats = new NodeStats(
-                new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                TestDiscoveryNode.create("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet()),
                 0,
                 null,
                 null,

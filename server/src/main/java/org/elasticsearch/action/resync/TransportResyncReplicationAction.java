@@ -8,6 +8,7 @@
 package org.elasticsearch.action.resync;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -31,8 +32,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -112,7 +111,14 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     ) {
         ActionListener.completeWith(
             listener,
-            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger)
+            () -> new WritePrimaryResult<>(
+                performOnPrimary(request),
+                new ResyncReplicationResponse(),
+                null,
+                primary,
+                logger,
+                postWriteRefresh
+            )
         );
     }
 
@@ -191,11 +197,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
             transportOptions,
-            new TransportResponseHandler<ResyncReplicationResponse>() {
-                @Override
-                public ResyncReplicationResponse read(StreamInput in) throws IOException {
-                    return newResponseInstance(in);
-                }
+            new ActionListenerResponseHandler<>(listener, TransportResyncReplicationAction.this::newResponseInstance) {
 
                 @Override
                 public void handleResponse(ResyncReplicationResponse response) {
@@ -209,11 +211,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                         );
                     }
                     listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
                 }
             }
         );

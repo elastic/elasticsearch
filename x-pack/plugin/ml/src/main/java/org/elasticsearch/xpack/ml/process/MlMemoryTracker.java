@@ -262,10 +262,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public Long getTrainedModelAssignmentMemoryRequirement(String modelId) {
         if (isMaster == false) {
+            logger.warn("Request to get trained model assignment memory not on master node; modelId was [{}]", modelId);
             return null;
         }
 
-        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).modelAssignments().get(modelId))
+        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).allAssignments().get(modelId))
             .map(TrainedModelAssignment::getTaskParams)
             .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
             .orElse(null);
@@ -282,6 +283,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public Long getJobMemoryRequirement(String taskName, String id) {
 
         if (isMaster == false) {
+            logger.warn("Request to get job memory not on master node; taskName [{}], id [{}]", taskName, id);
             return null;
         }
 
@@ -353,7 +355,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void refreshAnomalyDetectorJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
 
         if (isMaster == false) {
-            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirements on non-master node"));
+            String msg = "Request to refresh anomaly detector memory requirements on non-master node";
+            logger.warn(msg);
+            listener.onFailure(new NotMasterException(msg));
             return;
         }
 
@@ -377,7 +381,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(String id, long mem, ActionListener<Void> listener) {
 
         if (isMaster == false) {
-            listener.onFailure(new NotMasterException("Request to put data frame analytics memory requirement on non-master node"));
+            String msg = "Request to put data frame analytics memory requirement on non-master node";
+            logger.warn(msg);
+            listener.onFailure(new NotMasterException(msg));
             return;
         }
 
@@ -517,7 +523,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      */
     public void refreshAnomalyDetectorJobMemory(String jobId, ActionListener<Long> listener) {
         if (isMaster == false) {
-            listener.onFailure(new NotMasterException("Request to refresh anomaly detector memory requirement on non-master node"));
+            String msg = "Request to refresh anomaly detector memory requirement on non-master node";
+            logger.warn(msg);
+            listener.onFailure(new NotMasterException(msg));
             return;
         }
 

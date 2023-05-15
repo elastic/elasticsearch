@@ -25,6 +25,8 @@ given {es} version.
 * <<update-desired-nodes>>
 * <<get-desired-nodes>>
 * <<delete-desired-nodes>>
+* <<get-desired-balance>>
+* <<delete-desired-balance>>
 
 [[operator-only-dynamic-cluster-settings]]
 ==== Operator-only dynamic cluster settings

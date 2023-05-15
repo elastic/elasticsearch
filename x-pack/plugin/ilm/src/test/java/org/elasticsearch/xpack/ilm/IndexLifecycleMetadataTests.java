@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -55,7 +54,7 @@ import java.util.TreeMap;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 
-public class IndexLifecycleMetadataTests extends SimpleDiffableSerializationTestCase<Custom> {
+public class IndexLifecycleMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Custom> {
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
@@ -72,7 +71,7 @@ public class IndexLifecycleMetadataTests extends SimpleDiffableSerializationTest
     }
 
     @Override
-    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) throws IOException {
+    protected IndexLifecycleMetadata doParseInstance(XContentParser parser) {
         return IndexLifecycleMetadata.PARSER.apply(parser, null);
     }
 
@@ -95,7 +94,7 @@ public class IndexLifecycleMetadataTests extends SimpleDiffableSerializationTest
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
@@ -144,7 +143,7 @@ public class IndexLifecycleMetadataTests extends SimpleDiffableSerializationTest
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+    protected Metadata.Custom mutateInstance(Custom instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
         Map<String, LifecyclePolicyMetadata> policies = metadata.getPolicyMetadatas();
         policies = new TreeMap<>(policies);
@@ -177,8 +176,8 @@ public class IndexLifecycleMetadataTests extends SimpleDiffableSerializationTest
     }
 
     public void testMinimumSupportedVersion() {
-        Version min = createTestInstance().getMinimalSupportedVersion();
-        assertTrue(min.onOrBefore(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
+        TransportVersion min = createTestInstance().getMinimalSupportedVersion();
+        assertTrue(min.onOrBefore(TransportVersionUtils.randomCompatibleVersion(random())));
     }
 
     public void testcontext() {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -71,7 +72,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
 
     public void testParseArrayValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field");
             {
                 b.startObject().field("counts", new int[] { 2, 2, 3 }).field("values", new double[] { 2, 2, 3 }).endObject();
@@ -81,7 +82,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("doesn't not support indexing multiple values " + "for the same field in the same document")
+            containsString("doesn't not support indexing multiple values for the same field in the same document")
         );
     }
 
@@ -102,16 +103,24 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     public void testMissingFieldCounts() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()))
         );
         assertThat(e.getCause().getMessage(), containsString("expected field called [counts]"));
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", true)));
-        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("values", new double[] { 2, 2 }).endObject()));
-        assertThat(doc.rootDoc().getField("pre_aggregated"), nullValue());
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
+
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue(b -> b.startObject().startArray("values").value(2).value(2).endArray().endObject()).errorMatches(
+                "expected field called [counts]"
+            )
+        );
     }
 
     public void testIgnoreMalformedSkipsKeyword() throws Exception {
@@ -187,7 +196,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     public void testMissingFieldValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field").field("counts", new int[] { 2, 2 }).endObject()))
         );
         assertThat(e.getCause().getMessage(), containsString("expected field called [values]"));
@@ -203,7 +212,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
                 .endObject()
         );
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("with unknown parameter [unknown]"));
     }
 
@@ -212,7 +221,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", new int[] { 2, 2 }).field("values", new double[] { 2, 2, 3 }).endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expected same length from [values] and [counts] but got [3 != 2]"));
     }
 
@@ -221,7 +230,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", "bah").field("values", new double[] { 2, 2, 3 }).endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
     }
 
@@ -233,7 +242,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
                 .field("values", new double[] { 2, 2, 3 })
                 .endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
     }
 
@@ -246,7 +255,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
                 .field("values", new String[] { "2", "2", "3" })
                 .endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"));
     }
 
@@ -255,7 +264,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", new int[] { 2, 2, 3 }).field("values", "bah").endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_ARRAY] but found [VALUE_STRING]"));
     }
 
@@ -267,7 +276,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
                 .field("values", new double[] { 2, 2, 3 })
                 .endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString(" out of range of int"));
     }
 
@@ -276,7 +285,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         SourceToParse source = source(
             b -> b.field("field").startObject().field("counts", new int[] { 2, 8, 4 }).field("values", new double[] { 2, 3, 2 }).endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(
             e.getCause().getMessage(),
             containsString(" values must be in increasing order, " + "got [2.0] but previous value was [3.0]")
@@ -286,7 +295,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     public void testFieldNotObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SourceToParse source = source(b -> b.field("field", "bah"));
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("expecting token of type [START_OBJECT] " + "but found [VALUE_STRING]"));
     }
 
@@ -295,7 +304,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         SourceToParse source = source(
             b -> b.startObject("field").field("counts", new int[] { 2, 2, -3 }).field("values", new double[] { 2, 2, 3 }).endObject()
         );
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
     }
 
@@ -323,7 +332,8 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeFalse("synthetic _source support for histogram doesn't support ignore_malformed", ignoreMalformed);
         return new HistogramFieldSyntheticSourceSupport();
     }
 

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -92,7 +92,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     private final List<AutoscalingExtension> autoscalingExtensions;
     private final SetOnce<ClusterService> clusterServiceHolder = new SetOnce<>();
-    private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
+    private final SetOnce<AllocationService> allocationServiceHolder = new SetOnce<>();
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
     private final SetOnce<ReservedAutoscalingPolicyAction> reservedAutoscalingPolicyAction = new SetOnce<>();
 
@@ -119,10 +119,10 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer tracer,
-        AllocationDeciders allocationDeciders
+        AllocationService allocationService
     ) {
         this.clusterServiceHolder.set(clusterService);
-        this.allocationDeciders.set(allocationDeciders);
+        this.allocationServiceHolder.set(allocationService);
         var capacityServiceHolder = new AutoscalingCalculateCapacityService.Holder(this);
         this.reservedAutoscalingPolicyAction.set(new ReservedAutoscalingPolicyAction(capacityServiceHolder));
         return List.of(capacityServiceHolder, autoscalingLicenseChecker, new AutoscalingNodeInfoService(clusterService, client));
@@ -213,12 +213,23 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     @Override
     public Collection<AutoscalingDeciderService> deciders() {
-        assert allocationDeciders.get() != null;
+        final var allocationService = allocationServiceHolder.get();
+        assert allocationService != null;
         final ClusterService clusterService = clusterServiceHolder.get();
         return List.of(
             new FixedAutoscalingDeciderService(),
-            new ReactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
-            new ProactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
+            new ReactiveStorageDeciderService(
+                clusterService.getSettings(),
+                clusterService.getClusterSettings(),
+                allocationService.getAllocationDeciders(),
+                allocationService.getShardRoutingRoleStrategy()
+            ),
+            new ProactiveStorageDeciderService(
+                clusterService.getSettings(),
+                clusterService.getClusterSettings(),
+                allocationService.getAllocationDeciders(),
+                allocationService.getShardRoutingRoleStrategy()
+            ),
             new FrozenShardsDeciderService(),
             new FrozenStorageDeciderService(),
             new FrozenExistenceDeciderService()

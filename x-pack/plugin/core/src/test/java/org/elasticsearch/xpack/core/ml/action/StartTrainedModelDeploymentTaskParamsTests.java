@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 
-public class StartTrainedModelDeploymentTaskParamsTests extends AbstractSerializingTestCase<TaskParams> {
+public class StartTrainedModelDeploymentTaskParamsTests extends AbstractXContentSerializingTestCase<TaskParams> {
 
     @Override
     protected TaskParams doParseInstance(XContentParser parser) throws IOException {
@@ -32,14 +33,21 @@ public class StartTrainedModelDeploymentTaskParamsTests extends AbstractSerializ
         return createRandom();
     }
 
+    @Override
+    protected TaskParams mutateInstance(TaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static StartTrainedModelDeploymentAction.TaskParams createRandom() {
         return new TaskParams(
+            randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),
             randomIntBetween(1, 10000),
-            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong())
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong()),
+            randomFrom(Priority.values())
         );
     }
 }

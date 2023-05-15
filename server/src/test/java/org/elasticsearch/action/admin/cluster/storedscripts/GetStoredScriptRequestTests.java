@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GetStoredScriptRequestTests extends ESTestCase {
@@ -22,11 +22,11 @@ public class GetStoredScriptRequestTests extends ESTestCase {
         GetStoredScriptRequest request = new GetStoredScriptRequest("id");
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(randomVersion(random()));
+        out.setTransportVersion(randomVersion(random()));
         request.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(out.getVersion());
+        in.setTransportVersion(out.getTransportVersion());
         GetStoredScriptRequest request2 = new GetStoredScriptRequest(in);
 
         assertThat(request2.id(), equalTo(request.id()));

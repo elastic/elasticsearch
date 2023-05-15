@@ -1,7 +1,7 @@
 [[analysis-kuromoji]]
-=== Japanese (kuromoji) Analysis Plugin
+=== Japanese (kuromoji) analysis plugin
 
-The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis
+The Japanese (kuromoji) analysis plugin integrates Lucene kuromoji analysis
 module into {es}.
 
 :plugin_name: analysis-kuromoji

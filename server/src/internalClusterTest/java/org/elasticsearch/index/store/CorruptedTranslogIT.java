@@ -51,10 +51,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.refresh_interval", "-1")
+                indexSettings(1, 0).put("index.refresh_interval", "-1")
                     .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
             )
@@ -82,9 +79,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
-            final ClusterAllocationExplainResponse allocationExplainResponse = client().admin()
-                .cluster()
-                .prepareAllocationExplain()
+            final ClusterAllocationExplainResponse allocationExplainResponse = clusterAdmin().prepareAllocationExplain()
                 .setIndex("test")
                 .setShard(0)
                 .setPrimary(true)

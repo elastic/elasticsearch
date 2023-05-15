@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "9.1.1"
+  id "com.netflix.nebula.ospackage-base" version "11.0.0"
 }
 
 ['deb', 'rpm'].each { type ->
@@ -83,7 +83,7 @@ plugins {
 // is the same
 def commonPackageConfig(String type, String architecture) {
   return {
-    onlyIf {
+    onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
     }
     dependsOn "process${type.capitalize()}Files"
@@ -392,13 +392,13 @@ subprojects {
     tasks.named("check").configure { dependsOn "checkExtraction" }
     if (project.name.contains('deb')) {
       tasks.named("checkExtraction").configure {
-        onlyIf dpkgExists
+        onlyIf("dpkg exists", dpkgExists)
         commandLine 'dpkg-deb', '-x', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}", packageExtractionDir
       }
     } else {
       assert project.name.contains('rpm')
       tasks.named("checkExtraction").configure {
-        onlyIf rpmExists
+         onlyIf("rpm exists", rpmExists)
         final File rpmDatabase = new File(extractionDir, 'rpm-database')
         commandLine 'rpm',
           '--badreloc',
@@ -422,7 +422,7 @@ subprojects {
     tasks.named("check").configure { dependsOn "checkLicense" }
     if (project.name.contains('deb')) {
       tasks.named("checkLicense").configure {
-        onlyIf dpkgExists
+        onlyIf("dpkg exists", dpkgExists)
         doLast {
           Path copyrightPath
           String expectedLicense
@@ -441,7 +441,7 @@ subprojects {
     } else {
       assert project.name.contains('rpm')
       tasks.named("checkLicense").configure {
-        onlyIf rpmExists
+        onlyIf("rpm exists", rpmExists)
         doLast {
           String licenseFilename
           licenseFilename = "ELASTIC-LICENSE-2.0.txt"
@@ -454,7 +454,7 @@ subprojects {
 
     tasks.register("checkNotice") {
       dependsOn buildDist, "checkExtraction"
-      onlyIf {
+      onlyIf("${project.name.contains('deb') ? 'dpkg' : 'rpm'} exists") {
         (project.name.contains('deb') && dpkgExists.call(it)) || (project.name.contains('rpm') && rpmExists.call(it))
       }
       doLast {
@@ -474,7 +474,7 @@ subprojects {
 
     if (project.name.contains('deb')) {
       checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
-        onlyIf dpkgExists
+        onlyIf("dpkg exists", dpkgExists)
         exec.commandLine 'dpkg-deb', '--info', "${-> buildDist.get().outputs.files.filter(debFilter).singleFile}"
         exec.getCaptureOutput().set(true)
         doLast {
@@ -504,7 +504,7 @@ subprojects {
     } else {
       assert project.name.contains('rpm')
       checkLicenseMetadataTaskProvider.configure { LoggedExec exec ->
-        onlyIf rpmExists
+        onlyIf("rpm exists", rpmExists)
         exec.commandLine 'rpm', '-qp', '--queryformat', '%{License}', "${-> buildDist.get().outputs.files.singleFile}"
         exec.getCaptureOutput().set(true)
         doLast {

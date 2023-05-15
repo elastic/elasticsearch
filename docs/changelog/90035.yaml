@@ -1,5 +1,0 @@
-pr: 90035
-summary: Add a TSID global ordinal to `TimeSeriesIndexSearcher`
-area: TSDB
-type: feature
-issues: []

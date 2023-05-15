@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -130,8 +131,17 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null);
+    }
+
+    /**
+     * Converts the component template to XContent and passes the RolloverConditions, when provided, to the template.
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
+        throws IOException {
         builder.startObject();
-        builder.field(TEMPLATE.getPreferredName(), this.template, params);
+        builder.field(TEMPLATE.getPreferredName());
+        this.template.toXContent(builder, params, rolloverConfiguration);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

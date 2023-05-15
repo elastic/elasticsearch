@@ -7,20 +7,27 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 
@@ -36,6 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
@@ -157,5 +165,45 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+    }
+
+    // make sure we store the normalised geometry
+    public void testStorePolygonDateLine() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("shape");
+        getGeoShapeMapping(mapping);
+        mapping.field("store", true);
+        mapping.endObject().endObject().endObject();
+
+        // create index
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(settings(randomSupportedVersion()).build())
+                .setMapping(mapping)
+                .get()
+        );
+        ensureGreen();
+
+        String source = """
+            {
+              "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
+            }""";
+
+        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+
+        SearchResponse searchResponse = client().prepareSearch("test").setFetchSource(false).addStoredField("shape").get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        SearchHit searchHit = searchResponse.getHits().getAt(0);
+        assertThat(searchHit.field("shape").getValue(), instanceOf(BytesRef.class));
+        BytesRef bytesRef = searchHit.field("shape").getValue();
+        Geometry geometry = WellKnownBinary.fromWKB(
+            StandardValidator.instance(true),
+            false,
+            bytesRef.bytes,
+            bytesRef.offset,
+            bytesRef.length
+        );
+        assertThat(geometry.type(), equalTo(ShapeType.MULTIPOLYGON));
     }
 }

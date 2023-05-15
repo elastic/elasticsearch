@@ -35,7 +35,7 @@ one of the active allocation ids in the cluster state.
 `cluster.routing.allocation.node_concurrent_recoveries`::
      (<<dynamic-cluster-setting,Dynamic>>)
      A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and
-     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`.
+     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`. Defaults to 2.
 
 
 `cluster.routing.allocation.node_initial_primaries_recoveries`::
@@ -57,17 +57,18 @@ one of the active allocation ids in the cluster state.
 [[shards-rebalancing-settings]]
 ==== Shard rebalancing settings
 
-A cluster is _balanced_ when it has an equal number of shards on each node
-without having a concentration of shards from any index on any node. {es} runs
-an automatic process called _rebalancing_ which moves shards between the nodes
-in your cluster to improve its balance. Rebalancing obeys all other shard
-allocation rules such as <<cluster-shard-allocation-filtering,allocation
-filtering>> and <<forced-awareness,forced awareness>> which may prevent it from
-completely balancing the cluster. In that case, rebalancing strives to achieve
-the most balanced cluster possible within the rules you have configured. If you
-are using <<data-tiers,data tiers>> then {es} automatically applies allocation
-filtering rules to place each shard within the appropriate tier. These rules
-mean that the balancer works independently within each tier.
+A cluster is _balanced_ when it has an equal number of shards on each node, with
+all nodes needing equal resources, without having a concentration of shards from
+any index on any node. {es} runs an automatic process called _rebalancing_ which
+moves shards between the nodes in your cluster to improve its balance.
+Rebalancing obeys all other shard allocation rules such as
+<<cluster-shard-allocation-filtering,allocation filtering>> and
+<<forced-awareness,forced awareness>> which may prevent it from completely
+balancing the cluster. In that case, rebalancing strives to achieve the most
+balanced cluster possible within the rules you have configured. If you are using
+<<data-tiers,data tiers>> then {es} automatically applies allocation filtering
+rules to place each shard within the appropriate tier. These rules mean that the
+balancer works independently within each tier.
 
 You can use the following settings to control the rebalancing of shards across
 the cluster:
@@ -84,7 +85,6 @@ Enable or disable rebalancing for specific kinds of shards:
 * `none` -        No shard balancing of any kind are allowed for any indices.
 --
 
-
 `cluster.routing.allocation.allow_rebalance`::
 +
 --
@@ -98,13 +98,32 @@ Specify when shard rebalancing is allowed:
 --
 
 `cluster.routing.allocation.cluster_concurrent_rebalance`::
-      (<<dynamic-cluster-setting,Dynamic>>)
-      Allow to control how many concurrent shard rebalances are
-      allowed cluster wide. Defaults to `2`. Note that this setting
-      only controls the number of concurrent shard relocations due
-      to imbalances in the cluster. This setting does not limit shard
-      relocations due to <<cluster-shard-allocation-filtering,allocation
-      filtering>> or <<forced-awareness,forced awareness>>.
+(<<dynamic-cluster-setting,Dynamic>>)
+Defines the number of concurrent shard rebalances are allowed across the whole
+cluster. Defaults to `2`. Note that this setting only controls the number of
+concurrent shard relocations due to imbalances in the cluster. This setting does
+not limit shard relocations due to
+<<cluster-shard-allocation-filtering,allocation filtering>> or
+<<forced-awareness,forced awareness>>.
+
+`cluster.routing.allocation.type`::
++
+--
+Selects the algorithm used for computing the cluster balance. Defaults to
+`desired_balance` which selects the _desired balance allocator_. This allocator
+runs a background task which computes the desired balance of shards in the
+cluster. Once this background task completes, {es} moves shards to their
+desired locations.
+
+May also be set to `balanced` to select the legacy _balanced allocator_. This
+allocator was the default allocator in versions of {es} before 8.6.0. It runs
+in the foreground, preventing the master from doing other work in parallel. It
+works by selecting a small number of shard movements which immediately improve
+the balance of the cluster, and when those shard movements complete it runs
+again and selects another few shards to move. Since this allocator makes its
+decisions based only on the current state of the cluster, it will sometimes
+move a shard several times while balancing the cluster.
+--
 
 [[shards-rebalancing-heuristics]]
 ==== Shard balancing heuristics settings
@@ -114,28 +133,55 @@ of shards, and then moving shards between nodes to reduce the weight of the
 heavier nodes and increase the weight of the lighter ones. The cluster is
 balanced when there is no possible shard movement that can bring the weight of
 any node closer to the weight of any other node by more than a configurable
-threshold. The following settings allow you to control the details of these
-calculations.
+threshold.
+
+The weight of a node depends on the number of shards it holds and on the total
+estimated resource usage of those shards expressed in terms of the size of the
+shard on disk and the number of threads needed to support write traffic to the
+shard. {es} estimates the resource usage of shards belonging to data streams
+when they are created by a rollover. The estimated disk size of the new shard
+is the mean size of the other shards in the data stream. The estimated write
+load of the new shard is a weighted average of the actual write loads of recent
+shards in the data stream. Shards that do not belong to the write index of a
+data stream have an estimated write load of zero.
+
+The following settings control how {es} combines these values into an overall
+measure of each node's weight.
 
 `cluster.routing.allocation.balance.shard`::
-     (<<dynamic-cluster-setting,Dynamic>>)
-     Defines the weight factor for the total number of shards allocated on a node
-     (float). Defaults to `0.45f`. Raising this raises the tendency to
-     equalize the number of shards across all nodes in the cluster.
+(float, <<dynamic-cluster-setting,Dynamic>>)
+Defines the weight factor for the total number of shards allocated to each node.
+Defaults to `0.45f`. Raising this value increases the tendency of {es} to
+equalize the total number of shards across nodes ahead of the other balancing
+variables.
 
 `cluster.routing.allocation.balance.index`::
-     (<<dynamic-cluster-setting,Dynamic>>)
-     Defines the weight factor for the number of shards per index allocated
-      on a specific node (float). Defaults to `0.55f`. Raising this raises the
-      tendency to equalize the number of shards per index across all nodes in
-      the cluster.
+(float, <<dynamic-cluster-setting,Dynamic>>)
+Defines the weight factor for the number of shards per index allocated to each
+node. Defaults to `0.55f`. Raising this value increases the tendency of {es} to
+equalize the number of shards of each index across nodes ahead of the other
+balancing variables.
+
+`cluster.routing.allocation.balance.disk_usage`::
+(float, <<dynamic-cluster-setting,Dynamic>>)
+Defines the weight factor for balancing shards according to their predicted disk
+size in bytes. Defaults to `2e-11f`. Raising this value increases the tendency
+of {es} to equalize the total disk usage across nodes ahead of the other
+balancing variables.
+
+`cluster.routing.allocation.balance.write_load`::
+(float, <<dynamic-cluster-setting,Dynamic>>)
+Defines the weight factor for the write load of each shard, in terms of the
+estimated number of indexing threads needed by the shard. Defaults to `10.0f`.
+Raising this value increases the tendency of {es} to equalize the total write
+load across nodes ahead of the other balancing variables.
 
 `cluster.routing.allocation.balance.threshold`::
-     (<<dynamic-cluster-setting,Dynamic>>)
-     Minimal optimization value of operations that should be performed (non
-      negative float). Defaults to `1.0f`. Raising this will cause the cluster
-      to be less aggressive about optimizing the shard balance.
-
+(float, <<dynamic-cluster-setting,Dynamic>>)
+The minimum improvement in weight which triggers a rebalancing shard movement.
+Defaults to `1.0f`. Raising this value will cause {es} to stop rebalancing
+shards sooner, leaving the cluster in a more unbalanced state.
 
 NOTE: Regardless of the result of the balancing algorithm, rebalancing might
-not be allowed due to forced awareness or allocation filtering.
+not be allowed due to allocation rules such as forced awareness and allocation
+filtering.

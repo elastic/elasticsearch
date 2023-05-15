@@ -53,8 +53,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getIndexNameSupplier();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(nextKey.getPhase(), nextKey.getAction(), nextKey.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> color = randomValueOtherThan(color, WaitForIndexColorStepTests::randomColor);
         }
 
@@ -250,7 +250,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             info.getMessage(),
             is(
                 "["
-                    + step.getKey().getAction()
+                    + step.getKey().action()
                     + "] lifecycle action for index ["
                     + originalIndex.getIndex().getName()
                     + "] executed but the target index ["

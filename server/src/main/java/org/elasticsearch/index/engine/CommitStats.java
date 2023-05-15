@@ -12,17 +12,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Map.entry;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
 public final class CommitStats implements Writeable, ToXContentFragment {
@@ -42,12 +38,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     }
 
     CommitStats(StreamInput in) throws IOException {
-        final int length = in.readVInt();
-        final var entries = new ArrayList<Map.Entry<String, String>>(length);
-        for (int i = length; i > 0; i--) {
-            entries.add(entry(in.readString(), in.readString()));
-        }
-        userData = Maps.ofEntries(entries);
+        userData = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();

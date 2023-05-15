@@ -11,10 +11,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
 
-import java.io.IOException;
 import java.util.function.Function;
 
 public abstract class GeoShapeValuesSource extends ShapeValuesSource<GeoShapeValues> {
@@ -27,7 +27,7 @@ public abstract class GeoShapeValuesSource extends ShapeValuesSource<GeoShapeVal
     };
 
     @Override
-    protected Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
+    protected Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) {
         throw new AggregationExecutionException("can't round a [geo_shape]");
     }
 

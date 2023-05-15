@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -66,7 +66,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             super(in);
             this.modelId = in.readString();
             this.vocabulary = in.readStringList();
-            if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 this.merges = in.readStringList();
             } else {
                 this.merges = List.of();
@@ -102,7 +102,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             super.writeTo(out);
             out.writeString(modelId);
             out.writeStringCollection(vocabulary);
-            if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
                 out.writeStringCollection(merges);
             }
         }

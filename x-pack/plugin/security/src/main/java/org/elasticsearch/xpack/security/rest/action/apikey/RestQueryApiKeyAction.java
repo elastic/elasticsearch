@@ -14,6 +14,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -27,7 +29,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -35,6 +37,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Rest action to search for API keys
  */
+@ServerlessScope(Scope.PUBLIC)
 public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
@@ -44,7 +47,7 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseInnerQueryBuilder(p), new ParseField("query"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseTopLevelQuery(p), new ParseField("query"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("from"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("size"));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> {

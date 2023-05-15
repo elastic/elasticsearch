@@ -9,10 +9,14 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
@@ -90,6 +94,10 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             return frequentItemSets;
         }
 
+        Map<String, Object> getProfilingInfo() {
+            return profilingInfo;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeArray(frequentItemSets);
@@ -112,6 +120,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     private static final Logger logger = LogManager.getLogger(EclatMapReducer.class);
     private static final int VERSION = 1;
 
+    // named writable for this implementation
     public static final String NAME = "frequent_items-eclat-" + VERSION;
 
     // cache for marking transactions visited, memory usage: ((BITSET_CACHE_TRAVERSAL_DEPTH -2) * BITSET_CACHE_NUMBER_OF_TRANSACTIONS) / 8
@@ -127,6 +136,11 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     // we must differ between map and reduce parts
     private final Map<String, Object> profilingInfoReduce;
     private final Map<String, Object> profilingInfoMap;
+
+    @Override
+    protected OrdinalOptimization getDefaultOrdinalOptimization() {
+        return OrdinalOptimization.GLOBAL_ORDINALS;
+    }
 
     public EclatMapReducer(String aggregationName, double minimumSupport, int minimumSetSize, int size, boolean profiling) {
         super(aggregationName, NAME);
@@ -189,25 +203,91 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     }
 
     @Override
-    protected ImmutableTransactionStore mapFinalize(HashBasedTransactionStore transactionStore) {
+    public HashBasedTransactionStore mapFiltered(HashBasedTransactionStore transactionStore) {
+        transactionStore.addFilteredTransaction();
+        return transactionStore;
+    }
 
+    @Override
+    protected ImmutableTransactionStore mapFinalize(HashBasedTransactionStore transactionStore, List<OrdinalLookupFunction> ordinalLookup)
+        throws IOException {
+
+        final long relativeStartNanos = System.nanoTime();
         // reported by shard in collectDebugInfo
         if (profiling) {
             // note: collect this before creating the immutable transaction store as memory gets freed
             profilingInfoMap.put("ram_bytes_transactionstore_after_map", transactionStore.ramBytesUsed());
             profilingInfoMap.put("total_items_after_map", transactionStore.getTotalItemCount());
             profilingInfoMap.put("total_transactions_after_map", transactionStore.getTotalTransactionCount());
+            profilingInfoMap.put("filtered_transactions_after_map", transactionStore.getFilteredTransactionCount());
             profilingInfoMap.put("unique_items_after_map", transactionStore.getUniqueItemsCount());
             profilingInfoMap.put("unique_transactions_after_map", transactionStore.getUniqueTransactionCount());
         }
 
-        ImmutableTransactionStore transactionStoreMapFinalize = transactionStore.createImmutableTransactionStore();
+        ImmutableTransactionStore transactionStoreMapFinalize = rewriteOrdinalItems(
+            transactionStore.createImmutableTransactionStore(),
+            ordinalLookup
+        );
 
         if (profiling) {
             profilingInfoMap.put("ram_bytes_transactionstore_map_finalize", transactionStoreMapFinalize.ramBytesUsed());
+            profilingInfoMap.put("runtime_ms_finalize_map", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - relativeStartNanos));
         }
 
         return transactionStoreMapFinalize;
+    }
+
+    /**
+     * rewrites items that use ordinals to their real values
+     */
+    private ImmutableTransactionStore rewriteOrdinalItems(
+        ImmutableTransactionStore transactionStore,
+        List<OrdinalLookupFunction> ordinalLookups
+    ) throws IOException {
+        if (ordinalLookups == null || ordinalLookups.isEmpty()) {
+            return transactionStore;
+        }
+
+        logger.trace("rewrite items based on ordinals");
+
+        BytesRef scratchBytesRef = new BytesRef();
+        ByteArrayStreamInput scratchByteArrayStreamInput = new ByteArrayStreamInput();
+        BytesRefStreamOutput scratchItemBytesStreamOutput = new BytesRefStreamOutput();
+        BytesRefArray items = transactionStore.getItems();
+
+        BytesRefArray rewrittenItems = null;
+        try {
+            rewrittenItems = new BytesRefArray(items.size(), transactionStore.getBigArrays());
+
+            for (long i = 0; i < items.size(); ++i) {
+                items.get(i, scratchBytesRef);
+                scratchByteArrayStreamInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
+                int fieldId = scratchByteArrayStreamInput.readVInt();
+                Object ordinal = scratchByteArrayStreamInput.readGenericValue();
+                scratchItemBytesStreamOutput.reset();
+                scratchItemBytesStreamOutput.writeVInt(fieldId);
+                scratchItemBytesStreamOutput.writeGenericValue(ordinalLookups.get(fieldId).apply(ordinal));
+
+                rewrittenItems.append(scratchItemBytesStreamOutput.get());
+            }
+
+            // swap items
+            ImmutableTransactionStore rewrittenStore = new ImmutableTransactionStore(
+                transactionStore.getBigArrays(),
+                rewrittenItems,
+                transactionStore.getItemCounts(),
+                transactionStore.getTotalItemCount(),
+                transactionStore.getTransactions(),
+                transactionStore.getTransactionCounts(),
+                transactionStore.getTotalTransactionCount(),
+                transactionStore.getFilteredTransactionCount()
+            );
+
+            rewrittenItems = items;
+            return rewrittenStore;
+        } finally {
+            Releasables.close(rewrittenItems);
+        }
     }
 
     @Override
@@ -283,6 +363,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoReduce.put("ram_bytes_transactionstore_after_reduce", transactionStore.ramBytesUsed());
             profilingInfoReduce.put("total_items_after_reduce", transactionStore.getTotalItemCount());
             profilingInfoReduce.put("total_transactions_after_reduce", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("filtered_transactions_after_reduce", transactionStore.getFilteredTransactionCount());
             profilingInfoReduce.put("unique_items_after_reduce", transactionStore.getUniqueItemsCount());
             profilingInfoReduce.put("unique_transactions_after_reduce", transactionStore.getUniqueTransactionCount());
         }
@@ -293,6 +374,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             profilingInfoReduce.put("ram_bytes_transactionstore_after_prune", transactionStore.ramBytesUsed());
             profilingInfoReduce.put("total_items_after_prune", transactionStore.getTotalItemCount());
             profilingInfoReduce.put("total_transactions_after_prune", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("filtered_transactions_after_prune", transactionStore.getFilteredTransactionCount());
             profilingInfoReduce.put("unique_items_after_prune", transactionStore.getUniqueItemsCount());
             profilingInfoReduce.put("unique_transactions_after_prune", transactionStore.getUniqueTransactionCount());
         }
@@ -411,6 +493,22 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                         // no need to set visited, as we are on a leaf
                     }
 
+                    /**
+                     * Optimization
+                     *
+                     * a - b - c - d
+                     * |   |    \- h
+                     * |   |\- e - f
+                     * |    \- h - j
+                     *  \- x - y
+                     *
+                     * assume we pruned at d above, if c has the same count as d, we don't need the sub-branches, but go up
+                     * until we find a branch that has a higher count than the pruned one. This allows us to skip over subtrees.
+                     */
+                    if (setTraverser.atLeaf()) {
+                        setTraverser.pruneToNextMainBranch();
+                    }
+
                     continue;
                 }
 
@@ -459,6 +557,16 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                 if (previousMinCount != minCount) {
                     previousMinCount = minCount;
                     logger.debug("adjusting min count to {}", minCount);
+                }
+
+                /**
+                 * Optimization:
+                 *
+                 * If we reached a leaf, go up the branch until the new branch has a higher count than our current leaf.
+                 */
+                if (setTraverser.atLeaf()) {
+                    setTraverser.prune();
+                    setTraverser.pruneToNextMainBranch();
                 }
             }
             FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);

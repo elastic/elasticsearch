@@ -16,6 +16,7 @@ fix problems that an {es} deployment might encounter.
 [discrete]
 [[troubleshooting-data]]
 === Data
+* <<fix-watermark-errors,Fix watermark errors caused by low disk space>>
 * <<add-tier,Add a missing tier to the system>>
 * <<allow-all-cluster-allocation,Allow Elasticsearch to allocate the data in the system>>
 * <<allow-all-index-allocation,Allow Elasticsearch to allocate the index>>
@@ -32,6 +33,13 @@ fix problems that an {es} deployment might encounter.
 * <<start-slm,Start snapshot lifecycle management>>
 
 [discrete]
+[[troubleshooting-capacity]]
+=== Capacity
+* <<fix-data-node-out-of-disk, Fix data nodes out of disk>>
+* <<fix-master-node-out-of-disk, Fix master nodes out of disk>>
+* <<fix-other-node-out-of-disk, Fix other role nodes out of disk>>
+
+[discrete]
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
@@ -41,11 +49,13 @@ fix problems that an {es} deployment might encounter.
 [discrete]
 [[troubleshooting-others]]
 === Others
+* <<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>
 * <<discovery-troubleshooting,Troubleshooting discovery>>
 * <<monitoring-troubleshooting,Troubleshooting monitoring>>
 * <<transform-troubleshooting,Troubleshooting transforms>>
 * <<watcher-troubleshooting,Troubleshooting Watcher>>
 * <<troubleshooting-searches,Troubleshooting searches>>
+* <<troubleshooting-shards-capacity-issues, Troubleshoot shards capacity>>
 
 If none of these solutions relate to your issue, you can still get help:
 
@@ -90,6 +100,12 @@ include::troubleshooting/data/increase-cluster-shard-limit.asciidoc[]
 
 include::troubleshooting/corruption-issues.asciidoc[]
 
+include::troubleshooting/disk/fix-data-node-out-of-disk.asciidoc[]
+
+include::troubleshooting/disk/fix-master-node-out-of-disk.asciidoc[]
+
+include::troubleshooting/disk/fix-other-node-out-of-disk.asciidoc[]
+
 include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
@@ -109,3 +125,5 @@ include::transform/troubleshooting.asciidoc[leveloffset=+1]
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
 
 include::troubleshooting/troubleshooting-searches.asciidoc[]
+
+include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]

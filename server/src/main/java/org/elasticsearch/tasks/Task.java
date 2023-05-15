@@ -54,6 +54,7 @@ public class Task {
      * Has to be declared as a header copied over for tasks.
      */
     public static final String TRACE_ID = "trace.id";
+    public static final String TRACE_PARENT = "traceparent";
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(
         X_OPAQUE_ID_HTTP_HEADER,

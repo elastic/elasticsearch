@@ -299,7 +299,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             try {
                 final AuthenticateResponse response = client.execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
                     .actionGet(10, TimeUnit.SECONDS);
-                assertThat(response.authentication().getUser().principal(), is(username));
+                assertThat(response.authentication().getEffectiveSubject().getUser().principal(), is(username));
                 return;
             } catch (ElasticsearchException e) {
                 if (i == retryCount) {

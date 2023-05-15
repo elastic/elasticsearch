@@ -105,11 +105,10 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     Logger logger = task.getLogger();
                     if (logger.isInfoEnabled()) {
                         logger.info(
-                            "%s%n Module path args: %s%n Classpath: %s".formatted(
-                                task.toString(),
-                                argsToString(argumentProvider.asArguments()),
-                                pathToString(task.getClasspath().getAsPath())
-                            )
+                            "{}\n Module path args: {}\n Classpath: {}",
+                            task.getPath(),
+                            argsToString(argumentProvider.asArguments()),
+                            pathToString(task.getClasspath().getAsPath())
                         );
                     }
                 }
@@ -134,7 +133,7 @@ public class ElasticsearchJavaModulePathPlugin implements Plugin<Project> {
                     return false;
                 }
                 return isModuleDependency
-                    || (it.getId()instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
+                    || (it.getId() instanceof ProjectComponentIdentifier projectId && hasModuleInfoDotJava(project, projectId));
             })
             .flatMap(it -> Stream.concat(walkResolvedComponent(project, it, true, visited), Stream.of(it.getId())));
     }

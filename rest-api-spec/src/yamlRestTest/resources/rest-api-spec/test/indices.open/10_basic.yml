@@ -6,13 +6,11 @@
   - do:
       indices.create:
         index: test_index
-        body:
-          settings:
-            number_of_replicas: 0
 
   - do:
       cluster.health:
-        wait_for_status: green
+        index: [test_index]
+        wait_for_no_initializing_shards: true
 
   - do:
       indices.close:
@@ -34,7 +32,8 @@
 
   - do:
       cluster.health:
-        wait_for_status: green
+        index: [test_index]
+        wait_for_no_initializing_shards: true
 
   - do:
       search:
@@ -88,6 +87,7 @@
   - is_true: acknowledged
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }
+
 ---
 "Close index response with result per index":
   - skip:
@@ -96,23 +96,19 @@
   - do:
       indices.create:
         index: index_1
-        body:
-          settings:
-            number_of_replicas: 0
 
   - do:
       indices.create:
         index: index_2
-        body:
-          settings:
-            number_of_replicas: 0
 
   - do:
       indices.create:
         index: index_3
-        body:
-          settings:
-            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: [index_1, index_2, index_3]
+        wait_for_no_initializing_shards: true
 
   - do:
       indices.close:

@@ -66,7 +66,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -140,7 +139,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         logger.info("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -236,8 +235,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 senderNode.getName()
             );
             senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (ClearCcrRestoreSessionAction.NAME.equals(action)
-                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
+                if (ClearCcrRestoreSessionAction.INTERNAL_NAME.equals(action)
+                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.INTERNAL_NAME).equals(action)) {
                     try {
                         latch.await();
                     } catch (final InterruptedException e) {
@@ -636,7 +635,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfDocuments = randomIntBetween(128, 2048);
         logger.debug("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();

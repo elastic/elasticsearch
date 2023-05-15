@@ -47,7 +47,7 @@ public class CompletionStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getSize() {
-        return new ByteSizeValue(sizeInBytes);
+        return ByteSizeValue.ofBytes(sizeInBytes);
     }
 
     public FieldMemoryStats getFields() {

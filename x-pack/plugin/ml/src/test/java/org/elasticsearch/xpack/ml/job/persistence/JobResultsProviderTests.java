@@ -693,14 +693,9 @@ public class JobResultsProviderTests extends ESTestCase {
         Client client = getBasicMockedClient();
 
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(
-            List.of(),
-            null,
-            ActionListener.wrap(
-                statsByJobId -> assertThat(statsByJobId, anEmptyMap()),
-                e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
-            )
-        );
+        provider.datafeedTimingStats(List.of(), null, ActionListener.wrap(statsByJobId -> assertThat(statsByJobId, anEmptyMap()), e -> {
+            throw new AssertionError("Failure getting datafeed timing stats", e);
+        }));
 
         verifyNoMoreInteractions(client);
     }
@@ -850,7 +845,9 @@ public class JobResultsProviderTests extends ESTestCase {
         provider.datafeedTimingStats(
             "foo",
             stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo", 6, 66, 666.0, contextFoo))),
-            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
+            e -> {
+                throw new AssertionError("Failure getting datafeed timing stats", e);
+            }
         );
 
         verify(client).prepareSearch(indexName);
@@ -867,11 +864,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
         when(client.prepareSearch(indexName)).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indexName));
         JobResultsProvider provider = createProvider(client);
-        provider.datafeedTimingStats(
-            "foo",
-            stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))),
-            e -> { throw new AssertionError("Failure getting datafeed timing stats", e); }
-        );
+        provider.datafeedTimingStats("foo", stats -> assertThat(stats, equalTo(new DatafeedTimingStats("foo"))), e -> {
+            throw new AssertionError("Failure getting datafeed timing stats", e);
+        });
 
         verify(client).prepareSearch(indexName);
         verify(client).threadPool();
@@ -921,9 +916,9 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields, Collections.emptyMap()).sourceRef(
-                BytesReference.bytes(XContentFactory.jsonBuilder().map(_source))
-            );
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
+            hit.addDocumentFields(fields, Collections.emptyMap());
+            hit.sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);
         }

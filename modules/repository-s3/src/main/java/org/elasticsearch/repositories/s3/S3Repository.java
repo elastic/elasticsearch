@@ -76,12 +76,11 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
      * the available memory for smaller heaps.
      */
-    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(
+    private static final ByteSizeValue DEFAULT_BUFFER_SIZE = ByteSizeValue.ofBytes(
         Math.max(
             ByteSizeUnit.MB.toBytes(5), // minimum value
             Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        ),
-        ByteSizeUnit.BYTES
+        )
     );
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
@@ -409,7 +408,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata, bigArrays, threadPool);
     }
 
     // only use for testing

@@ -46,6 +46,8 @@ import java.util.function.Consumer;
 import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.OPERATOR_DIRECTORY;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTINGS_FILE_NAME;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -253,6 +255,8 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             addSingleFilePath(policy, pidFile, "delete");
         }
+        // we need to touch the operator/settings.json file when restoring from snapshots, on some OSs it needs file write permission
+        addSingleFilePath(policy, environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
     }
 
     /**

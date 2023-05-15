@@ -1,4 +1,4 @@
-[[getting-component-templates]] 
+[[getting-component-templates]]
 === Get component template API
 ++++
 <titleabbrev>Get component template</titleabbrev>
@@ -10,7 +10,7 @@ Retrieves information about one or more component templates.
 
 [source,console]
 --------------------------------------------------
-PUT /_component_template/template_1 
+PUT /_component_template/template_1
 {
   "template": {
     "settings": {
@@ -71,6 +71,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+`include_defaults`::
+(Optional, Boolean) Functionality in experimental:[]. If `true`, return all default settings in the response.
+Defaults to `false`.
 
 [[get-component-template-api-example]]
 ==== {api-examples-title}

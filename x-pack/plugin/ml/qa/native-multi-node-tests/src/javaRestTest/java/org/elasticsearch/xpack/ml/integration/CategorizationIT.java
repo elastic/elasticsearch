@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -39,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -356,7 +356,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         for (int docNum = 0; docNum < 200; ++docNum) {
             // Two thirds of our messages are "Node 1 started", the rest "Failed to shutdown"
             int partitionNum = (docNum % 3) / 2;
-            json.append(String.format(Locale.ROOT, """
+            json.append(Strings.format("""
                 {"time":1000000,"part":"%s","msg":"%s"}
                 """, partitions[partitionNum], messages[partitionNum]));
         }

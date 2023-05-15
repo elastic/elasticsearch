@@ -1,5 +1,0 @@
-pr: 89352
-summary: Fix duplication bug for source fallback in numeric types
-area: Mapping
-type: bug
-issues: []

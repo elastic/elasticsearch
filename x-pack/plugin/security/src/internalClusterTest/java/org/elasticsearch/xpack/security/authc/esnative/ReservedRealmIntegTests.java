@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
@@ -34,7 +33,6 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests for the built in realm
  */
-@SuppressWarnings("removal")
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
     private static Hasher hasher;
@@ -140,7 +138,6 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testDisablingUser() throws Exception {
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         // validate the user works
         ClusterHealthResponse response = client().filterWithHeader(
             singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword()))

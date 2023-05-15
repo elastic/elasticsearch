@@ -25,6 +25,28 @@ public abstract class LeafShapeFieldData<T extends ShapeValues<?>> implements Le
         this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
+    public static class Empty<T extends ShapeValues<?>> extends LeafShapeFieldData<T> {
+        private final T emptyValues;
+
+        public Empty(ToScriptFieldFactory<T> toScriptFieldFactory, T emptyValues) {
+            super(toScriptFieldFactory);
+            this.emptyValues = emptyValues;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public T getShapeValues() {
+            return emptyValues;
+        }
+    }
+
     /**
      * Return geo-shape or shape values.
      */

@@ -330,8 +330,9 @@ public class HeaderWarning {
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
+            // TODO #95972: Temporarily commented out to avoid StackOverflowError, see https://github.com/elastic/elasticsearch/issues/95972
+            // assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            // assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();

@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
@@ -23,7 +22,8 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,13 +32,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap());
+        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap(), false);
     }
 
     public void testIndexedValueForSearch() {
@@ -63,7 +64,15 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term(ft.name(), "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
 
-        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key", false, Collections.emptyMap());
+        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
+            "field",
+            false,
+            true,
+            "key",
+            false,
+            Collections.emptyMap(),
+            false
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [" + ft.name() + "] since it is not indexed.", e.getMessage());
     }
@@ -92,14 +101,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         KeyedFlattenedFieldType ft = createFieldType();
 
         Query expected = new PrefixQuery(new Term(ft.name(), "key\0val"));
-        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT));
+        assertEquals(expected, ft.prefixQuery("val", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_CONTEXT));
 
         expected = AutomatonQueries.caseInsensitivePrefixQuery(new Term(ft.name(), "key\0vAl"));
-        assertEquals(expected, ft.prefixQuery("vAl", MultiTermQuery.CONSTANT_SCORE_REWRITE, true, MOCK_CONTEXT));
+        assertEquals(expected, ft.prefixQuery("vAl", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, true, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
-            () -> ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+            () -> ft.prefixQuery("val", randomBoolean() ? null : CONSTANT_SCORE_BLENDED_REWRITE, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
         );
         assertEquals(
             "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "
@@ -180,11 +189,14 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         when(searchExecutionContext.sourcePath("field.key")).thenReturn(Set.of("field.key"));
 
         ValueFetcher fetcher = ft.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", sourceValue)));
-
-        assertEquals(List.of("value"), fetcher.fetchValues(lookup, new ArrayList<Object>()));
-        lookup.setSourceProvider(new SourceLookup.MapSourceProvider(Collections.singletonMap("field", null)));
-        assertEquals(List.of(), fetcher.fetchValues(lookup, new ArrayList<Object>()));
+        {
+            Source source = Source.fromMap(Collections.singletonMap("field", sourceValue), randomFrom(XContentType.values()));
+            assertEquals(List.of("value"), fetcher.fetchValues(source, -1, new ArrayList<>()));
+        }
+        {
+            Source source = Source.fromMap(Collections.singletonMap("field", null), randomFrom(XContentType.values()));
+            assertEquals(List.of(), fetcher.fetchValues(source, -1, new ArrayList<>()));
+        }
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.valueFetcher(searchExecutionContext, "format"));
         assertEquals("Field [field.key] of type [flattened] doesn't support formats.", e.getMessage());

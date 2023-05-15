@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -171,13 +172,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         /**
          * Step out from some existing vertex terms looking for useful
          * connections
+         *
+         * @param timedOut the value of timedOut field in the search response
          */
-        synchronized void expand() {
+        synchronized void expand(boolean timedOut) {
             Map<String, Set<Vertex>> lastHopFindings = hopFindings.get(currentHopNumber);
             if ((currentHopNumber >= (request.getHopNumbers() - 1)) || (lastHopFindings == null) || (lastHopFindings.size() == 0)) {
                 // Either we gathered no leads from the last hop or we have
                 // reached the final hop
-                listener.onResponse(buildResponse(false));
+                listener.onResponse(buildResponse(timedOut));
                 return;
             }
             Hop lastHop = request.getHop(currentHopNumber);
@@ -326,7 +329,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             searchRequest.source(source);
 
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
+            client.search(searchRequest, new DelegatingActionListener<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     addShardFailures(searchResponse.getShardFailures());
@@ -352,7 +355,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
 
                     // Potentially run another round of queries to perform next"hop" - will terminate if no new additions
-                    expand();
+                    expand(searchResponse.isTimedOut());
 
                 }
 
@@ -678,7 +681,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 }
                 searchRequest.source(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
+                client.search(searchRequest, new DelegatingActionListener<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
@@ -715,7 +718,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             }
                         }
                         // Expand out from these root vertices looking for connections with other terms
-                        expand();
+                        expand(searchResponse.isTimedOut());
 
                     }
 

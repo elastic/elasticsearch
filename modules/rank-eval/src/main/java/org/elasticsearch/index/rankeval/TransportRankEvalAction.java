@@ -9,6 +9,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
@@ -105,7 +106,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         XContentType.JSON
                     )
                 ) {
-                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {
@@ -143,7 +144,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         );
     }
 
-    static class RankEvalActionListener extends ActionListener.Delegating<MultiSearchResponse, RankEvalResponse> {
+    static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {
 
         private final RatedRequest[] specifications;
 

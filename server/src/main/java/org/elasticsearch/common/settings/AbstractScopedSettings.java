@@ -435,6 +435,22 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * This methods passes the setting value to a consumer during the initialization and on every setting change
+     * <p>
+     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * </p>
+     */
+    public synchronized <T> void initializeAndWatch(Setting<T> setting, Consumer<T> consumer) {
+        assert setting.getProperties().contains(Setting.Property.Dynamic)
+            || setting.getProperties().contains(Setting.Property.OperatorDynamic) : "Can only watch dynamic settings";
+        assert setting.getProperties().contains(Setting.Property.NodeScope) : "Can only watch node settings";
+        consumer.accept(setting.get(settings));
+        addSettingsUpdateConsumer(setting, consumer);
+    }
+
+    protected void validateDeprecatedAndRemovedSettingV7(Settings settings, Setting<?> setting) {}
+
+    /**
      * Validates that all settings are registered and valid.
      *
      * @param settings             the settings to validate
@@ -561,6 +577,9 @@ public abstract class AbstractScopedSettings {
             Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
                 setting = setting.getConcreteSetting(key);
+            }
+            if (setting.isDeprecatedAndRemoved()) {
+                validateDeprecatedAndRemovedSettingV7(settings, setting);
             }
             if (validateValue && settingsDependencies.isEmpty() == false) {
                 for (final Setting.SettingDependency settingDependency : settingsDependencies) {

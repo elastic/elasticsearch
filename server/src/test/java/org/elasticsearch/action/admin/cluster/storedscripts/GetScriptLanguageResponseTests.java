@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptLanguagesInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<GetScriptLanguageResponse> {
+public class GetScriptLanguageResponseTests extends AbstractXContentSerializingTestCase<GetScriptLanguageResponse> {
     private static int MAX_VALUES = 4;
     private static final int MIN_LENGTH = 1;
     private static final int MAX_LENGTH = 16;
@@ -47,7 +47,7 @@ public class GetScriptLanguageResponseTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected GetScriptLanguageResponse mutateInstance(GetScriptLanguageResponse instance) throws IOException {
+    protected GetScriptLanguageResponse mutateInstance(GetScriptLanguageResponse instance) {
         switch (randomInt(2)) {
             case 0:
                 // mutate typesAllowed

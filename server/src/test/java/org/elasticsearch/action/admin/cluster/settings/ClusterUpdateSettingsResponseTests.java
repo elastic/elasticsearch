@@ -13,14 +13,14 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
-public class ClusterUpdateSettingsResponseTests extends AbstractSerializingTestCase<ClusterUpdateSettingsResponse> {
+public class ClusterUpdateSettingsResponseTests extends AbstractXContentSerializingTestCase<ClusterUpdateSettingsResponse> {
 
     @Override
     protected ClusterUpdateSettingsResponse doParseInstance(XContentParser parser) {

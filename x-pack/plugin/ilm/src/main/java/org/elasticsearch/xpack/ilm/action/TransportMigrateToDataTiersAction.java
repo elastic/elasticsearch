@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutin
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 
 public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction<MigrateToDataTiersRequest, MigrateToDataTiersResponse> {
@@ -107,11 +108,9 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
         }
 
         IndexLifecycleMetadata currentMetadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+        if (currentMetadata != null && currentILMMode(state) != STOPPED) {
             listener.onFailure(
-                new IllegalStateException(
-                    "stop ILM before migrating to data tiers, current state is [" + currentMetadata.getOperationMode() + "]"
-                )
+                new IllegalStateException("stop ILM before migrating to data tiers, current state is [" + currentILMMode(state) + "]")
             );
             return;
         }
@@ -142,9 +141,9 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
-                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<ClusterState>() {
+                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<Void>() {
                         @Override
-                        public void onResponse(ClusterState clusterState) {}
+                        public void onResponse(Void ignored) {}
 
                         @Override
                         public void onFailure(Exception e) {

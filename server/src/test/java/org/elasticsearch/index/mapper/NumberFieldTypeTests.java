@@ -20,9 +20,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
-import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -127,7 +127,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap(), null, false, null);
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            false,
+            false,
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null
+        );
     }
 
     public void testTermQuery() {
@@ -571,13 +584,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void doTestIndexSortRangeQueries(NumberType type, Supplier<Number> valueSupplier) throws IOException {
         // Create index settings with an index sort.
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.sort.field", "field")
-            .build();
-
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
@@ -824,8 +831,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
-        ).build(MapperBuilderContext.ROOT).fieldType();
+            Version.CURRENT,
+            null
+        ).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -836,8 +844,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
-        ).nullValue(2.71f).build(MapperBuilderContext.ROOT).fieldType();
+            Version.CURRENT,
+            null
+        ).nullValue(2.71f).build(MapperBuilderContext.root(false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
@@ -849,8 +858,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ScriptCompiler.NONE,
             false,
             true,
-            Version.CURRENT
-        ).build(MapperBuilderContext.ROOT).fieldType();
+            Version.CURRENT,
+            null
+        ).build(MapperBuilderContext.root(false)).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

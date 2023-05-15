@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -70,7 +71,7 @@ public class Retry {
         return future;
     }
 
-    static class RetryHandler extends ActionListener.Delegating<BulkResponse, BulkResponse> {
+    static class RetryHandler extends DelegatingActionListener<BulkResponse, BulkResponse> {
         private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
         private static final Logger logger = LogManager.getLogger(RetryHandler.class);
 

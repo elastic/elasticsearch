@@ -9,7 +9,7 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -162,17 +163,11 @@ public final class CompressedXContent {
      * @return compressed x-content normalized to not contain any whitespaces
      */
     public static CompressedXContent fromJSON(String json) throws IOException {
-        return new CompressedXContent(new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.copyCurrentStructure(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json));
-            }
-
-            @Override
-            public boolean isFragment() {
-                return false;
-            }
-        });
+        return new CompressedXContent(
+            (ToXContentObject) (builder, params) -> builder.copyCurrentStructure(
+                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)
+            )
+        );
     }
 
     public CompressedXContent(String str) throws IOException {
@@ -209,7 +204,7 @@ public final class CompressedXContent {
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         final String sha256;
         final byte[] compressedData;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             sha256 = in.readString();
             compressedData = in.readByteArray();
         } else {
@@ -221,7 +216,7 @@ public final class CompressedXContent {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
             out.writeString(sha256);
         } else {
             int crc32 = crc32FromCompressed(bytes);

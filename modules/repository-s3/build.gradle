@@ -1,7 +1,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
@@ -13,9 +13,8 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -49,15 +48,6 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
 }
 
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
-}
-
-tasks.named("internalClusterTestJar").configure {
-  // for the plugin-security.policy resource
-  from sourceSets.test.output
-}
-
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
@@ -78,6 +68,8 @@ esplugin.bundleSpec.from('config/repository-s3') {
 def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 tasks.named('check').configure {
@@ -121,7 +113,7 @@ String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 String s3STSBucket = System.getenv("amazon_s3_bucket_sts")
 String s3STSBasePath = System.getenv("amazon_s3_base_path_sts")
 
-boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
+boolean s3DisableChunkedEncoding = BuildParams.random.nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
@@ -244,7 +236,7 @@ if (useFixture) {
   tasks.register("yamlRestTestMinio", RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
 
@@ -272,7 +264,7 @@ if (useFixture) {
   tasks.register("yamlRestTestECS", RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
     systemProperty 'tests.rest.blacklist', [
@@ -298,7 +290,7 @@ if (useFixture) {
   tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
     description = "Runs tests with the STS (Secure Token Service)"
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(LegacyYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
     systemProperty 'tests.rest.blacklist', [

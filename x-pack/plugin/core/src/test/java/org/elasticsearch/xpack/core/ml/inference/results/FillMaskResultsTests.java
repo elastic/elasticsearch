@@ -52,6 +52,11 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
         return createRandomResults();
     }
 
+    @Override
+    protected FillMaskResults mutateInstance(FillMaskResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     @SuppressWarnings("unchecked")
     public void testAsMap() {
         FillMaskResults testInstance = createTestInstance();

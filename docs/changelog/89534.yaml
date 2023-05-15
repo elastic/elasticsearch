@@ -1,5 +1,0 @@
-pr: 89534
-summary: Fix incorrect failed shards count in APIs for current snapshots
-area: Snapshot/Restore
-type: bug
-issues: []

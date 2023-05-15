@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,9 +73,6 @@ public class TransformStoredDoc implements Writeable, ToXContentObject {
         this.id = in.readString();
         this.transformState = new TransformState(in);
         this.transformStats = new TransformIndexerStats(in);
-        if (in.getVersion().before(Version.V_7_4_0)) {
-            new TransformCheckpointingInfo(in);
-        }
     }
 
     @Override
@@ -95,9 +91,6 @@ public class TransformStoredDoc implements Writeable, ToXContentObject {
         out.writeString(id);
         transformState.writeTo(out);
         transformStats.writeTo(out);
-        if (out.getVersion().before(Version.V_7_4_0)) {
-            TransformCheckpointingInfo.EMPTY.writeTo(out);
-        }
     }
 
     @Override

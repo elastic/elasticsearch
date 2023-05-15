@@ -237,7 +237,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         return topMetrics;
     }
 
-    private class ReduceState {
+    private static class ReduceState {
         private final InternalTopMetrics result;
         private int index = 0;
 

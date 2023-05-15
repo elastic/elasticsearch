@@ -190,7 +190,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     }
 
     /**
-     * @return The composable index template that matches with the index that will be cretaed by this request.
+     * @return The composable index template that matches with the index that will be created by this request.
      */
     public ComposableIndexTemplate matchingTemplate() {
         return matchingTemplate;

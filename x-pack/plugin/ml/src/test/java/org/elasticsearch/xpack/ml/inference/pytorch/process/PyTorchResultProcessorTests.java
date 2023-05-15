@@ -153,8 +153,8 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         }
     }
 
-    private PyTorchResult wrapInferenceResult(String requestId, boolean isCacheHit, long timeMs, PyTorchInferenceResult result) {
-        return new PyTorchResult(requestId, isCacheHit, timeMs, result, null, null, null);
+    private PyTorchResult wrapInferenceResult(String requestId, boolean isCacheHit, long timeMs) {
+        return new PyTorchResult(requestId, isCacheHit, timeMs, new PyTorchInferenceResult(null), null, null, null);
     }
 
     public void testsStats() {
@@ -168,9 +168,9 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         processor.registerRequest("b", pendingB);
         processor.registerRequest("c", pendingC);
 
-        var a = wrapInferenceResult("a", false, 1000L, new PyTorchInferenceResult(null));
-        var b = wrapInferenceResult("b", false, 900L, new PyTorchInferenceResult(null));
-        var c = wrapInferenceResult("c", true, 200L, new PyTorchInferenceResult(null));
+        var a = wrapInferenceResult("a", false, 1000L);
+        var b = wrapInferenceResult("b", false, 900L);
+        var c = wrapInferenceResult("c", true, 200L); // cache hit
 
         processor.processInferenceResult(a);
         var stats = processor.getResultStats();
@@ -179,6 +179,8 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.numberOfPendingResults(), equalTo(2));
         assertThat(stats.timingStats().getCount(), equalTo(1L));
         assertThat(stats.timingStats().getSum(), equalTo(1000L));
+        assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(1L));
+        assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1000L));
 
         processor.processInferenceResult(b);
         stats = processor.getResultStats();
@@ -187,6 +189,8 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.numberOfPendingResults(), equalTo(1));
         assertThat(stats.timingStats().getCount(), equalTo(2L));
         assertThat(stats.timingStats().getSum(), equalTo(1900L));
+        assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(2L));
+        assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1900L));
 
         processor.processInferenceResult(c);
         stats = processor.getResultStats();
@@ -195,6 +199,8 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.numberOfPendingResults(), equalTo(0));
         assertThat(stats.timingStats().getCount(), equalTo(3L));
         assertThat(stats.timingStats().getSum(), equalTo(2100L));
+        assertThat(stats.timingStatsExcludingCacheHits().getCount(), equalTo(2L));
+        assertThat(stats.timingStatsExcludingCacheHits().getSum(), equalTo(1900L));
     }
 
     public void testsTimeDependentStats() {
@@ -234,9 +240,9 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         var processor = new PyTorchResultProcessor("foo", s -> {}, timeSupplier);
 
         // 1st period
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 200L, new PyTorchInferenceResult(null)));
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 200L, new PyTorchInferenceResult(null)));
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 200L, new PyTorchInferenceResult(null)));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 200L));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 200L));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 200L));
         // first call has no results as is in the same period
         var stats = processor.getResultStats();
         assertThat(stats.recentStats().requestsProcessed(), equalTo(0L));
@@ -250,7 +256,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.peakThroughput(), equalTo(3L));
 
         // 2nd period
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 100L, new PyTorchInferenceResult(null)));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 100L));
         stats = processor.getResultStats();
         assertNotNull(stats.recentStats());
         assertThat(stats.recentStats().requestsProcessed(), equalTo(1L));
@@ -262,7 +268,7 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.recentStats().requestsProcessed(), equalTo(0L));
 
         // 4th period
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 300L, new PyTorchInferenceResult(null)));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 300L));
         stats = processor.getResultStats();
         assertNotNull(stats.recentStats());
         assertThat(stats.recentStats().requestsProcessed(), equalTo(1L));
@@ -270,8 +276,8 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.lastUsed(), equalTo(Instant.ofEpochMilli(resultTimestamps[9])));
 
         // 7th period
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 410L, new PyTorchInferenceResult(null)));
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 390L, new PyTorchInferenceResult(null)));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 410L));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 390L));
         stats = processor.getResultStats();
         assertThat(stats.recentStats().requestsProcessed(), equalTo(0L));
         assertThat(stats.recentStats().avgInferenceTime(), nullValue());
@@ -282,9 +288,9 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         assertThat(stats.lastUsed(), equalTo(Instant.ofEpochMilli(resultTimestamps[12])));
 
         // 8th period
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 510L, new PyTorchInferenceResult(null)));
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 500L, new PyTorchInferenceResult(null)));
-        processor.processInferenceResult(wrapInferenceResult("foo", false, 490L, new PyTorchInferenceResult(null)));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 510L));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 500L));
+        processor.processInferenceResult(wrapInferenceResult("foo", false, 490L));
         stats = processor.getResultStats();
         assertNotNull(stats.recentStats());
         assertThat(stats.recentStats().requestsProcessed(), equalTo(3L));

@@ -491,6 +491,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return nodes.stream().flatMap(each -> each.getAllReadinessPortURI().stream()).collect(Collectors.toList());
     }
 
+    @Override
+    @Internal
+    public List<String> getAllRemoteAccessPortURI() {
+        waitForAllConditions();
+        return nodes.stream().flatMap(each -> each.getAllRemoteAccessPortURI().stream()).collect(Collectors.toList());
+    }
+
     public void waitForAllConditions() {
         writeUnicastHostsFiles();
 

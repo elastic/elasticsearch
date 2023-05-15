@@ -12,17 +12,12 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -212,42 +207,6 @@ public class SumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
-
-        final SumAggregationBuilder builder = sum("_name").field(fieldType.name());
-
-        final int numDocs = randomIntBetween(10, 100);
-        final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
-        int sum = 0;
-        for (int i = 0; i < numDocs; i++) {
-            final long value = randomLongBetween(0, 1000);
-            sum += value;
-            docs.add(singleton(new NumericDocValuesField(fieldType.name(), value)));
-        }
-
-        try (Directory mappedDirectory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
-            try (RandomIndexWriter mappedWriter = new RandomIndexWriter(random(), mappedDirectory)) {
-                mappedWriter.addDocuments(docs);
-            }
-
-            new RandomIndexWriter(random(), unmappedDirectory).close();
-
-            try (
-                IndexReader mappedReader = DirectoryReader.open(mappedDirectory);
-                IndexReader unmappedReader = DirectoryReader.open(unmappedDirectory);
-                MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
-            ) {
-
-                final IndexSearcher searcher = newSearcher(multiReader, true, true);
-
-                final Sum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
-                assertEquals(sum, internalSum.value(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            }
-        }
-    }
-
     public void testValueScriptSingleValuedField() throws IOException {
         sumRandomDocsTestCase(
             1,
@@ -379,7 +338,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
         Consumer<Sum> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
+        testCase(indexer, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     @Override

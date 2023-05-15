@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -29,6 +30,7 @@ public final class ImmutableTransactionStore extends TransactionStore {
     private final BytesRefArray transactions;
     private final LongArray transactionCounts;
     private final long totalTransactionCount;
+    private final long filteredTransactionCount;
 
     // base size of sealed transaction store, update if you add classes
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ImmutableTransactionStore.class) + 2
@@ -42,7 +44,8 @@ public final class ImmutableTransactionStore extends TransactionStore {
         long totalItemCount,
         BytesRefArray transactions,
         LongArray transactionCounts,
-        long totalTransactionCount
+        long totalTransactionCount,
+        long filteredTransactionCount
     ) {
         super(bigArrays);
 
@@ -52,6 +55,7 @@ public final class ImmutableTransactionStore extends TransactionStore {
         this.transactions = transactions;
         this.transactionCounts = transactionCounts;
         this.totalTransactionCount = totalTransactionCount;
+        this.filteredTransactionCount = filteredTransactionCount;
     }
 
     public ImmutableTransactionStore(StreamInput in, BigArrays bigArrays) throws IOException {
@@ -77,6 +81,12 @@ public final class ImmutableTransactionStore extends TransactionStore {
                 transactionCounts.set(i, in.readVLong());
             }
             this.totalTransactionCount = in.readVLong();
+
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+                this.filteredTransactionCount = in.readVLong();
+            } else {
+                this.filteredTransactionCount = 0;
+            }
 
             success = true;
         } finally {
@@ -117,6 +127,11 @@ public final class ImmutableTransactionStore extends TransactionStore {
     }
 
     @Override
+    public long getFilteredTransactionCount() {
+        return filteredTransactionCount;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return super.ramBytesUsed() + BASE_RAM_BYTES_USED + +items.ramBytesUsed() + itemCounts.ramBytesUsed() + transactions.ramBytesUsed()
             + transactionCounts.ramBytesUsed();
@@ -143,6 +158,9 @@ public final class ImmutableTransactionStore extends TransactionStore {
             out.writeVLong(transactionCounts.get(i));
         }
         out.writeVLong(totalTransactionCount);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_6_0)) {
+            out.writeVLong(filteredTransactionCount);
+        }
     }
 
 }

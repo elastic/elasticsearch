@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -19,11 +20,14 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,11 +35,14 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -112,6 +119,48 @@ public class RestResponseTests extends ESTestCase {
             {"type":"file_not_found_exception\""""));
         assertThat(text, containsString("""
             "stack_trace":"org.elasticsearch.ElasticsearchException$1: an error occurred reading data"""));
+    }
+
+    public void testAuthenticationFailedNoStackTrace() throws IOException {
+        for (Exception authnException : List.of(
+            new ElasticsearchSecurityException("failed authn", RestStatus.UNAUTHORIZED),
+            new ElasticsearchSecurityException("failed authn", RestStatus.UNAUTHORIZED, new ElasticsearchException("cause"))
+        )) {
+            for (RestRequest request : List.of(
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("error_trace", Boolean.toString(true))).build()
+            )) {
+                for (RestChannel channel : List.of(new SimpleExceptionRestChannel(request), new DetailedExceptionRestChannel(request))) {
+                    RestResponse response = new RestResponse(channel, authnException);
+                    assertThat(response.status(), is(RestStatus.UNAUTHORIZED));
+                    assertThat(response.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
+                }
+            }
+        }
+    }
+
+    public void testStackTrace() throws IOException {
+        for (Exception exception : List.of(new ElasticsearchException("dummy"), new IllegalArgumentException("dummy"))) {
+            for (RestRequest request : List.of(
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("error_trace", Boolean.toString(true))).build()
+            )) {
+                for (RestChannel channel : List.of(new SimpleExceptionRestChannel(request), new DetailedExceptionRestChannel(request))) {
+                    RestResponse response = new RestResponse(channel, exception);
+                    if (exception instanceof ElasticsearchException) {
+                        assertThat(response.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+                    } else {
+                        assertThat(response.status(), is(RestStatus.BAD_REQUEST));
+                    }
+                    boolean traceExists = request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled();
+                    if (traceExists) {
+                        assertThat(response.content().utf8ToString(), containsString(ElasticsearchException.STACK_TRACE));
+                    } else {
+                        assertThat(response.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
+                    }
+                }
+            }
+        }
     }
 
     public void testGuessRootCause() throws IOException {
@@ -259,10 +308,10 @@ public class RestResponseTests extends ESTestCase {
             case 3 -> {
                 TransportAddress address = buildNewFakeTransportAddress();
                 original = new RemoteTransportException(
-                        "remote",
-                        address,
-                        "action",
-                        new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
+                    "remote",
+                    address,
+                    "action",
+                    new ResourceAlreadyExistsException("ElasticsearchWrapperException with a cause that has a custom status")
                 );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
@@ -274,8 +323,8 @@ public class RestResponseTests extends ESTestCase {
             }
             case 4 -> {
                 original = new RemoteTransportException(
-                        "ElasticsearchWrapperException with a cause that has a special treatment",
-                        new IllegalArgumentException("wrong")
+                    "ElasticsearchWrapperException with a cause that has a special treatment",
+                    new IllegalArgumentException("wrong")
                 );
                 status = RestStatus.BAD_REQUEST;
                 if (detailed) {
@@ -355,6 +404,21 @@ public class RestResponseTests extends ESTestCase {
             }
         });
         assertEquals("Failed to parse elasticsearch status exception: no exception was found", e.getMessage());
+    }
+
+    public void testResponseContentTypeUponException() throws Exception {
+        String mediaType = XContentType.VND_JSON.toParsedMediaType()
+            .responseContentTypeHeader(
+                Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(RestApiVersion.minimumSupported().major))
+            );
+        List<String> mediaTypeList = Collections.singletonList(mediaType);
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(Map.of("Accept", mediaTypeList)).build();
+        RestChannel channel = new SimpleExceptionRestChannel(request);
+
+        Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
+        RestResponse response = new RestResponse(channel, t);
+        assertThat(response.contentType(), equalTo(mediaType));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

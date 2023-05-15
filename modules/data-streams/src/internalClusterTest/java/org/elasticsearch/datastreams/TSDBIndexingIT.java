@@ -194,8 +194,22 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         Instant newStartTime = IndexSettings.TIME_SERIES_START_TIME.get(getIndexResponse.getSettings().get(newBackingIndexName));
         Instant newEndTime = IndexSettings.TIME_SERIES_END_TIME.get(getIndexResponse.getSettings().get(newBackingIndexName));
 
-        // Check whether the document lands in the newest backing index:
+        // Check whether documents land in the newest backing index, covering the [newStartTime, newEndtime) timestamp range:
+        time = newStartTime;
+        {
+            var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            var indexResponse = client().index(indexRequest).actionGet();
+            assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
+        }
         time = Instant.ofEpochMilli(randomLongBetween(newStartTime.toEpochMilli(), newEndTime.toEpochMilli() - 1));
+        {
+            var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
+            var indexResponse = client().index(indexRequest).actionGet();
+            assertThat(indexResponse.getIndex(), equalTo(newBackingIndexName));
+        }
+        time = Instant.ofEpochMilli(newEndTime.toEpochMilli() - 1);
         {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
@@ -249,8 +263,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(
                 e.getCause().getCause().getMessage(),
                 equalTo(
-                    "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
-                        + "without the [script] parameter. [metricset] was not [time_series_dimension: true]."
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. [metricset] was not a dimension."
                 )
             );
         }
@@ -316,7 +331,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         assertThat(
             e.getCause().getCause().getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] and "
+                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
                     + "without the [script] parameter. [metricset] was [long]."
             )
         );

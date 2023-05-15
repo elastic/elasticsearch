@@ -64,7 +64,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
         current.debug.put("stored_fields", storedFieldLoader.fieldsToLoad());
         return new StoredFieldLoader() {
             @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) {
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
                 LeafStoredFieldLoader in = storedFieldLoader.getLoader(ctx, docs);
                 return new LeafStoredFieldLoader() {
                     @Override
@@ -120,6 +120,11 @@ public class FetchProfiler implements FetchPhase.Profiler {
                 } finally {
                     timer.stop();
                 }
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return delegate.storedFieldsSpec();
             }
 
             @Override

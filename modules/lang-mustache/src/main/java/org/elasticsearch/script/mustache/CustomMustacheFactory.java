@@ -260,7 +260,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     static class CustomJoinerCode extends JoinerCode {
 
-        private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
+        private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
         CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
@@ -357,7 +357,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
         }
     }
 }

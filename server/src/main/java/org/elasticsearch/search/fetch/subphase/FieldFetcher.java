@@ -18,7 +18,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -152,6 +153,7 @@ public class FieldFetcher {
     private final Map<String, FieldContext> fieldContexts;
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
     private final List<String> unmappedConcreteFields;
+    private final StoredFieldsSpec storedFieldsSpec;
 
     private FieldFetcher(
         Map<String, FieldContext> fieldContexts,
@@ -161,19 +163,24 @@ public class FieldFetcher {
         this.fieldContexts = fieldContexts;
         this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
         this.unmappedConcreteFields = unmappedConcreteFields;
+        this.storedFieldsSpec = StoredFieldsSpec.build(fieldContexts.values(), fc -> fc.valueFetcher.storedFieldsSpec());
     }
 
-    public Map<String, DocumentField> fetch(SourceLookup sourceLookup) throws IOException {
+    public StoredFieldsSpec storedFieldsSpec() {
+        return storedFieldsSpec;
+    }
+
+    public Map<String, DocumentField> fetch(Source source, int doc) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
             ValueFetcher valueFetcher = context.valueFetcher;
-            final DocumentField docField = valueFetcher.fetchDocumentField(field, sourceLookup);
+            final DocumentField docField = valueFetcher.fetchDocumentField(field, source, doc);
             if (docField != null) {
                 documentFields.put(field, docField);
             }
         }
-        collectUnmapped(documentFields, () -> sourceLookup.source(), "", 0);
+        collectUnmapped(documentFields, source::source, "", 0);
         return documentFields;
     }
 
@@ -291,13 +298,5 @@ public class FieldFetcher {
         }
     }
 
-    private static class FieldContext {
-        final String fieldName;
-        final ValueFetcher valueFetcher;
-
-        FieldContext(String fieldName, ValueFetcher valueFetcher) {
-            this.fieldName = fieldName;
-            this.valueFetcher = valueFetcher;
-        }
-    }
+    private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
 }

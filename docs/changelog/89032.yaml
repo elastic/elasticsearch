@@ -1,5 +1,0 @@
-pr: 89032
-summary: Preemptively initialize routing nodes and indices lookup on all node types
-area: Cluster Coordination
-type: enhancement
-issues: []

@@ -18,17 +18,19 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.client.internal.Requests.putMappingRequest;
 import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping request is deprecated. "
         + "Use typeless api instead";
@@ -63,7 +65,8 @@ public class RestPutMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
 
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
@@ -74,7 +77,7 @@ public class RestPutMappingAction extends BaseRestHandler {
             final String type = request.param("type");
             if (includeTypeName == false && (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
                 throw new IllegalArgumentException(
-                    "Types cannot be provided in put mapping requests, unless " + "the include_type_name parameter is set to true."
+                    "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true."
                 );
             }
 

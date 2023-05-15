@@ -153,9 +153,9 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         }
     }
 
-    protected static class Fields {
-        static final ParseField CENTROID = new ParseField("location");
-        static final ParseField COUNT = new ParseField("count");
+    public static class Fields {
+        public static final ParseField CENTROID = new ParseField("location");
+        public static final ParseField COUNT = new ParseField("count");
     }
 
     @Override

@@ -75,12 +75,12 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     }
 
     @Override
-    protected Optional<String> reservedStateHandlerName() {
+    public Optional<String> reservedStateHandlerName() {
         return Optional.of(ReservedRepositoryAction.NAME);
     }
 
     @Override
-    protected Set<String> modifiedKeys(DeleteRepositoryRequest request) {
+    public Set<String> modifiedKeys(DeleteRepositoryRequest request) {
         return Set.of(request.name());
     }
 }

@@ -92,6 +92,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/95987")
     public void testCreateAndRestoreSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -184,7 +185,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         if (randomBoolean()) {
             indexSettingsBuilder.put(
                 SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomLongBetween(10, 100_000))
+                ByteSizeValue.ofBytes(randomLongBetween(10, 100_000))
             );
         }
         final int expectedReplicas;
@@ -300,18 +301,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             client().admin().cluster().prepareState().get().getState().nodes().getDataNodes().values()
         );
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            dataNode.getName()
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(
+                    IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
+                    dataNode.getName()
+                ),
+            restoredIndexName
         );
 
         assertFalse(
@@ -328,15 +325,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertRecoveryStats(restoredIndexName, preWarmEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                        .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey()),
+            restoredIndexName
         );
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
@@ -471,7 +464,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             // trigger the rate limiter in all nodes. We could just use the min shard size
             // but that would make this test too slow.
             long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
-            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(rateLimitInBytes, ByteSizeUnit.BYTES));
+            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ofBytes(rateLimitInBytes));
         } else {
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         }

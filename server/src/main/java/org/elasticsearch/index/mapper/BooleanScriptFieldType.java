@@ -46,9 +46,10 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             String name,
             BooleanFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new BooleanScriptFieldType(name, factory, script, meta);
+            return new BooleanScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
@@ -67,10 +68,16 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         return new Builder(name).createRuntimeField(BooleanFieldScript.PARSE_FROM_SOURCE);
     }
 
-    BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    BooleanScriptFieldType(
+        String name,
+        BooleanFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta

@@ -31,6 +31,12 @@ Then, create an enrollment token for {kib} with the
 bin/elasticsearch-create-enrollment-token -s kibana
 ----
 --
+// tag::jackson-filtering-bug[]
+* Parsing a request when the last element in an array is filtered out
+(for instance using `_source_includes`) fails. This
+is due to https://github.com/FasterXML/jackson-core/issues/882[a bug in Jackson parser].
+Fixed in {es} 8.6.1 ({es-pull}92480[#91456])
+// end::jackson-filtering-bug[]
 
 
 [[breaking-8.0.0]]

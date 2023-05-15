@@ -10,10 +10,10 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeResponse> {
+public class ResizeResponseTests extends AbstractXContentSerializingTestCase<ResizeResponse> {
 
     public void testToXContent() {
         ResizeResponse response = new ResizeResponse(true, false, "index_name");

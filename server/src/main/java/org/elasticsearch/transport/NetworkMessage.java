@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -17,13 +17,19 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
  */
 public abstract class NetworkMessage {
 
-    protected final Version version;
+    protected final TransportVersion version;
     protected final Writeable threadContext;
     protected final long requestId;
     protected final byte status;
     protected final Compression.Scheme compressionScheme;
 
-    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme) {
+    NetworkMessage(
+        ThreadContext threadContext,
+        TransportVersion version,
+        byte status,
+        long requestId,
+        Compression.Scheme compressionScheme
+    ) {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;
@@ -35,7 +41,7 @@ public abstract class NetworkMessage {
         }
     }
 
-    public Version getVersion() {
+    public TransportVersion getVersion() {
         return version;
     }
 
@@ -63,7 +69,7 @@ public abstract class NetworkMessage {
         return TransportStatus.isError(status);
     }
 
-    private static Compression.Scheme adjustedScheme(Version version, Compression.Scheme compressionScheme) {
+    private static Compression.Scheme adjustedScheme(TransportVersion version, Compression.Scheme compressionScheme) {
         return compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION) ? null : compressionScheme;
     }
 }

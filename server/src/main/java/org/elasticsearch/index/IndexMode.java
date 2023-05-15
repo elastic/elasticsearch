@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
@@ -110,6 +111,9 @@ public enum IndexMode {
         public boolean shouldValidateTimestamp() {
             return false;
         }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
     },
     TIME_SERIES("time_series") {
         @Override
@@ -196,6 +200,13 @@ public enum IndexMode {
         public boolean shouldValidateTimestamp() {
             return true;
         }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("time series indices only support synthetic source");
+            }
+        }
     };
 
     protected static String tsdbMode() {
@@ -214,6 +225,7 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .field("ignore_malformed", "false")
                     .endObject()
                     .endObject()
                     .endObject())
@@ -309,6 +321,11 @@ public enum IndexMode {
      * @return Whether timestamps should be validated for being withing the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
+
+    /**
+     * Validates the source field mapper
+     */
+    public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
 
     /**
      * Parse a string into an {@link IndexMode}.

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,7 +67,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     private static ByteSizeValue totalCapacity(ByteSizeValue nodeCapacity, int nodes) {
         if (nodeCapacity != null) {
-            return new ByteSizeValue(nodeCapacity.getBytes() * nodes);
+            return ByteSizeValue.ofBytes(nodeCapacity.getBytes() * nodes);
         } else {
             return null;
         }
@@ -116,10 +116,10 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
         }
 
         public FixedReason(StreamInput in) throws IOException {
-            this.storage = in.readOptionalWriteable(ByteSizeValue::new);
-            this.memory = in.readOptionalWriteable(ByteSizeValue::new);
+            this.storage = in.readOptionalWriteable(ByteSizeValue::readFrom);
+            this.memory = in.readOptionalWriteable(ByteSizeValue::readFrom);
             this.nodes = in.readInt();
-            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 this.processors = in.readOptionalWriteable(Processors::readFrom);
             } else {
                 this.processors = null;
@@ -149,7 +149,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
             out.writeOptionalWriteable(storage);
             out.writeOptionalWriteable(memory);
             out.writeInt(nodes);
-            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
                 out.writeOptionalWriteable(processors);
             }
         }

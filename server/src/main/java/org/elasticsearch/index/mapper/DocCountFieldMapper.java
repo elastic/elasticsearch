@@ -8,14 +8,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /** Mapper for the doc_count field. */
 public class DocCountFieldMapper extends MetadataFieldMapper {
@@ -24,6 +30,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_doc_count";
 
     private static final DocCountFieldMapper INSTANCE = new DocCountFieldMapper();
+
+    /**
+     * The term that is the key to the postings list that stores the doc counts.
+     */
+    private static final Term TERM = new Term(NAME, NAME);
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
@@ -114,5 +125,58 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
      */
     public static IndexableField field(int count) {
         return new CustomTermFreqField(NAME, NAME, count);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return new SyntheticFieldLoader();
+    }
+
+    /**
+     * The lookup for loading values.
+     */
+    public static PostingsEnum leafLookup(LeafReader reader) throws IOException {
+        return reader.postings(TERM);
+    }
+
+    private class SyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private PostingsEnum postings;
+        private boolean hasValue;
+
+        @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.empty();
+        }
+
+        @Override
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            postings = leafLookup(leafReader);
+            if (postings == null) {
+                hasValue = false;
+                return null;
+            }
+            return docId -> {
+                if (docId < postings.docID()) {
+                    return hasValue = false;
+                }
+                if (docId == postings.docID()) {
+                    return hasValue = true;
+                }
+                return hasValue = docId == postings.advance(docId);
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return hasValue;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (hasValue == false) {
+                return;
+            }
+            b.field(NAME, postings.freq());
+        }
     }
 }

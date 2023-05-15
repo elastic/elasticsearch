@@ -13,7 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -32,6 +32,11 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected String fieldName() {
         return RoutingFieldMapper.NAME;
+    }
+
+    @Override
+    protected boolean isConfigurable() {
+        return true;
     }
 
     @Override
@@ -58,7 +63,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
     public void testIncludeInObjectNotAllowed() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
-        Exception e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b -> b.field("_routing", "foo"))));
+        Exception e = expectThrows(DocumentParsingException.class, () -> docMapper.parse(source(b -> b.field("_routing", "foo"))));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
     }
@@ -69,20 +74,15 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source("1", b -> {}, "abcd")).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(
-                    mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths),
-                    new SourceLookup.ReaderSourceProvider()
-                );
+                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(mapperService), (ctx, doc) -> null);
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 RoutingFieldMapper.RoutingFieldType ft = (RoutingFieldMapper.RoutingFieldType) mapperService.fieldType("_routing");
                 ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
                 valueFetcher.setNextReader(context);
-                assertEquals(List.of("abcd"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+                assertEquals(List.of("abcd"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
             }
         );
     }

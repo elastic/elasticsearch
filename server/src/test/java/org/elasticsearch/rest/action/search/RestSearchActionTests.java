@@ -19,6 +19,7 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -34,7 +35,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSearchAction();
+        action = new RestSearchAction(new UsageService().getSearchUsageHolder());
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(SearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(SearchResponse.class));
@@ -102,8 +103,8 @@ public class RestSearchActionTests extends RestActionTestCase {
             ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
             SearchRequest searchRequest = new SearchRequest();
-            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100);
-            searchRequest.source(new SearchSourceBuilder().knnSearch(knnSearch));
+            KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", new float[] { 1, 1, 1 }, 10, 100, null);
+            searchRequest.source(new SearchSourceBuilder().knnSearch(List.of(knnSearch)));
 
             Exception ex = expectThrows(
                 IllegalArgumentException.class,

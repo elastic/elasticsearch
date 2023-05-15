@@ -300,7 +300,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
             @SuppressWarnings("unchecked")
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
-            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null);
+            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"));
             hit.sourceRef(source);
             return hit;
         } catch (IOException e) {

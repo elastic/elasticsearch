@@ -21,9 +21,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+
+import static org.hamcrest.Matchers.hasSize;
 
 public class Murmur3FieldMapperTests extends MapperTestCase {
 
@@ -50,10 +51,10 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.field("field", "value")));
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
         assertNotNull(fields);
-        assertEquals(Arrays.toString(fields), 1, fields.length);
-        IndexableField field = fields[0];
+        assertThat(fields, hasSize(1));
+        IndexableField field = fields.get(0);
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
@@ -65,7 +66,12 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport() {
+    protected boolean supportsIgnoreMalformed() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         throw new AssumptionViolatedException("not supported");
     }
 

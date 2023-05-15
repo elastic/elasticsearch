@@ -92,7 +92,7 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName(),
                 indexName
             );

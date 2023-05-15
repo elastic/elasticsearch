@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -63,9 +62,9 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
     public synchronized void licenseStateChanged() {
         final boolean allowed = ARCHIVE_FEATURE.checkWithoutTracking(xPackLicenseState);
         if (allowed && this.allowed == false) {
-            rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<ClusterState>() {
+            rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<>() {
                 @Override
-                public void onResponse(ClusterState clusterState) {
+                public void onResponse(Void ignored) {
                     logger.trace("successful reroute after license activation");
                 }
 

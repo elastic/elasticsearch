@@ -38,6 +38,11 @@ public class GetRollupCapsActionRequestTests extends AbstractWireSerializingTest
     }
 
     @Override
+    protected GetRollupCapsAction.Request mutateInstance(GetRollupCapsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetRollupCapsAction.Request> instanceReader() {
         return GetRollupCapsAction.Request::new;
     }

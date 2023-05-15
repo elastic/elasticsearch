@@ -15,7 +15,14 @@ Invalidates one or more API keys.
 [[security-api-invalidate-api-key-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_api_key` cluster privilege.
+* To use this API, you must have at least the `manage_api_key` or the `manage_own_api_key` cluster privilege.
+The `manage_api_key` privilege allows deleting any API keys.
+The `manage_own_api_key` only allows deleting API keys that are owned by the user.
+In addition, with the `manage_own_api_key` privilege, an invalidation request must be issued
+in one of the three formats:
+1. Set the parameter `owner=true`
+2. Or, set both `username` and `realm_name` to match the user's identity.
+3. Or, if the request is issued by an API key, i.e. an API key invalidates itself, specify its ID in the `ids` field.
 
 [[security-api-invalidate-api-key-desc]]
 ==== {api-description-title}

@@ -31,7 +31,7 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allocation.routingNodes().allReplicasActive(shardRouting.shardId(), allocation.metadata())
+        return allocation.routingNodes().allShardsActive(shardRouting.shardId(), allocation.metadata())
             ? YES_ALL_REPLICAS_ACTIVE
             : NO_SOME_REPLICAS_INACTIVE;
     }

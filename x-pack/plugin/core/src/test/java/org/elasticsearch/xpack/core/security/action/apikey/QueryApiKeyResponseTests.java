@@ -88,6 +88,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
     private ApiKey randomApiKeyInfo() {
         final String name = randomAlphaOfLengthBetween(3, 8);
         final String id = randomAlphaOfLength(22);
+        final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final String username = randomAlphaOfLengthBetween(3, 8);
         final String realm_name = randomAlphaOfLengthBetween(3, 8);
         final Instant creation = Instant.ofEpochMilli(randomMillisUpToYear9999());
@@ -97,6 +98,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
         return new ApiKey(
             name,
             id,
+            type,
             creation,
             expiration,
             false,
@@ -104,7 +106,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
             realm_name,
             metadata,
             roleDescriptors,
-            randomUniquelyNamedRoleDescriptors(1, 3)
+            type == ApiKey.Type.CROSS_CLUSTER ? null : randomUniquelyNamedRoleDescriptors(1, 3)
         );
     }
 

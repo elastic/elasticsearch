@@ -30,6 +30,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -144,7 +145,9 @@ public class PermissionsIT extends ESRestTestCase {
                                 + " for user [test_ilm]"
                                 + " with effective roles [ilm]"
                                 + " on indices [not-ilm],"
-                                + " this action is granted by the index privileges [monitor,cross_cluster_replication,manage,all]"
+                                + " this action is granted by the index privileges [monitor,"
+                                + (TcpTransport.isUntrustedRemoteClusterEnabled() ? "cross_cluster_replication," : "")
+                                + "manage,all]"
                         )
                     );
                 }

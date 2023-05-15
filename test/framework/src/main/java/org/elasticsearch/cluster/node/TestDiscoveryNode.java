@@ -12,13 +12,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.TransportAddress;
 
-import java.security.AccessControlException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 
 /**
@@ -66,23 +63,14 @@ public class TestDiscoveryNode {
         return builder(nodeId).name(nodeName).attributes(attributes).roles(roles).build();
     }
 
-    private static String newEphemeralId() {
-        try {
-            return UUIDs.randomBase64UUID(random());
-        } catch (AccessControlException e) {
-            // don't have SM permissions to access thread group context - probably part of a static init
-            return UUID.randomUUID().toString();
-        }
-    }
-
-    public static Builder builder(String name) {
-        return new Builder(name);
+    public static Builder builder(String id) {
+        return new Builder(id);
     }
 
     public static class Builder {
         private final String id;
         private String name;
-        private String ephemeralId = newEphemeralId();
+        private String ephemeralId = UUIDs.randomBase64UUID();
         private String hostName;
         private String hostAddress;
         private TransportAddress address;

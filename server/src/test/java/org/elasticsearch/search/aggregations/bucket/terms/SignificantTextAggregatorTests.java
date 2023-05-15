@@ -84,9 +84,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             }
             SamplerAggregationBuilder aggBuilder = new SamplerAggregationBuilder("sampler").subAggregation(sigAgg);
 
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newIndexSearcher(reader);
 
                 // Search "odd" which should have no duplication
                 InternalSampler sampler = searchAndReduce(
@@ -135,9 +135,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             SortedSet<BytesRef> incExcValues = new TreeSet<>(Set.of(new BytesRef("duplicate")));
 
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newIndexSearcher(reader);
 
                 // Inclusive of values
                 {
@@ -231,9 +231,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 aliasAgg.sourceFieldNames(sourceFieldNames);
             }
 
-            try (IndexReader reader = DirectoryReader.open(w)) {
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
-                IndexSearcher searcher = new IndexSearcher(reader);
+                IndexSearcher searcher = newIndexSearcher(reader);
 
                 SamplerAggregationBuilder samplerAgg = sampler("sampler").subAggregation(agg);
                 SamplerAggregationBuilder aliasSamplerAgg = sampler("sampler").subAggregation(aliasAgg);

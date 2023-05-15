@@ -86,10 +86,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
@@ -158,10 +155,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
@@ -294,9 +288,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
@@ -429,9 +421,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         routingTableBuilder.addAsNew(metadata.index("test"));
         routingTableBuilder.addAsNew(metadata.index("other"));
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
         RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0);
 
         final Index index = new Index("test", "1234");
@@ -579,7 +572,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         DiscoveryNode node = TestDiscoveryNode.create(nodeId, emptyMap(), emptySet());
         DiscoveryNode anotherNode = TestDiscoveryNode.create(anotherNodeId, emptyMap(), emptySet());
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder()
@@ -678,9 +671,10 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         routingTableBuilder.addAsNew(metadata.index("test"));
         routingTableBuilder.addAsNew(metadata.index("target"));
         routingTableBuilder.addAsNew(metadata.index("target2"));
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTableBuilder.build())
+            .build();
 
         AllocationService allocationService = createAllocationService();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -868,10 +862,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 
@@ -935,10 +926,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node_0).add(node_1)).build();
 

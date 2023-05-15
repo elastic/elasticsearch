@@ -51,7 +51,7 @@ public class CartesianCentroidIT extends CentroidAggregationTestBase {
     @Override
     protected CartesianPoint randomPoint() {
         Point point = ShapeTestUtils.randomPointNotExtreme(false);
-        return makePoint(point.getX(), point.getY());
+        return makePoint((float) point.getX(), (float) point.getY());
     }
 
     @Override

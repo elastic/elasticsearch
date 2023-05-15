@@ -49,7 +49,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         var ordering = new NodeAllocationOrdering();
         ordering.recordAllocation("node-1");
 
-        var iterator = OrderedShardsIterator.create(RoutingNodes.mutable(routing, nodes), ordering);
+        var iterator = createOrderedShardsIterator(nodes, routing, ordering);
 
         // order within same priority is not defined
         // no recorded allocations first
@@ -81,7 +81,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         ordering.recordAllocation("node-3");
         ordering.recordAllocation("node-2");
 
-        var iterator = OrderedShardsIterator.create(RoutingNodes.mutable(routing, nodes), ordering);
+        var iterator = createOrderedShardsIterator(nodes, routing, ordering);
 
         var first = iterator.next();
         assertThat(first, anyOf(isIndexShardAt("index-1a", "node-1"), isIndexShardAt("index-1b", "node-1")));
@@ -91,6 +91,11 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         var last = iterator.next();
         assertThat(last, allOf(anyOf(isIndexShardAt("index-1a", "node-1"), isIndexShardAt("index-1b", "node-1")), not(equalTo(first))));
         assertThat(iterator.hasNext(), equalTo(false));
+    }
+
+    private OrderedShardsIterator createOrderedShardsIterator(DiscoveryNodes nodes, RoutingTable routing, NodeAllocationOrdering ordering) {
+        var routingNodes = randomBoolean() ? RoutingNodes.mutable(routing, nodes) : RoutingNodes.immutable(routing, nodes);
+        return OrderedShardsIterator.create(routingNodes, ordering);
     }
 
     private static IndexRoutingTable index(String indexName, String nodeId) {

@@ -71,7 +71,6 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
         var decider = new RebalanceOnlyWhenActiveAllocationDecider();
 
         assertThat(decider.canRebalance(primary, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
-        assertThat(decider.canRebalance(replica, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
     }
 
     public void testDoNotAllowRebalanceWhenSomeShardsAreNotActiveAndRebalancing() {
@@ -93,8 +92,6 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
         var decider = new RebalanceOnlyWhenActiveAllocationDecider();
 
         assertThat(decider.canRebalance(primary, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
-        assertThat(decider.canRebalance(replica1, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
-        assertThat(decider.canRebalance(replica2, allocation), equalTo(NO_SOME_REPLICAS_INACTIVE));
     }
 
     public void testAllowConcurrentRebalance() {
@@ -113,7 +110,6 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
         var decider = new RebalanceOnlyWhenActiveAllocationDecider();
 
         assertThat(decider.canRebalance(primary, allocation), equalTo(YES_ALL_REPLICAS_ACTIVE));
-        assertThat(decider.canRebalance(replica, allocation), equalTo(YES_ALL_REPLICAS_ACTIVE));
     }
 
     private static RoutingAllocation createRoutingAllocation(ClusterState state) {

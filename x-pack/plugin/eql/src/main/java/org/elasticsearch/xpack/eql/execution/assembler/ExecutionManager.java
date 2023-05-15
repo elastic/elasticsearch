@@ -84,6 +84,13 @@ public class ExecutionManager {
         // secondary criteria
         List<SequenceCriterion> criteria = new ArrayList<>(plans.size() - 1);
 
+        int firstPositive = -1;
+        for (int i = 0; i < missing.length; i++) {
+            if (missing[i] == false) {
+                firstPositive = i;
+                break;
+            }
+        }
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
             List<Attribute> keys = listOfKeys.get(i);
@@ -130,7 +137,7 @@ public class ExecutionManager {
                     tsExtractor,
                     tbExtractor,
                     itbExtractor,
-                    i == indexOfFirstPositive(missing) && descending,
+                    i == firstPositive && descending,
                     missing[i]
                 );
                 criteria.add(criterion);
@@ -229,15 +236,6 @@ public class ExecutionManager {
             session.circuitBreaker(),
             cfg.maxSamplesPerKey()
         );
-    }
-
-    private int indexOfFirstPositive(boolean[] missing) {
-        for (int i = 0; i < missing.length; i++) {
-            if (missing[i] == false) {
-                return i;
-            }
-        }
-        throw new IllegalStateException("Invalid sequence query: at least one event has to be positive");
     }
 
     private boolean[] toMissing(List<SequenceCriterion> criteria) {

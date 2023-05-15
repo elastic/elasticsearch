@@ -79,6 +79,9 @@ public class SequenceMatcher {
 
     private final Limit limit;
     private final boolean[] missingEvents;
+    protected final int firstPositiveStage;
+    protected final int lastPositiveStage;
+    private final boolean missingEventsExist;
     private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
@@ -111,14 +114,44 @@ public class SequenceMatcher {
 
         this.limit = limit;
         this.missingEvents = missingEvents;
+        this.firstPositiveStage = calculateFirstPositiveStage();
+        this.lastPositiveStage = calculateLastPositiveStage();
+        this.missingEventsExist = calculateMissingEventsExist();
         this.circuitBreaker = circuitBreaker;
+    }
+
+    private int calculateFirstPositiveStage() {
+        for (int i = 0; i < missingEvents.length; i++) {
+            if (missingEvents[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int calculateLastPositiveStage() {
+        for (int i = missingEvents.length - 1; i >= 0; i--) {
+            if (missingEvents[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean calculateMissingEventsExist() {
+        for (int i = 0; i < missingEvents.length; i++) {
+            if (missingEvents[i]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
-        stageToKeys.add(firstPositiveStage(), key);
-        keyToSequences.add(firstPositiveStage(), sequence);
+        stageToKeys.add(firstPositiveStage, key);
+        keyToSequences.add(firstPositiveStage, sequence);
 
         stats.seen++;
     }
@@ -135,7 +168,7 @@ public class SequenceMatcher {
             if (isFirstPositiveStage(stage)) {
                 log.trace("Matching hit {}  - track sequence", ko.ordinal);
                 Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
-                if (lastPositiveStage() == stage) {
+                if (lastPositiveStage == stage) {
                     tryComplete(seq);
                 } else {
                     trackSequence(seq);
@@ -228,7 +261,7 @@ public class SequenceMatcher {
         sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages
-        if (stage == lastPositiveStage()) {
+        if (stage == lastPositiveStage) {
             // when dealing with descending queries
             // avoid duplicate matching (since the ASC query can return previously seen results)
             if (descending) {
@@ -252,13 +285,11 @@ public class SequenceMatcher {
     }
 
     public void tryComplete(Sequence sequence) {
-        for (int i = 0; i < missingEvents.length; i++) {
-            if (missingEvents[i]) {
-                toCheckForMissing.add(sequence);
-                return;
-            }
+        if (missingEventsExist) {
+            toCheckForMissing.add(sequence);
+        } else {
+            completed.add(sequence);
         }
-        completed.add(sequence);
     }
 
     private void calculateHeadLimit() {
@@ -300,25 +331,7 @@ public class SequenceMatcher {
     }
 
     private boolean isFirstPositiveStage(int stage) {
-        return stage == firstPositiveStage();
-    }
-
-    int firstPositiveStage() {
-        for (int i = 0; i < missingEvents.length; i++) {
-            if (missingEvents[i] == false) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private int lastPositiveStage() {
-        for (int i = missingEvents.length - 1; i >= 0; i--) {
-            if (missingEvents[i] == false) {
-                return i;
-            }
-        }
-        return -1;
+        return stage == firstPositiveStage;
     }
 
     /**
@@ -388,12 +401,8 @@ public class SequenceMatcher {
         this.completed.add(sequence);
     }
 
-    public Set<Sequence> toCheckForMissing() {
+    Set<Sequence> toCheckForMissing() {
         return toCheckForMissing;
-    }
-
-    public Stats stats() {
-        return stats;
     }
 
     public void clear() {
@@ -401,6 +410,7 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
+        toCheckForMissing.clear();
         clearCircuitBreaker();
     }
 

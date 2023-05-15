@@ -6,7 +6,8 @@ query = '''
    ![ test1 where tag == "nonexisting"]
     [ test1 where tag == "normal" ]
 '''
-expected_event_ids = [1, -1, 2, 2, -1, 4]
+expected_event_ids = [1, -1, 2,
+                      2, -1, 4]
 
 
 [[queries]]
@@ -72,7 +73,9 @@ query = '''
    ![ test3 where tag == "missing" ]
     [ test3 where tag == "normal" ]
 '''
-expected_event_ids = [-1, 2, -1, 5, -1, 6]
+expected_event_ids = [-1, 2,
+                      -1, 5,
+                      -1, 6]
 
 
 [[queries]]
@@ -83,7 +86,10 @@ query = '''
     [ test3 where tag == "normal" ]
    ![ test3 where tag == "missing" ]
 '''
-expected_event_ids = [-1, 2, -1, -1, 4, -1, -1, 5, -1, -1, 6, -1]
+expected_event_ids = [-1, 2, -1,
+                      -1, 4, -1,
+                      -1, 5, -1,
+                      -1, 6, -1]
 
 
 [[queries]]
@@ -94,7 +100,9 @@ query = '''
     [ test3 where tag == "normal" ]
    ![ test3 where tag == "missing" ]
 '''
-expected_event_ids = [-1, 4, -1, -1, 5, -1, -1, 6, -1]
+expected_event_ids = [-1, 4, -1,
+                      -1, 5, -1,
+                      -1, 6, -1]
 
 
 [[queries]]
@@ -161,7 +169,8 @@ query = '''
    ![ test4 where tag == "none"]
     [ test4 where tag == "D" ]
 '''
-expected_event_ids = [1, 2, -1, 5, -1, 7, 13, 14, -1, 16, -1, 17]
+expected_event_ids = [1, 2, -1, 5, -1, 7,
+                      13, 14, -1, 16, -1, 17]
 
 [[queries]]
 name = "multipleMissing6"
@@ -200,7 +209,8 @@ query = '''
    ![ test5 where tag == "missing" ]
     [ test5 where tag == "normal" ]
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6]
 join_keys = ["foo", "foo"]
 
 
@@ -213,7 +223,8 @@ query = '''
    ![ test5 where tag == "missing" ] by k1
     [ test5 where tag == "normal" ] by k1
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6]
 join_keys = ["foo", "foo"]
 
 
@@ -226,7 +237,10 @@ query = '''
    ![ test5 where tag == "missing" ] by k2
     [ test5 where tag == "normal" ] by k1
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6, 5, 6, -1, 8, 9, 10, -1, 12]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6,
+                      5, 6, -1, 8,
+                      9, 10, -1, 12]
 join_keys = ["foo", "foo", "foo", "baz"]
 
 
@@ -239,7 +253,10 @@ query = '''
    ![ test5 where tag == "missing" ]
     [ test5 where tag == "normal" ]
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6, 5, 6, -1, 8, 9, 10, -1, 12]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6,
+                      5, 6, -1, 8,
+                      9, 10, -1, 12]
 join_keys = ["foo", "foo", "foo", "baz"]
 
 
@@ -253,8 +270,14 @@ query = '''
    ![ test5 where tag == "missing" ] by k2
     [ test5 where tag == "normal" ] by k2
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6, 5, 6, -1, 8, 9, 10, -1, 12]
-join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6,
+                      5, 6, -1, 8,
+                      9, 10, -1, 12]
+join_keys = ["foo", "foo",
+             "foo", "foo",
+              "foo", "foo",
+              "baz", "baz"]
 
 
 
@@ -267,8 +290,16 @@ query = '''
    ![ test5 where tag == "missing" and `sequence` > 10 ] by k2
     [ test5 where tag == "normal" ] by k2
 '''
-expected_event_ids = [1, 2, -1, 4, 2, 4, -1, 5, 4, 5, -1, 6, 5, 6, -1, 8, 9, 10, -1, 12]
-join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+expected_event_ids = [1, 2, -1, 4,
+                      2, 4, -1, 5,
+                      4, 5, -1, 6,
+                      5, 6, -1, 8,
+                      9, 10, -1, 12]
+join_keys = ["foo", "foo",
+             "foo", "foo",
+             "foo", "foo",
+             "foo", "foo",
+             "baz", "baz"]
 
 
 [[queries]]
@@ -281,8 +312,10 @@ query = '''
     [ test5 where tag == "normal" ] by k2
   | tail 2
 '''
-expected_event_ids = [5, 6, -1, 8, 9, 10, -1, 12]
-join_keys = ["foo", "foo", "baz", "baz"]
+expected_event_ids = [5, 6, -1, 8,
+                      9, 10, -1, 12]
+join_keys = ["foo", "foo",
+             "baz", "baz"]
 
 
 [[queries]]
@@ -295,8 +328,10 @@ query = '''
     [ test5 where tag == "normal" ] by k2
   | head 2
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6]
-join_keys = ["foo", "foo", "foo", "foo"]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6]
+join_keys = ["foo", "foo",
+             "foo", "foo"]
 
 
 # non-deterministic failures, most likely related to https://github.com/elastic/elasticsearch/issues/90340
@@ -323,8 +358,14 @@ query = '''
    ![ test5 where tag == "missing" ] by k2
     [ test5 where tag == "normal" ] by k2
 '''
-expected_event_ids = [2, 4, -1, 5, 4, 5, -1, 6, 5, 6, -1, 8, 9, 10, -1, 12]
-join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6,
+                      5, 6, -1, 8,
+                      9, 10, -1, 12]
+join_keys = ["foo", "foo",
+             "foo", "foo",
+             "foo", "foo",
+             "baz", "baz"]
 
 
 [[queries]]
@@ -335,6 +376,12 @@ query = '''
    ![ test5 where tag == "missing" ] by k2 with runs=2
     [ test5 where tag == "normal" ] by k2
 '''
-expected_event_ids = [2, 4, -1, -1, 5, 4, 5, -1, -1, 6, 5, 6, -1, -1, 8, 9, 10, -1, -1, 12]
-join_keys = ["foo", "foo", "foo", "foo", "foo", "foo", "baz", "baz"]
+expected_event_ids = [2, 4, -1, -1, 5,
+                      4, 5, -1, -1, 6,
+                      5, 6, -1, -1, 8,
+                      9, 10, -1, -1, 12]
+join_keys = ["foo", "foo",
+             "foo", "foo",
+             "foo", "foo",
+             "baz", "baz"]
 

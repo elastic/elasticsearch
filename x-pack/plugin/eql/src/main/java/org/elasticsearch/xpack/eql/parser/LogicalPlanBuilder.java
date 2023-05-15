@@ -342,6 +342,10 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
+        if (queries.stream().allMatch(KeyedFilter::missingEvent)) {
+            throw new IllegalStateException("Invalid sequence query: at least one event has to be positive");
+        }
+
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());
     }
 

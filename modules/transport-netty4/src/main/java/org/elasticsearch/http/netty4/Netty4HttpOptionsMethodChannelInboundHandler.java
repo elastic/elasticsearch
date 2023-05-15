@@ -30,7 +30,7 @@ public final class Netty4HttpOptionsMethodChannelInboundHandler extends SimpleCh
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
         if (msg instanceof HttpRequest httpRequest) {
-            if (httpRequest.decoderResult().isSuccess() && httpRequest.method() == HttpMethod.OPTIONS) {
+            if (httpRequest.method() == HttpMethod.OPTIONS) {
                 dropContent = true;
             } else {
                 dropContent = false;

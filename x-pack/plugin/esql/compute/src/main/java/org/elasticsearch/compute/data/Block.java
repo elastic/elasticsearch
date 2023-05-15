@@ -80,6 +80,12 @@ public interface Block extends NamedWriteable {
     boolean areAllValuesNull();
 
     /**
+     * Can this block have multivalued fields? Blocks that return {@code false}
+     * will never return more than one from {@link #getValueCount}.
+     */
+    boolean mayHaveMultivaluedFields();
+
+    /**
      * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
      * @param positions the positions to retain
      * @return a filtered block
@@ -116,7 +122,11 @@ public interface Block extends NamedWriteable {
         Builder appendNull();
 
         /**
-         * Begins a multi-value entry.
+         * Begins a multivalued entry. Calling this for the first time will put
+         * the builder into a mode that generates Blocks that return {@code true}
+         * from {@link Block#mayHaveMultivaluedFields} which can force less
+         * optimized code paths. So don't call this unless you are sure you are
+         * emitting more than one value for this position.
          */
         Builder beginPositionEntry();
 

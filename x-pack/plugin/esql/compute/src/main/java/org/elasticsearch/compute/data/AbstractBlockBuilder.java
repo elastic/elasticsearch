@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.stream.IntStream;
 
-abstract class AbstractBlockBuilder {
+abstract class AbstractBlockBuilder implements Block.Builder {
 
     protected int[] firstValueIndexes; // lazily initialized, if multi-values
 
@@ -29,6 +29,7 @@ abstract class AbstractBlockBuilder {
 
     protected AbstractBlockBuilder() {}
 
+    @Override
     public AbstractBlockBuilder appendNull() {
         if (positionEntryIsOpen) {
             endPositionEntry();
@@ -52,6 +53,7 @@ abstract class AbstractBlockBuilder {
     /** The length of the internal values array. */
     protected abstract int valuesLength();
 
+    @Override
     public AbstractBlockBuilder beginPositionEntry() {
         if (firstValueIndexes == null) {
             firstValueIndexes = new int[positionCount + 1];

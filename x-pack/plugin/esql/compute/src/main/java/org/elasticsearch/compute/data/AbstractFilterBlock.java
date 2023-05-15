@@ -41,6 +41,15 @@ abstract class AbstractFilterBlock implements Block {
     }
 
     @Override
+    public boolean mayHaveMultivaluedFields() {
+        /*
+         * This could return a false positive. The block may have multivalued
+         * fields, but we're not pointing to any of them. That's acceptable.
+         */
+        return block.mayHaveMultivaluedFields();
+    }
+
+    @Override
     public final int nullValuesCount() {
         if (mayHaveNulls() == false) {
             return 0;

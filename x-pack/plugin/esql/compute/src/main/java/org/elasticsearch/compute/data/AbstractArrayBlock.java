@@ -32,6 +32,15 @@ abstract class AbstractArrayBlock extends AbstractBlock {
     }
 
     @Override
+    public boolean mayHaveMultivaluedFields() {
+        /*
+         * This could return a false positive if all the indices are one away from
+         * each other. But we will try to avoid that.
+         */
+        return firstValueIndexes != null;
+    }
+
+    @Override
     public final MvOrdering mvOrdering() {
         return mvOrdering;
     }

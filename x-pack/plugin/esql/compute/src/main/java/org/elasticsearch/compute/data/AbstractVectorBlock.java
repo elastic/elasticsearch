@@ -46,6 +46,11 @@ abstract class AbstractVectorBlock extends AbstractBlock {
     }
 
     @Override
+    public boolean mayHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public final MvOrdering mvOrdering() {
         return MvOrdering.UNORDERED;
     }

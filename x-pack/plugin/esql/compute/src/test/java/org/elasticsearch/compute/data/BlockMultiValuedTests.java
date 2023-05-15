@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BlockMultiValuedTests extends ESTestCase {
     @ParametersFactory
-    public static List<Object[]> params() throws Exception {
+    public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
             if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
@@ -58,6 +58,8 @@ public class BlockMultiValuedTests extends ESTestCase {
                 assertThat(BasicBlockTests.valuesAtPositions(b.block(), r, r + 1).get(0), equalTo(b.values().get(r)));
             }
         }
+
+        assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
     }
 
     public void testFilteredNoop() {
@@ -109,5 +111,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                 assertThat(BasicBlockTests.valuesAtPositions(filtered, r, r + 1).get(0), equalTo(b.values().get(positions[r])));
             }
         }
+
+        assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
     }
 }

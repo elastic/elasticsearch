@@ -49,6 +49,11 @@ public final class ConstantNullBlock extends AbstractBlock {
     }
 
     @Override
+    public boolean mayHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.NULL;
     }

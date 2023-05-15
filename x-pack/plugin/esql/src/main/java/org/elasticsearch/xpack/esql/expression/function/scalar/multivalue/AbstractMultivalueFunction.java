@@ -79,9 +79,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         @Override
         public final Block eval(Page page) {
             Block fieldVal = field.eval(page);
-            Vector fieldValVector = fieldVal.asVector();
-            if (fieldValVector != null) {
-                // If the value is a vector then there aren't any multivalued fields
+            if (fieldVal.mayHaveMultivaluedFields() == false) {
                 return fieldVal;
             }
             if (fieldVal.mayHaveNulls()) {

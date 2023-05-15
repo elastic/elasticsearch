@@ -55,13 +55,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         final DiscoveryNode node;
 
         FakeHttpTransport() {
-            node = TestDiscoveryNode.create(
-                "local",
-                "local",
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE)
-            );
+            node = TestDiscoveryNode.builder("local").name("local").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
         }
 
         @Override

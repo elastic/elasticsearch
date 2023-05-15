@@ -992,13 +992,7 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Set<DiscoveryNode> discoveryNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes; i++) {
             discoveryNodes.add(
-                TestDiscoveryNode.create(
-                    randomAlphaOfLength(30),
-                    UUID.randomUUID().toString(),
-                    buildNewFakeTransportAddress(),
-                    Collections.emptyMap(),
-                    roles
-                )
+                    TestDiscoveryNode.builder(UUID.randomUUID().toString()).name(randomAlphaOfLength(30)).roles(roles).build()
             );
         }
         return discoveryNodes;

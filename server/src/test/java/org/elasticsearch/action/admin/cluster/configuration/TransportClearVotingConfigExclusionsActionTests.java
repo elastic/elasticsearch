@@ -63,9 +63,9 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
         localNode = TestDiscoveryNode.create("local");
-        otherNode1 = TestDiscoveryNode.create("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        otherNode1 = TestDiscoveryNode.builder("other1").name("other1").roles(emptySet()).build();
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        otherNode2 = TestDiscoveryNode.create("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        otherNode2 = TestDiscoveryNode.builder("other2").name("other2").roles(emptySet()).build();
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }

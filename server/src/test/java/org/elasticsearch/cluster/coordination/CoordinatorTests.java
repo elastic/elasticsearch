@@ -1934,13 +1934,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     ) {
         DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
             .add(
-                TestDiscoveryNode.create(
-                    "resolvableNodeName",
-                    "resolvableNodeId",
-                    buildNewFakeTransportAddress(),
-                    emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
-                )
+                    TestDiscoveryNode.builder("resolvableNodeId").name("resolvableNodeName").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()
             )
             .build();
 

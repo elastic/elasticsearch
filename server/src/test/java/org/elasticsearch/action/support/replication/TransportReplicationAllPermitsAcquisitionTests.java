@@ -114,8 +114,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
         Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
-        DiscoveryNode node1 = TestDiscoveryNode.create("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles);
-        DiscoveryNode node2 = TestDiscoveryNode.create("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles);
+        DiscoveryNode node1 = TestDiscoveryNode.builder("_node1").name("_name1").roles(roles).build();
+        DiscoveryNode node2 = TestDiscoveryNode.builder("_node2").name("_name2").roles(roles).build();
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);

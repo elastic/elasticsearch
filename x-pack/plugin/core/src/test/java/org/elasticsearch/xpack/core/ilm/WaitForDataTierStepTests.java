@@ -92,15 +92,9 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         IntStream.range(0, between(1, 5))
             .mapToObj(
-                i -> TestDiscoveryNode.create(
-                    "node_" + i,
-                    UUIDs.randomBase64UUID(),
-                    buildNewFakeTransportAddress(),
-                    Map.of(),
-                    randomSubsetOf(between(1, roles.size()), roles).stream()
-                        .map(DiscoveryNodeRole::getRoleFromRoleName)
-                        .collect(Collectors.toSet())
-                )
+                    i -> TestDiscoveryNode.builder(UUIDs.randomBase64UUID()).name("node_" + i).roles(randomSubsetOf(between(1, roles.size()), roles).stream()
+                            .map(DiscoveryNodeRole::getRoleFromRoleName)
+                            .collect(Collectors.toSet())).build()
             )
             .forEach(builder::add);
         return ClusterState.builder(ClusterName.DEFAULT).nodes(builder).build();

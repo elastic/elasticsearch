@@ -334,7 +334,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(prevState)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(TestDiscoveryNode.create("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES))
+                    .add(TestDiscoveryNode.builder("node1").name("node1").roles(MASTER_DATA_ROLES).build())
                     .localNodeId("node1")
                     .masterNodeId("node1")
                     .build()

@@ -134,7 +134,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
     }
 
     private DiscoveryNode randomNode(final int id) {
-        return TestDiscoveryNode.create("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of());
+        return TestDiscoveryNode.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 
 }

@@ -21,6 +21,7 @@ import io.netty.util.ReferenceCountUtil;
 public final class Netty4HttpOptionsMethodChannelInboundHandler extends SimpleChannelInboundHandler<HttpObject> {
 
     private boolean dropContent;
+
     public Netty4HttpOptionsMethodChannelInboundHandler() {
         super(false);
         dropContent = false;

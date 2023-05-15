@@ -1,0 +1,12 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "profiling-kv"
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

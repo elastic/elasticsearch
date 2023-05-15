@@ -4,7 +4,9 @@
       "index": {
         "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
-        "refresh_interval": "10s"
+        "refresh_interval": "10s",
+        "hidden": true,
+        "lifecycle.rollover_alias": "profiling-executables"
       }
     },
     "mappings": {

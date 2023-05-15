@@ -1,0 +1,24 @@
+{
+  "phases": {
+    "hot": {
+      "min_age": "0ms",
+      "actions": {
+        "rollover": {
+          "max_primary_shard_size": "50gb",
+          "max_age": "15d",
+          "min_docs": 1
+        }
+      }
+    },
+    "delete": {
+      "min_age": "75d",
+      "actions": {
+        "delete": {}
+      }
+    }
+  },
+  "_meta": {
+    "description": "default ILM policy for Elastic Universal Profiling key-value data",
+    "managed": true
+  }
+}

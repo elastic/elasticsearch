@@ -11,6 +11,7 @@ package org.elasticsearch.common.settings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class LocallyMountedSecretsTests extends ESTestCase {
     Environment env;
@@ -54,7 +56,24 @@ public class LocallyMountedSecretsTests extends ESTestCase {
                  "ccc": "ddd"
              },
              "file_secrets": {
-                "eee": "ZmZm"
+                 "eee": "ZmZm"
+             }
+        }""";
+
+    // "ZmZm" is the base64 encoding of "fff"
+    private static String testJSONDuplicateKeys = """
+        {
+             "metadata": {
+                 "version": "1",
+                 "compatibility": "8.4.0"
+             },
+             "string_secrets": {
+                 "aaa": "bbb",
+                 "ccc": "ddd",
+                 "eee": "fff"
+             },
+             "file_secrets": {
+                 "eee": "ZmZm"
              }
         }""";
 
@@ -96,6 +115,21 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());
+    }
+
+    public void testDuplicateSettingKeys() throws Exception {
+        writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSONDuplicateKeys);
+        Exception e = expectThrows(Exception.class, () -> new LocallyMountedSecrets(env));
+        assertThat(e, instanceOf(XContentParseException.class));
+        assertThat(e.getMessage(), containsString("failed to parse field"));
+
+        Throwable cause1 = e.getCause();
+        assertThat(cause1, instanceOf(XContentParseException.class));
+        assertThat(cause1.getMessage(), containsString("Failed to build [locally_mounted_secrets]"));
+
+        Throwable cause2 = cause1.getCause();
+        assertThat(cause2, instanceOf(IllegalStateException.class));
+        assertThat(cause2.getMessage(), containsString("Some settings were defined as both string and file settings"));
     }
 
     public void testSettingsGetFile() throws IOException, GeneralSecurityException {

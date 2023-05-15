@@ -92,6 +92,15 @@ public class LocallyMountedSecrets implements SecureSettings {
                     .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> decoder.decode(e.getValue())));
 
+            Set<String> duplicateKeys = fileSecretsByteMap.keySet()
+                .stream()
+                .filter(stringSecretsMap::containsKey)
+                .collect(Collectors.toSet());
+
+            if (duplicateKeys.isEmpty() == false) {
+                throw new IllegalStateException("Some settings were defined as both string and file settings: " + duplicateKeys);
+            }
+
             Map<String, byte[]> allSecrets = Stream.concat(stringSecretsMap.entrySet().stream(), fileSecretsByteMap.entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 

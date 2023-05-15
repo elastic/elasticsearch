@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -43,6 +44,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.in;
 
 public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
@@ -96,13 +98,18 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), ExposingTimestampEnginePlugin.class);
     }
 
-    int createIndexAndIndexDocs(String cluster, String index, long timestamp, boolean exposeTimestamp) throws Exception {
+    int createIndexAndIndexDocs(String cluster, String index, int numberOfShards, long timestamp, boolean exposeTimestamp)
+        throws Exception {
         Client client = client(cluster);
         ElasticsearchAssertions.assertAcked(
             client.admin()
                 .indices()
                 .prepareCreate(index)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build())
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
                 .setMapping("@timestamp", "type=date", "position", "type=long")
         );
         int numDocs = between(1, 100);
@@ -129,10 +136,14 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
 
     public void testCanMatchOnTimeRange() throws Exception {
         long timestamp = randomLongBetween(10_000_000, 50_000_000);
-        createIndexAndIndexDocs(LOCAL_CLUSTER, "local_old_index", timestamp - 10_000, true);
-        createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_old_index", timestamp - 10_000, true);
-        int localDocs = createIndexAndIndexDocs(LOCAL_CLUSTER, "local_new_index", timestamp, randomBoolean());
-        int remoteDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", timestamp, randomBoolean());
+        int oldLocalNumShards = randomIntBetween(1, 5);
+        createIndexAndIndexDocs(LOCAL_CLUSTER, "local_old_index", oldLocalNumShards, timestamp - 10_000, true);
+        int oldRemoteNumShards = randomIntBetween(1, 5);
+        createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_old_index", oldRemoteNumShards, timestamp - 10_000, true);
+
+        int localDocs = createIndexAndIndexDocs(LOCAL_CLUSTER, "local_new_index", between(1, 5), timestamp, randomBoolean());
+        int remoteDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", between(1, 5), timestamp, randomBoolean());
+
         for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
             for (TransportService ts : cluster(cluster).getInstances(TransportService.class)) {
                 MockTransportService mockTransportService = (MockTransportService) ts;
@@ -151,10 +162,14 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
             }
         }
         try {
-            SearchSourceBuilder source = new SearchSourceBuilder().query(new RangeQueryBuilder("@timestamp").from(timestamp));
-            SearchRequest request = new SearchRequest("local_*", "*:remote_*");
-            request.source(source).setCcsMinimizeRoundtrips(randomBoolean());
-            ElasticsearchAssertions.assertHitCount(client().search(request).actionGet(), localDocs + remoteDocs);
+            for (boolean minimizeRoundTrips : List.of(true, false)) {
+                SearchSourceBuilder source = new SearchSourceBuilder().query(new RangeQueryBuilder("@timestamp").from(timestamp));
+                SearchRequest request = new SearchRequest("local_*", "*:remote_*");
+                request.source(source).setCcsMinimizeRoundtrips(minimizeRoundTrips);
+                SearchResponse searchResp = client().search(request).actionGet();
+                ElasticsearchAssertions.assertHitCount(searchResp, localDocs + remoteDocs);
+                assertThat(searchResp.getSkippedShards(), equalTo(oldLocalNumShards + oldRemoteNumShards));
+            }
         } finally {
             for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
                 for (TransportService ts : cluster(cluster).getInstances(TransportService.class)) {

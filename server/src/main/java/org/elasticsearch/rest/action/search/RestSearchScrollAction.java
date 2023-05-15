@@ -14,7 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.xcontent.XContentParseException;
 
@@ -66,7 +66,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 }
             }
         });
-        return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.searchScroll(searchScrollRequest, new RestChunkedToXContentListener<>(channel));
     }
 
     @Override

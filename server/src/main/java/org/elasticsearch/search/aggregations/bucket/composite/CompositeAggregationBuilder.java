@@ -96,6 +96,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return true;
     }
 
+    @Override
+    public boolean supportsConcurrentExecution() {
+        return false;
+    }
+
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         int num = in.readVInt();

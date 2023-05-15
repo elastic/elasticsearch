@@ -41,7 +41,8 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         var routing = RoutingTable.builder()
             .add(index("index-1a", "node-1"))
             .add(index("index-1b", "node-1"))
-            .add(index("index-2", "node-2"))
+            .add(index("index-2a", "node-2"))
+            .add(index("index-2b", "node-2"))
             .add(index("index-3", "node-3"))
             .build();
 
@@ -52,7 +53,14 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
 
         // order within same priority is not defined
         // no recorded allocations first
-        assertThat(next(2, iterator), containsInAnyOrder(isIndexShardAt("index-2", "node-2"), isIndexShardAt("index-3", "node-3")));
+        assertThat(
+            next(3, iterator),
+            containsInAnyOrder(
+                isIndexShardAt("index-2a", "node-2"),
+                isIndexShardAt("index-2b", "node-2"),
+                isIndexShardAt("index-3", "node-3")
+            )
+        );
         // recently recorded allocations last
         assertThat(next(2, iterator), containsInAnyOrder(isIndexShardAt("index-1a", "node-1"), isIndexShardAt("index-1b", "node-1")));
         assertThat(iterator.hasNext(), equalTo(false));
@@ -110,5 +118,4 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
             public void describeTo(Description description) {}
         };
     }
-
 }

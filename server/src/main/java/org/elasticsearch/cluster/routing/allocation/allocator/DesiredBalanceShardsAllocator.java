@@ -228,7 +228,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         } else {
             logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
         }
-        allocationOrdering.retainNodes(allocation.routingNodes().getAllNodeIds());
+        var allNodeIds = allocation.routingNodes().getAllNodeIds();
+        allocationOrdering.retainNodes(allNodeIds);
+        moveOrdering.retainNodes(allNodeIds);
         recordTime(
             cumulativeReconciliationTime,
             new DesiredBalanceReconciler(desiredBalance, allocation, allocationOrdering, moveOrdering)::run

@@ -301,9 +301,8 @@ public class DesiredBalanceReconciler {
     }
 
     private void moveShards() {
-        // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
-        // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
-        // offloading the shards.
+        // Iterate over all started shards and check if they can remain. In the presence of throttling shard movements,
+        // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
         for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
             final var shardRouting = iterator.next();
 
@@ -356,9 +355,8 @@ public class DesiredBalanceReconciler {
             return;
         }
 
-        // Iterate over the started shards interleaving between nodes, and try to move any which are on undesired nodes. In the presence of
-        // throttling shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
-        // offloading the shards.
+        // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard movements,
+        // the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the shards.
         for (final var iterator = OrderedShardsIterator.create(routingNodes, moveOrdering); iterator.hasNext();) {
             final var shardRouting = iterator.next();
 

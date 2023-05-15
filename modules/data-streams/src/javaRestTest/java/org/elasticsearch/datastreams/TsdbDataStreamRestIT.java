@@ -333,6 +333,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(endTimeSecondBackingIndex, notNullValue());
 
         var indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         Instant time = parseInstant(startTimeFirstBackingIndex);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstantNanos(time)));
         response = client().performRequest(indexRequest);
@@ -340,11 +341,45 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
 
         indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstantNanos(time)));
         response = client().performRequest(indexRequest);
         assertOK(response);
         assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
+
+        var searchRequest = new Request("GET", "k8s/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "query": {
+                    "range":{
+                        "@timestamp":{
+                            "gte": "now-7d",
+                            "lte": "now+7d"
+                        }
+                    }
+                },
+                "sort": [
+                    {
+                        "@timestamp": {
+                            "order": "desc"
+                        }
+                    }
+                ]
+            }
+            """);
+        response = client().performRequest(searchRequest);
+        assertOK(response);
+        responseBody = entityAsMap(response);
+        try {
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(10));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.total.relation"), equalTo("eq"));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.hits.0._index"), equalTo(secondBackingIndex));
+            assertThat(ObjectPath.evaluate(responseBody, "hits.hits.1._index"), equalTo(firstBackingIndex));
+        } catch (Exception | AssertionError e) {
+            logger.error("search response body causing assertion error [" + responseBody + "]", e);
+            throw e;
+        }
     }
 
     public void testSimulateTsdbDataStreamTemplate() throws Exception {

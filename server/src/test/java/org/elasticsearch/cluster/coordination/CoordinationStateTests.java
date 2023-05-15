@@ -78,7 +78,6 @@ public class CoordinationStateTests extends ESTestCase {
 
     public static DiscoveryNode createNode(String id) {
         return TestDiscoveryNode.builder(id)
-            .name("")
             .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
             .build();
     }

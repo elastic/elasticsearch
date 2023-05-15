@@ -1848,7 +1848,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
         return TestDiscoveryNode.builder("node" + nodeIndex)
-            .name("")
             .ephemeralId(UUIDs.randomBase64UUID(random()))  // generated deterministically for repeatable tests
             .roles(masterEligible ? ALL_ROLES_EXCEPT_VOTING_ONLY : emptySet())
             .build();

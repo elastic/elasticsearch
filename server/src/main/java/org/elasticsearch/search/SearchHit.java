@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -782,7 +783,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             builder.startObject(Fields.INNER_HITS);
             for (Map.Entry<String, SearchHits> entry : innerHits.entrySet()) {
                 builder.startObject(entry.getKey());
-                entry.getValue().toXContent(builder, params);
+                ChunkedToXContent.wrapAsToXContent(entry.getValue()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();

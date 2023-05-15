@@ -429,6 +429,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final String uploadThreadPoolName = ThreadPool.Names.SNAPSHOT;
         final int maxUploadTasks = threadPool.info(uploadThreadPoolName).getMax();
         final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch taskStartedLatch = new CountDownLatch(maxUploadTasks);
         for (int i = 0; i < maxUploadTasks; i++) {
             threadPool.executor(uploadThreadPoolName).execute(new AbstractRunnable() {
                 @Override
@@ -438,11 +439,17 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
+                    taskStartedLatch.countDown();
                     latch.await();
                 }
             });
         }
-
+        try {
+            taskStartedLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(e);
+        }
         int active = -1;
         for (var stats : threadPool.stats()) {
             if (stats.getName().equals(uploadThreadPoolName)) {

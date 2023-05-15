@@ -252,7 +252,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     new TransportAddress(TransportAddress.META_ADDRESS, 9301 + i),
                     randomBoolean() ? singletonMap("attr", randomAlphaOfLength(3)) : emptyMap,
                     singleton(randomValueOtherThan(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE, () -> randomFrom(DiscoveryNodeRole.roles()))),
-                    Version.CURRENT
+                    null
                 )
             );
         }
@@ -794,7 +794,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             singletonMap("attr", "value"),
             singleton(DiscoveryNodeRole.MASTER_ROLE),
-            Version.CURRENT
+            null
         );
     }
 

@@ -72,13 +72,13 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = shuffleSettings(Settings.builder().put("xxx._id", "id1,blah").put("xxx.name", "blah,name2").build());
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), null);
+        DiscoveryNode node = TestDiscoveryNode.builder("id1").name("name1").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), null);
+        node = TestDiscoveryNode.builder("id2").name("name2").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name3", "id3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), null);
+        node = TestDiscoveryNode.builder("id3").name("name3").roles(emptySet()).build();
         assertThat(filters.match(node), equalTo(false));
     }
 

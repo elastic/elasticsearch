@@ -181,9 +181,9 @@ public class EnrichPolicyRunner implements Runnable {
         }
         // Validate the key and values
         try {
-            getMappingTypeAndFormat(mapping, policy.getMatchField(), true);
+            validateAndGetMappingTypeAndFormat(mapping, policy.getMatchField(), true);
             for (String valueFieldName : policy.getEnrichFields()) {
-                getMappingTypeAndFormat(mapping, valueFieldName, false);
+                validateAndGetMappingTypeAndFormat(mapping, valueFieldName, false);
             }
         } catch (ElasticsearchException e) {
             throw new ElasticsearchException(
@@ -199,14 +199,14 @@ public class EnrichPolicyRunner implements Runnable {
 
     }
 
-    private static MappingTypeAndFormat getMappingTypeAndFormat(
+    private static MappingTypeAndFormat validateAndGetMappingTypeAndFormat(
         String fieldName,
         EnrichPolicy policy,
         boolean strictlyRequired,
         List<Map<String, Object>> sourceMappings
     ) {
         var fieldMappings = sourceMappings.stream()
-            .map(mapping -> getMappingTypeAndFormat(mapping, fieldName, strictlyRequired))
+            .map(mapping -> validateAndGetMappingTypeAndFormat(mapping, fieldName, strictlyRequired))
             .filter(Objects::nonNull)
             .toList();
         Set<String> types = fieldMappings.stream().map(tf -> tf.type).collect(Collectors.toSet());
@@ -244,7 +244,11 @@ public class EnrichPolicyRunner implements Runnable {
         return (T) properties.get(path);
     }
 
-    private static MappingTypeAndFormat getMappingTypeAndFormat(Map<String, Object> properties, String fieldName, boolean fieldRequired) {
+    private static MappingTypeAndFormat validateAndGetMappingTypeAndFormat(
+        Map<String, Object> properties,
+        String fieldName,
+        boolean fieldRequired
+    ) {
         assert Strings.isEmpty(fieldName) == false : "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();
@@ -304,7 +308,7 @@ public class EnrichPolicyRunner implements Runnable {
     static final Set<String> RANGE_TYPES = Set.of("integer_range", "float_range", "long_range", "double_range", "ip_range", "date_range");
 
     static Map<String, Object> mappingForMatchField(EnrichPolicy policy, List<Map<String, Object>> sourceMappings) {
-        MappingTypeAndFormat typeAndFormat = getMappingTypeAndFormat(policy.getMatchField(), policy, true, sourceMappings);
+        MappingTypeAndFormat typeAndFormat = validateAndGetMappingTypeAndFormat(policy.getMatchField(), policy, true, sourceMappings);
         if (typeAndFormat == null) {
             throw new ElasticsearchException(
                 "Match field '{}' doesn't have a correct mapping type for policy type '{}'",
@@ -343,7 +347,7 @@ public class EnrichPolicyRunner implements Runnable {
                 mappingForMatchField = new HashMap<>(mappingForMatchField);
                 mappingForMatchField.remove("doc_values"); // enable doc_values
             } else {
-                var typeAndFormat = getMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
+                var typeAndFormat = validateAndGetMappingTypeAndFormat(enrichField, policy, false, sourceMappings);
                 if (typeAndFormat != null) {
                     Map<String, Object> mapping = Maps.newMapWithExpectedSize(3);
                     mapping.put("type", typeAndFormat.type);

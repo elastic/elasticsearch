@@ -76,7 +76,26 @@ public class LocallyMountedSecrets implements SecureSettings {
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<LocalFileSecrets, Void> secretsParser = new ConstructingObjectParser<>(
         "locally_mounted_secrets",
-        a -> LocalFileSecrets.createLocalFileSecrets((Map<String, String>) a[0], (Map<String, String>) a[1], (ReservedStateVersion) a[2])
+        a -> {
+            final var decoder = Base64.getDecoder();
+
+            Map<String, byte[]> stringSecretsMap = a[0] == null
+                ? Map.of()
+                : ((Map<String, String>) a[0]).entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
+
+            Map<String, byte[]> fileSecretsByteMap = a[1] == null
+                ? Map.of()
+                : ((Map<String, String>) a[1]).entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> decoder.decode(e.getValue())));
+
+            Map<String, byte[]> allSecrets = Stream.concat(stringSecretsMap.entrySet().stream(), fileSecretsByteMap.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            return new LocalFileSecrets(allSecrets, (ReservedStateVersion) a[2]);
+        }
     );
 
     private final String secretsDir;
@@ -157,13 +176,13 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public Set<String> getSettingNames() {
         assert isLoaded();
-        return secrets.get().map().keySet();
+        return secrets.get().entries().keySet();
     }
 
     @Override
     public SecureString getString(String setting) {
         assert isLoaded();
-        var value = secrets.get().map().get(setting);
+        var value = secrets.get().entries().get(setting);
         if (value == null) {
             return null;
         }
@@ -175,13 +194,13 @@ public class LocallyMountedSecrets implements SecureSettings {
     @Override
     public InputStream getFile(String setting) throws GeneralSecurityException {
         assert isLoaded();
-        return new ByteArrayInputStream(secrets.get().map().get(setting));
+        return new ByteArrayInputStream(secrets.get().entries().get(setting));
     }
 
     @Override
     public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
         assert isLoaded();
-        return MessageDigests.sha256().digest(secrets.get().map().get(setting));
+        return MessageDigests.sha256().digest(secrets.get().entries().get(setting));
     }
 
     /**
@@ -193,8 +212,8 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     @Override
     public void close() throws IOException {
-        if (null != secrets.get() && secrets.get().map().isEmpty() == false) {
-            for (var entry : secrets.get().map().entrySet()) {
+        if (null != secrets.get() && secrets.get().entries().isEmpty() == false) {
+            for (var entry : secrets.get().entries().entrySet()) {
                 entry.setValue(null);
             }
         }
@@ -212,38 +231,17 @@ public class LocallyMountedSecrets implements SecureSettings {
         }
     }
 
-    record LocalFileSecrets(Map<String, byte[]> map, ReservedStateVersion metadata) implements Writeable {
-
-        public static LocalFileSecrets createLocalFileSecrets(
-            Map<String, String> stringSecrets,
-            Map<String, String> fileSecrets,
-            ReservedStateVersion metadata
-        ) {
-            Map<String, byte[]> stringSecretsMap = stringSecrets == null
-                ? Map.of()
-                : stringSecrets.entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8)));
-
-            Map<String, byte[]> fileSecretsByteMap = fileSecrets == null
-                ? Map.of()
-                : fileSecrets.entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> Base64.getDecoder().decode(e.getValue())));
-
-            Map<String, byte[]> allSecrets = Stream.concat(stringSecretsMap.entrySet().stream(), fileSecretsByteMap.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            return new LocalFileSecrets(allSecrets, metadata);
-        }
+    record LocalFileSecrets(Map<String, byte[]> entries, ReservedStateVersion metadata) implements Writeable {
 
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
+            // TODO[wrb]: version checks
             return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap((map == null) ? Map.of() : map, StreamOutput::writeString, StreamOutput::writeByteArray);
+            // TODO[wrb]: version checks
+            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

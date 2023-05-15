@@ -17,6 +17,10 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
+/**
+ * This class iterates all shards from all nodes in order of allocation recency.
+ * Shards from the node that had a new shard allocation would appear in the end of iteration.
+ */
 public class OrderedShardsIterator implements Iterator<ShardRouting> {
 
     private final ArrayDeque<NodeAndShardIterator> queue;

@@ -1548,7 +1548,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i3*"),
                 new Template(null, null, null, dataLifecycle2),
-                List.of("ct_no_lifecycle", "ct_high"),
+                List.of("ct_no_lifecycle", "ct_1"),
                 0L,
                 1L,
                 null,
@@ -1559,7 +1559,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-3");
 
-            // Based on precedence only the latest
+            // The index template has higher precedence and overwrites the retention of the others.
             assertThat(resolvedLifecycle, equalTo(dataLifecycle2));
         }
         {
@@ -1577,7 +1577,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-4");
 
-            // Based on precedence only the latest
+            // The index template lifecycle does not have a retention so the one from ct_1 remains unchanged.
             assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
         }
     }

@@ -94,8 +94,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             NAME,
             INDEX_STUCK_IMPACT_ID,
             3,
-            "Some indices have been longer than expected on the same Index Lifecycle Management action. The performance and stability of "
-                + "the cluster could be impacted.",
+            "Some indices have been longer than expected on the same Index Lifecycle Management action.",
             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
         )
     );

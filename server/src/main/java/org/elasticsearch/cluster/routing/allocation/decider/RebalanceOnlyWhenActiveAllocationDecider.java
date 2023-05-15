@@ -26,7 +26,7 @@ public class RebalanceOnlyWhenActiveAllocationDecider extends AllocationDecider 
     static final Decision NO_SOME_REPLICAS_INACTIVE = Decision.single(
         Decision.Type.NO,
         NAME,
-        "rebalancing is not allowed until all replicas of this index are active"
+        "rebalancing is not allowed until all copies of this shard are active"
     );
 
     @Override

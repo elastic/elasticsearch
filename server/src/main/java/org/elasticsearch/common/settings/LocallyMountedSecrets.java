@@ -235,26 +235,14 @@ public class LocallyMountedSecrets implements SecureSettings {
     record LocalFileSecrets(Map<String, byte[]> entries, ReservedStateVersion metadata) implements Writeable {
 
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersion.V_8_500_002)) {
-                return new LocalFileSecrets(
-                    in.readMap(StreamInput::readString, i -> i.readString().getBytes(StandardCharsets.UTF_8)),
-                    ReservedStateVersion.readFrom(in)
-                );
-            }
+            assert in.getTransportVersion() == TransportVersion.CURRENT;
             return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersion.V_8_500_002)) {
-                out.writeMap(
-                    (entries == null) ? Map.of() : entries,
-                    StreamOutput::writeString,
-                    (o, byteArray) -> o.writeString(new String(byteArray, StandardCharsets.UTF_8))
-                );
-            } else {
-                out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
-            }
+            assert out.getTransportVersion() == TransportVersion.CURRENT;
+            out.writeMap((entries == null) ? Map.of() : entries, StreamOutput::writeString, StreamOutput::writeByteArray);
             metadata.writeTo(out);
         }
     }

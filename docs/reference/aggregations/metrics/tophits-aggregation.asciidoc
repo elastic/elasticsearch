@@ -423,7 +423,7 @@ that applies per bucket filtering, similar to using a HAVING clause in SQL. This
 specifying the right path for the value to be passed to the wrapping aggregator. The latter can be a `_source`, a
 `_sort` or a `_score` value. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {

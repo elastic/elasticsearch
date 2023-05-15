@@ -423,7 +423,7 @@ Which returns the much more expected:
 that applies per bucket filtering, similar to using a HAVING clause in SQL. This requires setting `size` to 1, and
 specifying the right path for the (single) metric to be passed to the wrapping aggregator. For example:
 
-[source,js]
+[source,console]
 ----
 POST /node/_search?filter_path=aggregations
 {

@@ -66,6 +66,11 @@ dependencies {
     api buildLibs.shadow.plugin
     api buildLibs.apache.rat
     compileOnly buildLibs.checkstyle
+    constraints {
+      api("org.eclipse.platform:org.eclipse.osgi:3.18.300") {
+        because("Use the same version as we do in spotless gradle plugin at runtime")
+      }
+    }
     api(buildLibs.spotless.plugin) {
       exclude module: "groovy-xml"
     }

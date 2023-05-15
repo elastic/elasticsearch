@@ -74,6 +74,22 @@ g:long | h:long
 2      | 14
 ;
 
+countDistinctOfIp
+// TODO: This result is wrong because count_distinct does not support 
+// multi-values for bytes_ref fields
+from hosts | stats h = count_distinct(ip0);
+
+h:long
+7
+;
+
+countDistinctOfDates
+from employees | eval d = date_trunc(hire_date, 1 year) | stats h = count_distinct(d);  
+
+h:long
+14
+;
+
 countDistinctWithGroup
 from employees | stats m = count_distinct(height) by languages | sort languages;
 
@@ -84,3 +100,15 @@ m:long  | languages:i
 15   | 4
 20   | 5
 ; 
+
+countDistinctOfIpGroupByKeyword
+// TODO: This result is wrong because count_distinct does not support 
+// multi-values for bytes_ref fields
+from hosts | stats h = count_distinct(ip0) by host | sort host;
+
+h:long | host:keyword
+2      | alpha
+1      | beta
+2      | epsilon
+1      | gamma
+;

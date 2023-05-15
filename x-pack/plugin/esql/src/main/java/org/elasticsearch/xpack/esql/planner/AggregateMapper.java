@@ -35,6 +35,12 @@ class AggregateMapper {
         if (aggregateFunction.field().dataType() == DataTypes.KEYWORD) {
             return AggregationType.bytesrefs;
         }
+        if (aggregateFunction.field().dataType() == DataTypes.IP) {
+            return AggregationType.bytesrefs;
+        }
+        if (aggregateFunction.field().dataType() == DataTypes.DATETIME) {
+            return AggregationType.longs;
+        }
         // agnostic here means "only works if the aggregation doesn't care about type".
         return AggregationType.agnostic;
     }

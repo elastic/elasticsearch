@@ -220,6 +220,18 @@ public abstract class AggregationBuilder
     }
 
     /**
+     * Return false if this aggregation or any of the child aggregations does not support concurrent search
+     */
+    public boolean supportsConcurrentExecution() {
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.supportsConcurrentExecution() == false) {
+                return false;
+            }
+        }
+        return isInSortOrderExecutionRequired() == false;
+    }
+
+    /**
      * Called by aggregations whose parents must be sequentially ordered.
      * @param type the type of the aggregation being validated
      * @param name the name of the aggregation being validated

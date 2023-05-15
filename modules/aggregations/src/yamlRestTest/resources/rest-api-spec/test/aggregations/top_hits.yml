@@ -526,7 +526,7 @@ synthetic _source:
                 having.top_salary:
                   bucket_selector:
                     buckets_path:
-                      ts: top_salary_hits[salary]
+                      ts: top_salary_hits[_source.salary]
                     script: "params.ts < 8000"
 
   # The bucket for gender '2' gets filtered out by the selector.
@@ -535,40 +535,6 @@ synthetic _source:
   - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1}
   - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000}
   - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982}
-
-  - do:
-      search:
-        index: test2
-        size: 0
-        body:
-          aggs:
-            genders:
-              terms:
-                field: gender
-              aggs:
-                top_salary_hits:
-                  top_hits:
-                    sort:
-                      salary:
-                        order: "desc"
-                    _source:
-                      includes:
-                        - gender
-                        - salary
-                        - birth_date
-                    size: 1
-                having.top_salary:
-                  bucket_selector:
-                    buckets_path:
-                      ts: top_salary_hits[_source.salary]
-                    script: "params.ts < 8000"
-
-  # bucket_path can refer to a _source field explicitly.
-  - length: { aggregations.genders.buckets: 1 }
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.total.value: 4 }
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.gender: 1 }
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.salary: 4000 }
-  - match: { aggregations.genders.buckets.0.top_salary_hits.hits.hits.0._source.birth_date: 1982 }
 
   - do:
       search:

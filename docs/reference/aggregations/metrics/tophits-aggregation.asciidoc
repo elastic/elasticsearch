@@ -452,7 +452,7 @@ POST /sales/_search?size=0
         "having.top_salary": {
           "bucket_selector": {
             "buckets_path": {
-              "tp": "top_sales_hits[price]"
+              "tp": "top_sales_hits[_source.price]"
             },
             "script": "params.tp < 180"
           }
@@ -466,6 +466,5 @@ POST /sales/_search?size=0
 // TEST[setup:sales]
 
 The `bucket_path` uses the `top_hits` name `top_sales_hits` and a keyword for the field providing the aggregate value,
-namely `_source` field `price` in the example above. This is equivalent to using the path
-`top_sales_hits[_source.price]`. Other options include `top_sales_hits[_sort]`, for filtering on the sort value `date`
-above, and `top_sales_hits[_score]`, for filtering on the score of the top hit.
+namely `_source` field `price` in the example above. Other options include `top_sales_hits[_sort]`, for filtering on the
+sort value `date` above, and `top_sales_hits[_score]`, for filtering on the score of the top hit.

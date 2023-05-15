@@ -217,19 +217,14 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             }
         } else if (tokens[0].equals(SCORE)) {
             return topHit.getScore();
-        } else {
+        } else if (tokens[0].equals(SOURCE)) {
             Map<String, Object> sourceAsMap = topHit.getSourceAsMap();
             if (sourceAsMap != null) {
-                String field = tokens[0];
-                if (tokens.length == 2 && tokens[0].equals(SOURCE)) {
-                    field = tokens[1];
-                }
-                Object property = sourceAsMap.get(field);
+                Object property = sourceAsMap.get(tokens[1]);
                 if (property != null) {
                     return property;
                 }
             }
-
         }
         throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }

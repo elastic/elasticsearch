@@ -287,13 +287,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
 
         assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
-        assertEquals(1000.0, internalTopHits.getProperty(List.of("foo")));
         assertEquals(1000.0, internalTopHits.getProperty(List.of("_source.foo")));
         assertEquals(10.0, internalTopHits.getProperty(List.of("_sort")));
         assertEquals(1.0f, internalTopHits.getProperty(List.of("_score")));
 
-        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
         expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
 
         // Sort value retrieval requires a single value.
         hit.sortValues(new Object[] { 10.0, 20.0 }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });

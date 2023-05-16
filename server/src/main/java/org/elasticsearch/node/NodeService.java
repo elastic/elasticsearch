@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.http.HttpStatsContent;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -166,6 +167,12 @@ public class NodeService implements Closeable {
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null
         );
+    }
+
+    public HttpStatsContent httpStats() {
+        return httpServerTransport == null
+            ? null
+            : new HttpStatsContent(transportService.getLocalNode(), System.currentTimeMillis(), httpServerTransport.stats());
     }
 
     public IngestService getIngestService() {

@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSetti
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.http.HttpStatsNodesResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -240,6 +241,18 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      */
     void nodesStats(NodesStatsRequest request, ActionListener<NodesStatsResponse> listener);
+
+    /**
+     * Https stats of the cluster.
+     * @return The result future.
+     */
+    ActionFuture<HttpStatsNodesResponse> httpStats();
+
+    /**
+     * Https stats of the cluster.
+     * @param listener A listener to be notified with a result.
+     */
+    void httpStats(ActionListener<HttpStatsNodesResponse> listener);
 
     /**
      * Nodes stats of the cluster.

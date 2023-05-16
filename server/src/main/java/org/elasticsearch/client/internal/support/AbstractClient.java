@@ -37,6 +37,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.http.HttpStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.http.HttpStatsNodesResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.http.TransportHttpStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
@@ -771,6 +774,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void nodesStats(final NodesStatsRequest request, final ActionListener<NodesStatsResponse> listener) {
             execute(NodesStatsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<HttpStatsNodesResponse> httpStats() {
+            return execute(HttpStatsAction.INSTANCE, TransportHttpStatsAction.HttpStatsRequest.INSTANCE);
+        }
+
+        @Override
+        public void httpStats(ActionListener<HttpStatsNodesResponse> listener) {
+            execute(HttpStatsAction.INSTANCE, TransportHttpStatsAction.HttpStatsRequest.INSTANCE, listener);
         }
 
         @Override

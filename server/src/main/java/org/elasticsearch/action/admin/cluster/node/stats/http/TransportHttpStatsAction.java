@@ -109,11 +109,14 @@ public class TransportHttpStatsAction extends TransportNodesAction<
 
     public static class HttpStatsRequest extends BaseNodesRequest<HttpStatsRequest> {
 
+        // This endpoint does not accept request parameters, so let's have only 1 instance of the request object
+         public static final HttpStatsRequest INSTANCE = new HttpStatsRequest();
+
         public HttpStatsRequest(StreamInput in) throws IOException {
             super(in);
         }
 
-        public HttpStatsRequest(String... nodesIds) {
+        HttpStatsRequest(String... nodesIds) {
             super(nodesIds);
         }
 

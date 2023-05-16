@@ -1937,6 +1937,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder), XContentType.JSON)
             );
             assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
+            assertEquals(oldApiKeyDoc.type, updatedApiKeyDoc.type);
             assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
             assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
             assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);

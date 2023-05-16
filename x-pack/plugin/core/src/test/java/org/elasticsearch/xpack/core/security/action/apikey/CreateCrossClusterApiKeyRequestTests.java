@@ -11,20 +11,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
-
 public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializingTestCase<CreateCrossClusterApiKeyRequest> {
 
-    private static final List<String> ACCESS_CANDIDATES = List.of("""
+    public static final List<String> ACCESS_CANDIDATES = List.of("""
         {
           "search": [ {"names": ["logs"]} ]
         }""", """
@@ -52,9 +47,9 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
     private CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
 
     @Before
-    public void init() {
+    public void init() throws IOException {
         access = randomFrom(ACCESS_CANDIDATES);
-        roleDescriptorBuilder = parseForCrossClusterApiKeyRoleDescriptorBuilder(access);
+        roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(access);
     }
 
     @Override
@@ -86,7 +81,7 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
             case 2 -> {
                 return new CreateCrossClusterApiKeyRequest(
                     instance.getName(),
-                    parseForCrossClusterApiKeyRoleDescriptorBuilder(randomValueOtherThan(access, () -> randomFrom(ACCESS_CANDIDATES))),
+                    CrossClusterApiKeyRoleDescriptorBuilder.parse(randomValueOtherThan(access, () -> randomFrom(ACCESS_CANDIDATES))),
                     instance.getExpiration(),
                     instance.getMetadata()
                 );
@@ -107,15 +102,6 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
                     randomValueOtherThan(instance.getMetadata(), CreateCrossClusterApiKeyRequestTests::randomMetadata)
                 );
             }
-        }
-    }
-
-    private CrossClusterApiKeyRoleDescriptorBuilder parseForCrossClusterApiKeyRoleDescriptorBuilder(String access) {
-        try {
-            final XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, access);
-            return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(parser, null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

@@ -84,7 +84,7 @@ final class ElasticServiceAccounts {
                     .privileges("read", "monitor", "maintenance")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-secrets*")
+                    .indices(".secrets-fleet*")
                     .privileges("read")
                     .allowRestrictedIndices(true)
                     .build(),

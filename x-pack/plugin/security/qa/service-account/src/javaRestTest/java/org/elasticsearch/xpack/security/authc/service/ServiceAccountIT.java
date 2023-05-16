@@ -126,7 +126,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
-                    ".fleet-secrets*"
+                    ".secrets-fleet*"
                   ],
                   "privileges": [
                     "read"

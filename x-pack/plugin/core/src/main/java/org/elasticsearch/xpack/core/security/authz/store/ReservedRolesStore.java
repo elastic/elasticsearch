@@ -767,7 +767,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 // Fleet secrets, Kibana can only write to this index.
                 // This definition must come before .fleet* below.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".fleet-secrets*")
+                    .indices(".secrets-fleet*")
                     .privileges("write", "delete", "create_index")
                     .allowRestrictedIndices(true)
                     .build(),

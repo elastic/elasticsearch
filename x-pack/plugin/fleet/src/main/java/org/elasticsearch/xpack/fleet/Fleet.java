@@ -201,9 +201,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setVersionMetaKey(VERSION_KEY)
             .setMappings(request.mappings())
             .setSettings(request.settings())
-            .setPrimaryIndex(".fleet-secrets-" + CURRENT_INDEX_VERSION)
-            .setIndexPattern(".fleet-secrets*")
-            .setAliasName(".fleet-secrets")
+            .setPrimaryIndex(".secrets-fleet-" + CURRENT_INDEX_VERSION)
+            .setIndexPattern(".secrets-fleet*")
+            .setAliasName(".secrets-fleet")
             .setDescription("Secret values managed by Fleet")
             .build();
     }

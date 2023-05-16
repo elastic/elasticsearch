@@ -116,6 +116,7 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
                 if (hasAcceptHeader) {
                     assertThat(dispatchedRequest.header(HttpHeaderNames.ACCEPT.toString()), is("*/*"));
                 }
+                dispatchedRequest.getHttpRequest().release();
             }
             // fixed length content written in multiple parts
             {
@@ -173,6 +174,7 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
                 if (hasAcceptHeader) {
                     assertThat(dispatchedRequest.header(HttpHeaderNames.ACCEPT.toString()), is("*/*"));
                 }
+                dispatchedRequest.getHttpRequest().release();
             }
             // testThreadPool.generic().submit(() -> ch.close().get()).get();
         } finally {

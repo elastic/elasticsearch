@@ -1316,10 +1316,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public IndexLongFieldRange getTimeSeriesTimestampRange(DateFieldMapper.DateFieldType dateFieldType) {
         var bounds = indexMode != null ? indexMode.getTimestampBound(this) : null;
         if (bounds != null) {
-            long start = bounds.startTime();
-            long end = bounds.endTime();
-            start = dateFieldType.resolution().convert(Instant.ofEpochMilli(start));
-            end = dateFieldType.resolution().convert(Instant.ofEpochMilli(end));
+            long start = dateFieldType.resolution().convert(Instant.ofEpochMilli(bounds.startTime()));
+            long end = dateFieldType.resolution().convert(Instant.ofEpochMilli(bounds.endTime()));
             return IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(start, end));
         } else {
             return null;

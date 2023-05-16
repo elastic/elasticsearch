@@ -104,23 +104,23 @@ public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializi
     }
 
     public void testValidation() {
-        AggregationInitializationException e = expectThrows(AggregationInitializationException.class,
-            () -> {
-                List<SortBuilder<?>> sortBuilders = singletonList(
-                    new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values()))
-                );
-                List<MultiValuesSourceFieldConfig> metricFields = InternalTopMetricsTests.randomMetricNames(between(1, 5)).stream().map(name -> {
+        AggregationInitializationException e = expectThrows(AggregationInitializationException.class, () -> {
+            List<SortBuilder<?>> sortBuilders = singletonList(
+                new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values()))
+            );
+            List<MultiValuesSourceFieldConfig> metricFields = InternalTopMetricsTests.randomMetricNames(between(1, 5))
+                .stream()
+                .map(name -> {
                     MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
                     metricField.setFieldName(randomAlphaOfLength(5)).setMissing(1.0);
                     return metricField.build();
-                }).collect(toList());
-                new TopMetricsAggregationBuilder("tm", sortBuilders, between(1, 100), metricFields)
-                    .subAggregation(AggregationBuilders.avg("fieldA"));
-            });
-        assertEquals(
-            "Aggregator [tm] of type [top_metrics] cannot accept sub-aggregations",
-            e.getMessage()
-        );
+                })
+                .collect(toList());
+            new TopMetricsAggregationBuilder("tm", sortBuilders, between(1, 100), metricFields).subAggregation(
+                AggregationBuilders.avg("fieldA")
+            );
+        });
+        assertEquals("Aggregator [tm] of type [top_metrics] cannot accept sub-aggregations", e.getMessage());
     }
 
     private void toXContentThroughClientBuilder(TopMetricsAggregationBuilder serverBuilder, XContentBuilder builder) throws IOException {

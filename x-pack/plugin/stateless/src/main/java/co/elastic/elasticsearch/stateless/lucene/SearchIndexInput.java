@@ -191,7 +191,7 @@ public class SearchIndexInput extends BufferedIndexInput {
     );
 
     private ByteRange computeRange(long position) {
-        return BlobCacheUtils.computeRange(64 * 1024, position, cacheFile.getLength());
+        return BlobCacheUtils.computeRange(cacheService.getRangeSize(), position, cacheFile.getLength());
     }
 
 }

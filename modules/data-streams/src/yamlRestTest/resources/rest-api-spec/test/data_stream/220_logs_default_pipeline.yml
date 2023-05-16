@@ -157,9 +157,30 @@ Test default logs-*-* pipeline:
         body:
           query:
             term:
-              message:
+              test:
                 value: 'malformed_json'
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.@timestamp: '2023-05-10' }
   - match: { hits.hits.0._source.message: '{"@timestamp":"2023-05-09T16:48:34.135Z", "message":"malformed_json"}}' }
   - match: { hits.hits.0._source._tmp_json_message: null }
+
+  # test non-string message field
+  - do:
+      index:
+        index: logs-generic-default
+        refresh: true
+        body:
+          test: 'numeric_message'
+          message: 42
+  - match: {result: "created"}
+
+  - do:
+      search:
+        index: logs-generic-default
+        body:
+          query:
+            term:
+              test:
+                value: 'numeric_message'
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.message: 42 }

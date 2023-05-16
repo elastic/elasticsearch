@@ -11,6 +11,7 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Random;
 
 /**
@@ -162,12 +163,12 @@ public class Sort {
             int high = end;        // high points to first value > pivotValue
             int i = low;           // i scans the array
             while (i < high) {
-                // invariant:  (values,weights)[order[k]] == (pivotValue, pivotWeight) for k in [0..low)
-                // invariant:  (values,weights)[order[k]] < (pivotValue, pivotWeight) for k in [low..i)
-                // invariant:  (values,weights)[order[k]] > (pivotValue, pivotWeight) for k in [high..end)
-                // in-loop:  i < high
-                // in-loop:  low < high
-                // in-loop:  i >= low
+                // invariant: (values,weights)[order[k]] == (pivotValue, pivotWeight) for k in [0..low)
+                // invariant: (values,weights)[order[k]] < (pivotValue, pivotWeight) for k in [low..i)
+                // invariant: (values,weights)[order[k]] > (pivotValue, pivotWeight) for k in [high..end)
+                // in-loop: i < high
+                // in-loop: low < high
+                // in-loop: i >= low
                 double vi = values[order[i]];
                 double wi = weights[order[i]];
                 if (vi == pivotValue && wi == pivotWeight) {
@@ -185,13 +186,13 @@ public class Sort {
                     i++;
                 }
             }
-            // invariant:  (values,weights)[order[k]] == (pivotValue, pivotWeight) for k in [0..low)
-            // invariant:  (values,weights)[order[k]] < (pivotValue, pivotWeight) for k in [low..i)
-            // invariant:  (values,weights)[order[k]] > (pivotValue, pivotWeight) for k in [high..end)
+            // invariant: (values,weights)[order[k]] == (pivotValue, pivotWeight) for k in [0..low)
+            // invariant: (values,weights)[order[k]] < (pivotValue, pivotWeight) for k in [low..i)
+            // invariant: (values,weights)[order[k]] > (pivotValue, pivotWeight) for k in [high..end)
             // assert i == high || low == high therefore, we are done with partition
 
             // at this point, i==high, from [start,low) are == pivot, [low,high) are < and [high,end) are >
-            // we have to move the values equal to the pivot into the middle.  To do this, we swap pivot
+            // we have to move the values equal to the pivot into the middle. To do this, we swap pivot
             // values into the top end of the [low,high) range stopping when we run out of destinations
             // or when we run out of values to copy
             int from = start;
@@ -200,15 +201,15 @@ public class Sort {
                 swap(order, from++, to--);
             }
             if (from == low) {
-                // ran out of things to copy.  This means that the last destination is the boundary
+                // ran out of things to copy. This means that the last destination is the boundary
                 low = to + 1;
             } else {
-                // ran out of places to copy to.  This means that there are uncopied pivots and the
+                // ran out of places to copy to. This means that there are uncopied pivots and the
                 // boundary is at the beginning of those
                 low = from;
             }
 
-//            checkPartition(order, values, pivotValue, start, low, high, end);
+            // checkPartition(order, values, pivotValue, start, low, high, end);
 
             // now recurse, but arrange it so we handle the longer limit by tail recursion
             // we have to sort the pivot values because they may have different weights
@@ -218,12 +219,12 @@ public class Sort {
                 quickSort(order, values, weights, start, low, limit);
 
                 // this is really a way to do
-                //    quickSort(order, values, high, end, limit);
+                // quickSort(order, values, high, end, limit);
                 start = high;
             } else {
                 quickSort(order, values, weights, high, end, limit);
                 // this is really a way to do
-                //    quickSort(order, values, start, low, limit);
+                // quickSort(order, values, start, low, limit);
                 end = low;
             }
         }
@@ -258,12 +259,12 @@ public class Sort {
             int high = end;        // high points to first value > pivotValue
             int i = low;           // i scans the array
             while (i < high) {
-                // invariant:  (values[order[k]],order[k]) == (pivotValue, pv) for k in [0..low)
-                // invariant:  (values[order[k]],order[k]) < (pivotValue, pv) for k in [low..i)
-                // invariant:  (values[order[k]],order[k]) > (pivotValue, pv) for k in [high..end)
-                // in-loop:  i < high
-                // in-loop:  low < high
-                // in-loop:  i >= low
+                // invariant: (values[order[k]],order[k]) == (pivotValue, pv) for k in [0..low)
+                // invariant: (values[order[k]],order[k]) < (pivotValue, pv) for k in [low..i)
+                // invariant: (values[order[k]],order[k]) > (pivotValue, pv) for k in [high..end)
+                // in-loop: i < high
+                // in-loop: low < high
+                // in-loop: i >= low
                 double vi = values[order[i]];
                 int pi = order[i];
                 if (vi == pivotValue && pi == pv) {
@@ -281,13 +282,13 @@ public class Sort {
                     i++;
                 }
             }
-            // invariant:  (values[order[k]],order[k]) == (pivotValue, pv) for k in [0..low)
-            // invariant:  (values[order[k]],order[k]) < (pivotValue, pv) for k in [low..i)
-            // invariant:  (values[order[k]],order[k]) > (pivotValue, pv) for k in [high..end)
+            // invariant: (values[order[k]],order[k]) == (pivotValue, pv) for k in [0..low)
+            // invariant: (values[order[k]],order[k]) < (pivotValue, pv) for k in [low..i)
+            // invariant: (values[order[k]],order[k]) > (pivotValue, pv) for k in [high..end)
             // assert i == high || low == high therefore, we are done with partition
 
             // at this point, i==high, from [start,low) are == pivot, [low,high) are < and [high,end) are >
-            // we have to move the values equal to the pivot into the middle.  To do this, we swap pivot
+            // we have to move the values equal to the pivot into the middle. To do this, we swap pivot
             // values into the top end of the [low,high) range stopping when we run out of destinations
             // or when we run out of values to copy
             int from = start;
@@ -296,15 +297,15 @@ public class Sort {
                 swap(order, from++, to--);
             }
             if (from == low) {
-                // ran out of things to copy.  This means that the last destination is the boundary
+                // ran out of things to copy. This means that the last destination is the boundary
                 low = to + 1;
             } else {
-                // ran out of places to copy to.  This means that there are uncopied pivots and the
+                // ran out of places to copy to. This means that there are uncopied pivots and the
                 // boundary is at the beginning of those
                 low = from;
             }
 
-//            checkPartition(order, values, pivotValue, start, low, high, end);
+            // checkPartition(order, values, pivotValue, start, low, high, end);
 
             // now recurse, but arrange it so we handle the longer limit by tail recursion
             // we have to sort the pivot values because they may have different weights
@@ -314,12 +315,12 @@ public class Sort {
                 stableQuickSort(order, values, start, low, limit);
 
                 // this is really a way to do
-                //    quickSort(order, values, high, end, limit);
+                // quickSort(order, values, high, end, limit);
                 start = high;
             } else {
                 stableQuickSort(order, values, high, end, limit);
                 // this is really a way to do
-                //    quickSort(order, values, start, low, limit);
+                // quickSort(order, values, start, low, limit);
                 end = low;
             }
         }
@@ -334,7 +335,7 @@ public class Sort {
      * @param values The auxiliary values to sort.
      */
     @SuppressWarnings("WeakerAccess")
-    public static void sort(double[] key, double[] ... values) {
+    public static void sort(double[] key, double[]... values) {
         sort(key, 0, key.length, values);
     }
 
@@ -422,12 +423,12 @@ public class Sort {
             int high = end;        // high points to first value > pivotValue
             int i = low;           // i scans the array
             while (i < high) {
-                // invariant:  values[order[k]] == pivotValue for k in [0..low)
-                // invariant:  values[order[k]] < pivotValue for k in [low..i)
-                // invariant:  values[order[k]] > pivotValue for k in [high..end)
-                // in-loop:  i < high
-                // in-loop:  low < high
-                // in-loop:  i >= low
+                // invariant: values[order[k]] == pivotValue for k in [0..low)
+                // invariant: values[order[k]] < pivotValue for k in [low..i)
+                // invariant: values[order[k]] > pivotValue for k in [high..end)
+                // in-loop: i < high
+                // in-loop: low < high
+                // in-loop: i >= low
                 double vi = key[i];
                 if (vi == pivotValue) {
                     if (low != i) {
@@ -444,13 +445,13 @@ public class Sort {
                     i++;
                 }
             }
-            // invariant:  values[order[k]] == pivotValue for k in [0..low)
-            // invariant:  values[order[k]] < pivotValue for k in [low..i)
-            // invariant:  values[order[k]] > pivotValue for k in [high..end)
+            // invariant: values[order[k]] == pivotValue for k in [0..low)
+            // invariant: values[order[k]] < pivotValue for k in [low..i)
+            // invariant: values[order[k]] > pivotValue for k in [high..end)
             // assert i == high || low == high therefore, we are done with partition
 
             // at this point, i==high, from [start,low) are == pivot, [low,high) are < and [high,end) are >
-            // we have to move the values equal to the pivot into the middle.  To do this, we swap pivot
+            // we have to move the values equal to the pivot into the middle. To do this, we swap pivot
             // values into the top end of the [low,high) range stopping when we run out of destinations
             // or when we run out of values to copy
             int from = start;
@@ -459,32 +460,31 @@ public class Sort {
                 swap(from++, to--, key, values);
             }
             if (from == low) {
-                // ran out of things to copy.  This means that the last destination is the boundary
+                // ran out of things to copy. This means that the last destination is the boundary
                 low = to + 1;
             } else {
-                // ran out of places to copy to.  This means that there are uncopied pivots and the
+                // ran out of places to copy to. This means that there are uncopied pivots and the
                 // boundary is at the beginning of those
                 low = from;
             }
 
-//            checkPartition(order, values, pivotValue, start, low, high, end);
+            // checkPartition(order, values, pivotValue, start, low, high, end);
 
             // now recurse, but arrange it so we handle the longer limit by tail recursion
             if (low - start < end - high) {
                 quickSort(key, values, start, low, limit);
 
                 // this is really a way to do
-                //    quickSort(order, values, high, end, limit);
+                // quickSort(order, values, high, end, limit);
                 start = high;
             } else {
                 quickSort(key, values, high, end, limit);
                 // this is really a way to do
-                //    quickSort(order, values, start, low, limit);
+                // quickSort(order, values, start, low, limit);
                 end = low;
             }
         }
     }
-
 
     /**
      * Limited range insertion sort.  We assume that no element has to move more than limit steps
@@ -525,7 +525,7 @@ public class Sort {
         order[j] = t;
     }
 
-    private static void swap(int i, int j, double[] key, double[]...values) {
+    private static void swap(int i, int j, double[] key, double[]... values) {
         double t = key[i];
         key[i] = key[j];
         key[j] = t;
@@ -549,33 +549,32 @@ public class Sort {
      * @param end        Values from high to end are above the pivot.
      */
     @SuppressWarnings("UnusedDeclaration")
-    public static void checkPartition(int[] order, double[] values, double pivotValue, int start, int low,
-                                      int high, int end) {
+    public static void checkPartition(int[] order, double[] values, double pivotValue, int start, int low, int high, int end) {
         if (order.length != values.length) {
             throw new IllegalArgumentException("Arguments must be same size");
         }
 
         if ((start >= 0 && low >= start && high >= low && end >= high) == false) {
-            throw new IllegalArgumentException(String.format("Invalid indices %d, %d, %d, %d", start, low, high, end));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid indices %d, %d, %d, %d", start, low, high, end));
         }
 
         for (int i = 0; i < low; i++) {
             double v = values[order[i]];
             if (v >= pivotValue) {
-                throw new IllegalArgumentException(String.format("Value greater than pivot at %d", i));
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Value greater than pivot at %d", i));
             }
         }
 
         for (int i = low; i < high; i++) {
             if (values[order[i]] != pivotValue) {
-                throw new IllegalArgumentException(String.format("Non-pivot at %d", i));
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Non-pivot at %d", i));
             }
         }
 
         for (int i = high; i < end; i++) {
             double v = values[order[i]];
             if (v <= pivotValue) {
-                throw new IllegalArgumentException(String.format("Value less than pivot at %d", i));
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Value less than pivot at %d", i));
             }
         }
     }
@@ -605,8 +604,7 @@ public class Sort {
             // values in [start, i) are ordered
             // scan backwards to find where to stick t
             for (int j = i; j >= m; j--) {
-                if (j == 0 || values[order[j - 1]] < v ||
-                        (values[order[j - 1]] == v && (weights == null || weights[order[j - 1]] <= w))) {
+                if (j == 0 || values[order[j - 1]] < v || (values[order[j - 1]] == v && (weights == null || weights[order[j - 1]] <= w))) {
                     if (j < i) {
                         System.arraycopy(order, j, order, j + 1, i - j);
                         order[j] = t;
@@ -638,7 +636,7 @@ public class Sort {
             // values in [start, i) are ordered
             // scan backwards to find where to stick t
             for (int j = i; j >= m; j--) {
-                if (j == 0 || values[order[j - 1]] < v || (values[order[j - 1]] == v && ( order[j - 1] <= vi))) {
+                if (j == 0 || values[order[j - 1]] < v || (values[order[j - 1]] == v && (order[j - 1] <= vi))) {
                     if (j < i) {
                         System.arraycopy(order, j, order, j + 1, i - j);
                         order[j] = t;
@@ -682,7 +680,7 @@ public class Sort {
      * @param offset Where to start reversing.
      * @param length How many elements to reverse
      */
-    @SuppressWarnings({"WeakerAccess", "SameParameterValue"})
+    @SuppressWarnings({ "WeakerAccess", "SameParameterValue" })
     public static void reverse(double[] order, int offset, int length) {
         for (int i = 0; i < length / 2; i++) {
             double t = order[offset + i];

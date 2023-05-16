@@ -10,9 +10,7 @@
 
 package org.elasticsearch.tdigest;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.util.Locale;
 
 import static java.lang.Math.sqrt;
 
@@ -36,15 +34,15 @@ public class LogHistogram extends Histogram {
         logOffset = LogHistogram.approxLog2(min) * logFactor;
 
         if (max <= 2 * min) {
-            throw new IllegalArgumentException(String.format("Illegal/nonsensical min, max (%.2f, %.2g)", min, max));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Illegal/nonsensical min, max (%.2f, %.2g)", min, max));
         }
         if (min <= 0 || max <= 0) {
             throw new IllegalArgumentException("Min and max must be positive");
         }
         if (epsilonFactor < 1e-6 || epsilonFactor > 0.5) {
             throw new IllegalArgumentException(
-                    String.format("Unreasonable number of bins per decade %.2g. Expected value in range [1e-6,0.5]",
-                            epsilonFactor));
+                String.format(Locale.ROOT, "Unreasonable number of bins per decade %.2g. Expected value in range [1e-6,0.5]", epsilonFactor)
+            );
         }
 
         setupBins(min, max);
@@ -98,20 +96,10 @@ public class LogHistogram extends Histogram {
     }
 
     @Override
-    void writeObject(ObjectOutputStream out) throws IOException {
-
-    }
-
-    @Override
-    void readObject(ObjectInputStream in) throws IOException {
-
-    }
-
-    @Override
     void add(Iterable<Histogram> others) {
         for (Histogram other : others) {
             if (this.getClass().equals(other.getClass()) == false) {
-                throw new IllegalArgumentException(String.format("Cannot add %s to LogHistogram", others.getClass()));
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Cannot add %s to LogHistogram", others.getClass()));
             }
             LogHistogram actual = (LogHistogram) other;
             if (actual.min != min || actual.max != max || actual.counts.length != counts.length) {

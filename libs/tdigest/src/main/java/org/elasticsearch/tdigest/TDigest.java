@@ -13,6 +13,7 @@ package org.elasticsearch.tdigest;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Adaptive histogram based on something like streaming k-means crossed with Q-digest.
@@ -70,7 +71,7 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the TDigest
      */
-    @SuppressWarnings({"WeakerAccess", "SameParameterValue"})
+    @SuppressWarnings({ "WeakerAccess", "SameParameterValue" })
     public static TDigest createDigest(double compression) {
         return createMergingDigest(compression);
     }
@@ -163,8 +164,7 @@ public abstract class TDigest {
 
     public void setScaleFunction(ScaleFunction scaleFunction) {
         if (scaleFunction.toString().endsWith("NO_NORM")) {
-            throw new IllegalArgumentException(
-                    String.format("Can't use %s as scale with %s", scaleFunction, this.getClass()));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Can't use %s as scale with %s", scaleFunction, this.getClass()));
         }
         this.scale = scaleFunction;
     }

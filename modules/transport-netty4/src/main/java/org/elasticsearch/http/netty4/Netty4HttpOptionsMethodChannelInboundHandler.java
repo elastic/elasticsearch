@@ -39,9 +39,12 @@ public final class Netty4HttpOptionsMethodChannelInboundHandler extends SimpleCh
         if (dropContent) {
             if (msg instanceof HttpRequest httpRequest) {
                 httpRequest.headers()
+                    .remove(HttpHeaderNames.CONTENT_TYPE)
+                    .remove(HttpHeaderNames.CONTENT_ENCODING)
+                    .remove(HttpHeaderNames.CONTENT_LANGUAGE)
+                    .remove(HttpHeaderNames.CONTENT_LOCATION)
                     .remove(HttpHeaderNames.CONTENT_LENGTH)
-                    .remove(HttpHeaderNames.TRANSFER_ENCODING)
-                    .remove(HttpHeaderNames.CONTENT_TYPE);
+                    .remove(HttpHeaderNames.TRANSFER_ENCODING);
             }
             if (msg instanceof HttpContent toReplace) {
                 // release content

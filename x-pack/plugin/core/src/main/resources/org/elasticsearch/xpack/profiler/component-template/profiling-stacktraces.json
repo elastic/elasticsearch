@@ -1,17 +1,19 @@
 {
-  "settings": {
-    "index": {
-      "number_of_shards": "16",
-      "refresh_interval": "10s",
-      "sort": {
-        "field": [
-          "Stacktrace.frame.ids"
-        ]
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_shards": 16,
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "sort": {
+          "field": [
+            "Stacktrace.frame.ids"
+          ]
+        }
       }
-    }
-  },
-  "mappings": {
-    "_doc": {
+    },
+    "mappings": {
       "_source": {
         "mode": "synthetic"
       },
@@ -27,12 +29,9 @@
         "Stacktrace.frame.types": {
           "type": "keyword",
           "index": false
-        },
-        "@timestamp": {
-          "type": "date",
-          "format": "epoch_second"
         }
       }
     }
-  }
+  },
+  "version": ${xpack.profiling.template.version}
 }

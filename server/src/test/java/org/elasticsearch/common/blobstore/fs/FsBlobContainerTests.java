@@ -13,7 +13,9 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -39,10 +41,10 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -140,8 +142,11 @@ public class FsBlobContainerTests extends ESTestCase {
         assertFalse(container.blobExists(blobName));
     }
 
-    private static long getLongAsync(Consumer<ActionListener<OptionalLong>> consumer) {
-        return getAsync(consumer).orElseThrow(AssertionError::new);
+    private static BytesReference getBytesAsync(Consumer<ActionListener<OptionalBytesReference>> consumer) {
+        final var bytes = getAsync(consumer);
+        assertNotNull(bytes);
+        assertTrue(bytes.isPresent());
+        return bytes.bytesReference();
     }
 
     private static <T> T getAsync(Consumer<ActionListener<T>> consumer) {
@@ -157,28 +162,28 @@ public class FsBlobContainerTests extends ESTestCase {
         );
 
         final String key = randomAlphaOfLength(10);
-        final AtomicLong expectedValue = new AtomicLong();
+        final AtomicReference<BytesReference> expectedValue = new AtomicReference<>(BytesArray.EMPTY);
 
         for (int i = 0; i < 5; i++) {
             switch (between(1, 4)) {
-                case 1 -> assertEquals(expectedValue.get(), getLongAsync(l -> container.getRegister(key, l)));
+                case 1 -> assertEquals(expectedValue.get(), getBytesAsync(l -> container.getRegister(key, l)));
                 case 2 -> assertFalse(
                     getAsync(
                         l -> container.compareAndSetRegister(
                             key,
-                            randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
-                            randomLong(),
+                            randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
+                            new BytesArray(randomByteArrayOfLength(8)),
                             l
                         )
                     )
                 );
                 case 3 -> assertEquals(
                     expectedValue.get(),
-                    getLongAsync(
+                    getBytesAsync(
                         l -> container.compareAndExchangeRegister(
                             key,
-                            randomValueOtherThan(expectedValue.get(), ESTestCase::randomLong),
-                            randomLong(),
+                            randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
+                            new BytesArray(randomByteArrayOfLength(8)),
                             l
                         )
                     )
@@ -188,23 +193,22 @@ public class FsBlobContainerTests extends ESTestCase {
                 }
             }
 
-            final var newValue = randomLong();
+            final var newValue = new BytesArray(randomByteArrayOfLength(8));
             if (randomBoolean()) {
                 assertTrue(getAsync(l -> container.compareAndSetRegister(key, expectedValue.get(), newValue, l)));
             } else {
                 assertEquals(
                     expectedValue.get(),
-                    getLongAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), newValue, l))
+                    getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), newValue, l))
                 );
             }
             expectedValue.set(newValue);
         }
 
-        final byte[] corruptContents = new byte[9];
-        container.writeBlob(key, new BytesArray(corruptContents, 0, randomFrom(1, 7, 9)), false);
+        container.writeBlob(key, new BytesArray(new byte[9]), false);
         expectThrows(
             IllegalStateException.class,
-            () -> getLongAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), 0, l))
+            () -> getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), BytesArray.EMPTY, l))
         );
     }
 

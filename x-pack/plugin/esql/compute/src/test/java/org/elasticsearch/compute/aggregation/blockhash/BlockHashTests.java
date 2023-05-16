@@ -30,6 +30,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.endsWith;
@@ -415,6 +416,73 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
+    public void testLongLongHashWithMultiValuedFields() {
+        var b1 = LongBlock.newBlockBuilder(8);
+        var b2 = LongBlock.newBlockBuilder(8);
+        BiConsumer<long[], long[]> append = (v1, v2) -> {
+            if (v1 == null) {
+                b1.appendNull();
+            } else if (v1.length == 1) {
+                b1.appendLong(v1[0]);
+            } else {
+                b1.beginPositionEntry();
+                for (long v : v1) {
+                    b1.appendLong(v);
+                }
+                b1.endPositionEntry();
+            }
+            if (v2 == null) {
+                b2.appendNull();
+            } else if (v2.length == 1) {
+                b2.appendLong(v2[0]);
+            } else {
+                b2.beginPositionEntry();
+                for (long v : v2) {
+                    b2.appendLong(v);
+                }
+                b2.endPositionEntry();
+            }
+        };
+        append.accept(new long[] { 1, 2 }, new long[] { 10, 20 });
+        append.accept(new long[] { 1, 2 }, new long[] { 10 });
+        append.accept(new long[] { 1 }, new long[] { 10, 20 });
+        append.accept(new long[] { 1 }, new long[] { 10 });
+        append.accept(null, new long[] { 10 });
+        append.accept(new long[] { 1 }, null);
+        append.accept(new long[] { 1, 1, 1 }, new long[] { 10, 10, 10 });
+        append.accept(new long[] { 1, 1, 2, 2 }, new long[] { 10, 20, 20 });
+        append.accept(new long[] { 1, 2, 3 }, new long[] { 30, 30, 10 });
+
+        // TODO implement packed version
+        OrdsAndKeys ordsAndKeys = hash(false, b1.build(), b2.build());
+        assertThat(ordsAndKeys.description, equalTo("LongLongBlockHash{channels=[0,1], entries=8}"));
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0, 1, 2, 3 },
+            new long[] { 0, 2 },
+            new long[] { 0, 1 },
+            new long[] { 0 },
+            null,
+            null,
+            new long[] { 0 },
+            new long[] { 0, 1, 2, 3 },
+            new long[] { 4, 0, 5, 2, 6, 7 }
+        );
+        assertKeys(
+            ordsAndKeys.keys,
+            new Object[][] {
+                new Object[] { 1L, 10L },
+                new Object[] { 1L, 20L },
+                new Object[] { 2L, 10L },
+                new Object[] { 2L, 20L },
+                new Object[] { 1L, 30L },
+                new Object[] { 2L, 30L },
+                new Object[] { 3L, 30L },
+                new Object[] { 3L, 10L }, }
+        );
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 8)));
+    }
+
     public void testIntLongHash() {
         int[] values1 = new int[] { 0, 1, 0, 1, 0, 1 };
         IntBlock block1 = new IntArrayVector(values1, values1.length).asBlock();
@@ -578,6 +646,76 @@ public class BlockHashTests extends ESTestCase {
             assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { 1L, "cat" }, new Object[] { 0L, "dog" } });
             assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 2)));
         }
+    }
+
+    public void testLongBytesRefHashWithMultiValuedFields() {
+        var b1 = LongBlock.newBlockBuilder(8);
+        var b2 = BytesRefBlock.newBlockBuilder(8);
+        BiConsumer<long[], String[]> append = (v1, v2) -> {
+            if (v1 == null) {
+                b1.appendNull();
+            } else if (v1.length == 1) {
+                b1.appendLong(v1[0]);
+            } else {
+                b1.beginPositionEntry();
+                for (long v : v1) {
+                    b1.appendLong(v);
+                }
+                b1.endPositionEntry();
+            }
+            if (v2 == null) {
+                b2.appendNull();
+            } else if (v2.length == 1) {
+                b2.appendBytesRef(new BytesRef(v2[0]));
+            } else {
+                b2.beginPositionEntry();
+                for (String v : v2) {
+                    b2.appendBytesRef(new BytesRef(v));
+                }
+                b2.endPositionEntry();
+            }
+        };
+        append.accept(new long[] { 1, 2 }, new String[] { "a", "b" });
+        append.accept(new long[] { 1, 2 }, new String[] { "a" });
+        append.accept(new long[] { 1 }, new String[] { "a", "b" });
+        append.accept(new long[] { 1 }, new String[] { "a" });
+        append.accept(null, new String[] { "a" });
+        append.accept(new long[] { 1 }, null);
+        append.accept(new long[] { 1, 1, 1 }, new String[] { "a", "a", "a" });
+        append.accept(new long[] { 1, 1, 2, 2 }, new String[] { "a", "b", "b" });
+        append.accept(new long[] { 1, 2, 3 }, new String[] { "c", "c", "a" });
+
+        // TODO implement packed version
+        OrdsAndKeys ordsAndKeys = hash(false, b1.build(), b2.build());
+        assertThat(
+            ordsAndKeys.description,
+            equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=8, size=491b}")
+        );
+        assertOrds(
+            ordsAndKeys.ords,
+            new long[] { 0, 1, 2, 3 },
+            new long[] { 0, 1 },
+            new long[] { 0, 2 },
+            new long[] { 0 },
+            null,
+            null,
+            new long[] { 0 },
+            new long[] { 0, 1, 2, 3 },
+            new long[] { 4, 5, 6, 0, 1, 7 }
+        );
+        assertKeys(
+            ordsAndKeys.keys,
+            new Object[][] {
+                new Object[] { 1L, "a" },
+                new Object[] { 2L, "a" },
+                new Object[] { 1L, "b" },
+                new Object[] { 2L, "b" },
+                new Object[] { 1L, "c" },
+                new Object[] { 2L, "c" },
+                new Object[] { 3L, "c" },
+                new Object[] { 3L, "a" }, }
+        );
+        assertThat(ordsAndKeys.nonEmpty, equalTo(IntVector.range(0, 8)));
     }
 
     record OrdsAndKeys(String description, LongBlock ords, Block[] keys, IntVector nonEmpty) {}

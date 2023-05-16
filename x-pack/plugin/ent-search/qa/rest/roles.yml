@@ -1,4 +1,4 @@
-entsearch:
+admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
@@ -23,10 +23,20 @@ entsearch:
         "test-search-application-to-delete",
         "test-nonexistent-search-application",
     ]
-      privileges: [ "manage" ]
+      privileges: [ "manage", "read" ]
     - names: [
       # indices used for indexing and searching
       "test-search-index1",
       "test-search-index2",
     ]
       privileges: [ "manage", "read", "write" ]
+
+user:
+  cluster:
+    - post_behavioral_analytics_event
+  indices:
+    - names: [
+      "test-search-application"
+    ]
+      privileges: [ "read" ]
+

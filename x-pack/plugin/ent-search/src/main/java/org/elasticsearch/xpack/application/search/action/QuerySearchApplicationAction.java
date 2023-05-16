@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.application.search.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
 
     public static final QuerySearchApplicationAction INSTANCE = new QuerySearchApplicationAction();
-    public static final String NAME = "cluster:admin/xpack/application/search_application/search";
+    public static final String NAME = "indices:data/read/xpack/application/search_application/search";
 
     private static final ParseField QUERY_PARAMS_FIELD = new ParseField("params");
 
@@ -36,7 +38,7 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
         super(NAME, SearchResponse::new);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
         private final String name;
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
@@ -94,6 +96,16 @@ public class QuerySearchApplicationAction extends ActionType<SearchResponse> {
             }
 
             return validationException;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { name };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictNoExpandForbidClosed();
         }
 
         @Override

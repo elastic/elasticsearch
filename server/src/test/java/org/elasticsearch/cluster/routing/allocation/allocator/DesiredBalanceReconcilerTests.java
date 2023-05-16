@@ -1046,7 +1046,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     public void testRebalanceDoesNotCauseHotSpots() {
 
         int numberOfNodes = randomIntBetween(5, 9);
-        int shardsPerNode = randomIntBetween(4, 15);
+        int shardsPerNode = randomIntBetween(1, 15);
 
         var indexMetadata = IndexMetadata.builder("index-1")
             .settings(indexSettings(Version.CURRENT, shardsPerNode * numberOfNodes, 0))
@@ -1112,7 +1112,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             // ensure that we do not cause hotspots by round-robin unreconciled source nodes when picking next rebalance
             // (already reconciled nodes are excluded as they are no longer causing new moves)
             assertThat(
-                "Every node expect to have similar amount of outgoing rebalances: " + totalOutgoingMoves,
+                "Reconciling nodes should all have same amount (max 1 delta) of moves: " + totalOutgoingMoves,
                 summary.getMax() - summary.getMin(),
                 lessThanOrEqualTo(1)
             );

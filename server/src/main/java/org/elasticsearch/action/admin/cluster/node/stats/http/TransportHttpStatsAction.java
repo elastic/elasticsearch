@@ -71,7 +71,7 @@ public class TransportHttpStatsAction extends TransportNodesAction<
 
     @Override
     protected HttpStatsContent newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
-        return null;
+        return new HttpStatsContent(in);
     }
 
     @Override

@@ -227,8 +227,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             "logs-json-pipeline",
             "/logs-json-pipeline.json",
             REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Collections.emptyList()
+            TEMPLATE_VERSION_VARIABLE
         ),
         new IngestPipelineConfig(
             "logs-default-pipeline",

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,6 +29,10 @@ public class IngestPipelineConfig {
      * dependencies are already installed.
      */
     private final List<String> dependencies;
+
+    public IngestPipelineConfig(String id, String resource, int version, String versionProperty) {
+        this(id, resource, version, versionProperty, Collections.emptyList());
+    }
 
     public IngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
         this.id = Objects.requireNonNull(id);

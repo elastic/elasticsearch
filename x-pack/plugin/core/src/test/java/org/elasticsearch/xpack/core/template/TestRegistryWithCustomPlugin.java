@@ -83,8 +83,7 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
                 "custom-plugin-final_pipeline",
                 "/org/elasticsearch/xpack/core/template/custom-plugin-final_pipeline.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                Collections.emptyList()
+                TEMPLATE_VERSION_VARIABLE
             )
         );
     }

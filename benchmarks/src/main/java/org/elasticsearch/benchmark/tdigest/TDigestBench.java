@@ -4,6 +4,8 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
+ *
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.benchmark.tdigest;
@@ -11,8 +13,18 @@ package org.elasticsearch.benchmark.tdigest;
 import org.elasticsearch.tdigest.AVLTreeDigest;
 import org.elasticsearch.tdigest.MergingDigest;
 import org.elasticsearch.tdigest.TDigest;
-import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.profile.StackProfiler;
 import org.openjdk.jmh.results.format.ResultFormatType;
@@ -59,69 +71,70 @@ public class TDigestBench {
         };
 
         abstract TDigest create(double compression);
+
         abstract TDigest create();
     }
-//
-//    public enum DistributionFactory {
-//        UNIFORM {
-//            @Override
-//            AbstractDistribution create(Random random) {
-//                return new Uniform(0, 1, random);
-//            }
-//        },
-//        SEQUENTIAL {
-//            @Override
-//            AbstractDistribution create(Random random) {
-//                return new AbstractContinousDistribution() {
-//                    double base = 0;
-//
-//                    @Override
-//                    public double nextDouble() {
-//                        base += Math.PI * 1e-5;
-//                        return base;
-//                    }
-//                };
-//            }
-//        },
-//        REPEATED {
-//            @Override
-//            AbstractDistribution create(final Random random) {
-//                return new AbstractContinousDistribution() {
-//                    @Override
-//                    public double nextDouble() {
-//                        return random.nextInt(10);
-//                    }
-//                };
-//            }
-//        },
-//        GAMMA {
-//            @Override
-//            AbstractDistribution create(Random random) {
-//                return new Gamma(0.1, 0.1, random);
-//            }
-//        },
-//        NORMAL {
-//            @Override
-//            AbstractDistribution create(Random random) {
-//                return new Normal(0.1, 0.1, random);
-//            }
-//        };
-//
-//        abstract AbstractDistribution create(Random random);
-//    }
+    //
+    // public enum DistributionFactory {
+    // UNIFORM {
+    // @Override
+    // AbstractDistribution create(Random random) {
+    // return new Uniform(0, 1, random);
+    // }
+    // },
+    // SEQUENTIAL {
+    // @Override
+    // AbstractDistribution create(Random random) {
+    // return new AbstractContinousDistribution() {
+    // double base = 0;
+    //
+    // @Override
+    // public double nextDouble() {
+    // base += Math.PI * 1e-5;
+    // return base;
+    // }
+    // };
+    // }
+    // },
+    // REPEATED {
+    // @Override
+    // AbstractDistribution create(final Random random) {
+    // return new AbstractContinousDistribution() {
+    // @Override
+    // public double nextDouble() {
+    // return random.nextInt(10);
+    // }
+    // };
+    // }
+    // },
+    // GAMMA {
+    // @Override
+    // AbstractDistribution create(Random random) {
+    // return new Gamma(0.1, 0.1, random);
+    // }
+    // },
+    // NORMAL {
+    // @Override
+    // AbstractDistribution create(Random random) {
+    // return new Normal(0.1, 0.1, random);
+    // }
+    // };
+    //
+    // abstract AbstractDistribution create(Random random);
+    // }
 
-    @Param({"100", "300"})
+    @Param({ "100", "300" })
     double compression;
 
-    @Param({"MERGE", "AVL_TREE"})
+    @Param({ "MERGE", "AVL_TREE" })
     TDigestFactory tdigestFactory;
 
-//    @Param({"NORMAL", "GAMMA"})
-//    DistributionFactory distributionFactory;
+    // @Param({"NORMAL", "GAMMA"})
+    // DistributionFactory distributionFactory;
 
     Random random;
     TDigest tdigest;
-//    AbstractDistribution distribution;
+    // AbstractDistribution distribution;
 
     double[] data = new double[1000000];
 
@@ -129,7 +142,7 @@ public class TDigestBench {
     public void setUp() {
         random = ThreadLocalRandom.current();
         tdigest = tdigestFactory.create(compression);
-//        distribution = distributionFactory.create(random);
+        // distribution = distributionFactory.create(random);
         // first values are cheap to add, so pre-fill the t-digest to have more realistic results
         Random random = ThreadLocalRandom.current();
         for (int i = 0; i < 10000; ++i) {
@@ -155,13 +168,12 @@ public class TDigestBench {
     }
 
     public static void main(String[] args) throws RunnerException {
-        Options opt = new OptionsBuilder()
-                .include(".*" + TDigestBench.class.getSimpleName() + ".*")
-                .resultFormat(ResultFormatType.CSV)
-                .result("overall-results.csv")
-                .addProfiler(GCProfiler.class)
-                .addProfiler(StackProfiler.class)
-                .build();
+        Options opt = new OptionsBuilder().include(".*" + TDigestBench.class.getSimpleName() + ".*")
+            .resultFormat(ResultFormatType.CSV)
+            .result("overall-results.csv")
+            .addProfiler(GCProfiler.class)
+            .addProfiler(StackProfiler.class)
+            .build();
 
         new Runner(opt).run();
     }

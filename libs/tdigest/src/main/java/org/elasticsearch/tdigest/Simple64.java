@@ -10,7 +10,6 @@
 
 package org.elasticsearch.tdigest;
 
-
 import java.nio.LongBuffer;
 
 /**
@@ -91,36 +90,36 @@ public class Simple64 {
     // Returns 0 if no new long written, else returns number
     // of input values and out[0] has the long to write
     public int add(long v, long[] out) {
-        //System.out.println("S64.add v=" + v + " " + (1 + inputCount - inputCompressable) + " waiting");
+        // System.out.println("S64.add v=" + v + " " + (1 + inputCount - inputCompressable) + " waiting");
         pending[inputCount++] = v;
         while (inputCompressable <= inputCount) {
             final long nextData = pending[(inputCompressable - 1)];
-            //System.out.println("  cycle: data=" + nextData);
+            // System.out.println(" cycle: data=" + nextData);
             while ((nextData >= maxFitPlus1) && (minBits < NUM_DATA_BITS)) {
-                //System.out.println("  cycle maxFitPlus1=" + maxFitPlus1 + " minBits=" + minBits);
+                // System.out.println(" cycle maxFitPlus1=" + maxFitPlus1 + " minBits=" + minBits);
                 if ((minBits == 7) && (inputCompressable == 8) && (nextData < (maxFitPlus1 << 4))) {
                     break;
                 } else if ((minBits == 8) && (inputCompressable == 7) && (nextData < (maxFitPlus1 << 4))) {
                     break;
                 } else {
-                    //System.out.println("  advance");
+                    // System.out.println(" advance");
                     minBits++;
                     maxFitPlus1 <<= 1;
                     if ((inputCompressable * minBits) > NUM_DATA_BITS) {
                         inputCompressable--;
-                        //System.out.println("  hard break");
+                        // System.out.println(" hard break");
                         break;
                     }
                 }
             }
             inputCompressable++;
 
-            //System.out.println("  minBits=" + minBits + " count=" + (inputCompressable-1) + " inputCount=" + inputCount);
+            // System.out.println(" minBits=" + minBits + " count=" + (inputCompressable-1) + " inputCount=" + inputCount);
 
             if ((inputCompressable * minBits) > NUM_DATA_BITS) {
                 // Time to compress!
                 inputCompressable--;
-                //System.out.println("  FLUSH count=" + inputCompressable);
+                // System.out.println(" FLUSH count=" + inputCompressable);
 
                 // nocommit -- it should always be > 0... right??
                 assert inputCompressable > 0;
@@ -128,17 +127,17 @@ public class Simple64 {
                 // Check whether a bigger number of bits can be used:
                 while ((inputCompressable * (minBits + 1)) <= NUM_DATA_BITS) {
                     minBits++;
-                    //System.out.println("  incr minBits=" + minBits);
+                    // System.out.println(" incr minBits=" + minBits);
                 }
 
-        /*
-          if (((inputCompressable+1) * minBits) <= NUM_DATA_BITS) {
-          // not enough input available for minBits
-          minBits++;
-          // do not compress all available input
-          inputCompressable = NUM_DATA_BITS / minBits;
-          }
-        */
+                /*
+                  if (((inputCompressable+1) * minBits) <= NUM_DATA_BITS) {
+                  // not enough input available for minBits
+                  minBits++;
+                  // do not compress all available input
+                  inputCompressable = NUM_DATA_BITS / minBits;
+                  }
+                */
 
                 // Put compression method in status bits and encode input data
                 long s9;
@@ -388,30 +387,30 @@ public class Simple64 {
                         assert false;
                         s9 = 0;
                         consumed = 60;
-                        //throw new Error("S98b.compressSingle internal error: unknown minBits: " + minBits);
+                        // throw new Error("S98b.compressSingle internal error: unknown minBits: " + minBits);
                 }
 
                 final int leftover = inputCount - consumed;
                 assert leftover >= 0 : "consumed=" + consumed + " vs " + inputCompressable;
 
-        /*
-        for(int x=0;x<consumed;x++) {
-          System.out.println(""+pending[x]);
-        }
-        */
-        /*
-        // like cd burning!  ;)
-        {
-        int[] test = new int[consumed];
-        int ct = decompressSingle(s9, test, 0);
-        assert ct == consumed;
-        for(int x=0;x<ct;x++) {
-        assert test[x] == pending[x];
-        }
-        }
-        */
+                /*
+                for(int x=0;x<consumed;x++) {
+                  System.out.println(""+pending[x]);
+                }
+                */
+                /*
+                // like cd burning!  ;)
+                {
+                int[] test = new int[consumed];
+                int ct = decompressSingle(s9, test, 0);
+                assert ct == consumed;
+                for(int x=0;x<ct;x++) {
+                assert test[x] == pending[x];
+                }
+                }
+                */
 
-                //System.out.println("  return consumed=" + consumed);
+                // System.out.println(" return consumed=" + consumed);
                 reset();
 
                 // save leftovers:
@@ -438,7 +437,9 @@ public class Simple64 {
         do {
             nextData = uncompressed[inOffset + inputCompressable - 1];
             if (nextData < 0) {
-                throw new IllegalArgumentException("Cannot compress negative input " + nextData + " (at index " + (inOffset + inputCompressable - 1) + ")");
+                throw new IllegalArgumentException(
+                    "Cannot compress negative input " + nextData + " (at index " + (inOffset + inputCompressable - 1) + ")"
+                );
             }
             while ((nextData >= maxFitPlus1) && (minBits < NUM_DATA_BITS)) {
                 if ((minBits == 7) && (inputCompressable == 8) && (nextData < (maxFitPlus1 << 4))) {
@@ -459,7 +460,9 @@ public class Simple64 {
 
         inputCompressable--;
         if (inputCompressable == 0) {
-            throw new IllegalArgumentException("Cannot compress input " + nextData + " with more than " + NUM_DATA_BITS + " bits (at offSet " + inOffset + ")");
+            throw new IllegalArgumentException(
+                "Cannot compress input " + nextData + " with more than " + NUM_DATA_BITS + " bits (at offSet " + inOffset + ")"
+            );
         }
 
         // Check whether a bigger number of bits can be used:
@@ -938,7 +941,12 @@ public class Simple64 {
     }
 
     @SuppressWarnings("WeakerAccess")
-    public static void compress(LongBuffer compressedBuffer, long[] unCompressedData, @SuppressWarnings("SameParameterValue") int offset, int size) {
+    public static void compress(
+        LongBuffer compressedBuffer,
+        long[] unCompressedData,
+        @SuppressWarnings("SameParameterValue") int offset,
+        int size
+    ) {
         int encoded;
         while (size > 0) {
             encoded = compressSingle(unCompressedData, offset, size, compressedBuffer);

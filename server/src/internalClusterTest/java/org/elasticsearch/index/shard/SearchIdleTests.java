@@ -44,7 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchIdleIT extends ESSingleNodeTestCase {
+public class SearchIdleTests extends ESSingleNodeTestCase {
 
     public void testAutomaticRefreshSearch() throws InterruptedException {
         runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value);

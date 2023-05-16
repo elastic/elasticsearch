@@ -31,17 +31,16 @@ GET _search
 
 [discrete]
 [[text-expansion-query-params]]
-=== Parameters
-
-`text_expansion`::
-(Required, object)
-The query configuration object which contains the information necessary to 
-perform semantic search.
+=== Top level parameters for `text_expansion`
 
 `<rank_features_field>`:::
-(Required, string)
+(Required, object)
 The name of the field that contains the token-weight pairs the NLP model created 
 based on the input text.
+
+[discrete]
+[[text-expansion-rank-feature-field-params]]
+=== Top level parameters for `<rank_features_field>`
 
 `model_id`::::
 (Required, string)

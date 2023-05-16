@@ -122,9 +122,9 @@ public class TimeoutReleasableListenerTests extends ESTestCase {
 
     private static final int MAX_TIMEOUT_MILLIS = 20;
 
-    private static TimeoutReleasableListener createTimeoutListener(ThreadPool threadPool, PlainActionFuture<Releasable> delegateFuture) {
+    private static TimeoutReleasableListener createTimeoutListener(ThreadPool threadPool, ActionListener<Releasable> listener) {
         return TimeoutReleasableListener.create(
-            ActionListener.assertOnce(delegateFuture),
+            ActionListener.assertOnce(listener),
             TimeValue.timeValueMillis(between(1, MAX_TIMEOUT_MILLIS)),
             threadPool,
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)

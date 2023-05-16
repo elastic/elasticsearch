@@ -315,8 +315,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             return stepsToCheck == null || stepsToCheck.isEmpty()
                 ? state -> action.equals(state.action) && maxTimeOn.compareTo(state.timeOnAction) < 0
                 : state -> action.equals(state.action)
-                    && (maxTimeOn.compareTo(state.timeOnAction) < 0
-                        || (stepsToCheck.contains(state.step) && state.stepRetries > maxRetries));
+                    && stepsToCheck.contains(state.step)
+                    && (maxTimeOn.compareTo(state.timeOnAction) < 0 || state.stepRetries > maxRetries);
         }
     }
 

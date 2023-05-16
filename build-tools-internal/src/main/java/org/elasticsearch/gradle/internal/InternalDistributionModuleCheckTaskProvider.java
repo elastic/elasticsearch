@@ -61,7 +61,8 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.preallocate",
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
-        "org.elasticsearch.xcontent"
+        "org.elasticsearch.xcontent",
+        "org.elasticsearch.tdigest"
     );
 
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
@@ -75,7 +76,7 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     private static final Function<ModuleReference, String> toName = mref -> mref.descriptor().name();
 
-    private InternalDistributionModuleCheckTaskProvider() {};
+    private InternalDistributionModuleCheckTaskProvider() {}
 
     /** Registers the checkModules tasks, which contains all checks relevant to ES Java Modules. */
     static TaskProvider<Task> registerCheckModulesTask(Project project, TaskProvider<Copy> checkExtraction) {

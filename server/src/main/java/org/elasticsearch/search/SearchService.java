@@ -1534,7 +1534,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getClusterAlias()
             ).get()
         );
-        if (builder.query() instanceof MatchNoneQueryBuilder) {
+        if (builder != null && builder.query() instanceof MatchNoneQueryBuilder) {
             return new CanMatchShardResponse(false, null);
         }
         Releasable releasable = null;

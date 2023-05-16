@@ -684,7 +684,7 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    private Setting<?> getRaw(String key) {
+    public Setting<?> getRaw(String key) {
         Setting<?> setting = keySettings.get(key);
         if (setting != null) {
             return setting;

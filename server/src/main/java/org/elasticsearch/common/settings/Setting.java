@@ -380,6 +380,10 @@ public class Setting<T> implements ToXContentObject {
         return properties.contains(Property.PrivateIndex);
     }
 
+    public boolean isSecure() {
+        return false;
+    }
+
     /**
      * Returns the setting properties
      * @see Property

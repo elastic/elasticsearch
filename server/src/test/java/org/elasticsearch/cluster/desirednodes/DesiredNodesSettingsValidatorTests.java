@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.desirednodes;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +47,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         }
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, Settings.EMPTY);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final List<DesiredNode> desiredNodes = randomList(2, 10, () -> randomDesiredNode(Version.CURRENT, settings.build()));
 
@@ -72,12 +71,10 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             NODE_EXTERNAL_ID_SETTING,
             NODE_NAME_SETTING
         );
-        MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("my.repo.default.account", "account_value");
 
-        final var nodeSettings = Settings.builder().setSecureSettings(mockSecureSettings).build();
-        final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, availableSettings);
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, nodeSettings);
+        // Secure settings are not available after the node has been initialized
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final List<DesiredNode> desiredNodes = randomList(
             2,
@@ -107,7 +104,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
         final var nodeSettings = Settings.builder().put("my.repo.default.account", "account_value").build();
         final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, availableSettings);
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, nodeSettings);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final List<DesiredNode> desiredNodes = randomList(
             2,
@@ -122,7 +119,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final List<DesiredNode> desiredNodes = List.of(randomDesiredNode(Version.CURRENT.previousMajor(), Settings.EMPTY));
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, Settings.EMPTY);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
         assertThat(exception.getMessage(), containsString("Nodes with ids"));
@@ -133,7 +130,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
     public void testUnknownSettingsInKnownVersionsAreInvalid() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, Settings.EMPTY);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
         final List<DesiredNode> desiredNodes = randomList(2, 10, () -> randomDesiredNode(Version.CURRENT, Settings.EMPTY));
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
@@ -145,7 +142,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
     public void testUnknownSettingsInFutureVersionsAreNotValidated() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, Settings.EMPTY);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final List<DesiredNode> desiredNodes = randomList(
             1,
@@ -162,7 +159,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final Set<Setting<?>> availableSettings = Set.of(NODE_PROCESSORS_SETTING, NODE_EXTERNAL_ID_SETTING, NODE_NAME_SETTING);
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings, Settings.EMPTY);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         {
             int desiredNodeProcessors = 128;

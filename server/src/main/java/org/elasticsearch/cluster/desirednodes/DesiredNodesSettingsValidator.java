@@ -27,11 +27,9 @@ public class DesiredNodesSettingsValidator {
     private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {}
 
     private final ClusterSettings clusterSettings;
-    private final Settings nodeSettings;
 
-    public DesiredNodesSettingsValidator(ClusterSettings clusterSettings, Settings nodeSettings) {
+    public DesiredNodesSettingsValidator(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
-        this.nodeSettings = nodeSettings;
     }
 
     public void validate(List<DesiredNode> nodes) {
@@ -85,12 +83,13 @@ public class DesiredNodesSettingsValidator {
             return;
         }
 
-        Settings settings = node.settings();
+        var nodeSettings = node.settings();
+        var settingsToValidate = Settings.builder().put(nodeSettings);
 
         // node.processors rely on the environment to define its ranges, in this case
         // we create a new setting just to run the validations using the desired node
         // number of available processors
-        if (settings.hasValue(NODE_PROCESSORS_SETTING.getKey())) {
+        if (nodeSettings.hasValue(NODE_PROCESSORS_SETTING.getKey())) {
             int minProcessors = node.roundedDownMinProcessors();
             Integer roundedUpMaxProcessors = node.roundedUpMaxProcessors();
             int maxProcessors = roundedUpMaxProcessors == null ? minProcessors : roundedUpMaxProcessors;
@@ -100,22 +99,27 @@ public class DesiredNodesSettingsValidator {
                 Double.MIN_VALUE,
                 maxProcessors,
                 Setting.Property.NodeScope
-            ).get(settings);
-            final Settings.Builder updatedSettings = Settings.builder().put(settings);
-            updatedSettings.remove(NODE_PROCESSORS_SETTING.getKey());
-            settings = updatedSettings.build();
+            ).get(nodeSettings);
+            settingsToValidate.remove(NODE_PROCESSORS_SETTING.getKey());
         }
 
-        final Settings settingsToValidate;
-        if (nodeSettings.getSecureSettings() != null) {
-            // It's possible that some settings depend on a secure setting that's not present in the desired node settings,
-            // in those cases we inject the available secure settings only for validation purposes.
-            settingsToValidate = Settings.builder().setSecureSettings(nodeSettings.getSecureSettings()).put(settings).build();
-        } else {
-            settingsToValidate = settings;
+        for (String settingKey : nodeSettings.keySet()) {
+            var rawSetting = clusterSettings.getRaw(settingKey);
+            if (rawSetting == null) {
+                continue;
+            }
+            for (Setting.SettingDependency settingsDependency : rawSetting.getSettingsDependencies(settingKey)) {
+                var dependency = settingsDependency.getSetting();
+                if (dependency.isSecure()) {
+                    // we cannot access to the secure settings after the node has been initialized,
+                    // therefore we cannot validate that the dependency is present at this stage
+                    settingsToValidate.remove(settingKey);
+                    break;
+                }
+            }
         }
 
-        clusterSettings.validate(settingsToValidate, true);
+        clusterSettings.validate(settingsToValidate.build(), true);
     }
 
 }

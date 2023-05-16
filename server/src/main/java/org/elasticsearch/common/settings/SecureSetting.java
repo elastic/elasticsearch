@@ -123,6 +123,11 @@ public abstract class SecureSetting<T> extends Setting<T> {
     @Override
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {}
 
+    @Override
+    public boolean isSecure() {
+        return true;
+    }
+
     /**
      * A setting which contains a sensitive string.
      *

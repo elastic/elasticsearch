@@ -290,7 +290,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                             new TrainedModelSizeStats(
                                 totalDefinitionLength,
                                 totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(totalDefinitionLength)
+                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(model.getModelId(), totalDefinitionLength)
                                     : 0L
                             )
                         );

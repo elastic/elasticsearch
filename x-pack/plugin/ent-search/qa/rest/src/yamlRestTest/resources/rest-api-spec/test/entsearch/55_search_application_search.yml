@@ -92,6 +92,9 @@ teardown:
 
 ---
 "Query Search Application with default parameters":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       search_application.search:
@@ -103,6 +106,9 @@ teardown:
 
 ---
 "Query Search Application overriding part of the parameters":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       search_application.search:
@@ -117,6 +123,9 @@ teardown:
 
 ---
 "Query Search Application overriding all parameters":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       search_application.search:
@@ -132,6 +141,9 @@ teardown:
 
 ---
 "Query Search Application with invalid parameter validation":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       catch: "bad_request"
@@ -144,6 +156,9 @@ teardown:
 
 ---
 "Query Search Application without required parameter":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       catch: "bad_request"

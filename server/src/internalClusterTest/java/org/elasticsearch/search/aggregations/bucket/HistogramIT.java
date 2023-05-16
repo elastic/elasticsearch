@@ -1139,25 +1139,11 @@ public class HistogramIT extends ESIntegTestCase {
 
         // Make sure we are starting with a clear cache
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -1174,25 +1160,11 @@ public class HistogramIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(0L)
         );
 
@@ -1209,25 +1181,11 @@ public class HistogramIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(1L)
         );
 
@@ -1239,25 +1197,11 @@ public class HistogramIT extends ESIntegTestCase {
         assertSearchResponse(r);
 
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getHitCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
             equalTo(0L)
         );
         assertThat(
-            client().admin()
-                .indices()
-                .prepareStats("cache_test_idx")
-                .setRequestCache(true)
-                .get()
-                .getTotal()
-                .getRequestCache()
-                .getMissCount(),
+            indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(2L)
         );
     }

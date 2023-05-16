@@ -84,8 +84,11 @@ teardown:
 
 ---
 "Query Search Application with default parameters":
+  - skip:
+      features: headers
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
 
@@ -95,8 +98,11 @@ teardown:
 
 ---
 "Query Search Application overriding part of the parameters":
+  - skip:
+      features: headers
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -109,8 +115,11 @@ teardown:
 
 ---
 "Query Search Application overriding all parameters":
+  - skip:
+      features: headers
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -124,36 +133,15 @@ teardown:
 
 ---
 "Query Search Application - not found":
+  - skip:
+      features: headers
 
   - do:
-      catch: "missing"
+      catch: "forbidden"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: nonexisting-test-search-application
         body:
           params:
             field_name: field3
             field_value: value3
-
----
-"Query Search Application - no read permissions on index":
-
-  - do:
-      search_application.put:
-        name: test-search-application
-        body:
-          indices: [ "test-search-index1", "test-search-index2", "test-index" ]
-          analytics_collection_name: "test-analytics"
-          template:
-            script:
-              source:
-                query:
-                  term:
-                    "{{field_name}}": "{{field_value}}"
-              params:
-                field_name: field1
-                field_value: value1
-
-  - do:
-      catch: "forbidden"
-      search_application.search:
-        name: test-search-application

@@ -82,7 +82,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
 
             try {
                 final SearchSourceBuilder sourceBuilder = renderTemplate(script, mergeTemplateParams(request, script));
-                SearchRequest searchRequest = new SearchRequest(searchApplication.indices()).source(sourceBuilder);
+                SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
                 client.execute(
                     SearchAction.INSTANCE,

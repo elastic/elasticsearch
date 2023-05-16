@@ -443,18 +443,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             final CreateApiKeyResponse createAdminKeyResponse = new CreateApiKeyRequestBuilder(client()).setName("admin-key")
                 .setRoleDescriptors(
                     randomFrom(
-                        List.of(
-                            new RoleDescriptor(
-                                randomAlphaOfLengthBetween(3, 8),
-                                new String[] { "manage_security" },
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null
-                            )
-                        ),
+                        List.of(new RoleDescriptor(randomAlphaOfLengthBetween(3, 8), new String[] { "manage_security" }, null, null)),
                         null
                     )
                 )

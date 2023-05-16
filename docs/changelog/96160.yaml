@@ -1,0 +1,6 @@
+pr: 96160
+summary: Extract http out of `_nodes/_stats`
+area: Stats
+type: feature
+issues:
+ - 95391

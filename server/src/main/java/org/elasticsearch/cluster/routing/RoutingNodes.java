@@ -249,6 +249,10 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return primary;
     }
 
+    public Set<String> getAllNodeIds() {
+        return Collections.unmodifiableSet(nodesToShards.keySet());
+    }
+
     @Override
     public Iterator<RoutingNode> iterator() {
         return Collections.unmodifiableCollection(nodesToShards.values()).iterator();

@@ -7,19 +7,15 @@
 
 package org.elasticsearch.xpack.usage;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;

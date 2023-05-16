@@ -100,6 +100,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.query.MappingAwareRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -1706,6 +1707,25 @@ public class IndicesService extends AbstractLifecycleComponent
             nowInMillis,
             clusterService::state,
             this::getTimestampFieldType
+        );
+    }
+
+    public MappingAwareRewriteContextProvider getMappingAwareRewriteContextProvider(
+        final Index index,
+        final LongSupplier nowInMillis,
+        final ShardId shardId,
+        int shardRequestIndex,
+        final String clusterAlias
+    ) {
+        return new MappingAwareRewriteContextProvider(
+            parserConfig,
+            namedWriteableRegistry,
+            client,
+            nowInMillis,
+            indexService(index),
+            shardId,
+            shardRequestIndex,
+            clusterAlias
         );
     }
 

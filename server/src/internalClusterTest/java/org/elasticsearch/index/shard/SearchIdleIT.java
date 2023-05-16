@@ -15,16 +15,22 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
@@ -33,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntToLongFunction;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.hamcrest.Matchers.equalTo;
@@ -223,4 +230,186 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertTrue(Arrays.stream(statsResponse.getShards()).allMatch(x -> x.getSearchIdleTime() >= searchIdleAfter));
     }
 
+    public void testSearchIdleBoolQueryMatchOneIndex() throws InterruptedException {
+        // GIVEN
+        final String idleIndex = "test1";
+        final String activeIndex = "test2";
+        // NOTE: we need many shards because shard pre-filtering and the "can match" phase
+        // are executed only if we have enough shards.
+        int idleIndexShardsCount = 60;
+        int activeIndexShardsCount = 70;
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(idleIndex)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-11T00:00:00.000Z")
+                )
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(activeIndex)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-05-13T23:59:59.999Z")
+                )
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping(idleIndex)
+                .setSource(
+                    new String[] {
+                        "keyword",
+                        "type=keyword",
+                        "@timestamp",
+                        "type=date",
+                        "routing_field",
+                        "type=keyword,time_series_dimension=true" }
+                )
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping(activeIndex)
+                .setSource(
+                    new String[] {
+                        "keyword",
+                        "type=keyword",
+                        "@timestamp",
+                        "type=date",
+                        "routing_field",
+                        "type=keyword,time_series_dimension=true" }
+                )
+                .get()
+        );
+
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(idleIndex)
+                .setSource("keyword", "idle", "@timestamp", "2021-05-10T19:00:03.765Z", "routing_field", "aaa")
+                .get()
+                .status()
+        );
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(activeIndex)
+                .setSource("keyword", "active", "@timestamp", "2021-05-12T20:07:12.112Z", "routing_field", "aaa")
+                .get()
+                .status()
+        );
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+
+        waitUntil(
+            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
+                .allMatch(ShardStats::isSearchIdle),
+            2,
+            TimeUnit.SECONDS
+        );
+
+        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test*").get();
+        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+
+        // WHEN
+        final SearchResponse searchResponse = client().prepareSearch("test*")
+            .setQuery(new RangeQueryBuilder("@timestamp").from("2021-05-12T20:00:00.000Z").to("2021-05-12T21:00:00.000Z"))
+            .get();
+        assertEquals(RestStatus.OK, searchResponse.status());
+        assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
+        assertEquals(0, searchResponse.getFailedShards());
+        Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+        // NOTE: we need an empty result from at least one shard
+        assertEquals(1, searchResponse.getHits().getHits().length);
+
+        // THEN
+        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards()).filter(x -> x.isSearchIdle() == false).toList();
+        assertEquals(70, activeShards.size());
+    }
+
+    public void testSearchIdleExistsQueryMatchOneIndex() throws InterruptedException {
+        // GIVEN
+        final String idleIndex = "test1";
+        final String activeIndex = "test2";
+        // NOTE: we need many shards because shard pre-filtering and the "can match" phase
+        // are executed only if we have enough shards.
+        int idleIndexShardsCount = 60;
+        int activeIndexShardsCount = 70;
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(idleIndex)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                )
+                .get()
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(activeIndex)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                )
+                .get()
+        );
+        assertAcked(client().admin().indices().preparePutMapping(idleIndex).setSource(new String[] { "keyword", "type=keyword" }).get());
+        assertAcked(client().admin().indices().preparePutMapping(activeIndex).setSource(new String[] { "keyword", "type=keyword" }).get());
+
+        assertEquals(RestStatus.CREATED, client().prepareIndex(idleIndex).setSource("keyword", "idle").get().status());
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex(activeIndex).setSource("keyword", "active", "unmapped", "bbb").get().status()
+        );
+        assertEquals(RestStatus.OK, client().admin().indices().prepareRefresh(idleIndex, activeIndex).get().getStatus());
+
+        waitUntil(
+            () -> Arrays.stream(client().admin().indices().prepareStats(idleIndex, activeIndex).get().getShards())
+                .allMatch(ShardStats::isSearchIdle),
+            2,
+            TimeUnit.SECONDS
+        );
+
+        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test*").get();
+        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+
+        // WHEN
+        final SearchResponse searchResponse = client().prepareSearch("test*").setQuery(new ExistsQueryBuilder("unmapped")).get();
+        assertEquals(RestStatus.OK, searchResponse.status());
+        assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
+        assertEquals(0, searchResponse.getFailedShards());
+        Arrays.stream(searchResponse.getHits().getHits()).forEach(searchHit -> assertEquals("test2", searchHit.getIndex()));
+        // NOTE: we need an empty result from at least one shard
+        assertEquals(1, searchResponse.getHits().getHits().length);
+
+        // THEN
+        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
+        final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards()).filter(x -> x.isSearchIdle() == false).toList();
+        assertEquals(70, activeShards.size());
+    }
 }

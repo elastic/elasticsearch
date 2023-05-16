@@ -58,7 +58,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().isPromotableToPrimary();
+        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert getRequest.realtime();
         ActionListener.completeWith(listener, () -> {
             var result = indexShard.getService()
@@ -166,7 +166,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             if (this == o) return true;
             if (o instanceof Response == false) return false;
             Response other = (Response) o;
-            return Objects.equals(getResult, other.getResult) && segmentGeneration == other.segmentGeneration;
+            return segmentGeneration == other.segmentGeneration && Objects.equals(getResult, other.getResult);
         }
 
         @Override

@@ -15,15 +15,33 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- */
-
-/**
- * <h2>T-Digest library</h2>
- * This package contains a fork for the [T-Digest](https://github.com/tdunning/t-digest) library that's used for percentile calculations.
  *
- * Forking the library allowed addressing bugs and inaccuracies around both the AVL- and the merging-based implementations and switching
- * from the former to the latter within TSDB, with substantial performance gains (10-50x). It also unlocks the use of BigArrays and other
- * ES-specific functionality to account for resources used in the digest data structures.
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
+
+import org.junit.Before;
+
+import java.io.IOException;
+
+public class FloatHistogramTests extends HistogramTestCases {
+    @Before
+    public void setup() {
+        useLinearBuckets = true;
+        factory = new HistogramFactory() {
+            @Override
+            public Histogram create(double min, double max) {
+                return new FloatHistogram(min, max);
+            }
+        };
+    }
+
+    public void testBins() {
+        super.testBinSizes(79, 141, new FloatHistogram(10e-6, 5, 20));
+    }
+
+    public void testLinear() throws IOException {
+        super.doLinear(165.4, 18, 212);
+    }
+}

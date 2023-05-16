@@ -1,9 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
@@ -11,7 +22,6 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Arrays;
-
 
 /**
  * An AVL-tree structure stored in parallel arrays.
@@ -193,7 +203,6 @@ abstract class IntAVLTree {
      */
     protected abstract void merge(int node);
 
-
     /**
      * Add current data to the tree and return <code>true</code> if a new node was added
      * to the tree or <code>false</code> if the node was merged into an existing node.
@@ -245,7 +254,7 @@ abstract class IntAVLTree {
      * Find a node in this tree.
      */
     public int find() {
-        for (int node = root; node != NIL; ) {
+        for (int node = root; node != NIL;) {
             final int cmp = compare(node);
             if (cmp < 0) {
                 node = left(node);
@@ -398,32 +407,32 @@ abstract class IntAVLTree {
     }
 
     private void rebalance(int node) {
-        for (int n = node; n != NIL; ) {
+        for (int n = node; n != NIL;) {
             final int p = parent(n);
 
             fixAggregates(n);
 
             switch (balanceFactor(n)) {
-            case -2:
-                final int right = right(n);
-                if (balanceFactor(right) == 1) {
-                    rotateRight(right);
-                }
-                rotateLeft(n);
-                break;
-            case 2:
-                final int left = left(n);
-                if (balanceFactor(left) == -1) {
-                    rotateLeft(left);
-                }
-                rotateRight(n);
-                break;
-            case -1:
-            case 0:
-            case 1:
-                break; // ok
-            default:
-                throw new AssertionError();
+                case -2:
+                    final int right = right(n);
+                    if (balanceFactor(right) == 1) {
+                        rotateRight(right);
+                    }
+                    rotateLeft(n);
+                    break;
+                case 2:
+                    final int left = left(n);
+                    if (balanceFactor(left) == -1) {
+                        rotateLeft(left);
+                    }
+                    rotateRight(n);
+                    break;
+                case -1:
+                case 0:
+                case 1:
+                    break; // ok
+                default:
+                    throw new AssertionError();
             }
 
             n = p;

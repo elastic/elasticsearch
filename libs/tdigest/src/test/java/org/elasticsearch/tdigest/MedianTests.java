@@ -21,9 +21,32 @@
 
 package org.elasticsearch.tdigest;
 
-/**
- * A DigestFactory is used in tests to abstract what kind of digest is being tested.
- */
-public interface DigestFactory {
-    TDigest getDigest(double compression);
+import org.elasticsearch.test.ESTestCase;
+
+public class MedianTests extends ESTestCase {
+
+    public void testAVL() {
+        double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
+        TDigest digest = new AVLTreeDigest(100);
+        for (double value : data) {
+            digest.add(value);
+        }
+
+        assertEquals(37.5, digest.quantile(0.5), 0);
+    }
+
+    public void testMergingDigest() {
+        double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
+        TDigest digest = new MergingDigest(100);
+        for (double value : data) {
+            digest.add(value);
+        }
+
+        assertEquals(37.5, digest.quantile(0.5), 0);
+    }
+
+    public void testReferenceWikipedia() {
+        double[] data = new double[] { 7, 15, 36, 39, 40, 41 };
+        assertEquals(37.5, Dist.quantile(0.5, data), 0);
+    }
 }

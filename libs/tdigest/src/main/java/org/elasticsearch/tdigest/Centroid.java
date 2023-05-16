@@ -10,8 +10,6 @@
 
 package org.elasticsearch.tdigest;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -148,10 +146,5 @@ public class Centroid implements Comparable<Centroid> {
         }
         centroid = AbstractTDigest.weightedAverage(centroid, count, x, w);
         count += w;
-    }
-
-    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
-        in.defaultReadObject();
-        id = uniqueCount.getAndIncrement();
     }
 }

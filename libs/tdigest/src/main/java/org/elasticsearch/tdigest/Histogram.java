@@ -10,7 +10,7 @@
 
 package org.elasticsearch.tdigest;
 
-import java.io.IOException;
+import java.util.Locale;
 
 /**
  * A Histogram is a histogram with cleverly chosen, but fixed, bin widths.
@@ -35,8 +35,8 @@ public abstract class Histogram {
         int binCount = bucketIndex(max) + 1;
         if (binCount > 10000) {
             throw new IllegalArgumentException(
-                    String.format("Excessive number of bins %d resulting from min,max = %.2g, %.2g",
-                            binCount, min, max));
+                String.format(Locale.ROOT, "Excessive number of bins %d resulting from min,max = %.2g, %.2g", binCount, min, max)
+            );
 
         }
         counts = new long[binCount];
@@ -77,12 +77,6 @@ public abstract class Histogram {
 
     @SuppressWarnings("WeakerAccess")
     abstract long[] getCompressedCounts();
-
-    @SuppressWarnings("WeakerAccess")
-    abstract void writeObject(java.io.ObjectOutputStream out) throws IOException;
-
-    @SuppressWarnings("WeakerAccess")
-    abstract void readObject(java.io.ObjectInputStream in) throws IOException;
 
     abstract void add(Iterable<Histogram> others);
 }

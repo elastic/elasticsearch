@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Maintains a t-digest by collecting new points in a buffer that is then sorted occasionally and merged
@@ -164,23 +165,23 @@ public class MergingDigest extends AbstractTDigest {
             // bufferSize = 2 gives 40% worse performance than 10
             // but bufferSize = 5 only costs about 5-10%
             //
-            //   compression factor     time(us)
-            //    50          1         0.275799
-            //    50          2         0.151368
-            //    50          5         0.108856
-            //    50         10         0.102530
-            //   100          1         0.215121
-            //   100          2         0.142743
-            //   100          5         0.112278
-            //   100         10         0.107753
-            //   200          1         0.210972
-            //   200          2         0.148613
-            //   200          5         0.118220
-            //   200         10         0.112970
-            //   500          1         0.219469
-            //   500          2         0.158364
-            //   500          5         0.127552
-            //   500         10         0.121505
+            // compression factor time(us)
+            // 50 1 0.275799
+            // 50 2 0.151368
+            // 50 5 0.108856
+            // 50 10 0.102530
+            // 100 1 0.215121
+            // 100 2 0.142743
+            // 100 5 0.112278
+            // 100 10 0.107753
+            // 200 1 0.210972
+            // 200 2 0.148613
+            // 200 5 0.118220
+            // 200 10 0.112970
+            // 500 1 0.219469
+            // 500 2 0.158364
+            // 500 5 0.127552
+            // 500 10 0.121505
             bufferSize = 5 * size;
         }
 
@@ -352,8 +353,7 @@ public class MergingDigest extends AbstractTDigest {
         }
         if (unmergedWeight > 0) {
             // note that we run the merge in reverse every other merge to avoid left-to-right bias in merging
-            merge(tempMean, tempWeight, tempUsed, tempData, order, unmergedWeight,
-                  useAlternatingSort & mergeCount % 2 == 1, compression);
+            merge(tempMean, tempWeight, tempUsed, tempData, order, unmergedWeight, useAlternatingSort & mergeCount % 2 == 1, compression);
             mergeCount++;
             tempUsed = 0;
             unmergedWeight = 0;
@@ -437,8 +437,8 @@ public class MergingDigest extends AbstractTDigest {
                 // next point will fit
                 // so merge into existing centroid
                 weight[lastUsedCell] += incomingWeight[ix];
-                mean[lastUsedCell] = mean[lastUsedCell] + (incomingMean[ix] -
-                                        mean[lastUsedCell]) * incomingWeight[ix] / weight[lastUsedCell];
+                mean[lastUsedCell] = mean[lastUsedCell] + (incomingMean[ix] - mean[lastUsedCell]) * incomingWeight[ix]
+                    / weight[lastUsedCell];
                 incomingWeight[ix] = 0;
 
                 if (data != null) {
@@ -518,27 +518,12 @@ public class MergingDigest extends AbstractTDigest {
             double k2 = scale.k(q + dq, normalizer);
             q += dq / 2;
             if (k2 - k1 > 1 && w[i] != 1) {
-                System.out.printf(
-                    "%sOversize centroid at "
-                        + "%d, k0=%.2f, k1=%.2f, dk=%.2f, w=%.2f, q=%.4f, dq=%.4f, left=%.1f, current=%.2f maxw=%.2f\n",
-                    header,
-                    i,
-                    k1,
-                    k2,
-                    k2 - k1,
-                    w[i],
-                    q,
-                    dq,
-                    left,
-                    w[i],
-                    totalWeight * scale.max(q, normalizer)
-                );
-                header = "";
                 badCount++;
             }
             if (k2 - k1 > 4 && w[i] != 1) {
                 throw new IllegalStateException(
                     String.format(
+                        Locale.ROOT,
                         "Egregiously oversized centroid at "
                             + "%d, k0=%.2f, k1=%.2f, dk=%.2f, w=%.2f, q=%.4f, dq=%.4f, left=%.1f, current=%.2f, maxw=%.2f\n",
                         i,
@@ -581,7 +566,7 @@ public class MergingDigest extends AbstractTDigest {
     @Override
     public double cdf(double x) {
         if (Double.isNaN(x) || Double.isInfinite(x)) {
-            throw new IllegalArgumentException(String.format("Invalid value: %f", x));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Invalid value: %f", x));
         }
         mergeNewValues();
 
@@ -946,9 +931,13 @@ public class MergingDigest extends AbstractTDigest {
     @Override
     public String toString() {
         return "MergingDigest"
-                + "-" + getScaleFunction()
-                + "-" + (useWeightLimit ? "weight" : "kSize")
-                + "-" + (useAlternatingSort ? "alternating" : "stable")
-                + "-" + (useTwoLevelCompression ? "twoLevel" : "oneLevel");
+            + "-"
+            + getScaleFunction()
+            + "-"
+            + (useWeightLimit ? "weight" : "kSize")
+            + "-"
+            + (useAlternatingSort ? "alternating" : "stable")
+            + "-"
+            + (useTwoLevelCompression ? "twoLevel" : "oneLevel");
     }
 }

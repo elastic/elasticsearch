@@ -10,11 +10,10 @@
 
 package org.elasticsearch.tdigest;
 
-import java.io.IOException;
 import java.io.InvalidObjectException;
 import java.io.ObjectStreamException;
-import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
+import java.util.Locale;
 
 /**
  * Maintains histogram buckets that are constant width
@@ -26,7 +25,6 @@ public class FloatHistogram extends Histogram {
     private int shift;
     private int offset;
 
-
     @SuppressWarnings("WeakerAccess")
     public FloatHistogram(double min, double max) {
         this(min, max, 50);
@@ -36,15 +34,15 @@ public class FloatHistogram extends Histogram {
     public FloatHistogram(double min, double max, double binsPerDecade) {
         super(min, max);
         if (max <= 2 * min) {
-            throw new IllegalArgumentException(String.format("Illegal/nonsensical min, max (%.2f, %.2g)", min, max));
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Illegal/nonsensical min, max (%.2f, %.2g)", min, max));
         }
         if (min <= 0 || max <= 0) {
             throw new IllegalArgumentException("Min and max must be positive");
         }
         if (binsPerDecade < 5 || binsPerDecade > 10000) {
             throw new IllegalArgumentException(
-                    String.format("Unreasonable number of bins per decade %.2g. Expected value in range [5,10000]",
-                            binsPerDecade));
+                String.format(Locale.ROOT, "Unreasonable number of bins per decade %.2g. Expected value in range [5,10000]", binsPerDecade)
+            );
         }
 
         // convert binsPerDecade into bins per octave, then figure out how many bits that takes
@@ -81,48 +79,6 @@ public class FloatHistogram extends Histogram {
         return r;
     }
 
-    @Override
-    @SuppressWarnings("WeakerAccess")
-    public void writeObject(java.io.ObjectOutputStream out) throws IOException {
-        out.writeDouble(min);
-        out.writeDouble(max);
-        out.writeByte(bitsOfPrecision);
-        out.writeByte(shift);
-
-        ByteBuffer buf = ByteBuffer.allocate(8 * counts.length);
-        LongBuffer longBuffer = buf.asLongBuffer();
-        Simple64.compress(longBuffer, counts, 0, counts.length);
-        buf.position(8 * longBuffer.position());
-        byte[] r = new byte[buf.position()];
-        out.writeShort(buf.position());
-        buf.flip();
-        buf.get(r);
-        out.write(r);
-    }
-
-    @Override
-    @SuppressWarnings("WeakerAccess")
-    public void readObject(java.io.ObjectInputStream in) throws IOException {
-        min = in.readDouble();
-        max = in.readDouble();
-        bitsOfPrecision = in.readByte();
-        shift = in.readByte();
-        offset = 0x3ff << bitsOfPrecision;
-
-        int n = in.readShort();
-        ByteBuffer buf = ByteBuffer.allocate(n);
-        in.readFully(buf.array(), 0, n);
-        int binCount = bucketIndex(max) + 1;
-        if (binCount > 10000) {
-            throw new IllegalArgumentException(
-                    String.format("Excessive number of bins %d during deserialization = %.2g, %.2g",
-                            binCount, min, max));
-
-        }
-        counts = new long[binCount];
-        Simple64.decompress(buf.asLongBuffer(), counts);
-    }
-
     private void readObjectNoData() throws ObjectStreamException {
         throw new InvalidObjectException("Stream data required");
     }
@@ -131,7 +87,7 @@ public class FloatHistogram extends Histogram {
     void add(Iterable<Histogram> others) {
         for (Histogram other : others) {
             if (this.getClass().equals(other.getClass()) == false) {
-                throw new IllegalArgumentException(String.format("Cannot add %s to FloatHistogram", others.getClass()));
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Cannot add %s to FloatHistogram", others.getClass()));
             }
             FloatHistogram actual = (FloatHistogram) other;
             if (actual.min != min || actual.max != max || actual.counts.length != counts.length) {

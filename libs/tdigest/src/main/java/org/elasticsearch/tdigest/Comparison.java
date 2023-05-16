@@ -11,6 +11,7 @@
 package org.elasticsearch.tdigest;
 
 import java.util.Iterator;
+import java.util.Locale;
 
 /**
  * Static class with methods for comparing distributions.
@@ -82,17 +83,16 @@ public class Comparison {
     @SuppressWarnings("WeakerAccess")
     public static double compareChi2(Histogram dist1, Histogram dist2) {
         if (dist1.getClass().equals(dist2.getClass()) == false) {
-            throw new IllegalArgumentException(String.format("Must have same class arguments, got %s and %s",
-                    dist1.getClass(), dist2.getClass()));
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Must have same class arguments, got %s and %s", dist1.getClass(), dist2.getClass())
+            );
         }
 
         long[] k1 = dist1.getCounts();
         long[] k2 = dist2.getCounts();
 
         int n1 = k1.length;
-        if (n1 != k2.length ||
-                dist1.lowerBound(0) != dist2.lowerBound(0) ||
-                dist1.lowerBound(n1 - 1) != dist2.lowerBound(n1 - 1)) {
+        if (n1 != k2.length || dist1.lowerBound(0) != dist2.lowerBound(0) || dist1.lowerBound(n1 - 1) != dist2.lowerBound(n1 - 1)) {
             throw new IllegalArgumentException("Incompatible histograms in terms of size or bounds");
         }
 
@@ -123,7 +123,7 @@ public class Comparison {
                 rowSums[i] += k;
                 colSums[j] += k;
                 if (k < 0) {
-                    throw new IllegalArgumentException(String.format("Illegal negative count (%.5f) at %d,%d", k, i, j));
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "Illegal negative count (%.5f) at %d,%d", k, i, j));
                 }
                 if (k > 0) {
                     h += k * Math.log(k);

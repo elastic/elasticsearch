@@ -416,3 +416,44 @@ Which returns the much more expected:
 }
 ----
 // TESTRESPONSE
+
+===== Use in pipeline aggregations
+
+`top_metrics` can be used in pipeline aggregations that consume a single value per bucket, such as `bucket_selector`
+that applies per bucket filtering, similar to using a HAVING clause in SQL. This requires setting `size` to 1, and
+specifying the right path for the (single) metric to be passed to the wrapping aggregator. For example:
+
+[source,console]
+----
+POST /test*/_search?filter_path=aggregations
+{
+  "aggs": {
+    "ip": {
+      "terms": {
+        "field": "ip"
+      },
+      "aggs": {
+        "tm": {
+          "top_metrics": {
+            "metrics": {"field": "m"},
+            "sort": {"s": "desc"},
+            "size": 1
+          }
+        },
+        "having_tm": {
+          "bucket_selector": {
+            "buckets_path": {
+              "top_m": "tm[m]"
+            },
+            "script": "params.top_m < 1000"
+          }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+The `bucket_path` uses the `top_metrics` name `tm` and a keyword for the metric providing the aggregate value,
+namely `m`.

@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration Rest Tests relating to API Keys.
@@ -709,12 +710,47 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
         final String apiKeyId = createResponse.evaluate("id");
 
+        // Cross cluster API key cannot be used on the REST interface
+        final Request authenticateRequest1 = new Request("GET", "/_security/_authenticate");
+        authenticateRequest1.setOptions(
+            authenticateRequest1.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        );
+        final ResponseException authenticateError1 = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(authenticateRequest1)
+        );
+        assertThat(authenticateError1.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(
+            authenticateError1.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
+        // Not allowed as secondary authentication on the REST interface either
+        final Request authenticateRequest2 = new Request("GET", "/_security/_authenticate");
+        setUserForRequest(authenticateRequest2, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        authenticateRequest2.setOptions(
+            authenticateRequest2.getOptions()
+                .toBuilder()
+                .addHeader("es-secondary-authorization", "ApiKey " + createResponse.evaluate("encoded"))
+        );
+        final ResponseException authenticateError2 = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(authenticateRequest2)
+        );
+        assertThat(authenticateError2.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(
+            authenticateError2.getMessage(),
+            containsString("authentication expected API key type of [rest], but API key [" + apiKeyId + "] has type [cross_cluster]")
+        );
+
         final Request fetchRequest;
         if (randomBoolean()) {
             fetchRequest = new Request("GET", "/_security/api_key");
             fetchRequest.addParameter("id", apiKeyId);
+            fetchRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
         } else {
             fetchRequest = new Request("GET", "/_security/_query/api_key");
+            fetchRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
             fetchRequest.setJsonEntity(Strings.format("""
                 { "query": { "ids": { "values": ["%s"] } } }""", apiKeyId));
         }
@@ -727,6 +763,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath fetchResponse = assertOKAndCreateObjectPath(client().performRequest(fetchRequest));
 
         assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
+        assertThat(fetchResponse.evaluate("api_keys.0.type"), equalTo("cross_cluster"));
         assertThat(
             fetchResponse.evaluate("api_keys.0.role_descriptors"),
             equalTo(
@@ -753,6 +790,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             )
         );
+        assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
         final Request deleteRequest = new Request("DELETE", "/_security/api_key");
         deleteRequest.setJsonEntity(Strings.format("""

@@ -149,6 +149,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
+            true,
             EMPTY_CONTEXT_PROVIDER,
             ActionListener.wrap(iter -> {
                 result.set(iter);
@@ -246,6 +247,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
+            true,
             EMPTY_CONTEXT_PROVIDER,
             ActionListener.wrap(iter -> {
                 result.set(iter);
@@ -338,6 +340,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter,
                 timeProvider,
                 null,
+                true,
                 EMPTY_CONTEXT_PROVIDER,
                 ActionListener.wrap(iter -> {
                     result.set(iter);
@@ -439,6 +442,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter,
                 timeProvider,
                 null,
+                true,
                 EMPTY_CONTEXT_PROVIDER,
                 ActionListener.wrap(iter -> {
                     result.set(iter);
@@ -811,6 +815,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             shardsIter,
             timeProvider,
             null,
+            true,
             contextProvider,
             ActionListener.wrap(iter -> {
                 result.set(iter);

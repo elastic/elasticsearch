@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -567,7 +568,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
@@ -611,7 +612,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))

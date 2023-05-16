@@ -26,8 +26,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.application.search.SearchApplicationTemplateService;
 
-import java.io.IOException;
-
 public class TransportQuerySearchApplicationAction extends SearchApplicationTransportAction<
     SearchApplicationSearchRequest,
     SearchResponse> {
@@ -77,7 +75,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
                     searchRequest,
                     listener.delegateFailure((l2, searchResponse) -> l2.onResponse(searchResponse))
                 );
-            } catch (IOException e) {
+            } catch (Exception e) {
                 l.onFailure(e);
             }
         }));

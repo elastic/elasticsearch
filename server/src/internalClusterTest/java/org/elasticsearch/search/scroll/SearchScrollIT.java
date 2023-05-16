@@ -638,9 +638,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollRewrittenToMatchNoDocs() {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}

@@ -37,18 +37,12 @@ GET _search
 (Required, object)
 The query configuration object which contains the information necessary to 
 perform semantic search.
-+
-.Properties of `text_expansion`
-[%collapsible%open]
-====
+
 `<rank_features_field>`:::
 (Required, string)
 The name of the field that contains the token-weight pairs the NLP model created 
 based on the input text.
-+
-.Properties of `<rank_features_field>`
-[%collapsible%open]
-=====
+
 `model_id`::::
 (Required, string)
 The ID of the model to use to convert the query text into token-weight pairs. It 
@@ -58,8 +52,6 @@ text.
 `model_text`::::
 (Required, string)
 The query text you want to use for search. 
-=====
-====
 
 
 [discrete]

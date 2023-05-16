@@ -484,7 +484,7 @@ public enum ScaleFunction {
      * @param n           The total number of samples
      * @return The corresponding value of k
      */
-    abstract public double k(double q, double compression, double n);
+    public abstract double k(double q, double compression, double n);
 
     /**
      * Converts  a quantile to the k-scale. The normalizer value depends on compression and (possibly) number of points
@@ -495,7 +495,7 @@ public enum ScaleFunction {
      *                   digest.
      * @return The corresponding value of k
      */
-    abstract public double k(double q, double normalizer);
+    public abstract double k(double q, double normalizer);
 
     /**
      * Computes q as a function of k. This is often faster than finding k as a function of q for some scales.
@@ -505,7 +505,7 @@ public enum ScaleFunction {
      * @param n           The number of samples already in the digest.
      * @return The value of q that corresponds to k
      */
-    abstract public double q(double k, double compression, double n);
+    public abstract double q(double k, double compression, double n);
 
     /**
      * Computes q as a function of k. This is often faster than finding k as a function of q for some scales.
@@ -515,7 +515,7 @@ public enum ScaleFunction {
      *                   digest.
      * @return The value of q that corresponds to k
      */
-    abstract public double q(double k, double normalizer);
+    public abstract double q(double k, double normalizer);
 
     /**
      * Computes the maximum relative size a cluster can have at quantile q. Note that exactly where within the range
@@ -530,7 +530,7 @@ public enum ScaleFunction {
      * @param n           The number of samples seen so far in the digest
      * @return The maximum number of samples that can be in the cluster
      */
-    abstract public double max(double q, double compression, double n);
+    public abstract double max(double q, double compression, double n);
 
     /**
      * Computes the maximum relative size a cluster can have at quantile q. Note that exactly where within the range
@@ -545,7 +545,7 @@ public enum ScaleFunction {
      *                   digest.
      * @return The maximum number of samples that can be in the cluster
      */
-    abstract public double max(double q, double normalizer);
+    public abstract double max(double q, double normalizer);
 
     /**
      * Computes the normalizer given compression and number of points.
@@ -553,7 +553,7 @@ public enum ScaleFunction {
      * @param n The number of samples seen so far
      * @return The normalizing factor for the scale function
      */
-    abstract public double normalizer(double compression, double n);
+    public abstract double normalizer(double compression, double n);
 
     /**
      * Approximates asin to within about 1e-6. This approximation works by breaking the range from 0 to 1 into 5 regions
@@ -629,7 +629,7 @@ public enum ScaleFunction {
         }
     }
 
-    static abstract class Function {
+    abstract static class Function {
         abstract double apply(double x);
     }
 

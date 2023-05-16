@@ -81,7 +81,7 @@ public class Comparison {
      */
     @SuppressWarnings("WeakerAccess")
     public static double compareChi2(Histogram dist1, Histogram dist2) {
-        if (!dist1.getClass().equals(dist2.getClass())) {
+        if (dist1.getClass().equals(dist2.getClass()) == false) {
             throw new IllegalArgumentException(String.format("Must have same class arguments, got %s and %s",
                     dist1.getClass(), dist2.getClass()));
         }
@@ -179,7 +179,7 @@ public class Comparison {
             } else if (x1 > x2) {
                 diff = maxDiff(d1, d2, diff, x2);
                 x2 = nextValue(d2, ix2, x2);
-            } else if (x1 == x2) {
+            } else {
                 diff = maxDiff(d1, d2, diff, x1);
 
                 double q1 = d1.cdf(x1);

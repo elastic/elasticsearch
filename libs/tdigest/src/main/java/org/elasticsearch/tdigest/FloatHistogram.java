@@ -13,7 +13,6 @@ package org.elasticsearch.tdigest;
 import java.io.IOException;
 import java.io.InvalidObjectException;
 import java.io.ObjectStreamException;
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 
@@ -131,7 +130,7 @@ public class FloatHistogram extends Histogram {
     @Override
     void add(Iterable<Histogram> others) {
         for (Histogram other : others) {
-            if (!this.getClass().equals(other.getClass())) {
+            if (this.getClass().equals(other.getClass()) == false) {
                 throw new IllegalArgumentException(String.format("Cannot add %s to FloatHistogram", others.getClass()));
             }
             FloatHistogram actual = (FloatHistogram) other;

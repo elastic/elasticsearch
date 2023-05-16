@@ -375,7 +375,7 @@ public class Sort {
             double va = key[a];
             double vb = key[b];
             double vc = key[c];
-            //noinspection Duplicates
+
             if (va > vb) {
                 if (vc > va) {
                     // vc > va > vb
@@ -555,7 +555,7 @@ public class Sort {
             throw new IllegalArgumentException("Arguments must be same size");
         }
 
-        if (!(start >= 0 && low >= start && high >= low && end >= high)) {
+        if ((start >= 0 && low >= start && high >= low && end >= high) == false) {
             throw new IllegalArgumentException(String.format("Invalid indices %d, %d, %d, %d", start, low, high, end));
         }
 

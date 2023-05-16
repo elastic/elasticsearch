@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.analytics;
 
-import org.elasticsearch.tdigest.Centroid;
-import org.elasticsearch.tdigest.TDigest;
-
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigest;
 
 import java.io.IOException;
 

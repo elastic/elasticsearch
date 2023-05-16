@@ -110,7 +110,7 @@ public class LogHistogram extends Histogram {
     @Override
     void add(Iterable<Histogram> others) {
         for (Histogram other : others) {
-            if (!this.getClass().equals(other.getClass())) {
+            if (this.getClass().equals(other.getClass()) == false) {
                 throw new IllegalArgumentException(String.format("Cannot add %s to LogHistogram", others.getClass()));
             }
             LogHistogram actual = (LogHistogram) other;

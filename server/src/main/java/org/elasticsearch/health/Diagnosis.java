@@ -44,6 +44,7 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
             INDEX("indices"),
             NODE("nodes"),
             SLM_POLICY("slm_policies"),
+            ILM_POLICY("ilm_policies"),
             FEATURE_STATE("feature_states"),
             SNAPSHOT_REPOSITORY("snapshot_repositories");
 
@@ -109,6 +110,11 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         @Override
         public int hashCode() {
             return Objects.hash(type, values, nodes);
+        }
+
+        @Override
+        public String toString() {
+            return "Resource{" + "type=" + type + ", values=" + values + ", nodes=" + nodes + '}';
         }
 
         public Type getType() {

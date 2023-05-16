@@ -88,7 +88,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
 
         assertEquals(indicatorResult.name(), NAME);
         assertEquals(indicatorResult.status(), YELLOW);
-        assertEquals(indicatorResult.symptom(), "An index has been stayed on the same action longer than expected.");
+        assertEquals(indicatorResult.symptom(), "An index has stayed on the same action longer than expected.");
         assertEquals(xContentToMap(indicatorResult.details()), Map.of());
         assertThat(indicatorResult.impacts(), hasSize(1));
         assertThat(
@@ -105,7 +105,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             )
         );
         assertThat(indicatorResult.diagnosisList(), hasSize(1));
-        assertEquals(indicatorResult.diagnosisList().get(0).definition(), STAGNATING_ACTION_DEFINITIONS.get(action).apply(policyName));
+        assertEquals(indicatorResult.diagnosisList().get(0).definition(), STAGNATING_ACTION_DEFINITIONS.get(action));
         assertEquals(
             indicatorResult.diagnosisList().get(0).affectedResources(),
             List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(indexName)))
@@ -125,7 +125,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
 
         assertEquals(indicatorResult.name(), NAME);
         assertEquals(indicatorResult.status(), YELLOW);
-        assertEquals(indicatorResult.symptom(), "An index has been stayed on the same action longer than expected.");
+        assertEquals(indicatorResult.symptom(), "An index has stayed on the same action longer than expected.");
         var expectedILMSummary = new HashMap<>();
         expectedILMSummary.put("downsample", 0);
         expectedILMSummary.put("allocate", 0);
@@ -165,11 +165,17 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             )
         );
         assertThat(indicatorResult.diagnosisList(), hasSize(1));
-        assertEquals(indicatorResult.diagnosisList().get(0).definition(), STAGNATING_ACTION_DEFINITIONS.get(action).apply(policyName));
-        assertEquals(
-            indicatorResult.diagnosisList().get(0).affectedResources(),
-            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(indexName)))
-        );
+        assertEquals(indicatorResult.diagnosisList().get(0).definition(), STAGNATING_ACTION_DEFINITIONS.get(action));
+
+        var affectedResources = indicatorResult.diagnosisList().get(0).affectedResources();
+        assertThat(affectedResources, hasSize(2));
+        assertEquals(affectedResources.get(0).getType(), Diagnosis.Resource.Type.ILM_POLICY);
+        assertThat(affectedResources.get(0).getValues(), hasSize(1));
+        assertThat(affectedResources.get(0).getValues(), containsInAnyOrder(policyName));
+        assertThat(affectedResources.get(1).getValues(), hasSize(1));
+        assertEquals(affectedResources.get(1).getType(), Diagnosis.Resource.Type.INDEX);
+        assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexName));
+
         verify(stuckIndicesFinder, times(1)).find();
     }
 
@@ -274,7 +280,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         );
         var definitionIds = STAGNATING_ACTION_DEFINITIONS.values()
             .stream()
-            .map(fn -> fn.apply("some-policy"))
             .map(Diagnosis.Definition::getUniqueId)
             .toList();
 

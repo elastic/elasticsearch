@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -119,21 +118,15 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         RULES_BY_ACTION_CONFIG.values().stream().map(RuleConfig::toPredicate).toList()
     );
 
-    static final Map<String, Function<String, Diagnosis.Definition>> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
+    static final Map<String, Diagnosis.Definition> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
         .stream()
         .collect(
             Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
-                entry -> ilmPolicyName -> new Diagnosis.Definition(
+                entry -> new Diagnosis.Definition(
                     NAME,
                     "stagnating_action:" + entry.getKey(),
-                    "Some indices managed by the policy ["
-                        + ilmPolicyName
-                        + "] have been stagnated on the action ["
-                        + entry.getKey()
-                        + "] longer than the expected time [time spent in action: "
-                        + entry.getValue().maxTimeOn()
-                        + "].",
+                    "Some indices have been stagnated on the action [" + entry.getKey() + "] longer than the expected time.",
                     "Check the current status of the Index Lifecycle Management service using the [/_ilm/explain] API.",
                     "https://ela.st/ilm-explain"
                 )
@@ -204,7 +197,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         return createIndicator(
             YELLOW,
             (stagnatingIndices.size() > 1 ? stagnatingIndices.size() + " indices have" : "An index has")
-                + " been stayed on the same action longer than expected.",
+                + " stayed on the same action longer than expected.",
             createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
             STAGNATING_INDEX_IMPACT,
             createDiagnoses(stagnatingIndices, maxAffectedResourcesCount)
@@ -212,22 +205,25 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     private List<Diagnosis> createDiagnoses(List<IndexIlmState> stagnatingIndices, int maxAffectedResourcesCount) {
-        return stagnatingIndices.stream()
-            .collect(groupingBy(state -> Tuple.tuple(state.action, state.policyName)))
-            .entrySet()
-            .stream()
-            .map(actionPolicyTuple -> {
-                var affectedResources = actionPolicyTuple.getValue()
-                    .stream()
-                    .map(c -> c.indexName)
-                    .limit(Math.min(maxAffectedResourcesCount, actionPolicyTuple.getValue().size()))
-                    .toList();
-                return new Diagnosis(
-                    STAGNATING_ACTION_DEFINITIONS.get(actionPolicyTuple.getKey().v1()).apply(actionPolicyTuple.getKey().v2()),
-                    List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedResources))
-                );
-            })
-            .toList();
+        return stagnatingIndices.stream().collect(groupingBy(IndexIlmState::action)).entrySet().stream().map(action -> {
+            var affectedIndices = action.getValue()
+                .stream()
+                .map(IndexIlmState::indexName)
+                .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
+                .collect(Collectors.toSet());
+            var affectedPolicies = action.getValue()
+                .stream()
+                .map(IndexIlmState::policyName)
+                .limit(Math.min(maxAffectedResourcesCount, action.getValue().size()))
+                .collect(Collectors.toSet());
+            return new Diagnosis(
+                STAGNATING_ACTION_DEFINITIONS.get(action.getKey()),
+                List.of(
+                    new Diagnosis.Resource(Diagnosis.Resource.Type.ILM_POLICY, affectedPolicies),
+                    new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices)
+                )
+            );
+        }).toList();
     }
 
     private static HealthIndicatorDetails createDetails(

@@ -94,6 +94,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return ExtendedStatsAggregationBuilder.NAME;
     }
 
+    static InternalExtendedStats empty(String name, double sigma, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata);
+    }
+
     @Override
     public double value(String name) {
         if ("sum_of_squares".equals(name)) {

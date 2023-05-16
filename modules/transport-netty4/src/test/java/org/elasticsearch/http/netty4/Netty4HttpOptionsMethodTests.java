@@ -15,6 +15,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpConstants;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.util.AsciiString;
+
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -285,8 +286,8 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
                 boolean hasContentTypeHeader = randomBoolean();
                 if (hasContentTypeHeader) {
                     ByteBufUtil.copy(
-                            AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
-                            buf
+                        AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
+                        buf
                     );
                     buf.writeByte(HttpConstants.LF);
                 }
@@ -346,11 +347,14 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
                 } else {
                     assertThat(dispatchedRequest.content().length(), is(totalContentLength));
                     // netty adds a content length of "0" when there's no content...
-                    assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_LENGTH.toString()), is(Integer.toString(totalContentLength)));
+                    assertThat(
+                        dispatchedRequest.header(HttpHeaderNames.CONTENT_LENGTH.toString()),
+                        is(Integer.toString(totalContentLength))
+                    );
                     if (hasContentTypeHeader) {
                         assertThat(
-                                dispatchedRequest.header(HttpHeaderNames.CONTENT_TYPE.toString()),
-                                anyOf(is("text/plain; charset=utf-8"), is("application/json; charset=utf-8"))
+                            dispatchedRequest.header(HttpHeaderNames.CONTENT_TYPE.toString()),
+                            anyOf(is("text/plain; charset=utf-8"), is("application/json; charset=utf-8"))
                         );
                     }
                 }

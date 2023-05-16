@@ -17,7 +17,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -36,7 +36,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -53,7 +53,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -74,7 +74,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -93,7 +93,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -115,7 +115,7 @@ teardown:
       headers:
         X-Forwarded-For: 192.23.12.12
         User-Agent: Mozilla/5.0
-        Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # entsearch-user
+        Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -156,7 +156,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -175,7 +175,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -192,7 +192,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -212,7 +212,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -233,7 +233,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -254,7 +254,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -273,7 +273,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -306,7 +306,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -331,7 +331,7 @@ teardown:
       headers:
         X-Forwarded-For: 192.23.12.12
         User-Agent: Mozilla/5.0
-        Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # entsearch-user
+        Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search"
@@ -397,7 +397,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -422,7 +422,7 @@ teardown:
       headers:
         X-Forwarded-For: 192.23.12.12
         User-Agent: Mozilla/5.0
-        Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # entsearch-user
+        Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ="  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -459,7 +459,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -479,7 +479,7 @@ teardown:
       features: headers
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -501,7 +501,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -521,7 +521,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "search_click"
@@ -542,7 +542,7 @@ teardown:
 
   - do:
       catch: "missing"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: test-nonexistent-analytics-collection
         event_type: "page_view"
@@ -561,7 +561,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "nonexistent-event-type"
@@ -582,7 +582,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -600,7 +600,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "page_view"
@@ -618,7 +618,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.post_behavioral_analytics_event:
         collection_name: my-test-analytics-collection
         event_type: "nonexistent-event-type"

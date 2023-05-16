@@ -516,8 +516,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             // shards available in order to produce a valid search result.
             int shardIndexToQuery = 0;
             for (int i = 0; i < shardsIts.size(); i++) {
-                if (shardsIts.get(i).size() > 0) {
+                SearchShardIterator it = shardsIts.get(i);
+                if (it.size() > 0) {
                     shardIndexToQuery = i;
+                    it.skip(false); // un-skip which is needed when all the remote shards were skipped by the remote can_match
                     break;
                 }
             }
@@ -526,8 +528,13 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         SearchSourceBuilder source = request.source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
+            iter.reset();
             boolean match = possibleMatches.get(i++);
-            iter.reset(match == false);
+            if (match) {
+                assert iter.skip() == false;
+            } else {
+                iter.skip(true);
+            }
         }
         if (shouldSortShards(results.minAndMaxes) == false) {
             return shardsIts;

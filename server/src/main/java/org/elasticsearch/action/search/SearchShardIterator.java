@@ -130,8 +130,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
-    void reset(boolean skip) {
-        this.skip = skip;
+    void reset() {
         targetNodesIterator.reset();
     }
 
@@ -140,6 +139,13 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      */
     boolean skip() {
         return skip;
+    }
+
+    /**
+     * Specifies if the search execution should skip this shard copies
+     */
+    void skip(boolean skip) {
+        this.skip = skip;
     }
 
     /**

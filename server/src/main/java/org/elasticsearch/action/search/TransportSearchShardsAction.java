@@ -144,7 +144,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         List<SearchShardsGroup> groups = new ArrayList<>(shardIts.size());
         for (SearchShardIterator shardIt : shardIts) {
             boolean skip = shardIt.skip();
-            shardIt.reset(skip);
+            shardIt.reset();
             List<String> targetNodes = new ArrayList<>();
             SearchShardTarget target;
             while ((target = shardIt.nextOrNull()) != null) {

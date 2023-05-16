@@ -176,64 +176,87 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
         try (Netty4HttpServerTransport transport = getHttpServerTransport(dispatchedRequestReference)) {
             final ChannelHandler handler = transport.configureServerChannelHandler();
             final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            ByteBuf buf = ch.alloc().buffer();
-            ByteBufUtil.copy(AsciiString.of("OPTIONS /url/whatever/fixed-length?multiple-chunks=true HTTP/1.1"), buf);
-            buf.writeByte(HttpConstants.LF);
-            boolean hasHostHeader = randomBoolean();
-            if (hasHostHeader) {
-                ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+            // also test that requests following an OPTIONS are not affected
+            for (String httpMethod : List.of("OPTIONS", randomFrom("PUT", "POST", "GET", "DELETE"))) {
+                ByteBuf buf = ch.alloc().buffer();
+                ByteBufUtil.copy(AsciiString.of(httpMethod + " /url/whatever/fixed-length?multiple-chunks=true HTTP/1.1"), buf);
                 buf.writeByte(HttpConstants.LF);
-            }
-            boolean hasAcceptHeader = randomBoolean();
-            if (hasAcceptHeader) {
-                ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                boolean hasHostHeader = randomBoolean();
+                if (hasHostHeader) {
+                    ByteBufUtil.copy(AsciiString.of("Host: localhost"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                boolean hasAcceptHeader = randomBoolean();
+                if (hasAcceptHeader) {
+                    ByteBufUtil.copy(AsciiString.of("Accept: */*"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                // content-encoding should be ignored for OPTIONS but it trips the test scenario for others
+                if (randomBoolean() && httpMethod.equals("OPTIONS")) {
+                    ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
+                    buf.writeByte(HttpConstants.LF);
+                }
+                boolean hasContentTypeHeader = randomBoolean();
+                if (hasContentTypeHeader) {
+                    ByteBufUtil.copy(
+                        AsciiString.of("Content-Type: " + randomFrom("text/plain; charset=utf-8", "application/json; charset=utf-8")),
+                        buf
+                    );
+                    buf.writeByte(HttpConstants.LF);
+                }
+                String[] contentParts = randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(2, 20));
+                // having a "Content-Length" request header is what makes it "fixed length"
+                final int totalContentLength = Arrays.stream(contentParts).map(String::length).reduce(Integer::sum).get();
+                ByteBufUtil.copy(AsciiString.of("Content-Length: " + totalContentLength), buf);
                 buf.writeByte(HttpConstants.LF);
-            }
-            if (randomBoolean()) {
-                ByteBufUtil.copy(AsciiString.of("Content-Encoding: gzip"), buf);
+                // end of headers
                 buf.writeByte(HttpConstants.LF);
-            }
-            if (randomBoolean()) {
-                ByteBufUtil.copy(AsciiString.of("Content-Type: text/plain; charset=UTF-8"), buf);
-                buf.writeByte(HttpConstants.LF);
-            }
-            String[] contentParts = randomArray(2, 5, String[]::new, () -> randomAlphaOfLengthBetween(2, 20));
-            // having a "Content-Length" request header is what makes it "fixed length"
-            ByteBufUtil.copy(
-                AsciiString.of("Content-Length: " + Arrays.stream(contentParts).map(String::length).reduce(Integer::sum).get()),
-                buf
-            );
-            buf.writeByte(HttpConstants.LF);
-            // end of headers
-            buf.writeByte(HttpConstants.LF);
-            // write the headers
-            threadPool.generic().submit(() -> {
-                ch.writeInbound(buf);
-                ch.flushInbound();
-            }).get();
-            // write the contents in multiple parts
-            for (String content : contentParts) {
-                ByteBuf contentBuf = ch.alloc().buffer();
-                ByteBufUtil.copy(AsciiString.of(content), contentBuf);
+                // write the headers
                 threadPool.generic().submit(() -> {
-                    ch.writeInbound(contentBuf);
+                    ch.writeInbound(buf);
                     ch.flushInbound();
                 }).get();
+                // write the contents in multiple parts
+                for (String content : contentParts) {
+                    ByteBuf contentBuf = ch.alloc().buffer();
+                    ByteBufUtil.copy(AsciiString.of(content), contentBuf);
+                    threadPool.generic().submit(() -> {
+                        ch.writeInbound(contentBuf);
+                        ch.flushInbound();
+                    }).get();
+                }
+                ch.runPendingTasks();
+                RestRequest dispatchedRequest = dispatchedRequestReference.get();
+                if ("OPTIONS".equals(httpMethod)) {
+                    assertThat(dispatchedRequest.content().length(), is(0));
+                    // netty adds a content length of "0" when there's no content...
+                    assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_LENGTH.toString()), is("0"));
+                    assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_ENCODING.toString()), nullValue());
+                    assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_TYPE.toString()), nullValue());
+                } else {
+                    assertThat(dispatchedRequest.content().length(), is(totalContentLength));
+                    // netty adds a content length of "0" when there's no content...
+                    assertThat(
+                        dispatchedRequest.header(HttpHeaderNames.CONTENT_LENGTH.toString()),
+                        is(Integer.toString(totalContentLength))
+                    );
+                    assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_ENCODING.toString()), nullValue());
+                    if (hasContentTypeHeader) {
+                        assertThat(
+                            dispatchedRequest.header(HttpHeaderNames.CONTENT_TYPE.toString()),
+                            anyOf(is("text/plain; charset=utf-8"), is("application/json; charset=utf-8"))
+                        );
+                    }
+                }
+                assertThat(dispatchedRequest.uri(), is("/url/whatever/fixed-length?multiple-chunks=true"));
+                if (hasHostHeader) {
+                    assertThat(dispatchedRequest.header(HttpHeaderNames.HOST.toString()), is("localhost"));
+                }
+                if (hasAcceptHeader) {
+                    assertThat(dispatchedRequest.header(HttpHeaderNames.ACCEPT.toString()), is("*/*"));
+                }
+                dispatchedRequest.getHttpRequest().release();
             }
-            RestRequest dispatchedRequest = dispatchedRequestReference.get();
-            assertThat(dispatchedRequest.content().length(), is(0));
-            // netty adds a content length of "0" when there's no content...
-            assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_LENGTH.toString()), is("0"));
-            assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_ENCODING.toString()), nullValue());
-            assertThat(dispatchedRequest.header(HttpHeaderNames.CONTENT_TYPE.toString()), nullValue());
-            assertThat(dispatchedRequest.uri(), is("/url/whatever/fixed-length?multiple-chunks=true"));
-            if (hasHostHeader) {
-                assertThat(dispatchedRequest.header(HttpHeaderNames.HOST.toString()), is("localhost"));
-            }
-            if (hasAcceptHeader) {
-                assertThat(dispatchedRequest.header(HttpHeaderNames.ACCEPT.toString()), is("*/*"));
-            }
-            dispatchedRequest.getHttpRequest().release();
         }
     }
 

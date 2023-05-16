@@ -523,7 +523,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                 }
             }, timeout, Names.SAME);
-            shard.addRefreshListener(waitForCheckpoint, new ActionListener<>() {
+
+            // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
+            // to 30s
+            final boolean allowWaitForNotYetIssued = shard.routingEntry().isPromotableToPrimary() == false
+                && NO_TIMEOUT.equals(timeout) == false
+                && timeout.getSeconds() <= 30L;
+            shard.addRefreshListener(waitForCheckpoint, allowWaitForNotYetIssued, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,

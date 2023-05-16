@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.cluster.metadata.DataLifecycle;
+
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Constants {
 
-    public static final Set<String> NON_OPERATOR_ACTIONS = Set.of(
+    public static final Set<String> NON_OPERATOR_ACTIONS = Stream.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
         "cluster:admin/autoscaling/get_autoscaling_policy",
@@ -404,10 +409,10 @@ public class Constants {
         "indices:admin/data_stream/migrate",
         "indices:admin/data_stream/modify",
         "indices:admin/data_stream/promote",
-        "indices:admin/dlm/delete",
-        "indices:admin/dlm/get",
-        "indices:admin/dlm/put",
-        "indices:admin/dlm/explain",
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/delete" : null,
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/get" : null,
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/put" : null,
+        DataLifecycle.isEnabled() ? "indices:admin/dlm/explain" : null,
         "indices:admin/delete",
         "indices:admin/flush",
         "indices:admin/flush[s]",
@@ -520,5 +525,5 @@ public class Constants {
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path"
-    );
+    ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

@@ -118,6 +118,29 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    public void merge(long otherBucket, Aggregator aggregator, long thisBucket) {
+        AvgAggregator avgAggregator = (AvgAggregator) aggregator;
+        counts = bigArrays().grow(counts, thisBucket + 1);
+        sums = bigArrays().grow(sums, thisBucket + 1);
+        compensations = bigArrays().grow(compensations, thisBucket + 1);
+
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        final long valueCount = avgAggregator.counts.get(otherBucket);
+        counts.increment(thisBucket, valueCount);
+        // Compute the sum of double values with Kahan summation algorithm which is more
+        // accurate than naive summation.
+        double sum = sums.get(thisBucket);
+        double compensation = compensations.get(thisBucket);
+
+        kahanSummation.reset(sum, compensation);
+        kahanSummation.add(sums.get(otherBucket));
+
+        sums.set(thisBucket, kahanSummation.value());
+        compensations.set(thisBucket, kahanSummation.delta());
+
+    }
+
+    @Override
     public void doClose() {
         Releasables.close(counts, sums, compensations);
     }

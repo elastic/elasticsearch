@@ -127,6 +127,20 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    public void merge(long otherBucket, Aggregator aggregator, long thisBucket) {
+        MaxAggregator maxAggregator = (MaxAggregator) aggregator;
+        if (thisBucket >= mins.size()) {
+            long from = mins.size();
+            mins = bigArrays().grow(mins, thisBucket + 1);
+            mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+        }
+        final double value = maxAggregator.maxes.get(otherBucket);
+        double min = mins.get(thisBucket);
+        min = Math.min(min, value);
+        mins.set(thisBucket, min);
+    }
+
+    @Override
     public void doClose() {
         Releasables.close(mins);
     }

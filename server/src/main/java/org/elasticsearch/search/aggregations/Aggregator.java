@@ -177,6 +177,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public abstract Aggregator[] subAggregators();
 
+    public void merge(long otherBucket, Aggregator aggregator, long thisBucket) {
+        // NOCOMMIT: this should be abstract
+        throw new UnsupportedOperationException();
+    }
+
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {
 

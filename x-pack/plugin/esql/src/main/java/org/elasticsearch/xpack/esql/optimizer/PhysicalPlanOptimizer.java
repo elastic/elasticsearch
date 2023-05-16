@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
@@ -64,6 +63,7 @@ import static java.lang.Boolean.TRUE;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
 @Experimental
@@ -113,16 +113,17 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         var localPlanning = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction());
-
-        // the distributed plan must be executed after the field extraction
-        var distribution = new Batch<>("Distributed", Limiter.ONCE, new Distributed());
+        var dataFlowSubstitution = new Batch<>(
+            "Data flow substitution",
+            Limiter.ONCE,
+            new InsertFieldExtraction(),
+            new LocalExchangeToRemoteSink()
+        );
 
         // local planning - clean-up
         var localPlanningStop = new Batch<>("Local Plan Stop", Limiter.ONCE, new RemoveLocalPlanMarker());
 
-        // return asList(exchange, parallelism, reducer, localPlanningStart, localPlanning, localPlanningStop);
-        return asList(gather, localPlanningStart, localPlanning, fieldExtraction, distribution, localPlanningStop);
+        return asList(gather, localPlanningStart, localPlanning, dataFlowSubstitution, localPlanningStop);
     }
 
     @Override
@@ -407,19 +408,19 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         PhysicalPlan,
         P> {
 
-        private final OptimizerRules.TransformDirection direction;
+        private final TransformDirection direction;
 
         public ParameterizedOptimizerRule() {
-            this(OptimizerRules.TransformDirection.DOWN);
+            this(TransformDirection.DOWN);
         }
 
-        protected ParameterizedOptimizerRule(OptimizerRules.TransformDirection direction) {
+        protected ParameterizedOptimizerRule(TransformDirection direction) {
             this.direction = direction;
         }
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan, P context) {
-            return direction == OptimizerRules.TransformDirection.DOWN
+            return direction == TransformDirection.DOWN
                 ? plan.transformDown(typeToken(), t -> rule(t, context))
                 : plan.transformUp(typeToken(), t -> rule(t, context));
         }
@@ -429,19 +430,19 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     public abstract static class OptimizerRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
 
-        private final OptimizerRules.TransformDirection direction;
+        private final TransformDirection direction;
 
         public OptimizerRule() {
-            this(OptimizerRules.TransformDirection.DOWN);
+            this(TransformDirection.DOWN);
         }
 
-        protected OptimizerRule(OptimizerRules.TransformDirection direction) {
+        protected OptimizerRule(TransformDirection direction) {
             this.direction = direction;
         }
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return direction == OptimizerRules.TransformDirection.DOWN
+            return direction == TransformDirection.DOWN
                 ? plan.transformDown(typeToken(), this::rule)
                 : plan.transformUp(typeToken(), this::rule);
         }
@@ -451,19 +452,19 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
 
     public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<PhysicalPlan, PhysicalPlan> {
 
-        private final OptimizerRules.TransformDirection direction;
+        private final TransformDirection direction;
         // overriding type token which returns the correct class but does an uncheck cast to LogicalPlan due to its generic bound
         // a proper solution is to wrap the Expression rule into a Plan rule but that would affect the rule declaration
         // so instead this is hacked here
         private final Class<E> expressionTypeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
 
-        public OptimizerExpressionRule(OptimizerRules.TransformDirection direction) {
+        public OptimizerExpressionRule(TransformDirection direction) {
             this.direction = direction;
         }
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return direction == OptimizerRules.TransformDirection.DOWN
+            return direction == TransformDirection.DOWN
                 ? plan.transformExpressionsDown(expressionTypeToken, this::rule)
                 : plan.transformExpressionsUp(expressionTypeToken, this::rule);
         }
@@ -579,62 +580,20 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     }
 
     /**
-     * Splits the given physical into two parts: the downstream below the remote exchange, to be executed on data nodes
-     * and the upstream above the remote exchange, to be executed on the coordinator node.
-     * TODO: We should have limit, topN on data nodes before returning the result.
+     * Splits the local Exchange into remote sink and source.
+     * Happens at the end to avoid noise.
      */
-    private static class Distributed extends Rule<PhysicalPlan, PhysicalPlan> {
+    private static class LocalExchangeToRemoteSink extends OptimizerRule<ExchangeExec> {
 
-        private static boolean startWithLuceneIndex(PhysicalPlan plan) {
-            var foundLucene = new Holder<>(FALSE);
-            plan.forEachUp(p -> {
-                if (p instanceof EsQueryExec) {
-                    foundLucene.set(TRUE);
-                }
-            });
-            return foundLucene.get();
+        protected LocalExchangeToRemoteSink() {
+            super(TransformDirection.UP);
         }
 
         @Override
-        public PhysicalPlan apply(PhysicalPlan plan) {
-            if (startWithLuceneIndex(plan) == false) {
-                return plan;
-            }
-            var delimiter = new Holder<PhysicalPlan>();
-            var foundLimit = new Holder<>(FALSE);
-            plan.forEachUp(p -> {
-                if (p instanceof TopNExec || p instanceof LimitExec || p instanceof OrderExec) {
-                    foundLimit.set(TRUE);
-                }
-                // aggregation partial from limit must be executed after the final topN
-                if (p instanceof EsQueryExec
-                    || p instanceof FieldExtractExec
-                    || (p instanceof AggregateExec agg && agg.getMode() == Mode.PARTIAL && foundLimit.get() == FALSE)) {
-                    delimiter.set(p);
-                }
-                // execute as much as possible on data nodes to minimize network traffic and achieve higher concurrent execution
-                if (p instanceof ExchangeExec e && delimiter.get() != null) {
-                    assert e.mode() == ExchangeExec.Mode.LOCAL;
-                    delimiter.set(e);
-                }
-            });
-            plan = plan.transformDown(PhysicalPlan.class, p -> {
-                if (p == delimiter.get()) {
-                    delimiter.set(null);
-                    if (p instanceof ExchangeExec e) {
-                        p = addRemoteExchange(e.child());
-                    } else {
-                        p = addRemoteExchange(p);
-                    }
-                }
-                return p;
-            });
-            return plan;
-        }
-
-        private static ExchangeExec addRemoteExchange(PhysicalPlan p) {
-            var remoteSink = new ExchangeExec(p.source(), p, ExchangeExec.Mode.REMOTE_SINK);
-            return new ExchangeExec(p.source(), remoteSink, ExchangeExec.Mode.REMOTE_SOURCE);
+        protected PhysicalPlan rule(ExchangeExec exchange) {
+            var source = exchange.source();
+            var remoteSink = new ExchangeExec(source, exchange.child(), ExchangeExec.Mode.REMOTE_SINK);
+            return new ExchangeExec(source, remoteSink, ExchangeExec.Mode.REMOTE_SOURCE);
         }
     }
 }

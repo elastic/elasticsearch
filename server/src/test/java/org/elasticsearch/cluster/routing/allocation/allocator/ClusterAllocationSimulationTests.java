@@ -298,7 +298,6 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var initializingPrimaries = allocationService.executeWithRoutingAllocation(
             unassignedClusterState,
             "initialize-primaries",
-            true,
             routingAllocation -> {
                 final var routingNodes = routingAllocation.routingNodes();
                 final var nodeIds = routingNodes.stream().map(RoutingNode::nodeId).toArray(String[]::new);
@@ -317,7 +316,6 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
         final var initializingReplicas = allocationService.executeWithRoutingAllocation(
             startedPrimaries,
             "initialize-replicas",
-            true,
             routingAllocation -> {
                 final var routingNodes = routingAllocation.routingNodes();
                 final var nodeIds = routingNodes.stream().map(RoutingNode::nodeId).toArray(String[]::new);
@@ -491,7 +489,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             (clusterState, routingAllocationAction) -> strategyRef.get()
-                .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", true, routingAllocationAction)
+                .executeWithRoutingAllocation(clusterState, "reconcile-desired-balance", routingAllocationAction)
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {

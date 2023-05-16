@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RoutingAllocationAction;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -36,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 /**
  * A {@link ShardsAllocator} which asynchronously refreshes the desired balance held by the {@link DesiredBalanceComputer} and then takes
@@ -70,7 +70,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
-        ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction);
+        ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction);
     }
 
     public DesiredBalanceShardsAllocator(
@@ -242,6 +242,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
+    private RoutingAllocationAction createReconcileAllocationAction(DesiredBalance desiredBalance) {
+        return new RoutingAllocationAction() {
+            @Override
+            public boolean removeDelayMarkers() {
+                return false;
+            }
+
+            @Override
+            public void execute(RoutingAllocation routingAllocation) {
+                reconcile(desiredBalance, routingAllocation);
+            }
+        };
+    }
+
     public DesiredBalance getDesiredBalance() {
         return currentDesiredBalance;
     }
@@ -312,7 +326,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             try (var ignored = batchExecutionContext.dropHeadersContext()) {
                 var newState = reconciler.apply(
                     batchExecutionContext.initialState(),
-                    routingAllocation -> reconcile(latest.getTask().desiredBalance, routingAllocation)
+                    createReconcileAllocationAction(latest.getTask().desiredBalance)
                 );
                 latest.success(() -> queue.complete(latest.getTask().desiredBalance.lastConvergedIndex()));
                 return newState;

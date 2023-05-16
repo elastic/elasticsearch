@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RoutingAllocationAction;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -144,8 +145,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", true, routingAllocationAction);
+            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
 
@@ -247,9 +248,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var reconciledStateRef = new AtomicReference<ClusterState>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
                 ClusterState reconciled = allocationServiceRef.get()
-                    .executeWithRoutingAllocation(clusterState, "reconcile", false, routingAllocationAction);
+                    .executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
                 reconciledStateRef.set(reconciled);
                 return reconciled;
             }
@@ -323,9 +324,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
                 reconciliations.incrementAndGet();
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", true, routingAllocationAction);
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
 
@@ -425,8 +426,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, Consumer<RoutingAllocation> routingAllocationAction) {
-                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", true, routingAllocationAction);
+            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
 

@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -253,7 +252,6 @@ public class AllocationService {
 
         reroute(
             allocation,
-            true,
             routingAllocation -> shardsAllocator.allocate(
                 routingAllocation,
                 rerouteCompletionIsNotRequired() /* this is not triggered by a user request */
@@ -409,7 +407,7 @@ public class AllocationService {
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         if (dryRun == false) {
-            reroute(allocation, true, routingAllocation -> shardsAllocator.allocate(routingAllocation, reroute));
+            reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, reroute));
         } else {
             reroute.onResponse(null);
         }
@@ -430,7 +428,6 @@ public class AllocationService {
         return executeWithRoutingAllocation(
             clusterState,
             reason,
-            true,
             routingAllocation -> shardsAllocator.allocate(routingAllocation, listener)
         );
     }
@@ -448,16 +445,24 @@ public class AllocationService {
     public ClusterState executeWithRoutingAllocation(
         ClusterState clusterState,
         String reason,
-        boolean removeDelayMarkers,
-        Consumer<RoutingAllocation> routingAllocationConsumer
+        RoutingAllocationAction routingAllocationAction
     ) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
         RoutingAllocation allocation = createRoutingAllocation(fixedClusterState, currentNanoTime());
-        reroute(allocation, removeDelayMarkers, routingAllocationConsumer);
+        reroute(allocation, routingAllocationAction);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
         }
         return buildResultAndLogHealthChange(clusterState, allocation, reason);
+    }
+
+    @FunctionalInterface
+    public interface RoutingAllocationAction {
+        default boolean removeDelayMarkers() {
+            return true;
+        }
+
+        void execute(RoutingAllocation routingAllocation);
     }
 
     private static void logClusterHealthStateChange(final ClusterState previousState, final ClusterState newState, String reason) {
@@ -518,16 +523,16 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, boolean removeDelayMarkers, Consumer<RoutingAllocation> routingAllocationConsumer) {
+    private void reroute(RoutingAllocation allocation, RoutingAllocationAction routingAllocationAction) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
         assert assertInitialized();
-        if (removeDelayMarkers) {
+        if (routingAllocationAction.removeDelayMarkers()) {
             removeDelayMarkers(allocation);
         }
         allocateExistingUnassignedShards(allocation); // try to allocate existing shard copies first
-        routingAllocationConsumer.accept(allocation);
+        routingAllocationAction.execute(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 

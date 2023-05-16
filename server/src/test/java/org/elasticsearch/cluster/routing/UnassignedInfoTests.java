@@ -215,7 +215,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         // cluster state 1: perhaps start one of the shards relocating
         final var clusterState1 = randomBoolean()
             ? clusterState0
-            : allocationService.executeWithRoutingAllocation(clusterState0, "test", true, routingAllocation -> {
+            : allocationService.executeWithRoutingAllocation(clusterState0, "test", routingAllocation -> {
                 final var indexShardRoutingTable = routingAllocation.routingTable().index("test").shard(0);
                 for (DiscoveryNode node : routingAllocation.nodes()) {
                     if (routingAllocation.routingNodes().node(node.getId()).getByShardId(indexShardRoutingTable.shardId()) == null) {

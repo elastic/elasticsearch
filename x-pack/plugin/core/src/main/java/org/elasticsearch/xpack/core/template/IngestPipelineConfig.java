@@ -49,7 +49,7 @@ public class IngestPipelineConfig {
         return versionProperty;
     }
 
-    public List<String> getDependencies() {
+    public List<String> getPipelineDependencies() {
         return dependencies;
     }
 

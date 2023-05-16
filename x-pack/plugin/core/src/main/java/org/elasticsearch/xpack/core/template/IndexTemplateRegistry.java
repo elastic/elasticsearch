@@ -562,7 +562,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             );
 
             if (creationCheck.compareAndSet(false, true)) {
-                List<String> pipelineDependencies = requiredPipeline.getDependencies();
+                List<String> pipelineDependencies = requiredPipeline.getPipelineDependencies();
                 if (pipelineDependencies != null && pipelineDependenciesExist(state, pipelineDependencies) == false) {
                     creationCheck.set(false);
                     logger.trace(

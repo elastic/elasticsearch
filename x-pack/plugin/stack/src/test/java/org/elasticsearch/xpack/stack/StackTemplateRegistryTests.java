@@ -232,7 +232,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                     Long.valueOf(
                         registry.getIngestPipelines()
                             .stream()
-                            .filter(ingestPipelineConfig -> ingestPipelineConfig.getDependencies().isEmpty())
+                            .filter(ingestPipelineConfig -> ingestPipelineConfig.getPipelineDependencies().isEmpty())
                             .count()
                     ).intValue()
                 )

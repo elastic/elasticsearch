@@ -4,8 +4,9 @@
 <titleabbrev>Text expansion</titleabbrev>
 ++++
 
-Uses a {nlp} model to convert the query text into a list of token-weight pairs 
-which are then used in a query against a <<rank-features,rank features field>>.
+The text expansion query uses a {nlp} model to convert the query text into a 
+list of token-weight pairs which are then used in a query against a 
+<<rank-features,rank features field>>.
 
 [discrete]
 [[text-expansion-query-ex-request]]
@@ -50,7 +51,9 @@ based on the input text.
 =====
 `model_id`::::
 (Required, string)
-The ID of the same model that created the tokens from the input text.
+The ID of the model to use to convert the query text into token-weight pairs. It 
+must be the same model ID that was used to create the tokens from the input 
+text.
 
 `model_text`::::
 (Required, string)

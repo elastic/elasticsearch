@@ -328,6 +328,19 @@ GET /_xpack/usage
     "data_streams" : 0,
     "indices_count" : 0
   },
+  "data_lifecycle" : {
+    "available": true,
+    "enabled": true,
+    "lifecycle": {
+        "count": 0,
+        "rollover_config": "{\"max_age\":\"30s\",\"min_docs\":1,\"max_primary_shard_docs\":200000000,\"max_primary_shard_size\":\"50gb\"}",
+        "retention": {
+            "minimum_millis": 0,
+            "maximum_millis": 0,
+            "average_millis": 0.0
+        }
+    }
+  },
   "data_tiers" : {
     "available" : true,
     "enabled" : true,

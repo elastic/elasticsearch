@@ -61,7 +61,7 @@ public class XPackUsageIT extends ESRestTestCase {
         throws Exception {
         Response response = client().performRequest(new Request("GET", "/_xpack/usage"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
-        Map<String, ?> responseMap = toMap(response);
+        Map<String, ?> responseMap = entityAsMap(response);
         Map<String, ?> dataLifecycleMap = (Map<String, ?>) responseMap.get("data_lifecycle");
         assertThat(dataLifecycleMap.get("available"), equalTo(true));
         assertThat(dataLifecycleMap.get("enabled"), equalTo(true));
@@ -128,9 +128,5 @@ public class XPackUsageIT extends ESRestTestCase {
 
     private void deleteDataStream(String name) throws Exception {
         client().performRequest(new Request("DELETE", "_data_stream/" + name));
-    }
-
-    protected static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
     }
 }

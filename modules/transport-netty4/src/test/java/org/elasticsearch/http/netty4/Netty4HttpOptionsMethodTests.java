@@ -43,6 +43,9 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+/**
+ * Tests {@link Netty4HttpOptionsMethodChannelInboundHandler}.
+ */
 public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTestCase {
 
     private NetworkService networkService;

@@ -77,7 +77,7 @@ public final class DocumentParser {
             // IOException from jackson, we don't have any useful location information here
             throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
-        assert context.path.atRoot() : "found leftover path elements: " + context.path.pathAsText("");
+        assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
         return new ParsedDocument(
             context.version(),
@@ -767,7 +767,13 @@ public final class DocumentParser {
             SourceToParse source,
             XContentParser parser
         ) throws IOException {
-            super(mappingLookup, mappingParserContext, source);
+            super(
+                mappingLookup,
+                mappingParserContext,
+                source,
+                mappingLookup.getMapping().getRoot(),
+                ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+            );
             if (mappingLookup.getMapping().getRoot().subobjects()) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {

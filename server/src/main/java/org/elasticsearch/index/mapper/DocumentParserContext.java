@@ -79,8 +79,6 @@ public abstract class DocumentParserContext {
         }
     }
 
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
@@ -96,47 +94,88 @@ public abstract class DocumentParserContext {
     private Field version;
     private SeqNoFieldMapper.SequenceIDFields seqID;
 
-    private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
-        this.mappingLookup = in.mappingLookup;
-        this.indexSettings = in.indexSettings;
-        this.indexAnalyzers = in.indexAnalyzers;
-        this.mappingParserContext = in.mappingParserContext;
-        this.sourceToParse = in.sourceToParse;
-        this.ignoredFields = in.ignoredFields;
-        this.dynamicMappers = in.dynamicMappers;
-        this.newFieldsSeen = in.newFieldsSeen;
-        this.dynamicObjectMappers = in.dynamicObjectMappers;
-        this.dynamicRuntimeFields = in.dynamicRuntimeFields;
-        this.id = in.id;
-        this.version = in.version;
-        this.seqID = in.seqID;
-        this.dimensions = in.dimensions;
+    private DocumentParserContext(
+        MappingLookup mappingLookup,
+        MappingParserContext mappingParserContext,
+        SourceToParse sourceToParse,
+        Set<String> ignoreFields,
+        List<Mapper> dynamicMappers,
+        Set<String> newFieldsSeen,
+        Map<String, ObjectMapper> dynamicObjectMappers,
+        List<RuntimeField> dynamicRuntimeFields,
+        String id,
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        DocumentDimensions dimensions,
+        ObjectMapper parent,
+        ObjectMapper.Dynamic dynamic
+    ) {
+        this.mappingLookup = mappingLookup;
+        this.mappingParserContext = mappingParserContext;
+        this.sourceToParse = sourceToParse;
+        this.ignoredFields = ignoreFields;
+        this.dynamicMappers = dynamicMappers;
+        this.newFieldsSeen = newFieldsSeen;
+        this.dynamicObjectMappers = dynamicObjectMappers;
+        this.dynamicRuntimeFields = dynamicRuntimeFields;
+        this.id = id;
+        this.version = version;
+        this.seqID = seqID;
+        this.dimensions = dimensions;
         this.parent = parent;
         this.dynamic = dynamic;
     }
 
-    protected DocumentParserContext(MappingLookup mappingLookup, MappingParserContext mappingParserContext, SourceToParse source) {
-        this.mappingLookup = mappingLookup;
-        this.indexSettings = mappingParserContext.getIndexSettings();
-        this.indexAnalyzers = mappingParserContext.getIndexAnalyzers();
-        this.mappingParserContext = mappingParserContext;
-        this.sourceToParse = source;
-        this.ignoredFields = new HashSet<>();
-        this.dynamicMappers = new ArrayList<>();
-        this.newFieldsSeen = new HashSet<>();
-        this.dynamicObjectMappers = new HashMap<>();
-        this.dynamicRuntimeFields = new ArrayList<>();
-        this.dimensions = this.indexSettings.getMode().buildDocumentDimensions(this.indexSettings);
-        this.parent = mappingLookup.getMapping().getRoot();
-        this.dynamic = parent.dynamic == null ? ObjectMapper.Dynamic.TRUE : parent.dynamic;
+    private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
+        this(
+            in.mappingLookup,
+            in.mappingParserContext,
+            in.sourceToParse,
+            in.ignoredFields,
+            in.dynamicMappers,
+            in.newFieldsSeen,
+            in.dynamicObjectMappers,
+            in.dynamicRuntimeFields,
+            in.id,
+            in.version,
+            in.seqID,
+            in.dimensions,
+            parent,
+            dynamic
+        );
+    }
+
+    protected DocumentParserContext(
+        MappingLookup mappingLookup,
+        MappingParserContext mappingParserContext,
+        SourceToParse source,
+        ObjectMapper parent,
+        ObjectMapper.Dynamic dynamic
+    ) {
+        this(
+            mappingLookup,
+            mappingParserContext,
+            source,
+            new HashSet<>(),
+            new ArrayList<>(),
+            new HashSet<>(),
+            new HashMap<>(),
+            new ArrayList<>(),
+            null,
+            null,
+            null,
+            DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            parent,
+            dynamic
+        );
     }
 
     public final IndexSettings indexSettings() {
-        return indexSettings;
+        return mappingParserContext.getIndexSettings();
     }
 
     public final IndexAnalyzers indexAnalyzers() {
-        return indexAnalyzers;
+        return mappingParserContext.getIndexAnalyzers();
     }
 
     public final RootObjectMapper root() {
@@ -324,7 +363,7 @@ public abstract class DocumentParserContext {
      * @return a RootObjectMapper.Builder to be used to construct a dynamic mapping update
      */
     public final RootObjectMapper.Builder updateRoot() {
-        return mappingLookup.getMapping().getRoot().newBuilder(indexSettings.getIndexVersionCreated());
+        return mappingLookup.getMapping().getRoot().newBuilder(mappingParserContext.getIndexSettings().getIndexVersionCreated());
     }
 
     public boolean isWithinCopyTo() {

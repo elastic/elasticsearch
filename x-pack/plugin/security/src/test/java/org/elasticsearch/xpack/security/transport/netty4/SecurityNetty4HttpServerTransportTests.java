@@ -527,7 +527,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     public void testMalformedRequestDispatchedNoAuthn() throws Exception {
         assumeTrue(
             "This test doesn't work correctly under turkish-like locale, because it uses String#toUpper() for asserted error messages",
-            !isTurkishLocale()
+            isTurkishLocale() == false
         );
         final AtomicReference<Throwable> dispatchThrowableReference = new AtomicReference<>();
         final AtomicInteger authnInvocationCount = new AtomicInteger();

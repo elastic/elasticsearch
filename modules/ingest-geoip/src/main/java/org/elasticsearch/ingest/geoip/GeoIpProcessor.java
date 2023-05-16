@@ -329,24 +329,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
-                case IP:
-                    geoData.put("ip", NetworkAddress.format(ipAddress));
-                    break;
-                case ASN:
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case ASN -> {
                     if (asn != null) {
                         geoData.put("asn", asn);
                     }
-                    break;
-                case ORGANIZATION_NAME:
+                }
+                case ORGANIZATION_NAME -> {
                     if (organization_name != null) {
                         geoData.put("organization_name", organization_name);
                     }
-                    break;
-                case NETWORK:
+                }
+                case NETWORK -> {
                     if (network != null) {
                         geoData.put("network", network.toString());
                     }
-                    break;
+                }
             }
         }
         return geoData;

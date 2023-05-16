@@ -37,6 +37,8 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray mins;
     DoubleArray maxes;
 
+    // TODO: update with a LongDoubleDoubleDoubleDoubleArray
+
     StatsAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

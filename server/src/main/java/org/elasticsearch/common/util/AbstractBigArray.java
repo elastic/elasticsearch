@@ -19,25 +19,90 @@ import java.util.Arrays;
 /** Common implementation for array lists that slice data into fixed-size blocks. */
 abstract class AbstractBigArray extends AbstractArray {
 
+    /** Arrays whose element size fits perfectly into powers of 2. */
+    abstract static class PowerOfTwoAbstractBigArray extends AbstractBigArray {
+        private final int pageShift;
+        private final int pageMask;
+
+        private static int checkPageSize(int pageSize) {
+            if (pageSize < 128) {
+                throw new IllegalArgumentException("pageSize must be >= 128");
+            }
+            if ((pageSize & (pageSize - 1)) != 0) {
+                throw new IllegalArgumentException("pageSize must be a power of two");
+            }
+            return pageSize;
+        }
+
+        protected PowerOfTwoAbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
+            super(bigArrays, clearOnResize);
+            checkPageSize(pageSize);
+            this.pageShift = Integer.numberOfTrailingZeros(pageSize);
+            this.pageMask = pageSize - 1;
+        }
+
+        @Override
+        final int numPages(long capacity) {
+            final long numPages = (capacity + pageMask) >>> pageShift;
+            if (numPages > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
+            }
+            return (int) numPages;
+        }
+
+        final int pageSize() {
+            return pageMask + 1;
+        }
+
+        final int pageIndex(long index) {
+            return (int) (index >>> pageShift);
+        }
+
+        final int indexInPage(long index) {
+            return (int) (index & pageMask);
+        }
+    }
+
+    /** Arrays whose element size DOES NOT fit perfectly into powers of 2. */
+    abstract static class NonPowerOfTwoAbstractBigArray extends AbstractBigArray {
+        private final int pageSize;
+
+        protected NonPowerOfTwoAbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
+            super(bigArrays, clearOnResize);
+            this.pageSize = pageSize;
+        }
+
+        @Override
+        final int numPages(long capacity) {
+            final long numPages = (capacity + pageSize - 1) / pageSize;
+            if (numPages > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("pageSize=" + pageSize + " is too small for such as capacity: " + capacity);
+            }
+            return (int) numPages;
+        }
+
+        final int pageSize() {
+            return pageSize;
+        }
+
+        final int pageIndex(long index) {
+            return (int) (index / pageSize);
+        }
+
+        final int indexInPage(long index) {
+            return (int) (index % pageSize);
+        }
+    }
+
     private final PageCacheRecycler recycler;
     private Recycler.V<?>[] cache;
 
-    private final int pageShift;
-    private final int pageMask;
     protected long size;
 
-    protected AbstractBigArray(int pageSize, BigArrays bigArrays, boolean clearOnResize) {
+    protected AbstractBigArray(BigArrays bigArrays, boolean clearOnResize) {
         super(bigArrays, clearOnResize);
-        this.recycler = bigArrays.recycler;
-        if (pageSize < 128) {
-            throw new IllegalArgumentException("pageSize must be >= 128");
-        }
-        if ((pageSize & (pageSize - 1)) != 0) {
-            throw new IllegalArgumentException("pageSize must be a power of two");
-        }
-        this.pageShift = Integer.numberOfTrailingZeros(pageSize);
-        this.pageMask = pageSize - 1;
         size = 0;
+        this.recycler = bigArrays.recycler;
         if (this.recycler != null) {
             cache = new Recycler.V<?>[16];
         } else {
@@ -45,25 +110,13 @@ abstract class AbstractBigArray extends AbstractArray {
         }
     }
 
-    final int numPages(long capacity) {
-        final long numPages = (capacity + pageMask) >>> pageShift;
-        if (numPages > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("pageSize=" + (pageMask + 1) + " is too small for such as capacity: " + capacity);
-        }
-        return (int) numPages;
-    }
+    abstract int numPages(long capacity);
 
-    final int pageSize() {
-        return pageMask + 1;
-    }
+    abstract int pageSize();
 
-    final int pageIndex(long index) {
-        return (int) (index >>> pageShift);
-    }
+    abstract int pageIndex(long index);
 
-    final int indexInPage(long index) {
-        return (int) (index & pageMask);
-    }
+    abstract int indexInPage(long index);
 
     @Override
     public final long size() {

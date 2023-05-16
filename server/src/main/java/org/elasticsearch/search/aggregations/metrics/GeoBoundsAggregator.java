@@ -38,6 +38,8 @@ final class GeoBoundsAggregator extends MetricsAggregator {
     DoubleArray negLefts;
     DoubleArray negRights;
 
+    // TODO: update with a DoubleDoubleDoubleDoubleDoubleDoubleArray
+
     GeoBoundsAggregator(
         String name,
         AggregationContext context,

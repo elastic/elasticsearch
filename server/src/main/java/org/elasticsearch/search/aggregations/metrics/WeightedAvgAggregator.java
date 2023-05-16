@@ -35,6 +35,8 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray valueSums;
     private DoubleArray valueCompensations;
     private DoubleArray weightCompensations;
+
+    // TODO: update with a DoubleDoubleDoubleDoubleArray
     private DocValueFormat format;
 
     WeightedAvgAggregator(

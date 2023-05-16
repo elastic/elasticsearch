@@ -29,7 +29,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -39,10 +38,16 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
         var idxMd1 = randomIndexMetadata();
         var idxMd2 = randomIndexMetadata();
         var idxMd3 = randomIndexMetadata();
-        var mockedRuleEvaluator = mock(IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator.class);
+        var stagnatingIndices = List.of(idxMd1.indexName, idxMd3.indexName);
         var mockedTimeSupplier = mock(LongSupplier.class);
+        var ruleEvaluator = new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(
+            List.of(state -> (stagnatingIndices.contains(state.indexName())))
+        );
+        var instant = (long) randomIntBetween(100000, 200000);
+        // Per the evaluator, the timeSupplier _must_ be called only twice
+        when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
         var finder = createStagnatingIndicesFinder(
-            mockedRuleEvaluator,
+            ruleEvaluator,
             mockedTimeSupplier,
             idxMetadataUnmanaged(randomAlphaOfLength(10)),                     // non-managed by ILM
             idxMetadata(idxMd1.indexName, idxMd1.policyName, idxMd1.ilmState), // should be stagnated
@@ -51,17 +56,11 @@ public class StagnatingIndicesFinderTests extends ESTestCase {
             idxMetadataUnmanaged(randomAlphaOfLength(10))                      // non-managed by ILM
         );
 
-        var instant = (long) randomIntBetween(100000, 200000);
+        var foundIndices = finder.find();
 
-        when(mockedRuleEvaluator.isStagnated(any())).thenReturn(true, false, true);
-        // Per the evaluator, the timeSupplier _must_ be called only twice
-        when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
-
-        var stagnatingIndices = finder.find();
-
-        assertThat(stagnatingIndices, hasSize(2));
+        assertThat(foundIndices, hasSize(2));
         assertThat(
-            stagnatingIndices,
+            foundIndices,
             containsInAnyOrder(
                 new IlmHealthIndicatorService.IndexIlmState(
                     idxMd1.indexName,

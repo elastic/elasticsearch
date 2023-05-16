@@ -62,7 +62,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         ensureGreen();
 
         final List<String> indicesToClose = randomSubsetOf(Arrays.asList("test1", "test2"));
-        indicesToClose.forEach(indexToClose -> assertAcked(client().admin().indices().prepareClose(indexToClose).get()));
+        indicesToClose.forEach(indexToClose -> assertAcked(indicesAdmin().prepareClose(indexToClose).get()));
 
         logger.info("--> starting 1 node on a different rack");
         final String node3 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_2").build());
@@ -120,7 +120,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         createIndex("test", 5, 1);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         logger.info("--> waiting for shards to be allocated");
@@ -159,7 +159,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         createIndex("test", 5, 1);
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         ClusterHealthResponse health = clusterAdmin().prepareHealth()

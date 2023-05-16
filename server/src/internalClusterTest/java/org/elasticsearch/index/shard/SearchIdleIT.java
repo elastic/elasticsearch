@@ -9,9 +9,13 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -21,9 +25,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntToLongFunction;
 
@@ -127,6 +133,12 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         }
         indexingDone.await();
         t.join();
+        final IndicesStatsResponse statsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        for (ShardStats shardStats : statsResponse.getShards()) {
+            if (randomTimeValue != null && shardStats.isSearchIdle()) {
+                assertTrue(shardStats.getSearchIdleTime() >= randomTimeValue.millis());
+            }
+        }
     }
 
     public void testPendingRefreshWithIntervalChange() throws Exception {
@@ -167,6 +179,12 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
+        final IndicesStatsResponse statsResponse = client().admin().indices().stats(new IndicesStatsRequest()).actionGet();
+        for (ShardStats shardStats : statsResponse.getShards()) {
+            if (shardStats.isSearchIdle()) {
+                assertTrue(shardStats.getSearchIdleTime() >= TimeValue.ZERO.millis());
+            }
+        }
     }
 
     private void ensureNoPendingScheduledRefresh(ThreadPool threadPool) {
@@ -180,6 +198,29 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             refreshThreadPoolExecutor.execute(barrier::arriveAndAwaitAdvance);
         }
         barrier.arriveAndAwaitAdvance();
+    }
+
+    public void testSearchIdleStats() throws InterruptedException {
+        int searchIdleAfter = randomIntBetween(2, 5);
+        final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), searchIdleAfter + "s")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(2, 7))
+            )
+            .get();
+        waitUntil(
+            () -> Arrays.stream(client().admin().indices().prepareStats(indexName).get().getShards()).allMatch(ShardStats::isSearchIdle),
+            searchIdleAfter,
+            TimeUnit.SECONDS
+        );
+
+        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats(indexName).get();
+        assertTrue(Arrays.stream(statsResponse.getShards()).allMatch(ShardStats::isSearchIdle));
+        assertTrue(Arrays.stream(statsResponse.getShards()).allMatch(x -> x.getSearchIdleTime() >= searchIdleAfter));
     }
 
 }

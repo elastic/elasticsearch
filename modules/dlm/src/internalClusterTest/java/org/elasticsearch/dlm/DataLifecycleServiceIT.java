@@ -381,6 +381,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             .count();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96070")
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();

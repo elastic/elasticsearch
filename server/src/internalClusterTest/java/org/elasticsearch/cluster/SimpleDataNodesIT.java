@@ -83,13 +83,10 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testShardsAllocatedAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());
-        client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .waitForActiveShards(ActiveShardCount.NONE)
-            )
-            .actionGet();
+        indicesAdmin().create(
+            new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .waitForActiveShards(ActiveShardCount.NONE)
+        ).actionGet();
         final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()
@@ -114,13 +111,10 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
 
     public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
         internalCluster().startNode(nonDataNode());
-        client().admin()
-            .indices()
-            .create(
-                new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
-                    .waitForActiveShards(ActiveShardCount.NONE)
-            )
-            .actionGet();
+        indicesAdmin().create(
+            new CreateIndexRequest("test").settings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+                .waitForActiveShards(ActiveShardCount.NONE)
+        ).actionGet();
         final ClusterHealthResponse healthResponse1 = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .execute()

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +41,12 @@ public class MaxDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
-        double max = input.stream().flatMapToDouble(p -> allDoubles(p, group)).max().getAsDouble();
-        assertThat(((DoubleBlock) result).getDouble(position), equalTo(max));
+        OptionalDouble max = input.stream().flatMapToDouble(p -> allDoubles(p, group)).max();
+        if (max.isEmpty()) {
+            assertThat(result.isNull(position), equalTo(true));
+            return;
+        }
+        assertThat(result.isNull(position), equalTo(false));
+        assertThat(((DoubleBlock) result).getDouble(position), equalTo(max.getAsDouble()));
     }
 }

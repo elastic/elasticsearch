@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AvgLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
@@ -42,6 +43,11 @@ public class AvgLongGroupingAggregatorFunctionTests extends GroupingAggregatorFu
     public void assertSimpleGroup(List<Page> input, Block result, int position, long group) {
         double sum = input.stream().flatMapToLong(p -> allLongs(p, group)).sum();
         long count = input.stream().flatMapToLong(p -> allLongs(p, group)).count();
+        if (count == 0) {
+            // If all values are null we'll have a count of 0. So we'll be null.
+            assertThat(result.isNull(position), equalTo(true));
+            return;
+        }
         assertThat(((DoubleBlock) result).getDouble(position), closeTo(sum / count, 0.001));
     }
 }

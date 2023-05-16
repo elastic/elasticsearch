@@ -17,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -199,8 +200,8 @@ public class SequenceMatcher {
         return matched;
     }
 
-    private boolean exceedsMaxSpan(Sequence sequence, Ordinal ordinal) {
-        return maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos;
+    protected boolean exceedsMaxSpan(Timestamp from, Timestamp to) {
+        return maxSpanInNanos > 0 && to.delta(from) > maxSpanInNanos;
     }
 
     private boolean tailLimitReached() {
@@ -240,7 +241,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (exceedsMaxSpan(sequence, ordinal)) {
+        if (exceedsMaxSpan(sequence.startOrdinal().timestamp(), ordinal.timestamp())) {
             stats.rejectionMaxspan++;
             return;
         }

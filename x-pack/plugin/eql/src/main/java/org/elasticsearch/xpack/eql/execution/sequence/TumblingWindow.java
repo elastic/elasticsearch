@@ -14,20 +14,13 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
@@ -44,7 +37,6 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -56,6 +48,7 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.eql.execution.ExecutionUtils.copySource;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.addFilter;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
@@ -76,9 +69,6 @@ import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
  */
 public class TumblingWindow implements Executable {
 
-    private static NamedWriteableRegistry registry = new NamedWriteableRegistry(
-        new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()
-    );
     private static final int CACHE_MAX_SIZE = 64;
 
     /**
@@ -86,7 +76,7 @@ public class TumblingWindow implements Executable {
      * This is the max number of sequences that are checked with a single multi-query.
      * If more sequences have to be checked, then multiple multi-queries are executed.
      */
-    private static final int MAX_SEQUENCES_TO_CHECK_FOR_MISSING = 1000;
+    private static final int MISSING_EVENTS_SEQUENCES_CHECK_BATCH_SIZE = 1000;
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -222,7 +212,7 @@ public class TumblingWindow implements Executable {
             Iterator<Sequence> iterator = sequencesToCheck.iterator();
             List<Sequence> batchToCheck = new ArrayList<>();
 
-            for (int i = 0; i < MAX_SEQUENCES_TO_CHECK_FOR_MISSING && iterator.hasNext(); i++) {
+            for (int i = 0; i < MISSING_EVENTS_SEQUENCES_CHECK_BATCH_SIZE && iterator.hasNext(); i++) {
                 batchToCheck.add(iterator.next());
                 iterator.remove();
             }
@@ -253,13 +243,17 @@ public class TumblingWindow implements Executable {
                             continue;
                         }
                         Timestamp hitTimestamp = criterion.timestamp(hits[0]);
-                        lastLeading = lastLeading == null || lastLeading.delta(hitTimestamp) < 0 ? hitTimestamp : lastLeading;
+                        lastLeading = lastLeading == null || lastLeading.instant().compareTo(hitTimestamp.instant()) < 0
+                            ? hitTimestamp
+                            : lastLeading;
                     } else if (trailing(i)) {
                         if (hits.length == 0) {
                             continue;
                         }
                         Timestamp hitTimestamp = criterion.timestamp(hits[0]);
-                        firstTrailing = firstTrailing == null || firstTrailing.delta(hitTimestamp) > 0 ? hitTimestamp : firstTrailing;
+                        firstTrailing = firstTrailing == null || firstTrailing.instant().compareTo(hitTimestamp.instant()) > 0
+                            ? hitTimestamp
+                            : firstTrailing;
                     } else {
                         if (hits.length > 0) {
                             discarded = true;
@@ -294,7 +288,7 @@ public class TumblingWindow implements Executable {
         if (from == null || to == null) {
             return true;
         }
-        return to.instant().toEpochMilli() - from.instant().toEpochMilli() >= matcher.maxSpanInNanos() / 1_000_000;
+        return matcher.exceedsMaxSpan(from, to);
     }
 
     private List<SearchRequest> prepareQueryForMissingEvents(List<Sequence> toCheck) {
@@ -344,20 +338,6 @@ public class TumblingWindow implements Executable {
 
     private boolean trailing(int i) {
         return matcher.nextPositiveStage(i - 1) < 0;
-    }
-
-    /*
-     * Not a great way of getting a copy of a SearchSourceBuilder
-     */
-    private static SearchSourceBuilder copySource(SearchSourceBuilder source) {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            source.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
-                return new SearchSourceBuilder(in);
-            }
-        } catch (IOException e) {
-            throw new EqlIllegalArgumentException("Error copying search source", e);
-        }
     }
 
     private void advance(int stage, ActionListener<Payload> listener) {
@@ -418,7 +398,7 @@ public class TumblingWindow implements Executable {
         } else {
             info = null;
             // this covers the case where there is only one positive criterion and all the others are missing events
-            if (baseStage == matcher.firstPositiveStage && base.descending()) {
+            if (baseStage == matcher.firstPositiveStage && baseStage == matcher.lastPositiveStage) {
                 payload(listener);
                 return;
             }
@@ -699,9 +679,10 @@ public class TumblingWindow implements Executable {
      * (based on the results of their predecessors).
      */
     private void setupWindowFromTail(Ordinal from) {
-        // TAIL can only be at stage 0
-        // the ASC window starts at stage 1
-        BoxedQueryRequest request = criteria.get(nextPositiveStage(matcher.firstPositiveStage)).queryRequest();
+        // TAIL can only be at the first positive stage
+        // the ASC window starts at next positive stage
+        int secondPositiveStage = nextPositiveStage(matcher.firstPositiveStage);
+        BoxedQueryRequest request = criteria.get(secondPositiveStage).queryRequest();
 
         // check if it hasn't been set before
         if (from.equals(request.from()) == false) {
@@ -713,7 +694,7 @@ public class TumblingWindow implements Executable {
                 until.queryRequest().from(from).nextAfter(from);
             }
             // reset all sub queries
-            for (int i = nextPositiveStage(matcher.firstPositiveStage); i < maxStages; i++) {
+            for (int i = secondPositiveStage + 1; i < maxStages; i++) {
                 BoxedQueryRequest subRequest = criteria.get(i).queryRequest();
                 subRequest.from(null);
             }

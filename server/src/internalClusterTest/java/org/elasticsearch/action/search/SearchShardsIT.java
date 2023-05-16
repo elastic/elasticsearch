@@ -52,7 +52,8 @@ public class SearchShardsIT extends ESIntegTestCase {
                 rangeQuery,
                 null,
                 null,
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             );
             var resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
@@ -79,7 +80,8 @@ public class SearchShardsIT extends ESIntegTestCase {
                 matchAll,
                 null,
                 null,
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             );
             SearchShardsResponse resp = client().execute(SearchShardsAction.INSTANCE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
@@ -120,7 +122,8 @@ public class SearchShardsIT extends ESIntegTestCase {
                 rangeQuery,
                 null,
                 preference,
-                randomBoolean()
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLength(10)
             );
             var searchShardsResponse = client().execute(SearchShardsAction.INSTANCE, searchShardsRequest).actionGet();
 

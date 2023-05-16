@@ -41,7 +41,7 @@ doesn't take the query into account that is part of request.
     suggested. Three possible values can be specified:
 +
      ** `missing`:  Only provide suggestions for suggest text terms that are
-                    not in the index. This is the default.
+                    not in the index (default).
      ** `popular`:  Only suggest suggestions that occur in more docs than
                     the original suggest text term.
      ** `always`:   Suggest any matching suggestions based on terms in the

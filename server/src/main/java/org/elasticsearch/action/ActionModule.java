@@ -229,8 +229,6 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -299,7 +297,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
-import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
@@ -608,7 +605,6 @@ public class ActionModule extends AbstractModule {
         }
         ActionRegistry actions = new ActionRegistry();
 
-        actions.register(MainAction.INSTANCE, TransportMainAction.class);
         actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
         actions.register(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.TransportAction.class);
@@ -798,7 +794,6 @@ public class ActionModule extends AbstractModule {
         };
         registerHandler.accept(new RestAddVotingConfigExclusionAction());
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
-        registerHandler.accept(new RestMainAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesStatsAction());

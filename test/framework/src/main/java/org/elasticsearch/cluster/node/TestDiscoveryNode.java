@@ -9,36 +9,35 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.test.ESTestCase.buildNewFakeTransportAddress;
 
 public class TestDiscoveryNode {
 
     public static DiscoveryNode create(String id) {
-        return new DiscoveryNode(
-            "",
-            id,
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            null
-        );
+        return builder(id).build();
+    }
+
+    public static DiscoveryNode create(String name, String id) {
+        return builder(id).name(name).build();
     }
 
     public static DiscoveryNode create(String id, TransportAddress address) {
-        return new DiscoveryNode("", id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), null);
+        return builder(id).address(address).build();
     }
 
     public static DiscoveryNode create(String id, TransportAddress address, Version version) {
-        return new DiscoveryNode("", id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
+        return builder(id).address(address).version(version).build();
     }
 
     public static DiscoveryNode create(String id, TransportAddress address, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("", id, address, attributes, roles, null);
+        return builder(id).address(address).attributes(attributes).roles(roles).build();
     }
 
     public static DiscoveryNode create(
@@ -48,6 +47,92 @@ public class TestDiscoveryNode {
         Set<DiscoveryNodeRole> roles,
         Version version
     ) {
-        return new DiscoveryNode("", id, address, attributes, roles, version);
+        return builder(id).address(address).attributes(attributes).roles(roles).version(version).build();
+    }
+
+    public static DiscoveryNode create(
+        String nodeName,
+        String nodeId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles
+    ) {
+        return builder(nodeId).name(nodeName).address(address).attributes(attributes).roles(roles).build();
+    }
+
+    public static Builder builder(String id) {
+        return new Builder(id);
+    }
+
+    public static class Builder {
+        private final String id;
+        private String name;
+        private String ephemeralId = UUIDs.randomBase64UUID();
+        private String hostName;
+        private String hostAddress;
+        private TransportAddress address;
+        private Map<String, String> attributes = Map.of();
+        private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
+        private Version version;
+        private String externalId;
+
+        private Builder(String id) {
+            this.id = Objects.requireNonNull(id);
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder ephemeralId(String ephemeralId) {
+            this.ephemeralId = Objects.requireNonNull(ephemeralId);
+            return this;
+        }
+
+        public Builder address(TransportAddress address) {
+            return address(null, null, address);
+        }
+
+        public Builder address(String hostName, String hostAddress, TransportAddress address) {
+            this.hostName = hostName;
+            this.hostAddress = hostAddress;
+            this.address = Objects.requireNonNull(address);
+            return this;
+        }
+
+        public Builder attributes(Map<String, String> attributes) {
+            this.attributes = Objects.requireNonNull(attributes);
+            return this;
+        }
+
+        public Builder roles(Set<DiscoveryNodeRole> roles) {
+            this.roles = Objects.requireNonNull(roles);
+            return this;
+        }
+
+        public Builder version(Version version) {
+            this.version = version;
+            return this;
+        }
+
+        public Builder externalId(String externalId) {
+            this.externalId = externalId;
+            return this;
+        }
+
+        public DiscoveryNode build() {
+            if (address == null) {
+                address = buildNewFakeTransportAddress();
+            }
+            if (hostName == null) {
+                hostName = address.address().getHostString();
+            }
+            if (hostAddress == null) {
+                hostAddress = address.getAddress();
+            }
+
+            return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, version, externalId);
+        }
     }
 }

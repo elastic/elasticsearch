@@ -581,6 +581,32 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testIndexedAllDifferentValues() throws IOException {
+        // Indexing enables testing of ordinal values
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        int docs = randomIntBetween(50, 100);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+
+            for (int i = 0; i < docs; i++) {
+                iw.addDocument(
+                    List.of(
+                        new StringField("str_values", "" + i, Field.Store.NO),
+                        new SortedSetDocValuesField("str_values", new BytesRef("" + i))
+                    )
+                );
+                if (rarely()) {
+                    iw.commit();
+                }
+            }
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(docs, card.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
     public void testUnmappedMissingString() throws IOException {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
@@ -605,23 +631,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
-    }
-
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final AggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
-
-        multiIndexTestCase(aggregationBuilder, new MatchAllDocsQuery(), List.of((unmappedIndexWriter) -> {}, (indexWriter) -> {
-            final int numDocs = 10;
-            for (int i = 0; i < numDocs; i++) {
-                indexWriter.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-            }
-        }), (internalAggregation) -> {
-            InternalCardinality cardinality = (InternalCardinality) internalAggregation;
-            assertEquals(10.0, cardinality.getValue(), 0);
-            assertEquals("cardinality", cardinality.getName());
-            assertTrue(AggregationInspectionHelper.hasValue(cardinality));
-        }, fieldType);
     }
 
     public void testSingleValuedNumericValueScript() throws IOException {

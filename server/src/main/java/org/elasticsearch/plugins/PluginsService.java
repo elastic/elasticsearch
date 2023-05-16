@@ -110,12 +110,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final PluginsAndModules info;
     private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
-    public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
-        "plugin.mandatory",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> MANDATORY_SETTING = Setting.stringListSetting("plugin.mandatory", Property.NodeScope);
 
     /**
      * Constructs a new PluginService

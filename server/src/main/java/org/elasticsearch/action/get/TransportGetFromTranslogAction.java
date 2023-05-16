@@ -166,7 +166,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             if (this == o) return true;
             if (o instanceof Response == false) return false;
             Response other = (Response) o;
-            return Objects.equals(getResult, other.getResult) && segmentGeneration == other.segmentGeneration;
+            return segmentGeneration == other.segmentGeneration && Objects.equals(getResult, other.getResult);
         }
 
         @Override

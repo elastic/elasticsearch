@@ -94,12 +94,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             NAME,
             INDEX_STUCK_IMPACT_ID,
             3,
-            "Some indices have been longer than expected on the same Index Lifecycle Management action.",
-            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+            "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and stability of the indices and/or the cluster could be impacted.",
+            List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
 
-    // TODO fix this value
     public static final TimeValue ONE_DAY = TimeValue.timeValueDays(1);
 
     static final Map<String, RuleConfig> RULES_BY_ACTION_CONFIG = Stream.of(
@@ -206,7 +205,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
         return createIndicator(
             YELLOW,
-            (stuckIndices.size() > 1 ? "Some indices have" : "An index has") + " been stuck on the same action longer than expected.",
+            (stuckIndices.size() > 1 ? stuckIndices.size() + " indices have" : "An index has")
+                + " been stayed on the same action longer than expected.",
             createDetails(verbose, ilmMetadata, currentMode, stuckIndices),
             INDEX_STUCK_IMPACT,
             createDiagnoses(stuckIndices, maxAffectedResourcesCount)

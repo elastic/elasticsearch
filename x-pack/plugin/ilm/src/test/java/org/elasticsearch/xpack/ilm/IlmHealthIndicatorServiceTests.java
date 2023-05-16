@@ -88,7 +88,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
 
         assertEquals(indicatorResult.name(), NAME);
         assertEquals(indicatorResult.status(), YELLOW);
-        assertEquals(indicatorResult.symptom(), "An index has been stuck on the same action longer than expected.");
+        assertEquals(indicatorResult.symptom(), "An index has been stayed on the same action longer than expected.");
         assertEquals(xContentToMap(indicatorResult.details()), Map.of());
         assertThat(indicatorResult.impacts(), hasSize(1));
         assertThat(
@@ -98,8 +98,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     IlmHealthIndicatorService.INDEX_STUCK_IMPACT_ID,
                     3,
-                    "Some indices have been longer than expected on the same Index Lifecycle Management action.",
-                    List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and stability of the indices and/or the cluster could be impacted.",
+                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             )
         );
@@ -124,7 +124,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
 
         assertEquals(indicatorResult.name(), NAME);
         assertEquals(indicatorResult.status(), YELLOW);
-        assertEquals(indicatorResult.symptom(), "An index has been stuck on the same action longer than expected.");
+        assertEquals(indicatorResult.symptom(), "An index has been stayed on the same action longer than expected.");
         var expectedILMSummary = new HashMap<>();
         expectedILMSummary.put("downsample", 0);
         expectedILMSummary.put("allocate", 0);
@@ -148,8 +148,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     IlmHealthIndicatorService.INDEX_STUCK_IMPACT_ID,
                     3,
-                    "Some indices have been longer than expected on the same Index Lifecycle Management action.",
-                    List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and stability of the indices and/or the cluster could be impacted.",
+                    List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             )
         );

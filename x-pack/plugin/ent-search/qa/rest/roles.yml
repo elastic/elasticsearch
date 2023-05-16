@@ -22,15 +22,11 @@ admin:
         "test-re-creating-search-application",
         "test-search-application-to-delete",
         "test-nonexistent-search-application",
-        "test-search-application-with-invalid-template"
+        "test-search-application-with-invalid-template",
+        "test-search-index1",
+        "test-search-index2"
     ]
-      privileges: [ "manage", "read" ]
-    - names: [
-      # indices used for indexing and searching
-      "test-search-index1",
-      "test-search-index2",
-    ]
-      privileges: [ "manage", "read", "write" ]
+      privileges: [ "manage", "write" ]
 
 user:
   cluster:

@@ -192,30 +192,3 @@ teardown:
           params:
             field_name: field3
             field_value: value3
-
----
-"Query Search Application - no read permissions on index":
-  - skip:
-      features: headers
-
-  - do:
-      search_application.put:
-        name: test-search-application
-        body:
-          indices: [ "test-search-index1", "test-search-index2", "test-index" ]
-          analytics_collection_name: "test-analytics"
-          template:
-            script:
-              source:
-                query:
-                  term:
-                    "{{field_name}}": "{{field_value}}"
-              params:
-                field_name: field1
-                field_value: value1
-
-  - do:
-      catch: "forbidden"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
-      search_application.search:
-        name: test-search-application

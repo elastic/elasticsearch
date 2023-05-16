@@ -333,40 +333,6 @@ public class AllocationService {
         }
     }
 
-    private static void removeDelayMarkers(RoutingAllocation allocation) {
-        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
-        final Metadata metadata = allocation.metadata();
-        while (unassignedIterator.hasNext()) {
-            ShardRouting shardRouting = unassignedIterator.next();
-            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
-            if (unassignedInfo.isDelayed()) {
-                final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(
-                    allocation.getCurrentNanoTime(),
-                    metadata.getIndexSafe(shardRouting.index()).getSettings(),
-                    metadata.nodeShutdowns()
-                );
-                if (newComputedLeftDelayNanos == 0) {
-                    unassignedIterator.updateUnassigned(
-                        new UnassignedInfo(
-                            unassignedInfo.getReason(),
-                            unassignedInfo.getMessage(),
-                            unassignedInfo.getFailure(),
-                            unassignedInfo.getNumFailedAllocations(),
-                            unassignedInfo.getUnassignedTimeInNanos(),
-                            unassignedInfo.getUnassignedTimeInMillis(),
-                            false,
-                            unassignedInfo.getLastAllocationStatus(),
-                            unassignedInfo.getFailedNodeIds(),
-                            unassignedInfo.getLastAllocatedNodeId()
-                        ),
-                        shardRouting.recoverySource(),
-                        allocation.changes()
-                    );
-                }
-            }
-        }
-    }
-
     /**
      * Internal helper to cap the number of elements in a potentially long list for logging.
      *

@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: all
-      reason: https://github.com/elastic/elasticsearch/issues/95293
-
   - do:
       indices.create:
         index: test-search-index1
@@ -45,6 +41,14 @@ setup:
               params:
                 field_name: field1
                 field_value: value1
+            dictionary:
+              additionalProperties: false
+              required: [ "field_name" ]
+              properties:
+                field_name:
+                  type: string
+                field_value:
+                  type: string
 
   - do:
       index:
@@ -88,8 +92,13 @@ teardown:
 
 ---
 "Query Search Application with default parameters":
+  - skip:
+      features: headers
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
 
@@ -99,8 +108,13 @@ teardown:
 
 ---
 "Query Search Application overriding part of the parameters":
+  - skip:
+      features: headers
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
         body:
@@ -113,8 +127,13 @@ teardown:
 
 ---
 "Query Search Application overriding all parameters":
+  - skip:
+      features: headers
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
         body:
@@ -127,10 +146,46 @@ teardown:
   - match: { hits.hits.0._id: "doc2" }
 
 ---
-"Query Search Application - not found":
+"Query Search Application with invalid parameter validation":
+  - skip:
+      features: headers
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      catch: "missing"
+      catch: "bad_request"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_name: field3
+            field_value: 35
+
+---
+"Query Search Application without required parameter":
+  - skip:
+      features: headers
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
+
+  - do:
+      catch: "bad_request"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      search_application.search:
+        name: test-search-application
+        body:
+          params:
+            field_value: test
+
+---
+"Query Search Application - not found":
+  - skip:
+      features: headers
+
+  - do:
+      catch: "forbidden"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: nonexisting-test-search-application
         body:
@@ -140,6 +195,8 @@ teardown:
 
 ---
 "Query Search Application - no read permissions on index":
+  - skip:
+      features: headers
 
   - do:
       search_application.put:
@@ -159,5 +216,6 @@ teardown:
 
   - do:
       catch: "forbidden"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application

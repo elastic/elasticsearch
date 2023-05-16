@@ -134,7 +134,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.get;
     exports org.elasticsearch.action.index;
     exports org.elasticsearch.action.ingest;
-    exports org.elasticsearch.action.main;
     exports org.elasticsearch.action.resync;
     exports org.elasticsearch.action.search;
     exports org.elasticsearch.action.support;
@@ -296,6 +295,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins;
     exports org.elasticsearch.plugins.interceptor to org.elasticsearch.security;
     exports org.elasticsearch.plugins.spi;
+    exports org.elasticsearch.plugins.internal to org.elasticsearch.settings.secure;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;

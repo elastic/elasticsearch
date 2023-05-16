@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -88,9 +89,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
         int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);

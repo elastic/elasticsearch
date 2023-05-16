@@ -86,7 +86,7 @@ public class DesiredBalanceComputer {
         final var knownNodeIds = routingAllocation.nodes().stream().map(DiscoveryNode::getId).collect(toSet());
         final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
 
-        if (routingNodes.isEmpty()) {
+        if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
         }
 

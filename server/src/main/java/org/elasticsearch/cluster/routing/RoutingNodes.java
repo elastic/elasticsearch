@@ -24,7 +24,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.AbstractCollection;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +57,7 @@ import java.util.stream.StreamSupport;
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
  */
-public class RoutingNodes extends AbstractCollection<RoutingNode> {
+public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, RoutingNode> nodesToShards;
 
@@ -249,9 +248,17 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         return primary;
     }
 
+    public Set<String> getAllNodeIds() {
+        return Collections.unmodifiableSet(nodesToShards.keySet());
+    }
+
     @Override
     public Iterator<RoutingNode> iterator() {
         return Collections.unmodifiableCollection(nodesToShards.values()).iterator();
+    }
+
+    public Stream<RoutingNode> stream() {
+        return nodesToShards.values().stream();
     }
 
     public Iterator<RoutingNode> mutableIterator() {
@@ -372,17 +379,20 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
-    public boolean allReplicasActive(ShardId shardId, Metadata metadata) {
+    public boolean allShardsActive(ShardId shardId, Metadata metadata) {
         final List<ShardRouting> shards = assignedShards(shardId);
-        if (shards.isEmpty() || shards.size() < metadata.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1) {
+        final int shardCopies = metadata.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+        if (shards.size() < shardCopies) {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }
+        int active = 0;
         for (ShardRouting shard : shards) {
-            if (shard.active() == false) {
-                return false;
+            if (shard.active()) {
+                active++;
             }
         }
-        return true;
+        assert active <= shardCopies;
+        return active == shardCopies;
     }
 
     @Override
@@ -863,7 +873,6 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
     /**
      * Returns the number of routing nodes
      */
-    @Override
     public int size() {
         return nodesToShards.size();
     }

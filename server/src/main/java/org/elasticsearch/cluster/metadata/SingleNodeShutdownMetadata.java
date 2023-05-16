@@ -35,6 +35,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersion.V_7_16_0;
     public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersion.V_8_9_0;
+    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersion.V_8_500_002;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -164,7 +165,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         } else {
             this.targetNodeName = null;
         }
-        if (in.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
+        if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
             this.gracePeriod = in.readOptionalTimeValue();
         } else {
             this.gracePeriod = null;
@@ -251,7 +252,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
             out.writeOptionalString(targetNodeName);
         }
-        if (out.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
+        if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
             out.writeOptionalTimeValue(gracePeriod);
         }
     }

@@ -23,8 +23,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.GRACE_PERIOD_ADDED_VERSION;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.SIGTERM_ADDED_VERSION;
 import static org.elasticsearch.core.Strings.format;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
@@ -105,7 +105,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             } else {
                 this.targetNodeName = null;
             }
-            if (in.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
+            if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
                 this.gracePeriod = in.readOptionalTimeValue();
             } else {
                 this.gracePeriod = null;
@@ -126,7 +126,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
                 out.writeOptionalString(targetNodeName);
             }
-            if (out.getTransportVersion().onOrAfter(SIGTERM_ADDED_VERSION)) {
+            if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
                 out.writeOptionalTimeValue(gracePeriod);
             }
         }

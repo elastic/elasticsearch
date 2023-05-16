@@ -145,6 +145,11 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         EnumSet.noneOf(WildcardStates.class)
     );
 
+    public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
+        EnumSet.of(Option.FORBID_CLOSED_INDICES),
+        EnumSet.noneOf(WildcardStates.class)
+    );
+
     /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
@@ -577,6 +582,13 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
      */
     public static IndicesOptions strictExpandHidden() {
         return STRICT_EXPAND_OPEN_CLOSED_HIDDEN;
+    }
+
+    /**
+     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards.
+     */
+    public static IndicesOptions strictNoExpandForbidClosed() {
+        return STRICT_NO_EXPAND_FORBID_CLOSED;
     }
 
     /**

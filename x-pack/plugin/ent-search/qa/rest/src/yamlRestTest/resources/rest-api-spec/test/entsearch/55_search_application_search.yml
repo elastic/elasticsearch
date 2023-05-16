@@ -172,7 +172,7 @@ teardown:
 "Query Search Application - not found":
 
   - do:
-      catch: "missing"
+      catch: "forbidden"
       search_application.search:
         name: nonexisting-test-search-application
         body:

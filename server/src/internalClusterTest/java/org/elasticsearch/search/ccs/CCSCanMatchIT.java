@@ -17,6 +17,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -112,7 +114,7 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
                 )
                 .setMapping("@timestamp", "type=date", "position", "type=long")
         );
-        int numDocs = between(1, 100);
+        int numDocs = between(100, 500);
         for (int i = 0; i < numDocs; i++) {
             client.prepareIndex(index).setSource("position", i, "@timestamp", timestamp + i).get();
         }
@@ -141,8 +143,10 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
         int oldRemoteNumShards = randomIntBetween(1, 5);
         createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_old_index", oldRemoteNumShards, timestamp - 10_000, true);
 
-        int localDocs = createIndexAndIndexDocs(LOCAL_CLUSTER, "local_new_index", between(1, 5), timestamp, randomBoolean());
-        int remoteDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", between(1, 5), timestamp, randomBoolean());
+        int newLocalNumShards = randomIntBetween(1, 5);
+        int localDocs = createIndexAndIndexDocs(LOCAL_CLUSTER, "local_new_index", newLocalNumShards, timestamp, randomBoolean());
+        int newRemoteNumShards = randomIntBetween(1, 5);
+        int remoteDocs = createIndexAndIndexDocs(REMOTE_CLUSTER, "remote_new_index", newRemoteNumShards, timestamp, randomBoolean());
 
         for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER)) {
             for (TransportService ts : cluster(cluster).getInstances(TransportService.class)) {
@@ -156,6 +160,11 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
                             .toList();
                         assertThat("old indices should be prefiltered on coordinator node", "local_old_index", Matchers.not(in(indices)));
                         assertThat("old indices should be prefiltered on coordinator node", "remote_old_index", Matchers.not(in(indices)));
+                        if (cluster.equals(LOCAL_CLUSTER)) {
+                            DiscoveryNode targetNode = connection.getNode();
+                            DiscoveryNodes remoteNodes = cluster(REMOTE_CLUSTER).clusterService().state().nodes();
+                            assertNull("No can_match requests sent across clusters", remoteNodes.get(targetNode.getId()));
+                        }
                     }
                     connection.sendRequest(requestId, action, request, options);
                 });
@@ -168,6 +177,8 @@ public class CCSCanMatchIT extends AbstractMultiClustersTestCase {
                 request.source(source).setCcsMinimizeRoundtrips(minimizeRoundTrips);
                 SearchResponse searchResp = client().search(request).actionGet();
                 ElasticsearchAssertions.assertHitCount(searchResp, localDocs + remoteDocs);
+                int totalShards = oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards;
+                assertThat(searchResp.getTotalShards(), equalTo(totalShards));
                 assertThat(searchResp.getSkippedShards(), equalTo(oldLocalNumShards + oldRemoteNumShards));
             }
         } finally {

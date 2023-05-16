@@ -635,6 +635,19 @@ public abstract class Engine implements Closeable {
     );
 
     /**
+     * Similar to {@link Engine#get}, but it only attempts to serve the get from the translog.
+     * If not found in translog, it returns null, as {@link GetResult#NOT_EXISTS} could mean deletion.
+     */
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public final SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper) throws EngineException {

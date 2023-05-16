@@ -33,35 +33,35 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class StuckIndicesFinderTests extends ESTestCase {
+public class StagnatingIndicesFinderTests extends ESTestCase {
 
-    public void testStuckIndicesFinder() {
+    public void testStagnatingIndicesFinder() {
         var idxMd1 = randomIndexMetadata();
         var idxMd2 = randomIndexMetadata();
         var idxMd3 = randomIndexMetadata();
-        var mockedRuleEvaluator = mock(IlmHealthIndicatorService.StuckIndicesRuleEvaluator.class);
+        var mockedRuleEvaluator = mock(IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator.class);
         var mockedTimeSupplier = mock(LongSupplier.class);
-        var stuckIndicesFinder = createStuckIndicesFinder(
+        var finder = createStagnatingIndicesFinder(
             mockedRuleEvaluator,
             mockedTimeSupplier,
             idxMetadataUnmanaged(randomAlphaOfLength(10)),                     // non-managed by ILM
-            idxMetadata(idxMd1.indexName, idxMd1.policyName, idxMd1.ilmState), // should be stuck
-            idxMetadata(idxMd2.indexName, idxMd2.policyName, idxMd2.ilmState), // won't be stuck
-            idxMetadata(idxMd3.indexName, idxMd3.policyName, idxMd3.ilmState), // should be stuck
+            idxMetadata(idxMd1.indexName, idxMd1.policyName, idxMd1.ilmState), // should be stagnated
+            idxMetadata(idxMd2.indexName, idxMd2.policyName, idxMd2.ilmState), // won't be stagnated
+            idxMetadata(idxMd3.indexName, idxMd3.policyName, idxMd3.ilmState), // should be stagnated
             idxMetadataUnmanaged(randomAlphaOfLength(10))                      // non-managed by ILM
         );
 
         var instant = (long) randomIntBetween(100000, 200000);
 
-        when(mockedRuleEvaluator.isStuck(any())).thenReturn(true, false, true);
+        when(mockedRuleEvaluator.isStagnated(any())).thenReturn(true, false, true);
         // Per the evaluator, the timeSupplier _must_ be called only twice
         when(mockedTimeSupplier.getAsLong()).thenReturn(instant, instant);
 
-        var stuckIndices = stuckIndicesFinder.find();
+        var stagnatingIndices = finder.find();
 
-        assertThat(stuckIndices, hasSize(2));
+        assertThat(stagnatingIndices, hasSize(2));
         assertThat(
-            stuckIndices,
+            stagnatingIndices,
             containsInAnyOrder(
                 new IlmHealthIndicatorService.IndexIlmState(
                     idxMd1.indexName,
@@ -87,7 +87,7 @@ public class StuckIndicesFinderTests extends ESTestCase {
         );
     }
 
-    public void testStuckIndicesEvaluator() {
+    public void testStagnatingIndicesEvaluator() {
         {
             // no rule matches
             var executions = randomIntBetween(3, 200);
@@ -96,7 +96,7 @@ public class StuckIndicesFinderTests extends ESTestCase {
                 calls.incrementAndGet();
                 return false;
             }).toList();
-            assertFalse(new IlmHealthIndicatorService.StuckIndicesRuleEvaluator(predicates).isStuck(null));
+            assertFalse(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(null));
             assertEquals(calls.get(), executions);
         }
         {
@@ -115,7 +115,7 @@ public class StuckIndicesFinderTests extends ESTestCase {
                 return false;
             });
 
-            assertTrue(new IlmHealthIndicatorService.StuckIndicesRuleEvaluator(predicates).isStuck(null));
+            assertTrue(new IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator(predicates).isStagnated(null));
             assertEquals(calls.get(), List.of(1, 2));
         }
     }
@@ -139,8 +139,8 @@ public class StuckIndicesFinderTests extends ESTestCase {
             .build();
     }
 
-    private IlmHealthIndicatorService.StuckIndicesFinder createStuckIndicesFinder(
-        IlmHealthIndicatorService.StuckIndicesRuleEvaluator evaluator,
+    private IlmHealthIndicatorService.StagnatingIndicesFinder createStagnatingIndicesFinder(
+        IlmHealthIndicatorService.StagnatingIndicesRuleEvaluator evaluator,
         LongSupplier timeSupplier,
         IndexMetadata... indicesMetadata
     ) {
@@ -153,7 +153,7 @@ public class StuckIndicesFinderTests extends ESTestCase {
 
         when(clusterService.state()).thenReturn(state);
 
-        return new IlmHealthIndicatorService.StuckIndicesFinder(clusterService, evaluator, timeSupplier);
+        return new IlmHealthIndicatorService.StagnatingIndicesFinder(clusterService, evaluator, timeSupplier);
     }
 
     static IndexMetadataTestCase randomIndexMetadata() {

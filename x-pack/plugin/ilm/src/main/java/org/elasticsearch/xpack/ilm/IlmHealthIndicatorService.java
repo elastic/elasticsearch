@@ -74,7 +74,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     public static final String AUTOMATION_DISABLED_IMPACT_ID = "automation_disabled";
-    public static final String INDEX_STUCK_IMPACT_ID = "index_stuck";
+    public static final String STAGNATING_INDEX_IMPACT_ID = "stagnating_index";
     public static final List<HealthIndicatorImpact> AUTOMATION_DISABLED_IMPACT = List.of(
         new HealthIndicatorImpact(
             NAME,
@@ -86,10 +86,10 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         )
     );
 
-    public static final List<HealthIndicatorImpact> INDEX_STUCK_IMPACT = List.of(
+    public static final List<HealthIndicatorImpact> STAGNATING_INDEX_IMPACT = List.of(
         new HealthIndicatorImpact(
             NAME,
-            INDEX_STUCK_IMPACT_ID,
+            STAGNATING_INDEX_IMPACT_ID,
             3,
             "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and "
                 + "stability of the indices and/or the cluster could be impacted.",
@@ -115,21 +115,21 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         new RuleConfig(DownsampleAction.NAME, ONE_DAY, 100, List.of(WaitForNoFollowersStep.NAME))
     ).collect(toMap(RuleConfig::action, Function.identity()));
 
-    public static final StuckIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StuckIndicesRuleEvaluator(
+    public static final StagnatingIndicesRuleEvaluator ILM_RULE_EVALUATOR = new StagnatingIndicesRuleEvaluator(
         RULES_BY_ACTION_CONFIG.values().stream().map(RuleConfig::toPredicate).toList()
     );
 
-    static final Map<String, Function<String, Diagnosis.Definition>> ACTION_STUCK_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
+    static final Map<String, Function<String, Diagnosis.Definition>> STAGNATING_ACTION_DEFINITIONS = RULES_BY_ACTION_CONFIG.entrySet()
         .stream()
         .collect(
             Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
                 entry -> ilmPolicyName -> new Diagnosis.Definition(
                     NAME,
-                    "stuck_action:" + entry.getKey(),
+                    "stagnating_action:" + entry.getKey(),
                     "Some indices managed by the policy ["
                         + ilmPolicyName
-                        + "] have been stuck on the action ["
+                        + "] have been stagnated on the action ["
                         + entry.getKey()
                         + "] longer than the expected time [time spent in action: "
                         + entry.getValue().maxTimeOn()
@@ -141,11 +141,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         );
 
     private final ClusterService clusterService;
-    private final StuckIndicesFinder stuckIndicesFinder;
+    private final StagnatingIndicesFinder stagnatingIndicesFinder;
 
-    public IlmHealthIndicatorService(ClusterService clusterService, StuckIndicesFinder stuckIndicesFinder) {
+    public IlmHealthIndicatorService(ClusterService clusterService, StagnatingIndicesFinder stagnatingIndicesFinder) {
         this.clusterService = clusterService;
-        this.stuckIndicesFinder = stuckIndicesFinder;
+        this.stagnatingIndicesFinder = stagnatingIndicesFinder;
     }
 
     @Override
@@ -189,13 +189,13 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         OperationMode currentMode,
         int maxAffectedResourcesCount
     ) {
-        var stuckIndices = stuckIndicesFinder.find();
+        var stagnatingIndices = stagnatingIndicesFinder.find();
 
-        if (stuckIndices.isEmpty()) {
+        if (stagnatingIndices.isEmpty()) {
             return createIndicator(
                 GREEN,
                 "Index Lifecycle Management is running",
-                createDetails(verbose, ilmMetadata, currentMode, stuckIndices),
+                createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -203,16 +203,16 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
         return createIndicator(
             YELLOW,
-            (stuckIndices.size() > 1 ? stuckIndices.size() + " indices have" : "An index has")
+            (stagnatingIndices.size() > 1 ? stagnatingIndices.size() + " indices have" : "An index has")
                 + " been stayed on the same action longer than expected.",
-            createDetails(verbose, ilmMetadata, currentMode, stuckIndices),
-            INDEX_STUCK_IMPACT,
-            createDiagnoses(stuckIndices, maxAffectedResourcesCount)
+            createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
+            STAGNATING_INDEX_IMPACT,
+            createDiagnoses(stagnatingIndices, maxAffectedResourcesCount)
         );
     }
 
-    private List<Diagnosis> createDiagnoses(List<IndexIlmState> stuckIndices, int maxAffectedResourcesCount) {
-        return stuckIndices.stream()
+    private List<Diagnosis> createDiagnoses(List<IndexIlmState> stagnatingIndices, int maxAffectedResourcesCount) {
+        return stagnatingIndices.stream()
             .collect(groupingBy(state -> Tuple.tuple(state.action, state.policyName)))
             .entrySet()
             .stream()
@@ -223,7 +223,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     .limit(Math.min(maxAffectedResourcesCount, actionPolicyTuple.getValue().size()))
                     .toList();
                 return new Diagnosis(
-                    ACTION_STUCK_DEFINITIONS.get(actionPolicyTuple.getKey().v1()).apply(actionPolicyTuple.getKey().v2()),
+                    STAGNATING_ACTION_DEFINITIONS.get(actionPolicyTuple.getKey().v1()).apply(actionPolicyTuple.getKey().v2()),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedResources))
                 );
             })
@@ -234,7 +234,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         boolean verbose,
         IndexLifecycleMetadata metadata,
         OperationMode mode,
-        List<IndexIlmState> stuckIndices
+        List<IndexIlmState> stagnatingIndices
     ) {
         if (verbose == false) {
             return HealthIndicatorDetails.EMPTY;
@@ -244,32 +244,36 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
         details.put("ilm_status", mode);
         details.put("policies", metadata.getPolicies().size());
-        details.put("stuck_indices", stuckIndices.size());
+        details.put("stagnating_indices", stagnatingIndices.size());
 
-        var indicesStuckPerAction = stuckIndices.stream().collect(groupingBy(IndexIlmState::action, counting()));
+        var stagnatingIndicesPerAction = stagnatingIndices.stream().collect(groupingBy(IndexIlmState::action, counting()));
 
-        if (indicesStuckPerAction.isEmpty() == false) {
-            RULES_BY_ACTION_CONFIG.forEach((action, value) -> indicesStuckPerAction.putIfAbsent(action, 0L));
-            details.put("stuck_indices_per_action", indicesStuckPerAction);
+        if (stagnatingIndicesPerAction.isEmpty() == false) {
+            RULES_BY_ACTION_CONFIG.forEach((action, value) -> stagnatingIndicesPerAction.putIfAbsent(action, 0L));
+            details.put("stagnating_indices_per_action", stagnatingIndicesPerAction);
         }
 
         return new SimpleHealthIndicatorDetails(details);
     }
 
-    static class StuckIndicesFinder {
+    static class StagnatingIndicesFinder {
 
         private final ClusterService clusterService;
-        private final StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator;
+        private final StagnatingIndicesRuleEvaluator stagnatingIndicesRuleEvaluator;
         private final LongSupplier nowSupplier;
 
-        StuckIndicesFinder(ClusterService clusterService, StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator, LongSupplier nowSupplier) {
+        StagnatingIndicesFinder(
+            ClusterService clusterService,
+            StagnatingIndicesRuleEvaluator stagnatingIndicesRuleEvaluator,
+            LongSupplier nowSupplier
+        ) {
             this.clusterService = clusterService;
-            this.stuckIndicesRuleEvaluator = stuckIndicesRuleEvaluator;
+            this.stagnatingIndicesRuleEvaluator = stagnatingIndicesRuleEvaluator;
             this.nowSupplier = nowSupplier;
         }
 
         public List<IndexIlmState> find() {
-            return findIndicesManagedByIlm().filter(stuckIndicesRuleEvaluator::isStuck).toList();
+            return findIndicesManagedByIlm().filter(stagnatingIndicesRuleEvaluator::isStagnated).toList();
         }
 
         private Stream<IndexIlmState> findIndicesManagedByIlm() {
@@ -294,14 +298,14 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    static class StuckIndicesRuleEvaluator {
+    static class StagnatingIndicesRuleEvaluator {
         private final List<Predicate<IndexIlmState>> rules;
 
-        StuckIndicesRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
+        StagnatingIndicesRuleEvaluator(List<Predicate<IndexIlmState>> rules) {
             this.rules = rules;
         }
 
-        public boolean isStuck(IndexIlmState indexIlmState) {
+        public boolean isStagnated(IndexIlmState indexIlmState) {
             return rules.stream().anyMatch(r -> r.test(indexIlmState));
         }
     }

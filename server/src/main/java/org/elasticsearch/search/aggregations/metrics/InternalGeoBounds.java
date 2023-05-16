@@ -68,7 +68,7 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
         out.writeBoolean(wrapLongitude);
     }
 
-    static InternalGeoBounds empty(String name, boolean wrapLongitude, Map<String, Object> metadata) {
+    public static InternalGeoBounds empty(String name, boolean wrapLongitude, Map<String, Object> metadata) {
         return new InternalGeoBounds(
             name,
             Double.NEGATIVE_INFINITY,

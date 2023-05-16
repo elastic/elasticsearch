@@ -20,15 +20,10 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.TimeValue;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
@@ -45,7 +40,6 @@ public class NodeSeenService implements ClusterStateListener {
     final ClusterService clusterService;
 
     private final MasterServiceTaskQueue<SetSeenNodesShutdownTask> setSeenTaskQueue;
-    private final MasterServiceTaskQueue<RemoveSigtermShutdownTask> cleanupSigtermTaskQueue;
 
     public NodeSeenService(ClusterService clusterService) {
         this.clusterService = clusterService;
@@ -54,19 +48,20 @@ public class NodeSeenService implements ClusterStateListener {
             Priority.NORMAL,
             new SetSeenNodesShutdownExecutor()
         );
-        this.cleanupSigtermTaskQueue = clusterService.createTaskQueue(
-            "shutdown-sigterm-cleaner",
-            Priority.NORMAL,
-            new RemoveSigtermShutdownTaskExecutor(clusterService.threadPool()::absoluteTimeInMillis)
-        );
         clusterService.addListener(this);
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        var nodes = event.state().nodes();
-        if (nodes.isLocalNodeElectedMaster() == false) {
+        if (event.state().nodes().isLocalNodeElectedMaster() == false) {
             // Only do this if we're the current master node.
+            return;
+        }
+
+        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
+            && event.state().nodes().isLocalNodeElectedMaster();
+        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
+            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
             return;
         }
 
@@ -77,30 +72,12 @@ public class NodeSeenService implements ClusterStateListener {
             return;
         }
 
-        final boolean sigtermNodesRemoved = eventShutdownMetadata.getAllNodeMetadataMap()
-            .values()
-            .stream()
-            .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getType() == SingleNodeShutdownMetadata.Type.SIGTERM)
-            .map(SingleNodeShutdownMetadata::getNodeId)
-            .anyMatch(nodeId -> nodes.nodeExists(nodeId) == false);
-
-        if (sigtermNodesRemoved) {
-            cleanupSigtermTaskQueue.submitTask("sigterm nodes left cluster", new RemoveSigtermShutdownTask(), null);
-        }
-
-        final boolean thisNodeJustBecameMaster = event.previousState().nodes().isLocalNodeElectedMaster() == false
-            && nodes.isLocalNodeElectedMaster();
-        if ((event.nodesAdded() || thisNodeJustBecameMaster) == false) {
-            // If there's both 1) no new nodes this cluster state update and 2) this node has not just become the master node, nothing to do
-            return;
-        }
-
         final Set<String> nodesNotPreviouslySeen = eventShutdownMetadata.getAllNodeMetadataMap()
             .values()
             .stream()
             .filter(singleNodeShutdownMetadata -> singleNodeShutdownMetadata.getNodeSeen() == false)
             .map(SingleNodeShutdownMetadata::getNodeId)
-            .filter(nodes::nodeExists)
+            .filter(nodeId -> event.state().nodes().nodeExists(nodeId))
             .collect(Collectors.toUnmodifiableSet());
 
         if (nodesNotPreviouslySeen.isEmpty() == false) {
@@ -146,74 +123,6 @@ public class NodeSeenService implements ClusterStateListener {
                         .build()
                 )
                 .build();
-        }
-    }
-
-    record RemoveSigtermShutdownTask() implements ClusterStateTaskListener {
-        @Override
-        public void onFailure(Exception e) {
-            logger.warn("failed to remove shutdown metadata for sigtermed nodes", e);
-        }
-    }
-
-    record RemoveSigtermShutdownTaskExecutor(LongSupplier timeSupplier) implements ClusterStateTaskExecutor<RemoveSigtermShutdownTask> {
-        RemoveSigtermShutdownTaskExecutor(LongSupplier timeSupplier) {
-            this.timeSupplier = Objects.requireNonNull(timeSupplier);
-        }
-
-        @Override
-        public ClusterState execute(BatchExecutionContext<RemoveSigtermShutdownTask> batchExecutionContext) throws Exception {
-            // This makes it easier to test since there's nothing we need from the batchExecutionContext other than the initial state
-            return removeStaleSigtermShutdowns(timeSupplier.getAsLong(), batchExecutionContext.initialState());
-        }
-
-        static ClusterState removeStaleSigtermShutdowns(long now, ClusterState initialState) {
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
-
-            Predicate<String> nodeExists = initialState.nodes()::nodeExists;
-            boolean modified = false;
-            for (Iterator<SingleNodeShutdownMetadata> it = shutdownMetadata.values().iterator(); it.hasNext();) {
-                if (isSigtermShutdownStale(it.next(), now, nodeExists)) {
-                    it.remove();
-                    modified = true;
-                }
-            }
-            if (modified == false) {
-                return initialState;
-            }
-
-            return ClusterState.builder(initialState)
-                .metadata(
-                    Metadata.builder(initialState.metadata())
-                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
-                        .build()
-                )
-                .build();
-        }
-
-        /**
-         * The {@link SingleNodeShutdownMetadata} is stale if the target node still exists, or the shutdown has been running for less time
-         * than the grace period (plus safety factor).
-         */
-        static boolean isSigtermShutdownStale(SingleNodeShutdownMetadata shutdown, long nowMillis, Predicate<String> nodeExists) {
-            if (shutdown.getType() != SingleNodeShutdownMetadata.Type.SIGTERM) {
-                return false;
-            }
-
-            TimeValue grace = shutdown.getGracePeriod();
-            if (grace == null) {
-                return false;
-            }
-            if (nodeExists.test(shutdown.getNodeId())) {
-                return false;
-            }
-
-            long timeRunning = nowMillis - shutdown.getStartedAtMillis();
-            if (timeRunning < -1 * 60_000) {
-                return true; // clock skew too big
-            }
-            long cleanupGrace = grace.millis() + (grace.millis() / 10);
-            return cleanupGrace < timeRunning;
         }
     }
 }

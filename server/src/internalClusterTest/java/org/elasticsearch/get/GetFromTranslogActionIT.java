@@ -44,27 +44,33 @@ public class GetFromTranslogActionIT extends ESIntegTestCase {
         // There hasn't been any switches from unsafe to safe map
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(RefreshPolicy.NONE).get();
+        var indexResponse = client().prepareIndex("test")
+            .setId("1")
+            .setSource("field1", "value1")
+            .setRefreshPolicy(RefreshPolicy.NONE)
+            .get();
         response = getFromTranslog(indexOrAlias(), "1");
         assertNotNull(response.getResult());
         assertThat(response.getResult().isExists(), equalTo(true));
+        assertThat(response.getResult().getVersion(), equalTo(indexResponse.getVersion()));
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // Get followed by a delete should still return a result
         client().prepareDelete("test", "1").get();
         response = getFromTranslog(indexOrAlias(), "1");
-        assertNotNull(response.getResult());
+        assertNotNull("get followed by a delete should still return a result", response.getResult());
         assertThat(response.getResult().isExists(), equalTo(false));
         assertThat(response.segmentGeneration(), equalTo(-1L));
 
-        var indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
+        indexResponse = client().prepareIndex("test").setSource("field1", "value2").get();
         response = getFromTranslog(indexOrAlias(), indexResponse.getId());
         assertNotNull(response.getResult());
         assertThat(response.getResult().isExists(), equalTo(true));
+        assertThat(response.getResult().getVersion(), equalTo(indexResponse.getVersion()));
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After a refresh we should not be able to get from translog
         refresh("test");
         response = getFromTranslog(indexOrAlias(), indexResponse.getId());
-        assertNull(response.getResult());
+        assertNull("after a refresh we should not be able to get from translog", response.getResult());
         assertThat(response.segmentGeneration(), equalTo(-1L));
         // After two refreshes the LiveVersionMap switches back to append-only and stops tracking IDs
         // Refreshing with empty LiveVersionMap doesn't cause the switch, see {@link LiveVersionMap.Maps#shouldInheritSafeAccess()}.

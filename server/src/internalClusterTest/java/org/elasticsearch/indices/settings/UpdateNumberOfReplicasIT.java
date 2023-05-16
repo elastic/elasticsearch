@@ -449,9 +449,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
         final int value = randomIntBetween(-10, -1);
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
+            indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, value))
                 .execute()
                 .actionGet();
@@ -472,9 +470,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             EnumSet.of(IndicesOptions.WildcardStates.OPEN)
         );
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("non-existent-*")
+            indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))
                 .setIndicesOptions(options)
                 .get()

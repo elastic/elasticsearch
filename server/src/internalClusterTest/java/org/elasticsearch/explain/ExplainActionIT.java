@@ -207,9 +207,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
     public void testExplainWithFilteredAliasFetchSource() {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2")))
         );
@@ -286,9 +284,7 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     public void testQueryRewrite() {
-        client().admin()
-            .indices()
-            .prepareCreate("twitter")
+        indicesAdmin().prepareCreate("twitter")
             .setMapping("user", "type=keyword", "followers", "type=keyword")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2))
             .get();

@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,27 +26,27 @@ public class SynonymSet implements Writeable, ToXContentObject {
     public static final ParseField SYNONYMS_FIELD = new ParseField("synonyms");
     private static final ConstructingObjectParser<SynonymSet, Void> PARSER = new ConstructingObjectParser<>("synonyms", args -> {
         @SuppressWarnings("unchecked")
-        final List<String> synonyms = (List<String>) args[0];
-        return new SynonymSet(synonyms.toArray(new String[0]));
+        final List<SynonymRule> synonyms = (List<SynonymRule>) args[0];
+        return new SynonymSet(synonyms.toArray(new SynonymRule[0]));
     });
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), SYNONYMS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_FIELD);
     }
 
-    private final String[] synonyms;
+    private final SynonymRule[] synonyms;
 
-    public SynonymSet(String[] synonyms) {
+    public SynonymSet(SynonymRule[] synonyms) {
         Objects.requireNonNull(synonyms, "synonyms cannot be null");
         this.synonyms = synonyms;
-
-        if (Arrays.stream(synonyms).anyMatch(String::isEmpty)) {
-            throw new IllegalArgumentException("synonym has an empty value");
-        }
     }
 
     public SynonymSet(StreamInput in) throws IOException {
-        this.synonyms = in.readStringArray();
+        this.synonyms = in.readArray(SynonymRule::new, SynonymRule[]::new);
+    }
+
+    public SynonymRule[] synonyms() {
+        return synonyms;
     }
 
     public static SynonymSet fromXContent(XContentParser parser) {
@@ -56,12 +55,17 @@ public class SynonymSet implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(SYNONYMS_FIELD.getPreferredName(), synonyms);
+        builder.startObject();
+        {
+            builder.array(SYNONYMS_FIELD.getPreferredName(), (Object[]) synonyms);
+        }
+        builder.endObject();
+
         return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeStringArray(synonyms);
+        out.writeArray(synonyms);
     }
 }

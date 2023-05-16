@@ -11,13 +11,14 @@ package org.elasticsearch.action.synonyms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutSynonymsAction extends HandledTransportAction<PutSynonymsAction.Request, PutSynonymsAction.Response> {
+public class TransportPutSynonymsAction extends HandledTransportAction<PutSynonymsAction.Request, AcknowledgedResponse> {
 
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
@@ -29,11 +30,11 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
     }
 
     @Override
-    protected void doExecute(Task task, PutSynonymsAction.Request request, ActionListener<PutSynonymsAction.Response> listener) {
+    protected void doExecute(Task task, PutSynonymsAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         synonymsManagementAPIService.putSynonymSet(
             request.name(),
             request.synonymSet(),
-            listener.map(r -> new PutSynonymsAction.Response(r.getResult()))
+            listener
         );
     }
 }

@@ -10,32 +10,27 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.synonyms.SynonymSet;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Objects;
 
-public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
+public class PutSynonymsAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutSynonymsAction INSTANCE = new PutSynonymsAction();
     public static final String NAME = "cluster:admin/synonyms/put";
 
     public PutSynonymsAction() {
-        super(NAME, Response::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends ActionRequest {
@@ -76,55 +71,6 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
 
         public SynonymSet synonymSet() {
             return synonymSet;
-        }
-    }
-
-    public static class Response extends ActionResponse implements StatusToXContentObject {
-
-        final DocWriteResponse.Result result;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            result = DocWriteResponse.Result.readFrom(in);
-        }
-
-        public Response(DocWriteResponse.Result result) {
-            this.result = result;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            this.result.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("result", this.result.getLowercase());
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public RestStatus status() {
-            return switch (result) {
-                case CREATED -> RestStatus.CREATED;
-                case NOT_FOUND -> RestStatus.NOT_FOUND;
-                default -> RestStatus.OK;
-            };
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(result, that.result);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(result);
         }
     }
 }

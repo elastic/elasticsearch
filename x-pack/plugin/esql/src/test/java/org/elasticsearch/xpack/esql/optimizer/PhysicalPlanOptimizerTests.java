@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -981,19 +982,94 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(extractRest.child());
 
         QueryBuilder query = source.query();
+        assertThat(query, instanceOf(TermsQueryBuilder.class));
+        var tqb = (TermsQueryBuilder) query;
+        assertThat(tqb.fieldName(), is("emp_no"));
+        assertThat(tqb.values(), is(List.of(10010, 10011)));
+    }
+
+    public void testPushDownDisjunctionAndConjunction() {
+        var plan = physicalPlan("""
+            from test
+            | where first_name == "Bezalel" or first_name == "Suzette"
+            | where salary > 50000
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
         assertNotNull(query);
-        List<QueryBuilder> shouldClauses = ((BoolQueryBuilder) query).should();
-        assertEquals(2, shouldClauses.size());
-        assertTrue(shouldClauses.get(0) instanceof TermQueryBuilder);
-        assertThat(shouldClauses.get(0).toString(), containsString("""
-                "emp_no" : {
-                  "value" : 10010
-            """));
-        assertTrue(shouldClauses.get(1) instanceof TermQueryBuilder);
-        assertThat(shouldClauses.get(1).toString(), containsString("""
-                "emp_no" : {
-                  "value" : 10011
-            """));
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        List<QueryBuilder> must = ((BoolQueryBuilder) query).must();
+        assertThat(must.size(), is(2));
+        assertThat(must.get(0), instanceOf(TermsQueryBuilder.class));
+        var tqb = (TermsQueryBuilder) must.get(0);
+        assertThat(tqb.fieldName(), is("first_name"));
+        assertThat(tqb.values(), is(List.of("Bezalel", "Suzette")));
+        assertThat(must.get(1), instanceOf(RangeQueryBuilder.class));
+        var rqb = (RangeQueryBuilder) must.get(1);
+        assertThat(rqb.fieldName(), is("salary"));
+        assertThat(rqb.from(), is(50_000));
+    }
+
+    public void testPushDownIn() {
+        var plan = physicalPlan("""
+            from test
+            | where emp_no in (10020, 10030 + 10)
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertThat(query, instanceOf(TermsQueryBuilder.class));
+        var tqb = (TermsQueryBuilder) query;
+        assertThat(tqb.fieldName(), is("emp_no"));
+        assertThat(tqb.values(), is(List.of(10020, 10040)));
+    }
+
+    public void testPushDownInAndConjunction() {
+        var plan = physicalPlan("""
+            from test
+            | where last_name in (concat("Sim", "mel"), "Pettey")
+            | where salary > 60000
+            """);
+
+        assertThat("Expected to find an EsSourceExec found", plan.anyMatch(EsSourceExec.class::isInstance), is(true));
+
+        var optimized = optimizedPlan(plan);
+        var topLimit = as(optimized, LimitExec.class);
+        var exchange = asRemoteExchange(topLimit.child());
+        var project = as(exchange.child(), ProjectExec.class);
+        var extractRest = as(project.child(), FieldExtractExec.class);
+        var source = source(extractRest.child());
+
+        QueryBuilder query = source.query();
+        assertNotNull(query);
+        assertThat(query, instanceOf(BoolQueryBuilder.class));
+        List<QueryBuilder> must = ((BoolQueryBuilder) query).must();
+        assertThat(must.size(), is(2));
+        assertThat(must.get(0), instanceOf(TermsQueryBuilder.class));
+        var tqb = (TermsQueryBuilder) must.get(0);
+        assertThat(tqb.fieldName(), is("last_name"));
+        assertThat(tqb.values(), is(List.of("Simmel", "Pettey")));
+        assertThat(must.get(1), instanceOf(RangeQueryBuilder.class));
+        var rqb = (RangeQueryBuilder) must.get(1);
+        assertThat(rqb.fieldName(), is("salary"));
+        assertThat(rqb.from(), is(60_000));
     }
 
     /* Expected:
@@ -1002,8 +1078,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
          \_ExchangeExec[REMOTE_SINK]
            \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !gender, languages{f}#6, last_name{f}#7, salary{f}#8]]
              \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
-               \_EsQueryExec[test], query[{"bool":{"must_not":[{"bool":{"should":[{"term":{"emp_no":{"value":10010}}},
-                                    {"term":{"emp_no":{"value":10011}}}],"boost":1.0}}],"boost":1.0}}][_doc{f}#10], limit[10000], sort[]
+               \_EsQueryExec[test], query[{"bool":{"must_not":[{"terms":{"emp_no":[10010,10011],"boost":1.0}}],"boost":1.0}}][_doc{f}#10],
+                                        limit[10000], sort[]
      */
     public void testPushDownNegatedDisjunction() {
         var plan = physicalPlan("""
@@ -1026,21 +1102,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var boolQuery = (BoolQueryBuilder) query;
         List<QueryBuilder> mustNot = boolQuery.mustNot();
         assertThat(mustNot.size(), is(1));
-        assertThat(mustNot.get(0), instanceOf(BoolQueryBuilder.class));
-        query = mustNot.get(0);
-
-        List<QueryBuilder> shouldClauses = ((BoolQueryBuilder) query).should();
-        assertEquals(2, shouldClauses.size());
-        assertTrue(shouldClauses.get(0) instanceof TermQueryBuilder);
-        assertThat(shouldClauses.get(0).toString(), containsString("""
-                "emp_no" : {
-                  "value" : 10010
-            """));
-        assertTrue(shouldClauses.get(1) instanceof TermQueryBuilder);
-        assertThat(shouldClauses.get(1).toString(), containsString("""
-                "emp_no" : {
-                  "value" : 10011
-            """));
+        assertThat(mustNot.get(0), instanceOf(TermsQueryBuilder.class));
+        var termsQuery = (TermsQueryBuilder) mustNot.get(0);
+        assertThat(termsQuery.fieldName(), is("emp_no"));
+        assertThat(termsQuery.values(), is(List.of(10010, 10011)));
     }
 
     /* Expected:

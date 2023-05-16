@@ -197,6 +197,15 @@ emp_no:integer | name:keyword
 10010          | null
 ;
 
+// Note: no matches in MV returned
+in
+from employees | where job_positions in ("Internship", first_name) | project emp_no, job_positions;
+
+emp_no:integer |job_positions:keyword
+10048          |Internship
+10077          |Internship
+;
+
 split
 // tag::split[]
 ROW words="foo;bar;baz;qux;quux;corge"

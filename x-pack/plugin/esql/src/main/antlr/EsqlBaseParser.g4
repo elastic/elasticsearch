@@ -45,11 +45,12 @@ whereCommand
     ;
 
 booleanExpression
-    : NOT booleanExpression                                               #logicalNot
-    | valueExpression                                                     #booleanDefault
-    | regexBooleanExpression                                              #regexExpression
-    | left=booleanExpression operator=AND right=booleanExpression         #logicalBinary
-    | left=booleanExpression operator=OR right=booleanExpression          #logicalBinary
+    : NOT booleanExpression                                                      #logicalNot
+    | valueExpression                                                            #booleanDefault
+    | regexBooleanExpression                                                     #regexExpression
+    | left=booleanExpression operator=AND right=booleanExpression                #logicalBinary
+    | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
+    | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     ;
 
 regexBooleanExpression

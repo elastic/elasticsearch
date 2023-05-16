@@ -147,3 +147,13 @@ y:date                        | count(emp_no):long
 1988-01-01T00:00:00.000Z      | 9                
 1989-01-01T00:00:00.000Z      | 13                  
 ;
+
+in
+from employees | eval x = date_trunc(hire_date, 1 year) | where birth_date not in (x, hire_date) | project x, hire_date | sort x desc | limit 4;
+
+x:date                  |hire_date:date
+1999-01-01T00:00:00.000Z|1999-04-30T00:00:00.000Z
+1997-01-01T00:00:00.000Z|1997-05-19T00:00:00.000Z
+1996-01-01T00:00:00.000Z|1996-11-05T00:00:00.000Z
+1995-01-01T00:00:00.000Z|1995-01-27T00:00:00.000Z
+;

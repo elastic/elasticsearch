@@ -842,7 +842,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testShowFunctions() {
         EsqlQueryResponse results = run("show functions");
+        assertThat(results.columns(), equalTo(List.of(new ColumnInfo("name", "keyword"), new ColumnInfo("synopsis", "keyword"))));
+        assertThat(results.values().size(), equalTo(29));
+    }
 
+    public void testInWithNullValue() {
+        EsqlQueryResponse results = run("from test | where null in (data, 2) | project data");
+        assertThat(results.columns(), equalTo(List.of(new ColumnInfo("data", "long"))));
+        assertThat(results.values().size(), equalTo(0));
     }
 
     public void testTopNPushedToLucene() {

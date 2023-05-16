@@ -125,6 +125,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLogicalIn(EsqlBaseParser.LogicalInContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLogicalIn(EsqlBaseParser.LogicalInContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) { }
   /**
    * {@inheritDoc}

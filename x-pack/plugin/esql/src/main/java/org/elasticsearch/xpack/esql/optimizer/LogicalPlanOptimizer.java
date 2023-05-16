@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -60,6 +62,7 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 
 public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
@@ -76,6 +79,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
             new FoldNull(),
+            new FoldNullInIn(),
             new ConstantFolding(),
             // boolean
             new BooleanSimplification(),
@@ -83,7 +87,7 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new BinaryComparisonSimplification(),
             new BooleanFunctionEqualsElimination(),
             new ReplaceRegexMatch(),
-            // new CombineDisjunctionsToIn(), //TODO enable again when IN is supported
+            new CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
@@ -207,6 +211,28 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 return Literal.of(e, null);
             }
             return e;
+        }
+    }
+
+    static class FoldNullInIn extends OptimizerRules.OptimizerExpressionRule<In> {
+
+        FoldNullInIn() {
+            super(OptimizerRules.TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(In in) {
+            List<Expression> newList = new ArrayList<>(in.list());
+            // In folds itself if value() is `null`
+            newList.removeIf(Expressions::isNull);
+            if (in.list().size() != newList.size()) {
+                if (newList.size() == 0) {
+                    return FALSE;
+                }
+                newList.add(in.value());
+                return in.replaceChildren(newList);
+            }
+            return in;
         }
     }
 
@@ -558,6 +584,13 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
 
         protected Expression regexToEquals(RegexMatch<?> regexMatch, Literal literal) {
             return new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
+        @Override
+        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+            return new In(key.source(), key, values);
         }
     }
 }

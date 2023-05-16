@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -189,6 +190,8 @@ public final class PlanNamedTypes {
             of(BinaryComparison.class, GreaterThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThan.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
             of(BinaryComparison.class, LessThanOrEqual.class, PlanNamedTypes::writeBinComparison, PlanNamedTypes::readBinComparison),
+            // InComparison
+            of(ScalarFunction.class, In.class, PlanNamedTypes::writeInComparison, PlanNamedTypes::readInComparison),
             // RegexMatch
             of(RegexMatch.class, WildcardLike.class, PlanNamedTypes::writeWildcardLike, PlanNamedTypes::readWildcardLike),
             of(RegexMatch.class, RLike.class, PlanNamedTypes::writeRLike, PlanNamedTypes::readRLike),
@@ -600,6 +603,17 @@ public final class PlanNamedTypes {
         out.writeExpression(binaryComparison.left());
         out.writeExpression(binaryComparison.right());
         out.writeOptionalZoneId(binaryComparison.zoneId());
+    }
+
+    // -- InComparison
+
+    static In readInComparison(PlanStreamInput in) throws IOException {
+        return new In(Source.EMPTY, in.readExpression(), in.readList(readerFromPlanReader(PlanStreamInput::readExpression)));
+    }
+
+    static void writeInComparison(PlanStreamOutput out, In in) throws IOException {
+        out.writeExpression(in.value());
+        out.writeCollection(in.list(), writerFromPlanWriter(PlanStreamOutput::writeExpression));
     }
 
     // -- RegexMatch

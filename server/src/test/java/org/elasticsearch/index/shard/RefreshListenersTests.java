@@ -533,6 +533,17 @@ public class RefreshListenersTests extends ESTestCase {
         assertThat(seqNoListener.error.getMessage(), equalTo(message));
     }
 
+    public void testSkipSequenceNumberMustBeIssuedCheck() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        TestSeqNoListener seqNoListener = new TestSeqNoListener();
+        long issued = index("1").getSeqNo();
+        assertFalse(listeners.addOrNotify(issued + 1, true, seqNoListener));
+        index("2");
+        assertFalse(seqNoListener.isDone.get());
+        engine.refresh("test");
+        assertTrue(seqNoListener.isDone.get());
+    }
+
     private Engine.IndexResult index(String id) throws IOException {
         return index(id, "test");
     }

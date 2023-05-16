@@ -146,7 +146,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 targetNodes.add(target.getNodeId());
             }
             ShardId shardId = shardIt.shardId();
-            groups.add(new SearchShardsGroup(shardId, targetNodes, true, skip));
+            groups.add(new SearchShardsGroup(shardId, targetNodes, skip));
         }
         return groups;
     }

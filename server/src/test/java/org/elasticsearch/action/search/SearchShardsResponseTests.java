@@ -53,7 +53,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             for (int j = 0; j < numOfAllocatedNodes; j++) {
                 allocatedNodes.add(UUIDs.randomBase64UUID());
             }
-            groups.add(new SearchShardsGroup(shardId, allocatedNodes, true, randomBoolean()));
+            groups.add(new SearchShardsGroup(shardId, allocatedNodes, randomBoolean()));
         }
         Map<String, AliasFilter> aliasFilters = new HashMap<>();
         for (SearchShardsGroup g : groups) {
@@ -74,7 +74,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             case 0 -> {
                 List<SearchShardsGroup> groups = new ArrayList<>(r.getGroups());
                 ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(), randomInt(2));
-                groups.add(new SearchShardsGroup(shardId, List.of(), true, randomBoolean()));
+                groups.add(new SearchShardsGroup(shardId, List.of(), randomBoolean()));
                 return new SearchShardsResponse(groups, r.getNodes(), r.getAliasFilters());
             }
             case 1 -> {

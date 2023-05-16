@@ -208,7 +208,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
         return templatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Collections.emptyMap();
     }
 
-    public static boolean isAllTemplatesCreated(ClusterState state) {
+    public static boolean areAllTemplatesCreated(ClusterState state) {
         for (String componentTemplate : COMPONENT_TEMPLATE_CONFIGS.keySet()) {
             if (state.metadata().componentTemplates().containsKey(componentTemplate) == false) {
                 return false;

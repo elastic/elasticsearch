@@ -28,7 +28,6 @@ import java.io.Closeable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -69,7 +68,7 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
-    private final ConcurrentMap<String, AtomicBoolean> indexCreationInProgress = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, AtomicBoolean> creationInProgressPerIndex = new ConcurrentHashMap<>();
     private volatile boolean templatesEnabled;
 
     public ProfilingIndexManager(ThreadPool threadPool, Client client, ClusterService clusterService) {
@@ -121,24 +120,23 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
     }
 
     protected boolean isAllTemplatesCreated(ClusterChangedEvent event) {
-        return ProfilingIndexTemplateRegistry.isAllTemplatesCreated(event.state());
+        return ProfilingIndexTemplateRegistry.areAllTemplatesCreated(event.state());
     }
 
     private void addIndicesIfMissing(ClusterState state) {
-        Optional<Map<String, IndexMetadata>> maybeMeta = Optional.ofNullable(state.metadata().indices());
+        Map<String, IndexMetadata> indicesMetadata = state.metadata().indices();
         for (Map.Entry<String, String> idxAlias : INDICES_AND_ALIASES.entrySet()) {
             String index = idxAlias.getKey();
             String alias = idxAlias.getValue();
-            final AtomicBoolean creationCheck = indexCreationInProgress.computeIfAbsent(index, key -> new AtomicBoolean(false));
-            if (creationCheck.compareAndSet(false, true)) {
-                final boolean indexNeedsToBeCreated = maybeMeta.flatMap(idxMeta -> Optional.ofNullable(idxMeta.get(index)))
-                    .isPresent() == false;
+            final AtomicBoolean creationInProgress = creationInProgressPerIndex.computeIfAbsent(index, key -> new AtomicBoolean(false));
+            if (creationInProgress.compareAndSet(false, true)) {
+                final boolean indexNeedsToBeCreated = indicesMetadata == null || indicesMetadata.get(index) == null;
                 if (indexNeedsToBeCreated) {
                     logger.debug("adding index [{}], because it doesn't exist", index);
-                    putIndex(index, alias, creationCheck);
+                    putIndex(index, alias, creationInProgress);
                 } else {
                     logger.trace("not adding index [{}], because it already exists", index);
-                    creationCheck.set(false);
+                    creationInProgress.set(false);
                 }
             }
         }
@@ -159,6 +157,7 @@ public class ProfilingIndexManager implements ClusterStateListener, Closeable {
                 } catch (Exception ex) {
                     creationCheck.set(false);
                     onPutIndexFailure(index, ex);
+                    return;
                 }
             }
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));

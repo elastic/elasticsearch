@@ -176,23 +176,25 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * @param listener for the refresh.
      * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public boolean addOrNotify(long checkpoint, ActionListener<Void> listener) {
+    public boolean addOrNotify(long checkpoint, boolean allowUnIssuedSequenceNumber, ActionListener<Void> listener) {
         assert checkpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         if (checkpoint <= lastRefreshedCheckpoint) {
             listener.onResponse(null);
             return true;
         }
-        long maxIssuedSequenceNumber = maxIssuedSeqNoSupplier.getAsLong();
-        if (checkpoint > maxIssuedSequenceNumber) {
-            IllegalArgumentException e = new IllegalArgumentException(
-                "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
-                    + checkpoint
-                    + ", max_issued_seqNo="
-                    + maxIssuedSequenceNumber
-                    + "]"
-            );
-            listener.onFailure(e);
-            return true;
+        if (allowUnIssuedSequenceNumber == false) {
+            long maxIssuedSequenceNumber = maxIssuedSeqNoSupplier.getAsLong();
+            if (checkpoint > maxIssuedSequenceNumber) {
+                IllegalArgumentException e = new IllegalArgumentException(
+                    "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
+                        + checkpoint
+                        + ", max_issued_seqNo="
+                        + maxIssuedSequenceNumber
+                        + "]"
+                );
+                listener.onFailure(e);
+                return true;
+            }
         }
 
         synchronized (this) {

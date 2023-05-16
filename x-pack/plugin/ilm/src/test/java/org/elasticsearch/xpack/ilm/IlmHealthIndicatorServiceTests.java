@@ -98,7 +98,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     IlmHealthIndicatorService.INDEX_STUCK_IMPACT_ID,
                     3,
-                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and stability of the indices and/or the cluster could be impacted.",
+                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. "
+                        + "The performance and stability of the indices and/or the cluster could be impacted.",
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             )
@@ -148,7 +149,8 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     IlmHealthIndicatorService.INDEX_STUCK_IMPACT_ID,
                     3,
-                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and stability of the indices and/or the cluster could be impacted.",
+                    "Automatic index lifecycle and data retention management cannot make progress on one or more indices. "
+                        + "The performance and stability of the indices and/or the cluster could be impacted.",
                     List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
                 )
             )

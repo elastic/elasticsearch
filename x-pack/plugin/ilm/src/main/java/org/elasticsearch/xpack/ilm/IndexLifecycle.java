@@ -277,7 +277,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             new IlmHealthIndicatorService(
                 clusterService,
                 new IlmHealthIndicatorService.StuckIndicesFinder(
-                    expressionResolver,
                     clusterService,
                     IlmHealthIndicatorService.ILM_RULE_EVALUATOR,
                     System::currentTimeMillis

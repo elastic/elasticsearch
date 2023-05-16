@@ -10,14 +10,10 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
@@ -148,17 +144,16 @@ public class StuckIndicesFinderTests extends ESTestCase {
         LongSupplier timeSupplier,
         IndexMetadata... indicesMetadata
     ) {
-        var indexResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         var clusterService = mock(ClusterService.class);
         var state = mock(ClusterState.class);
-
         var metadataBuilder = Metadata.builder();
+
         Arrays.stream(indicesMetadata).forEach(im -> metadataBuilder.put(im, true));
         when(state.metadata()).thenReturn(metadataBuilder.build());
 
         when(clusterService.state()).thenReturn(state);
 
-        return new IlmHealthIndicatorService.StuckIndicesFinder(indexResolver, clusterService, evaluator, timeSupplier);
+        return new IlmHealthIndicatorService.StuckIndicesFinder(clusterService, evaluator, timeSupplier);
     }
 
     static IndexMetadataTestCase randomIndexMetadata() {

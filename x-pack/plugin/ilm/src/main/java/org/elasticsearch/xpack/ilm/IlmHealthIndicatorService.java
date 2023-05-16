@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -35,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForDataTierStep;
 import org.elasticsearch.xpack.core.ilm.WaitForIndexColorStep;
 import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -94,7 +91,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             NAME,
             INDEX_STUCK_IMPACT_ID,
             3,
-            "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and stability of the indices and/or the cluster could be impacted.",
+            "Automatic index lifecycle and data retention management cannot make progress on one or more indices. The performance and "
+                + "stability of the indices and/or the cluster could be impacted.",
             List.of(ImpactArea.DEPLOYMENT_MANAGEMENT)
         )
     );
@@ -261,17 +259,10 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     static class StuckIndicesFinder {
 
         private final ClusterService clusterService;
-        private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator;
         private final LongSupplier nowSupplier;
 
-        StuckIndicesFinder(
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            ClusterService clusterService,
-            StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator,
-            LongSupplier nowSupplier
-        ) {
-            this.indexNameExpressionResolver = indexNameExpressionResolver;
+        StuckIndicesFinder(ClusterService clusterService, StuckIndicesRuleEvaluator stuckIndicesRuleEvaluator, LongSupplier nowSupplier) {
             this.clusterService = clusterService;
             this.stuckIndicesRuleEvaluator = stuckIndicesRuleEvaluator;
             this.nowSupplier = nowSupplier;
@@ -282,15 +273,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         }
 
         private Stream<IndexIlmState> findIndicesManagedByIlm() {
-            var concreteIndices = indexNameExpressionResolver.concreteIndices(
-                clusterService.state(),
-                IndicesOptions.STRICT_EXPAND_OPEN,
-                true,
-                "*"
-            );
             var metadata = clusterService.state().metadata();
 
-            return Arrays.stream(concreteIndices).map(metadata::index).filter(metadata::isIndexManagedByILM).map(indexMetadata -> {
+            return metadata.indices().values().stream().filter(metadata::isIndexManagedByILM).map(indexMetadata -> {
                 var ilmExecutionState = indexMetadata.getLifecycleExecutionState();
                 var now = nowSupplier.getAsLong();
                 return new IndexIlmState(

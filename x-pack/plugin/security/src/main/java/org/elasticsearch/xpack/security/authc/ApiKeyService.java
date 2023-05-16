@@ -1857,13 +1857,14 @@ public class ApiKeyService {
             RoleReference.ApiKeyRoleType.ASSIGNED
         );
 
-        final List<RoleDescriptor> limitedByRoleDescriptors = withLimitedBy
+        final List<RoleDescriptor> limitedByRoleDescriptors = (withLimitedBy && apiKeyDoc.type != ApiKey.Type.CROSS_CLUSTER)
             ? parseRoleDescriptorsBytes(apiKeyId, apiKeyDoc.limitedByRoleDescriptorsBytes, RoleReference.ApiKeyRoleType.LIMITED_BY)
             : null;
 
         return new ApiKey(
             apiKeyDoc.name,
             apiKeyId,
+            apiKeyDoc.type,
             Instant.ofEpochMilli(apiKeyDoc.creationTime),
             apiKeyDoc.expirationTime != -1 ? Instant.ofEpochMilli(apiKeyDoc.expirationTime) : null,
             apiKeyDoc.invalidated,

@@ -98,9 +98,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(5));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -204,9 +202,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
         RoutingTable routingTable = rtBuilder.build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo((int) routingTable.allShards().count()));
         List<DiscoveryNode> nodes = new ArrayList<>();
         int nodeIdx = 0;
@@ -253,9 +249,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(5));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -406,7 +400,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                     )
             )
             .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2))
@@ -462,7 +456,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             snapshotShardSizes.put(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), randomNonNegativeLong());
         }
 
-        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -578,7 +572,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         RoutingNode newNode = RoutingNodesHelper.routingNode("newNode", newNode("newNode", Version.CURRENT));
         RoutingNode oldNode = RoutingNodesHelper.routingNode("oldNode", newNode("oldNode", VersionUtils.getPreviousVersion()));
 
-        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+        final ClusterName clusterName = ClusterName.DEFAULT;
         ClusterState clusterState = ClusterState.builder(clusterName)
             .metadata(metadata)
             .routingTable(initialRoutingTable)

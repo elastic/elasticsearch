@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
@@ -159,7 +160,12 @@ public class SearchResponseTests extends ESTestCase {
         XContentType xcontentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(response),
+            xcontentType,
+            params,
+            humanReadable
+        );
         BytesReference mutated;
         if (addRandomFields) {
             mutated = insertRandomFields(xcontentType, originalBytes, null, random());
@@ -189,7 +195,12 @@ public class SearchResponseTests extends ESTestCase {
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-        BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, randomBoolean());
+        BytesReference originalBytes = toShuffledXContent(
+            ChunkedToXContent.wrapAsToXContent(response),
+            xcontentType,
+            params,
+            randomBoolean()
+        );
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponse.fromXContent(parser);
             for (int i = 0; i < parsed.getShardFailures().length; i++) {

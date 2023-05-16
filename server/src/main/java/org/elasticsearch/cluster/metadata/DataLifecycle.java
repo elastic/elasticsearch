@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -81,6 +82,54 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     public DataLifecycle(long timeInMills) {
         this(TimeValue.timeValueMillis(timeInMills));
+    }
+
+    /**
+     * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
+     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
+     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "20d"
+     *     }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
+     * However, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *   "lifecycle": { }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * information on retention.
+     * @param lifecycles a sorted list of lifecycles in the order that they will be composed
+     * @return the final lifecycle
+     */
+    @Nullable
+    public static DataLifecycle compose(List<DataLifecycle> lifecycles) {
+        DataLifecycle.Builder builder = null;
+        for (DataLifecycle current : lifecycles) {
+            if (builder == null) {
+                builder = Builder.newBuilder(current);
+            } else {
+                if (current.dataRetention != null) {
+                    builder.dataRetention(current.getDataRetention());
+                }
+            }
+        }
+        return builder == null ? null : builder.build();
     }
 
     @Nullable
@@ -144,5 +193,26 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     public static DataLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    /**
+     * This builder helps during the composition of the data lifecycle templates.
+     */
+    static class Builder {
+        @Nullable
+        private TimeValue dataRetention = null;
+
+        Builder dataRetention(@Nullable TimeValue value) {
+            dataRetention = value;
+            return this;
+        }
+
+        DataLifecycle build() {
+            return new DataLifecycle(dataRetention);
+        }
+
+        static Builder newBuilder(DataLifecycle dataLifecycle) {
+            return new Builder().dataRetention(dataLifecycle.getDataRetention());
+        }
     }
 }

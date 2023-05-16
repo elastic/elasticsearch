@@ -58,9 +58,7 @@ import javax.inject.Inject;
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
 
-    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
-    );
+    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile("DEBUG: Class '(.*)' cannot be loaded \\(.*\\)\\.");
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
     private static final int SIG_KILL_EXIT_VALUE = 137;
@@ -337,7 +335,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());

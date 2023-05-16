@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -27,6 +28,8 @@ import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -45,6 +48,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -190,8 +194,38 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes, true);
         registry.clusterChanged(event);
+    }
+
+    public void testThatRequiredPipelinesAreAdded() throws Exception {
+        DiscoveryNode node = TestDiscoveryNode.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+
+        AtomicInteger calledTimes = new AtomicInteger(0);
+        client.setVerifier((action, request, listener) -> {
+            if (action instanceof PutPipelineAction) {
+                calledTimes.incrementAndGet();
+                return AcknowledgedResponse.TRUE;
+            }
+            if (action instanceof PutComponentTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutLifecycleAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else if (action instanceof PutComposableIndexTemplateAction) {
+                // Ignore this, it's verified in another test
+                return AcknowledgedResponse.TRUE;
+            } else {
+                fail("client called with unexpected request: " + request.toString());
+            }
+            return null;
+        });
+
+        ClusterChangedEvent event = createInitialClusterChangedEvent(nodes);
+        registry.clusterChanged(event);
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getIngestPipelines().size())));
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
@@ -235,7 +269,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
             policyMap.put(policies.get(0).getName(), different);
-            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
+            ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes, true);
             registry.clusterChanged(event);
         }
     }
@@ -442,7 +476,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
     ) {
         if (action instanceof PutComponentTemplateAction) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(PutComponentTemplateAction.class));
             assertThat(request, instanceOf(PutComponentTemplateAction.Request.class));
             final PutComponentTemplateAction.Request putRequest = (PutComponentTemplateAction.Request) request;
             assertThat(putRequest.componentTemplate().version(), equalTo((long) StackTemplateRegistry.REGISTRY_VERSION));
@@ -461,15 +494,20 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates, DiscoveryNodes nodes) {
-        return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes);
+        return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes, true);
+    }
+
+    private ClusterChangedEvent createInitialClusterChangedEvent(DiscoveryNodes nodes) {
+        return createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes, false);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(
         Map<String, Integer> existingTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
-        DiscoveryNodes nodes
+        DiscoveryNodes nodes,
+        boolean addRegistryPipelines
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
+        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes, addRegistryPipelines);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -485,7 +523,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
         Settings nodeSettings,
         Map<String, Integer> existingComponentTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
-        DiscoveryNodes nodes
+        DiscoveryNodes nodes,
+        boolean addRegistryPipelines
     ) {
         Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingComponentTemplates.entrySet()) {
@@ -499,12 +538,26 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        // adding the registry pipelines, as they may be dependencies for index templates
+        Map<String, PipelineConfiguration> ingestPipelines = new HashMap<>();
+        if (addRegistryPipelines) {
+            for (IngestPipelineConfig ingestPipelineConfig : registry.getIngestPipelines()) {
+                // we cannot mock PipelineConfiguration as it is a final class
+                ingestPipelines.put(
+                    ingestPipelineConfig.getId(),
+                    new PipelineConfiguration(ingestPipelineConfig.getId(), ingestPipelineConfig.loadConfig(), XContentType.JSON)
+                );
+            }
+        }
+        IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);
+
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
                     .componentTemplates(componentTemplates)
                     .transientSettings(nodeSettings)
                     .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .putCustom(IngestMetadata.TYPE, ingestMetadata)
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())

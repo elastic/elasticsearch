@@ -22,12 +22,15 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -38,6 +41,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Base64;
 import java.util.Collections;
@@ -47,7 +51,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -149,12 +155,17 @@ public class SecurityRestFilterTests extends ESTestCase {
     }
 
     public void testProcessOptionsMethod() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.OPTIONS).build();
+        when(channel.request()).thenReturn(request);
+        when(channel.newErrorBuilder()).thenReturn(JsonXContent.contentBuilder());
         filter.handleRequest(request, channel, null);
-        verify(restHandler).handleRequest(request, channel, null);
-        verifyNoMoreInteractions(channel);
+        verifyNoMoreInteractions(restHandler);
         verifyNoMoreInteractions(authcService);
+        ArgumentCaptor<RestResponse> responseArgumentCaptor = ArgumentCaptor.forClass(RestResponse.class);
+        verify(channel).sendResponse(responseArgumentCaptor.capture());
+        RestResponse restResponse = responseArgumentCaptor.getValue();
+        assertThat(restResponse.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(restResponse.content().utf8ToString(), containsString("Cannot dispatch OPTIONS request, as they are not authenticated"));
     }
 
     public void testProcessFiltersBodyCorrectly() throws Exception {

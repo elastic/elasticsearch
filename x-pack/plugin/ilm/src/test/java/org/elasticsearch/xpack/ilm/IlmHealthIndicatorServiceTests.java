@@ -278,10 +278,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             IlmHealthIndicatorService.ILM_NOT_RUNNING.definition().getUniqueId(),
             equalTo("elasticsearch:health:ilm:diagnosis:ilm_disabled")
         );
-        var definitionIds = STAGNATING_ACTION_DEFINITIONS.values()
-            .stream()
-            .map(Diagnosis.Definition::getUniqueId)
-            .toList();
+        var definitionIds = STAGNATING_ACTION_DEFINITIONS.values().stream().map(Diagnosis.Definition::getUniqueId).toList();
 
         assertThat(
             definitionIds,

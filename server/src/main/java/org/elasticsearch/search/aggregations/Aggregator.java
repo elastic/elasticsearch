@@ -183,7 +183,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         throw new UnsupportedOperationException();
     }
 
-    protected record AggregationAndBucket(
+    public record AggregationAndBucket(
         long bucketOrdinal,
         Aggregator aggregator
     ) {

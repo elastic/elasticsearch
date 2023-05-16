@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.DateTimeUnit;
 import org.elasticsearch.core.CheckedFunction;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
@@ -42,9 +44,11 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Aggregator for {@code date_histogram} that rounds values using
@@ -306,6 +310,103 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 }
             }
         };
+    }
+
+    // NOCOMMIT: Rename this. And probably put it somewhere else.
+    class Zwomp extends IteratorAndCurrent<Long> {
+
+        private final Aggregator aggregator;
+
+        Zwomp(Iterator<Long> iterator, Aggregator aggregator) {
+            super(iterator);
+            this.aggregator = aggregator;
+        }
+    }
+
+    @Override
+    public void merge(List<AggregationAndBucket> others, long thisBucket) {
+        // Need one extra slot in the queue for this aggregator
+        final PriorityQueue<Zwomp> pq = new PriorityQueue<>(others.size() + 1) {
+            @Override
+            public boolean lessThan(Zwomp a, Zwomp b) {
+                return a.current() < b.current();
+            }
+        };
+
+        pq.add(new Zwomp(this.bucketOrds.keyOrderedIterator(thisBucket), this));
+        for (AggregationAndBucket other : others) {
+            pq.add(
+                new Zwomp(
+                    ((DateHistogramAggregator) other.aggregator()).bucketOrds.keyOrderedIterator(other.bucketOrdinal()),
+                    other.aggregator()
+                )
+            );
+        }
+
+        // Is it possible for the queue to be empty? Maybe this should check for >1, since we always add ourselves?
+        if (pq.size() > 0) {
+            // Buckets matching the current key
+            List<AggregationAndBucket> currentBuckets = new ArrayList<>();
+            long key = pq.top().current();
+            do {
+                final Zwomp top = pq.top();
+
+                if (top.current() != key) {
+                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
+
+                    // It is an article of faith that all the aggregations have the same list of subAggregators in the same order
+                    // For each sub-aggregation, build a list of the aggregators-bucket pairs for this key and owning ordinal
+                    List<List<AggregationAndBucket>> childrenToReduce = new ArrayList<>(subAggregators().length);
+                    for (int i = 0; i < subAggregators.length; i++) {
+                        childrenToReduce.add(new ArrayList<>());
+                    }
+
+                    // Deal with key doesn't exist for this aggregation
+                    long bucketOrd = bucketOrds.add(thisBucket, key);
+                    if (bucketOrd < 0) { // already seen
+                        bucketOrd = -1 - bucketOrd;
+                        // we don't need to update the doc count because we already have it
+                    } else {
+                        grow(bucketOrd + 1);
+                        // TODO: Set the doc count to zero here
+                    }
+                    for (int i = 0; i < subAggregators.length; i++) {
+                        childrenToReduce.get(i).add(new AggregationAndBucket(bucketOrd, subAggregators[i]));
+                    }
+
+                    for (AggregationAndBucket other : currentBuckets) {
+                        if (other.aggregator() == this) {
+                            // We already handled our case above
+                            continue;
+                        }
+                        // TODO: Update docCounts
+                        for (int i = 0; i < subAggregators.length; i++) {
+                            childrenToReduce.get(i)
+                                .add(new AggregationAndBucket(other.bucketOrdinal(), other.aggregator().subAggregators()[i]));
+                        }
+                    }
+                    for (List<AggregationAndBucket> subTree : childrenToReduce) {
+                        AggregationAndBucket mergeLeader = subTree.get(0);
+                        mergeLeader.aggregator().merge(subTree.subList(1, subTree.size()), mergeLeader.bucketOrdinal());
+                    }
+
+                    // Reset the collection
+                    currentBuckets.clear();
+                    key = top.current();
+                }
+
+                currentBuckets.add(new AggregationAndBucket(top.current(), top.aggregator));
+
+                if (top.hasNext()) {
+                    top.next();
+                    assert top.current() > key : "shards must return data sorted by key";
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                    // At this point, we can close the associated aggregator
+                }
+            } while (pq.size() > 0);
+        }
     }
 
     @Override

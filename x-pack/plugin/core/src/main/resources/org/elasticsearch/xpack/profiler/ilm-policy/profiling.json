@@ -5,7 +5,8 @@
       "actions": {
         "rollover": {
           "max_primary_shard_size": "50gb",
-          "max_age": "7d"
+          "max_age": "7d",
+          "min_docs": 1
         },
         "set_priority": {
           "priority": 100
@@ -26,9 +27,7 @@
     "delete": {
       "min_age": "60d",
       "actions": {
-        "delete": {
-          "delete_searchable_snapshot": true
-        }
+        "delete": {}
       }
     }
   },

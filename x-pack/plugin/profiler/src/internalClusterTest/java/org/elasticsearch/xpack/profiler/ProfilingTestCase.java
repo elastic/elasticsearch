@@ -84,10 +84,8 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     protected abstract boolean useOnlyAllEvents();
 
     protected void waitForIndices() throws Exception {
-        // block until the templates are installed
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            // simple check whether at least one of the indices is present
             assertTrue(
                 "Timed out waiting for the indices to be created",
                 state.metadata().indices().keySet().containsAll(ProfilingIndexManager.INDICES_AND_ALIASES.keySet())

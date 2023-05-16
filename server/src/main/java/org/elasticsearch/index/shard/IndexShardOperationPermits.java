@@ -131,7 +131,9 @@ final class IndexShardOperationPermits implements Closeable {
                 assert queuedBlockOperations > 0;
             }
         }
-        semaphore.acquire(TOTAL_PERMITS);
+        while (semaphore.tryAcquire(TOTAL_PERMITS, 5, TimeUnit.MINUTES) == false) {
+            logger.warn("failed to acquire all indexing operation permits for {} after 5 minutes, retrying", shardId);
+        }
         return Releasables.releaseOnce(() -> {
             assert semaphore.availablePermits() == 0;
             semaphore.release(TOTAL_PERMITS);

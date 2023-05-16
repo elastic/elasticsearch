@@ -83,6 +83,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField TERMINATE_AFTER_FIELD = new ParseField("terminate_after");
     public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField QUERIES_FIELD = new ParseField("queries");
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField KNN_FIELD = new ParseField("knn");
     public static final ParseField RANK_FIELD = new ParseField("rank");
@@ -130,6 +131,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     private QueryBuilder queryBuilder;
+
+    private List<SearchQueryBuilder> searchQueryBuilders = new ArrayList<>();
 
     private QueryBuilder postQueryBuilder;
 
@@ -215,6 +218,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_002)) {
+            searchQueryBuilders = in.readList(SearchQueryBuilder::new);
+        }
         if (in.readBoolean()) {
             rescoreBuilders = in.readNamedWriteableList(RescorerBuilder.class);
         }
@@ -282,6 +288,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
         out.writeOptionalNamedWriteable(queryBuilder);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_002)) {
+            out.writeList(searchQueryBuilders);
+        } else if (searchQueryBuilders.isEmpty() == false) {
+            throw new IllegalArgumentException("cannot serialize [queries] to version [" + out.getTransportVersion() + "]");
+        }
         boolean hasRescoreBuilders = rescoreBuilders != null;
         out.writeBoolean(hasRescoreBuilders);
         if (hasRescoreBuilders) {
@@ -367,6 +378,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public QueryBuilder query() {
         return queryBuilder;
+    }
+
+    /**
+     * Sets the queries for this request.
+     */
+    public SearchSourceBuilder queries(List<SearchQueryBuilder> searchQueryBuilders) {
+        this.searchQueryBuilders = searchQueryBuilders;
+        return this;
+    }
+
+    /**
+     * Gets the queries for this request.
+     */
+    public List<SearchQueryBuilder> queries() {
+        return searchQueryBuilders;
     }
 
     /**
@@ -1067,12 +1093,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
         assert (this.equals(
-            shallowCopy(queryBuilder, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)
+            shallowCopy(queryBuilder, searchQueryBuilders, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)
         ));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
         }
+        List<SearchQueryBuilder> searchQueryBuilders = Rewriteable.rewrite(this.searchQueryBuilders, context);
         QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
@@ -1091,6 +1118,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         boolean rewritten = queryBuilder != this.queryBuilder
+            || searchQueryBuilders != this.searchQueryBuilders
             || postQueryBuilder != this.postQueryBuilder
             || knnSearch != this.knnSearch
             || aggregations != this.aggregations
@@ -1100,6 +1128,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (rewritten) {
             return shallowCopy(
                 queryBuilder,
+                searchQueryBuilders,
                 postQueryBuilder,
                 knnSearch,
                 aggregations,
@@ -1116,7 +1145,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Create a shallow copy of this builder with a new slice configuration.
      */
     public SearchSourceBuilder shallowCopy() {
-        return shallowCopy(queryBuilder, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
+        return shallowCopy(queryBuilder, searchQueryBuilders, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
     }
 
     /**
@@ -1126,6 +1155,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @SuppressWarnings("rawtypes")
     private SearchSourceBuilder shallowCopy(
         QueryBuilder queryBuilder,
+        List<SearchQueryBuilder> searchQueryBuilders,
         QueryBuilder postQueryBuilder,
         List<KnnSearchBuilder> knnSearch,
         AggregatorFactories.Builder aggregations,
@@ -1151,6 +1181,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.rankBuilder = rankBuilder;
         rewrittenBuilder.profile = profile;
         rewrittenBuilder.queryBuilder = queryBuilder;
+        rewrittenBuilder.searchQueryBuilders = searchQueryBuilders;
         rewrittenBuilder.rescoreBuilders = rescoreBuilders;
         rewrittenBuilder.scriptFields = scriptFields;
         rewrittenBuilder.searchAfterBuilder = searchAfterBuilder;
@@ -1485,6 +1516,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         }
                     }
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
+                } else if (QUERIES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    searchQueryBuilders = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            searchQueryBuilders.add(SearchQueryBuilder.parseXContent(parser, searchUsage));
+                        } else {
+                            throw new XContentParseException(
+                                parser.getTokenLocation(),
+                                "malformed queries format within the queries search array only objects are allowed; found " + token
+                            );
+                        }
+                    }
+                    searchUsage.trackSectionUsage(QUERIES_FIELD.getPreferredName());
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

@@ -1,0 +1,13 @@
+{
+  "index_patterns": [
+    "profiling-stackframes*"
+  ],
+  "composed_of": [
+    "profiling-stackframes"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for profiling-stackframes"
+  },
+  "version": ${xpack.profiling.template.version}
+}

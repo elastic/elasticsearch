@@ -93,10 +93,12 @@ teardown:
 ---
 "Query Search Application with default parameters":
   - skip:
+      features: headers
       version: all
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
 
@@ -107,10 +109,12 @@ teardown:
 ---
 "Query Search Application overriding part of the parameters":
   - skip:
+      features: headers
       version: all
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
         body:
@@ -124,10 +128,12 @@ teardown:
 ---
 "Query Search Application overriding all parameters":
   - skip:
+      features: headers
       version: all
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
         body:
@@ -142,11 +148,13 @@ teardown:
 ---
 "Query Search Application with invalid parameter validation":
   - skip:
+      features: headers
       version: all
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       catch: "bad_request"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
         body:
@@ -157,11 +165,13 @@ teardown:
 ---
 "Query Search Application without required parameter":
   - skip:
+      features: headers
       version: all
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
       catch: "bad_request"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application
         body:
@@ -170,9 +180,12 @@ teardown:
 
 ---
 "Query Search Application - not found":
+  - skip:
+      features: headers
 
   - do:
-      catch: "missing"
+      catch: "forbidden"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: nonexisting-test-search-application
         body:
@@ -182,6 +195,8 @@ teardown:
 
 ---
 "Query Search Application - no read permissions on index":
+  - skip:
+      features: headers
 
   - do:
       search_application.put:
@@ -201,5 +216,6 @@ teardown:
 
   - do:
       catch: "forbidden"
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
       search_application.search:
         name: test-search-application

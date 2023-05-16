@@ -43,8 +43,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final String activeIndex = "test2";
         // NOTE: we need many shards because shard pre-filtering and the "can match" phase
         // are executed only if we have enough shards.
-        int idleIndexShardsCount = 60;
-        int activeIndexShardsCount = 70;
+        int idleIndexShardsCount = 3;
+        int activeIndexShardsCount = 3;
         assertAcked(createIndex(idleIndex, idleIndexShardsCount));
         assertAcked(createIndex(activeIndex, activeIndexShardsCount));
         assertAcked(
@@ -70,7 +70,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
 
         // WHEN
-        final SearchResponse searchResponse = search("test*", "constant_keyword", randomAlphaOfLength(5));
+        final SearchResponse searchResponse = search("test*", "constant_keyword", randomAlphaOfLength(5), 5);
         assertEquals(RestStatus.OK, searchResponse.status());
         // NOTE: we need an empty result from at least one shard
         assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
@@ -90,8 +90,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final String activeIndex = "test2";
         // NOTE: we need many shards because shard pre-filtering and the "can match" phase
         // are executed only if we have enough shards.
-        int idleIndexShardsCount = 60;
-        int activeIndexShardsCount = 70;
+        int idleIndexShardsCount = 3;
+        int activeIndexShardsCount = 3;
         assertAcked(createIndex(idleIndex, idleIndexShardsCount));
         assertAcked(createIndex(activeIndex, activeIndexShardsCount));
         assertAcked(
@@ -117,7 +117,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
 
         // WHEN
-        final SearchResponse searchResponse = search("test*", "constant_keyword", "constant_value2");
+        final SearchResponse searchResponse = search("test*", "constant_keyword", "constant_value2", 5);
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
@@ -137,8 +137,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final String activeIndex = "test2";
         // NOTE: we need many shards because shard pre-filtering and the "can match" phase
         // are executed only if we have enough shards.
-        int idleIndexShardsCount = 60;
-        int activeIndexShardsCount = 70;
+        int idleIndexShardsCount = 3;
+        int activeIndexShardsCount = 3;
         assertAcked(createIndex(idleIndex, idleIndexShardsCount));
         assertAcked(createIndex(activeIndex, activeIndexShardsCount));
         assertAcked(createIndexMapping(idleIndex, "constant_keyword", "type=constant_keyword,value=constant", "keyword", "type=keyword"));
@@ -160,7 +160,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(beforeStatsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
 
         // WHEN
-        final SearchResponse searchResponse = search("test*", "constant_keyword", "constant");
+        final SearchResponse searchResponse = search("test*", "constant_keyword", "constant", 5);
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(0, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());
@@ -236,7 +236,10 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         return client().admin().indices().preparePutMapping(indexName).setSource(source).get();
     }
 
-    private SearchResponse search(final String index, final String field, final String value) {
-        return client().prepareSearch(index).setQuery(new MatchPhraseQueryBuilder(field, value)).get();
+    private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {
+        return client().prepareSearch(index)
+            .setQuery(new MatchPhraseQueryBuilder(field, value))
+            .setPreFilterShardSize(preFilterShardSize)
+            .get();
     }
 }

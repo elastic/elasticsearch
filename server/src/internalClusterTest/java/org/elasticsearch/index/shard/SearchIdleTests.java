@@ -236,8 +236,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final String activeIndex = "test2";
         // NOTE: we need many shards because shard pre-filtering and the "can match" phase
         // are executed only if we have enough shards.
-        int idleIndexShardsCount = 60;
-        int activeIndexShardsCount = 70;
+        int idleIndexShardsCount = 3;
+        int activeIndexShardsCount = 3;
         assertAcked(
             client().admin()
                 .indices()
@@ -331,6 +331,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // WHEN
         final SearchResponse searchResponse = client().prepareSearch("test*")
             .setQuery(new RangeQueryBuilder("@timestamp").from("2021-05-12T20:00:00.000Z").to("2021-05-12T21:00:00.000Z"))
+            .setPreFilterShardSize(5)
             .get();
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount + activeIndexShardsCount - 1, searchResponse.getSkippedShards());
@@ -399,7 +400,10 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
 
         // WHEN
-        final SearchResponse searchResponse = client().prepareSearch("test*").setQuery(new ExistsQueryBuilder("unmapped")).get();
+        final SearchResponse searchResponse = client().prepareSearch("test*")
+            .setQuery(new ExistsQueryBuilder("unmapped"))
+            .setPreFilterShardSize(5)
+            .get();
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());
         assertEquals(0, searchResponse.getFailedShards());

@@ -159,12 +159,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> force merging down to a single segment");
-        final ForceMergeResponse forceMergeResponse = client().admin()
-            .indices()
-            .prepareForceMerge(indexName)
-            .setMaxNumSegments(1)
-            .setFlush(true)
-            .get();
+        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
         assertThat(forceMergeResponse.getFailedShards(), is(0));
 
         final String snapshot2 = "snap-2";

@@ -133,7 +133,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     /**
      * Retrieve the secure settings in these settings.
      */
-    public SecureSettings getSecureSettings() {
+    SecureSettings getSecureSettings() {
+        // pkg private so it can only be accessed by local subclasses of SecureSetting
         return secureSettings;
     }
 

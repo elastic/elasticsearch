@@ -11,7 +11,6 @@
 package org.elasticsearch.tdigest;
 
 import java.io.IOException;
-import java.io.Serializable;
 
 /**
  * A Histogram is a histogram with cleverly chosen, but fixed, bin widths.
@@ -22,7 +21,7 @@ import java.io.Serializable;
 @SuppressWarnings("WeakerAccess")
 public abstract class Histogram {
     protected long[] counts;
-    protected double min;w
+    protected double min;
     protected double max;
     protected double logFactor;
     protected double logOffset;

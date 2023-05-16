@@ -43,7 +43,7 @@ setup:
                 field_value: value1
             dictionary:
               additionalProperties: false
-              required: [ "text_fields" ]
+              required: [ "field_name" ]
               properties:
                 field_name:
                   type: string

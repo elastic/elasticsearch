@@ -106,10 +106,16 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         );
         assertThat(indicatorResult.diagnosisList(), hasSize(1));
         assertEquals(indicatorResult.diagnosisList().get(0).definition(), STAGNATING_ACTION_DEFINITIONS.get(action));
-        assertEquals(
-            indicatorResult.diagnosisList().get(0).affectedResources(),
-            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of(indexName)))
-        );
+
+        var affectedResources = indicatorResult.diagnosisList().get(0).affectedResources();
+        assertThat(affectedResources, hasSize(2));
+        assertEquals(affectedResources.get(0).getType(), Diagnosis.Resource.Type.ILM_POLICY);
+        assertThat(affectedResources.get(0).getValues(), hasSize(1));
+        assertThat(affectedResources.get(0).getValues(), containsInAnyOrder(policyName));
+        assertThat(affectedResources.get(1).getValues(), hasSize(1));
+        assertEquals(affectedResources.get(1).getType(), Diagnosis.Resource.Type.INDEX);
+        assertThat(affectedResources.get(1).getValues(), containsInAnyOrder(indexName));
+
         verify(stuckIndicesFinder, times(1)).find();
     }
 

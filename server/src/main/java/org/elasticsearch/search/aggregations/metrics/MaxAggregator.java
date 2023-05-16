@@ -128,14 +128,14 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(long otherBucket, Aggregator aggregator, long thisBucket) {
-        MaxAggregator maxAggregator = (MaxAggregator) aggregator;
+    public void merge(AggregationAndBucket other, long thisBucket) {
+        MaxAggregator maxAggregator = (MaxAggregator) other.aggregator();
         if (thisBucket >= maxes.size()) {
             long from = maxes.size();
             maxes = bigArrays().grow(maxes, thisBucket + 1);
             maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        final double value = maxAggregator.maxes.get(otherBucket);
+        final double value = maxAggregator.maxes.get(other.bucketOrdinal());
         double max = maxes.get(thisBucket);
         max = Math.max(max, value);
         maxes.set(thisBucket, max);

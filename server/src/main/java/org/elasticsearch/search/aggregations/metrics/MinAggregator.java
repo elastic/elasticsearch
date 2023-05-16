@@ -127,14 +127,14 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(long otherBucket, Aggregator aggregator, long thisBucket) {
-        MaxAggregator maxAggregator = (MaxAggregator) aggregator;
+    public void merge(AggregationAndBucket other, long thisBucket) {
+        MinAggregator minAggregator = (MinAggregator) other.aggregator();
         if (thisBucket >= mins.size()) {
             long from = mins.size();
             mins = bigArrays().grow(mins, thisBucket + 1);
             mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
         }
-        final double value = maxAggregator.maxes.get(otherBucket);
+        final double value = minAggregator.mins.get(other.bucketOrdinal());
         double min = mins.get(thisBucket);
         min = Math.min(min, value);
         mins.set(thisBucket, min);

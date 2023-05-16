@@ -242,7 +242,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         builder.field(Fields.DATA_PATH, dataPath);
         builder.field(Fields.IS_CUSTOM_DATA_PATH, isCustomDataPath);
         builder.endObject();
-        builder.field(Fields.IS_SEARCH_IDLE, isSearchIdle);
+        builder.field(Fields.SEARCH_IDLE, isSearchIdle);
         builder.field(Fields.SEARCH_IDLE_TIME, searchIdleTime);
         return builder;
     }
@@ -257,7 +257,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         static final String PRIMARY = "primary";
         static final String NODE = "node";
         static final String RELOCATING_NODE = "relocating_node";
-        static final String IS_SEARCH_IDLE = "is_search_idle";
+        static final String SEARCH_IDLE = "search_idle";
         static final String SEARCH_IDLE_TIME = "search_idle_time";
     }
 

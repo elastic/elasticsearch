@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
@@ -115,6 +116,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         return Stream.concat(
             List.of(
                 DriverStatus.ENTRY,
+                AbstractPageMappingOperator.Status.ENTRY,
                 LuceneSourceOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,

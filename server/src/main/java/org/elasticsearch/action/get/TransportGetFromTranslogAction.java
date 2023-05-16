@@ -58,7 +58,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
         final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().isPromotableToPrimary();
+        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
         assert getRequest.realtime();
         ActionListener.completeWith(listener, () -> {
             var result = indexShard.getService()

@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -57,7 +58,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -621,33 +621,41 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
     }
 
-    OptionalLong getRegister(String blobName, String container, String key) throws IOException {
+    OptionalBytesReference getRegister(String blobName, String container, String key) throws IOException {
         final var blobId = BlobId.of(bucketName, blobName);
         try (
             var readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
             var stream = new PrivilegedReadChannelStream(readChannel)
         ) {
-            return OptionalLong.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
+            return OptionalBytesReference.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
         } catch (Exception e) {
             final var serviceException = unwrapServiceException(e);
             if (serviceException != null) {
                 final var statusCode = serviceException.getCode();
                 if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
-                    return OptionalLong.of(0L);
+                    return OptionalBytesReference.EMPTY;
                 }
             }
             throw e;
         }
     }
 
-    OptionalLong compareAndExchangeRegister(String blobName, String container, String key, long expected, long updated) throws IOException {
+    OptionalBytesReference compareAndExchangeRegister(
+        String blobName,
+        String container,
+        String key,
+        BytesReference expected,
+        BytesReference updated
+    ) throws IOException {
+        BlobContainerUtils.ensureValidRegisterContent(updated);
+
         final var blobId = BlobId.of(bucketName, blobName);
         final var blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
         final long generation;
 
         if (blob == null || blob.getGeneration() == null) {
-            if (expected != 0L) {
-                return OptionalLong.of(0L);
+            if (expected.length() != 0) {
+                return OptionalBytesReference.EMPTY;
             }
             generation = 0L;
         } else {
@@ -660,28 +668,27 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 )
             ) {
                 final var witness = BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key);
-                if (witness != expected) {
-                    return OptionalLong.of(witness);
+                if (witness.equals(expected) == false) {
+                    return OptionalBytesReference.of(witness);
                 }
             } catch (Exception e) {
                 final var serviceException = unwrapServiceException(e);
                 if (serviceException != null) {
                     final var statusCode = serviceException.getCode();
                     if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
-                        return expected == 0L ? OptionalLong.empty() : OptionalLong.of(0L);
+                        return expected.length() == 0 ? OptionalBytesReference.MISSING : OptionalBytesReference.EMPTY;
                     } else if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
-                        return OptionalLong.empty();
+                        return OptionalBytesReference.MISSING;
                     }
                 }
                 throw e;
             }
         }
 
-        final var newBlobContents = BlobContainerUtils.getRegisterBlobContents(updated);
         final var blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, blobName, generation))
-            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(newBlobContents, MessageDigests.md5())))
+            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(updated, MessageDigests.md5())))
             .build();
-        final var bytesRef = newBlobContents.toBytesRef();
+        final var bytesRef = updated.toBytesRef();
         try {
             SocketAccess.doPrivilegedVoidIOException(
                 () -> client().create(
@@ -697,13 +704,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             if (serviceException != null) {
                 final var statusCode = serviceException.getCode();
                 if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus() || statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
-                    return OptionalLong.empty();
+                    return OptionalBytesReference.MISSING;
                 }
             }
             throw e;
         }
 
-        return OptionalLong.of(expected);
+        return OptionalBytesReference.of(expected);
     }
 
     private static BaseServiceException unwrapServiceException(Throwable t) {

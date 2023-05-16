@@ -246,6 +246,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return new RoutingAllocationAction() {
             @Override
             public boolean removeDelayMarkers() {
+                // it is possible that desired balance is computed before some delayed allocations are expired but reconciled after.
+                // If delayed markers are removed during reconciliation then
+                // * shards are not assigned anyway as balance is not computed for them
+                // * followup reroute is not scheduled to allocate them
+                // for this reason we should keep delay markers during reconciliation
                 return false;
             }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -23,7 +23,6 @@ import java.util.function.Supplier;
  * A listener for a {@link Releasable} which races against a timeout, but which does not leak any {@link Releasable} with which it is
  * eventually completed.
  */
-// TODO tests needed
 public class TimeoutReleasableListener implements ActionListener<Releasable> {
 
     private final Supplier<ActionListener<Releasable>> listenerSupplier;
@@ -64,7 +63,7 @@ public class TimeoutReleasableListener implements ActionListener<Releasable> {
             final var cancellable = threadPool.schedule(() -> {
                 final var listener = listenerSupplier.get();
                 if (listener != null) {
-                    listener.onFailure(new ElasticsearchException("timed out after [" + timeout + "/" + timeout.millis() + "ms]"));
+                    listener.onFailure(new ElasticsearchTimeoutException("timed out after [" + timeout + "/" + timeout.millis() + "ms]"));
                 }
             }, timeout, timeoutExecutor);
             return () -> {

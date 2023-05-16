@@ -264,6 +264,7 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(endTimeSecondBackingIndex, notNullValue());
 
         var indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         Instant time = parseInstant(startTimeFirstBackingIndex);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
         response = client().performRequest(indexRequest);
@@ -271,11 +272,14 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertThat(entityAsMap(response).get("_index"), equalTo(firstBackingIndex));
 
         indexRequest = new Request("POST", "/k8s/_doc");
+        indexRequest.addParameter("refresh", "true");
         time = parseInstant(endTimeSecondBackingIndex).minusMillis(1);
         indexRequest.setJsonEntity(DOC.replace("$time", formatInstant(time)));
         response = client().performRequest(indexRequest);
         assertOK(response);
         assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
+
+        assertSearchWithRangeQuery(firstBackingIndex, secondBackingIndex);
     }
 
     public void testTsdbDataStreamsNanos() throws Exception {
@@ -348,6 +352,10 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         assertOK(response);
         assertThat(entityAsMap(response).get("_index"), equalTo(secondBackingIndex));
 
+        assertSearchWithRangeQuery(firstBackingIndex, secondBackingIndex);
+    }
+
+    private void assertSearchWithRangeQuery(String firstBackingIndex, String secondBackingIndex) throws IOException {
         var searchRequest = new Request("GET", "k8s/_search");
         searchRequest.setJsonEntity("""
             {
@@ -368,9 +376,9 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                 ]
             }
             """);
-        response = client().performRequest(searchRequest);
+        var response = client().performRequest(searchRequest);
         assertOK(response);
-        responseBody = entityAsMap(response);
+        var responseBody = entityAsMap(response);
         try {
             assertThat(ObjectPath.evaluate(responseBody, "hits.total.value"), equalTo(10));
             assertThat(ObjectPath.evaluate(responseBody, "hits.total.relation"), equalTo("eq"));

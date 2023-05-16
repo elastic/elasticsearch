@@ -195,17 +195,32 @@ public class StatelessCommitService {
                     this.commitFilesToLength.set(Collections.unmodifiableMap(mutableCommitFiles));
                 }
 
+            } catch (AlreadyClosedException e) {
+                logger.trace(() -> format("%s exception while reading file sizes to upload [%s] to object store", shardId, generation), e);
+                listener.onFailure(e);
+                return;
             } catch (Exception e) {
-                assert e instanceof IOException : e;
                 logger.info(() -> format("%s exception while reading file sizes to upload [%s] to object store", shardId, generation), e);
+                assert e instanceof IOException;
                 listener.onFailure(e);
                 return;
             }
 
             executeUpload(listener.delegateResponse((l, e) -> {
-                logger.info(() -> format("%s failed attempt to upload commit [%s] to object store, will retry", shardId, generation), e);
+                logUploadAttemptFailure(e);
                 l.onFailure(e);
             }));
+        }
+
+        private void logUploadAttemptFailure(Exception e) {
+            if (e instanceof AlreadyClosedException) {
+                logger.trace(
+                    () -> format("%s failed attempt to upload commit [%s] to object store because shard closed", shardId, generation),
+                    e
+                );
+            } else {
+                logger.info(() -> format("%s failed attempt to upload commit [%s] to object store, will retry", shardId, generation), e);
+            }
         }
 
         private void executeUpload(ActionListener<StatelessCompoundCommit> listener) {

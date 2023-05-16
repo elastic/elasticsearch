@@ -70,7 +70,7 @@ public class MergingDigest extends AbstractTDigest {
     // points to the first unused centroid
     private int lastUsedCell;
 
-    // sum_i weight[i]  See also unmergedWeight
+    // sum_i weight[i] See also unmergedWeight
     private double totalWeight = 0;
 
     // number of points that have been added to each merged centroid
@@ -91,8 +91,7 @@ public class MergingDigest extends AbstractTDigest {
     private final double[] tempMean;
     private List<List<Double>> tempData = null;
 
-
-    // array used for sorting the temp centroids.  This is a field
+    // array used for sorting the temp centroids. This is a field
     // to avoid allocations during operation
     private final int[] order;
 
@@ -200,7 +199,7 @@ public class MergingDigest extends AbstractTDigest {
         // scale is the ratio of extra buffer to the final size
         // we have to account for the fact that we copy all live centroids into the incoming space
         double scale = Math.max(1, bufferSize / size - 1);
-        //noinspection ConstantConditions
+        // noinspection ConstantConditions
         if (useTwoLevelCompression == false) {
             scale = 1;
         }
@@ -274,7 +273,7 @@ public class MergingDigest extends AbstractTDigest {
                 tempData = new ArrayList<>();
             }
             while (tempData.size() <= where) {
-                tempData.add(new ArrayList<Double>());
+                tempData.add(new ArrayList<>());
             }
             if (history == null) {
                 history = Collections.singletonList(x);
@@ -350,18 +349,18 @@ public class MergingDigest extends AbstractTDigest {
     }
 
     private void mergeNewValues() {
-        mergeNewValues(false, compression);
+        mergeNewValues(compression);
     }
 
-    private void mergeNewValues(boolean force, double compression) {
+    private void mergeNewValues(double compression) {
         if (totalWeight == 0 && unmergedWeight == 0) {
             // seriously nothing to do
             return;
         }
-        if (force || unmergedWeight > 0) {
+        if (unmergedWeight > 0) {
             // note that we run the merge in reverse every other merge to avoid left-to-right bias in merging
             merge(tempMean, tempWeight, tempUsed, tempData, order, unmergedWeight,
-                    useAlternatingSort & mergeCount % 2 == 1, compression);
+                  useAlternatingSort & mergeCount % 2 == 1, compression);
             mergeCount++;
             tempUsed = 0;
             unmergedWeight = 0;
@@ -371,9 +370,16 @@ public class MergingDigest extends AbstractTDigest {
         }
     }
 
-    private void merge(double[] incomingMean, double[] incomingWeight, int incomingCount,
-                       List<List<Double>> incomingData, int[] incomingOrder,
-                       double unmergedWeight, boolean runBackwards, double compression) {
+    private void merge(
+        double[] incomingMean,
+        double[] incomingWeight,
+        int incomingCount,
+        List<List<Double>> incomingData,
+        int[] incomingOrder,
+        double unmergedWeight,
+        boolean runBackwards,
+        double compression
+    ) {
         // when our incoming buffer fills up, we combine our existing centroids with the incoming data,
         // and then reduce the centroids by merging if possible
         assert lastUsedCell <= 0 || weight[0] == 1;
@@ -402,7 +408,6 @@ public class MergingDigest extends AbstractTDigest {
             Sort.reverse(incomingOrder, 0, incomingCount);
         }
 
-
         // start by copying the least incoming value to the normal buffer
         lastUsedCell = 0;
         mean[lastUsedCell] = incomingMean[incomingOrder[0]];
@@ -430,7 +435,7 @@ public class MergingDigest extends AbstractTDigest {
             } else {
                 addThis = projectedW <= wLimit;
             }
-            if (i == 1 || i == incomingCount - 1) {
+            if (i == incomingCount - 1) {
                 // force last centroid to never merge
                 addThis = false;
             }
@@ -439,12 +444,13 @@ public class MergingDigest extends AbstractTDigest {
                 // next point will fit
                 // so merge into existing centroid
                 weight[lastUsedCell] += incomingWeight[ix];
-                mean[lastUsedCell] = mean[lastUsedCell] + (incomingMean[ix] - mean[lastUsedCell]) * incomingWeight[ix] / weight[lastUsedCell];
+                mean[lastUsedCell] = mean[lastUsedCell] + (incomingMean[ix] -
+                                        mean[lastUsedCell]) * incomingWeight[ix] / weight[lastUsedCell];
                 incomingWeight[ix] = 0;
 
                 if (data != null) {
                     while (data.size() <= lastUsedCell) {
-                        data.add(new ArrayList<Double>());
+                        data.add(new ArrayList<>());
                     }
                     assert incomingData != null;
                     assert data.get(lastUsedCell) != incomingData.get(ix);
@@ -453,7 +459,7 @@ public class MergingDigest extends AbstractTDigest {
             } else {
                 // didn't fit ... move to next output, copy out first centroid
                 wSoFar += weight[lastUsedCell];
-                if (!useWeightLimit) {
+                if (useWeightLimit == false) {
                     k1 = scale.k(wSoFar / totalWeight, normalizer);
                     wLimit = totalWeight * scale.q(k1 + 1, normalizer);
                 }
@@ -486,7 +492,6 @@ public class MergingDigest extends AbstractTDigest {
                 Collections.reverse(data);
             }
         }
-        assert weight[0] == 1;
         assert weight[lastUsedCell - 1] == 1;
 
         if (totalWeight > 0) {
@@ -520,17 +525,41 @@ public class MergingDigest extends AbstractTDigest {
             double k2 = scale.k(q + dq, normalizer);
             q += dq / 2;
             if (k2 - k1 > 1 && w[i] != 1) {
-                System.out.printf("%sOversize centroid at " +
-                                "%d, k0=%.2f, k1=%.2f, dk=%.2f, w=%.2f, q=%.4f, dq=%.4f, left=%.1f, current=%.2f maxw=%.2f\n",
-                        header, i, k1, k2, k2 - k1, w[i], q, dq, left, w[i], totalWeight * scale.max(q, normalizer));
+                System.out.printf(
+                    "%sOversize centroid at "
+                        + "%d, k0=%.2f, k1=%.2f, dk=%.2f, w=%.2f, q=%.4f, dq=%.4f, left=%.1f, current=%.2f maxw=%.2f\n",
+                    header,
+                    i,
+                    k1,
+                    k2,
+                    k2 - k1,
+                    w[i],
+                    q,
+                    dq,
+                    left,
+                    w[i],
+                    totalWeight * scale.max(q, normalizer)
+                );
                 header = "";
                 badCount++;
             }
             if (k2 - k1 > 4 && w[i] != 1) {
                 throw new IllegalStateException(
-                        String.format("Egregiously oversized centroid at " +
-                                        "%d, k0=%.2f, k1=%.2f, dk=%.2f, w=%.2f, q=%.4f, dq=%.4f, left=%.1f, current=%.2f, maxw=%.2f\n",
-                                i, k1, k2, k2 - k1, w[i], q, dq, left, w[i], totalWeight * scale.max(q, normalizer)));
+                    String.format(
+                        "Egregiously oversized centroid at "
+                            + "%d, k0=%.2f, k1=%.2f, dk=%.2f, w=%.2f, q=%.4f, dq=%.4f, left=%.1f, current=%.2f, maxw=%.2f\n",
+                        i,
+                        k1,
+                        k2,
+                        k2 - k1,
+                        w[i],
+                        q,
+                        dq,
+                        left,
+                        w[i],
+                        totalWeight * scale.max(q, normalizer)
+                    )
+                );
             }
             q += dq / 2;
             left += w[i];
@@ -548,7 +577,7 @@ public class MergingDigest extends AbstractTDigest {
      */
     @Override
     public void compress() {
-        mergeNewValues(true, publicCompression);
+        mergeNewValues(publicCompression);
     }
 
     @Override
@@ -757,7 +786,6 @@ public class MergingDigest extends AbstractTDigest {
         }
 
         assert weight[n - 1] >= 1;
-        assert index <= totalWeight;
         assert index >= totalWeight - weight[n - 1];
 
         // weightSoFar = totalWeight - weight[n-1]/2 (very nearly)
@@ -775,12 +803,13 @@ public class MergingDigest extends AbstractTDigest {
 
     @Override
     public Collection<Centroid> centroids() {
+        mergeNewValues();
+
         // we don't actually keep centroid structures around so we have to fake it
-        compress();
-        return new AbstractCollection<Centroid>() {
+        return new AbstractCollection<>() {
             @Override
             public Iterator<Centroid> iterator() {
-                return new Iterator<Centroid>() {
+                return new Iterator<>() {
                     int i = 0;
 
                     @Override
@@ -841,7 +870,8 @@ public class MergingDigest extends AbstractTDigest {
     }
 
     public enum Encoding {
-        VERBOSE_ENCODING(1), SMALL_ENCODING(2);
+        VERBOSE_ENCODING(1),
+        SMALL_ENCODING(2);
 
         private final int code;
 

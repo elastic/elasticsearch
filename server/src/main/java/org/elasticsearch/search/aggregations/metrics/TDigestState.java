@@ -57,6 +57,9 @@ public class TDigestState extends MergingDigest {
             return false;
         }
         TDigestState that = (TDigestState) obj;
+        if (this == that) {
+            return true;
+        }
         if (compression != that.compression) {
             return false;
         }
@@ -69,6 +72,10 @@ public class TDigestState extends MergingDigest {
         if (this.isRecording() != that.isRecording()) {
             return false;
         }
+        if (this.centroidCount() != that.centroidCount()) {
+            return false;
+        }
+
         Iterator<? extends Centroid> thisCentroids = centroids().iterator();
         Iterator<? extends Centroid> thatCentroids = that.centroids().iterator();
         while (thisCentroids.hasNext()) {
@@ -86,7 +93,7 @@ public class TDigestState extends MergingDigest {
 
     @Override
     public int hashCode() {
-        int h = 31 * Double.hashCode(compression);
+        int h = 31 * Double.hashCode(compression) + Integer.hashCode(centroidCount());
         for (Centroid centroid : centroids()) {
             h = 31 * h + Double.hashCode(centroid.mean());
             h = 31 * h + centroid.count();

@@ -16,6 +16,7 @@ directly from the {infer} cache.
 == {api-request-title}
 
 `POST _ml/trained_models/<model_id>/_infer`
+`POST _ml/trained_models/<deployment_id>/_infer`
 
 ////
 [[infer-trained-model-prereq]]
@@ -34,6 +35,10 @@ directly from the {infer} cache.
 `<model_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+
+`<deployment_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[infer-trained-model-query-params]]
 == {api-query-parms-title}

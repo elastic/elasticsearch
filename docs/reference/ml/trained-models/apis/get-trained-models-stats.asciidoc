@@ -22,6 +22,8 @@ Retrieves usage information for trained models.
 
 `GET _ml/trained_models/<model_id_pattern*>,<model_id_2>/_stats`
 
+`GET _ml/trained_models/<deployment_id>/_stats`
+
 
 [[ml-get-trained-models-stats-prereq]]
 == {api-prereq-title}
@@ -33,8 +35,9 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 [[ml-get-trained-models-stats-desc]]
 == {api-description-title}
 
-You can get usage information for multiple trained models in a single API
-request by using a comma-separated list of model IDs or a wildcard expression.
+You can get usage information for multiple trained models or trained model 
+deployments in a single API request by using a comma-separated list of model 
+IDs, deployment IDs, or a wildcard expression.
 
 
 [[ml-get-trained-models-stats-path-params]]
@@ -43,6 +46,10 @@ request by using a comma-separated list of model IDs or a wildcard expression.
 `<model_id>`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+
+`<deployment_id>`::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 
 [[ml-get-trained-models-stats-query-params]]
@@ -115,6 +122,9 @@ The detailed allocation state related to the nodes.
 (integer)
 The desired number of nodes for model allocation.
 ======
+
+`deployment_id`:::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 `error_count`:::
 (integer)

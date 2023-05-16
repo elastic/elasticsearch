@@ -1532,7 +1532,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     request::nowInMillis,
                     request.shardId(),
                     request.shardRequestIndex(),
-                    request.getClusterAlias()
+                    request.getClusterAlias(),
+                    request.getRuntimeMappings().isEmpty() == false
                 ).get()
             );
             if (rewritten.query() instanceof MatchNoneQueryBuilder) {

@@ -1715,7 +1715,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final LongSupplier nowInMillis,
         final ShardId shardId,
         int shardRequestIndex,
-        final String clusterAlias
+        final String clusterAlias,
+        boolean hasRuntimeMappings
     ) {
         return new MappingAwareRewriteContextProvider(
             parserConfig,
@@ -1725,7 +1726,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indexService(index),
             shardId,
             shardRequestIndex,
-            clusterAlias
+            clusterAlias,
+            hasRuntimeMappings
         );
     }
 

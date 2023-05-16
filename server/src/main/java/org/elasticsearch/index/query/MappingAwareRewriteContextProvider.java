@@ -27,6 +27,8 @@ public class MappingAwareRewriteContextProvider implements Supplier<MappingAware
     private final int shardRequestIndex;
     private final String clusterAlias;
 
+    private final boolean hasRuntimeMappings;
+
     public MappingAwareRewriteContextProvider(
         final XContentParserConfiguration parserConfig,
         final NamedWriteableRegistry writeableRegistry,
@@ -35,7 +37,8 @@ public class MappingAwareRewriteContextProvider implements Supplier<MappingAware
         final IndexService indexService,
         final ShardId shardId,
         int shardRequestIndex,
-        final String clusterAlias
+        final String clusterAlias,
+        boolean hasRuntimeMappings
     ) {
         this.parserConfig = parserConfig;
         this.writeableRegistry = writeableRegistry;
@@ -45,10 +48,14 @@ public class MappingAwareRewriteContextProvider implements Supplier<MappingAware
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.clusterAlias = clusterAlias;
+        this.hasRuntimeMappings = hasRuntimeMappings;
     }
 
     @Override
     public MappingAwareRewriteContext get() {
+        if (hasRuntimeMappings) {
+            return null;
+        }
         return new MappingAwareRewriteContext(
             parserConfig,
             writeableRegistry,

@@ -1929,6 +1929,18 @@ public class InternalEngine extends Engine {
         return refresh(source, SearcherScope.EXTERNAL, false);
     }
 
+    @Override
+    public void externalRefresh(String source, ActionListener<RefreshResult> listener) {
+        externalRefresh(source, true, listener);
+    }
+
+    protected void externalRefresh(String source, boolean block, ActionListener<Engine.RefreshResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            logger.trace("external refresh with source [{}]", source);
+            return refresh(source, SearcherScope.EXTERNAL, block);
+        });
+    }
+
     final RefreshResult refresh(String source, SearcherScope scope, boolean block) throws EngineException {
         // both refresh types will result in an internal refresh but only the external will also
         // pass the new reader reference to the external reader manager.

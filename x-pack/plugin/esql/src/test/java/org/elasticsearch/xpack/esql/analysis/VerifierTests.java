@@ -8,23 +8,12 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 
 public class VerifierTests extends ESTestCase {
 
-    private static final String INDEX_NAME = "test";
     private static final EsqlParser parser = new EsqlParser();
-    private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
-    private final Analyzer defaultAnalyzer = new Analyzer(
-        new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex),
-        new Verifier()
-    );
+    private final Analyzer defaultAnalyzer = AnalyzerTestUtils.defaultAnalyzer();
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
@@ -137,9 +126,5 @@ public class VerifierTests extends ESTestCase {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
-    }
-
-    private static IndexResolution loadIndexResolution(String name) {
-        return IndexResolution.valid(new EsIndex(INDEX_NAME, TypesTests.loadMapping(name)));
     }
 }

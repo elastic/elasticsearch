@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -126,7 +127,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
 
-        analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult), new Verifier());
+        analyzer = new Analyzer(new AnalyzerContext(config, functionRegistry, getIndexResult), new Verifier(new Metrics()));
     }
 
     public void testSingleFieldExtractor() {

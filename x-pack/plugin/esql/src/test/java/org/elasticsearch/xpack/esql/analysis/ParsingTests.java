@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -24,7 +25,7 @@ public class ParsingTests extends ESTestCase {
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
         new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex),
-        new Verifier()
+        new Verifier(new Metrics())
     );
 
     public void testConcatFunctionInvalidInputs() {

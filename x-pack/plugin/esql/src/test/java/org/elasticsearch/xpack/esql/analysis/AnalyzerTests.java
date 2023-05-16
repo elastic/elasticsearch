@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -28,7 +25,6 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -39,6 +35,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AnalyzerTests extends ESTestCase {
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
-        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "idx"), null, false));
         var limit = as(plan, Limit.class);
 
@@ -57,7 +56,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFailOnUnresolvedIndex() {
-        Analyzer analyzer = newAnalyzer(IndexResolution.invalid("Unknown index [idx]"));
+        Analyzer analyzer = analyzer(IndexResolution.invalid("Unknown index [idx]"));
 
         VerificationException e = expectThrows(
             VerificationException.class,
@@ -69,7 +68,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexWithClusterResolution() {
         EsIndex idx = new EsIndex("cluster:idx", Map.of());
-        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, "cluster", "idx"), null, false));
         var limit = as(plan, Limit.class);
@@ -79,7 +78,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAttributeResolution() {
         EsIndex idx = new EsIndex("idx", TypesTests.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
             new Eval(
@@ -104,7 +103,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolutionOfChainedReferences() {
-        Analyzer analyzer = newAnalyzer(loadMapping("mapping-one-field.json", "idx"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
 
         var plan = analyzer.analyze(
             new Eval(
@@ -140,7 +139,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAttributeResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
-        Analyzer analyzer = newAnalyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
             new Eval(
@@ -169,7 +168,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnresolvableAttribute() {
-        Analyzer analyzer = newAnalyzer(loadMapping("mapping-one-field.json", "idx"));
+        Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
 
         VerificationException ve = expectThrows(
             VerificationException.class,
@@ -1169,26 +1168,5 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyze(query, mapping.toString());
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
-    }
-
-    private Analyzer newAnalyzer(IndexResolution indexResolution) {
-        return new Analyzer(new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), indexResolution), new Verifier());
-    }
-
-    private IndexResolution loadMapping(String resource, String indexName) {
-        EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
-        return IndexResolution.valid(test);
-    }
-
-    private LogicalPlan analyze(String query) {
-        return analyze(query, "mapping-basic.json");
-    }
-
-    private LogicalPlan analyze(String query, String mapping) {
-        var plan = new EsqlParser().createStatement(query);
-        // System.out.println(plan);
-        var analyzed = newAnalyzer(loadMapping(mapping, "test")).analyze(plan);
-        // System.out.println(analyzed);
-        return analyzed;
     }
 }

@@ -1,0 +1,5 @@
+pr: 95828
+summary: Support value retrieval in `top_hits`
+area: Aggregations
+type: enhancement
+issues: []

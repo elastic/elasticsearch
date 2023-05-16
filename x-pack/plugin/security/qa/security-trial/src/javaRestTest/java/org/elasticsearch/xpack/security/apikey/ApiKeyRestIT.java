@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration Rest Tests relating to API Keys.
@@ -746,8 +747,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         if (randomBoolean()) {
             fetchRequest = new Request("GET", "/_security/api_key");
             fetchRequest.addParameter("id", apiKeyId);
+            fetchRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
         } else {
             fetchRequest = new Request("GET", "/_security/_query/api_key");
+            fetchRequest.addParameter("with_limited_by", String.valueOf(randomBoolean()));
             fetchRequest.setJsonEntity(Strings.format("""
                 { "query": { "ids": { "values": ["%s"] } } }""", apiKeyId));
         }
@@ -760,6 +763,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath fetchResponse = assertOKAndCreateObjectPath(client().performRequest(fetchRequest));
 
         assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
+        assertThat(fetchResponse.evaluate("api_keys.0.type"), equalTo("cross_cluster"));
         assertThat(
             fetchResponse.evaluate("api_keys.0.role_descriptors"),
             equalTo(
@@ -786,6 +790,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 )
             )
         );
+        assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
         final Request deleteRequest = new Request("DELETE", "/_security/api_key");
         deleteRequest.setJsonEntity(Strings.format("""

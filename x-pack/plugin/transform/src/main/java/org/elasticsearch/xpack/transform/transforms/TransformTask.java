@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -48,7 +47,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -466,17 +464,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] shutdown of transform requested", transform.getId());
         transformScheduler.deregisterTransform(getTransformId());
         markAsCompleted();
-        waitForPersistentTask(Objects::isNull, null, new PersistentTasksService.WaitForPersistentTaskListener<>() {
-            @Override
-            public void onResponse(PersistentTask<PersistentTaskParams> persistentTask) {
-                logger.trace("[{}] successfully finished waiting for persistent task to disappear.", transform.getId());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> "[" + transform.getId() + "] failure while waiting for persistent task to disappear.", e);
-            }
-        });
     }
 
     void persistStateToClusterState(TransformState state, ActionListener<PersistentTask<?>> listener) {

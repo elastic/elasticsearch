@@ -69,7 +69,7 @@ public class ClusterStateTests extends ESTestCase {
         final DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
-        ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
+        ClusterName name = ClusterName.DEFAULT;
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState withMaster1a = ClusterState.builder(name)

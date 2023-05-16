@@ -226,7 +226,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     }
 
     public void testSystemSynonymsIndexName() {
-        assumeTrue("This test should only run with enabled synonyms feature flag",isEnabled());
+        assumeTrue("This test should only run with enabled synonyms feature flag", isEnabled());
         assertEquals(
             List.of(SYNONYMS_INDEX),
             new CommonAnalysisPlugin().getSystemIndexDescriptors(Settings.EMPTY)

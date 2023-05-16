@@ -15,15 +15,14 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- */
-
-/**
- * <h2>T-Digest library</h2>
- * This package contains a fork for the [T-Digest](https://github.com/tdunning/t-digest) library that's used for percentile calculations.
  *
- * Forking the library allowed addressing bugs and inaccuracies around both the AVL- and the merging-based implementations and switching
- * from the former to the latter within TSDB, with substantial performance gains (10-50x). It also unlocks the use of BigArrays and other
- * ES-specific functionality to account for resources used in the digest data structures.
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
-
 package org.elasticsearch.tdigest;
+
+public class BigCountMergingDigestTests extends BigCount {
+    @Override
+    public TDigest createDigest() {
+        return new MergingDigest(100);
+    }
+}

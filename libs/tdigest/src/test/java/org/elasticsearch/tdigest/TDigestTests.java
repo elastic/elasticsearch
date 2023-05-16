@@ -1,17 +1,27 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -34,13 +45,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Base test case for TDigests, just extend this class and implement the abstract methods.
  */
-@Ignore
-public abstract class TDigestTest extends AbstractTest {
+public abstract class TDigestTests extends ESTestCase {
 
     private static String digestName;
 
     public static void setup(String digestName) throws IOException {
-        TDigestTest.digestName = digestName;
+        TDigestTests.digestName = digestName;
     }
 
     public interface DigestFactory {
@@ -53,8 +63,7 @@ public abstract class TDigestTest extends AbstractTest {
         return factory(100);
     }
 
-    @Test
-    public void offsetUniform() {
+    public void testOffsetUniform() {
         for (double compression : new double[] { 20, 50, 100, 200 }) {
             TDigest digest = factory(compression).create();
             digest.setScaleFunction(ScaleFunction.K_0);
@@ -68,8 +77,7 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    @Test
-    public void bigJump() {
+    public void testBigJump() {
         TDigest digest = factory(100).create();
         for (int i = 1; i < 20; i++) {
             digest.add(i);
@@ -103,7 +111,6 @@ public abstract class TDigestTest extends AbstractTest {
         assertEquals(1_000_000.0, digest.quantile(0.965), 0.0);
     }
 
-    @Test
     public void testSmallCountQuantile() {
         List<Double> data = List.of(15.0, 20.0, 32.0, 60.0);
         TDigest td = factory(200).create();
@@ -125,7 +132,6 @@ public abstract class TDigestTest extends AbstractTest {
      * <p>
      * Don't think that there is a problem here, but keeping the test just in case.
      */
-    @Test
     public void testExplicitSkewedData() {
         double[] data = new double[] {
             245,
@@ -176,7 +182,6 @@ public abstract class TDigestTest extends AbstractTest {
      * <p>
      * The question in the issue about the origin of the shuffle still applies.
      */
-    @Test
     public void testQuantile() {
         double compression = 100;
         double[] samples = new double[] { 1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 6.0, 7.0 };
@@ -205,7 +210,6 @@ public abstract class TDigestTest extends AbstractTest {
     /**
      * Brute force test that cdf and quantile give reference behavior in digest made up of all singletons.
      */
-    @Test
     public void singletonQuantiles() {
         double[] data = new double[11];
         TDigest digest = factory(100).create();
@@ -229,8 +233,7 @@ public abstract class TDigestTest extends AbstractTest {
     /**
      * Verifies behavior involving interpolation (or lack of same, really) between singleton centroids.
      */
-    @Test
-    public void singleSingleRange() {
+    public void testSingleSingleRange() {
         TDigest digest = factory(100).create();
         digest.add(1);
         digest.add(2);
@@ -251,8 +254,7 @@ public abstract class TDigestTest extends AbstractTest {
      * Tests cases where min or max is not the same as the extreme centroid which has weight>1. In these cases min and
      * max give us a little information we wouldn't otherwise have.
      */
-    @Test
-    public void singletonAtEnd() {
+    public void testSingletonAtEnd() {
         MergingDigest digest = new MergingDigest(100);
         digest.add(1);
         digest.add(2);
@@ -317,7 +319,6 @@ public abstract class TDigestTest extends AbstractTest {
     /**
      * The example from issue #167
      */
-    @Test
     public void testIssue167() {
         TDigest d = factory(100).create();
         for (int i = 0; i < 2; ++i) {
@@ -340,7 +341,6 @@ public abstract class TDigestTest extends AbstractTest {
 
     protected abstract TDigest fromBytes(ByteBuffer bytes);
 
-    @Test
     public void testSingleValue() {
         Random rand = random();
         final TDigest digest = factory().create();
@@ -352,7 +352,6 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    @Test
     public void testFewValues() {
         // When there are few values in the tree, quantiles should be exact
         final TDigest digest = factory().create();
@@ -377,13 +376,13 @@ public abstract class TDigestTest extends AbstractTest {
         for (double q : new double[] { 0, 1e-10, r.nextDouble(), 0.5, 1 - 1e-10, 1 }) {
             double q1 = Dist.quantile(q, values);
             double q2 = digest.quantile(q);
-            assertEquals(String.format("At q=%g, expected %.2f vs %.2f", q, q1, q2), q1, q2, 0.03);
+            assertEquals(String.format(Locale.ROOT, "At q=%g, expected %.2f vs %.2f", q, q1, q2), q1, q2, 0.03);
         }
     }
 
-//    private int repeats() {
-//        return Boolean.parseBoolean(System.getProperty("runSlowTests")) ? 10 : 1;
-//    }
+    // private int repeats() {
+    // return Boolean.parseBoolean(System.getProperty("runSlowTests")) ? 10 : 1;
+    // }
 
     public void testEmptyDigest() {
         TDigest digest = factory().create();
@@ -469,14 +468,12 @@ public abstract class TDigestTest extends AbstractTest {
     // }
     // }
 
-    @Test
     public void testEmpty() {
         final TDigest digest = factory().create();
         final double q = random().nextDouble();
         assertTrue(Double.isNaN(digest.quantile(q)));
     }
 
-    @Test
     public void testMoreThan2BValues() {
         final TDigest digest = factory(100).create();
         // carefully build a t-digest that is as if we added 3 uniform values from [0,1]
@@ -496,7 +493,7 @@ public abstract class TDigestTest extends AbstractTest {
         double prev = Double.NEGATIVE_INFINITY;
         for (double q : quantiles) {
             final double v = digest.quantile(q);
-            assertTrue(String.format("q=%.1f, v=%.4f, pref=%.4f", q, v, prev), v >= prev);
+            assertTrue(String.format(Locale.ROOT, "q=%.1f, v=%.4f, pref=%.4f", q, v, prev), v >= prev);
             prev = v;
         }
     }
@@ -522,7 +519,6 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    @Test
     public void testNaN() {
         final TDigest digest = factory().create();
         Random gen = random();
@@ -543,7 +539,6 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    // @Test
     // public void testUniform() {
     // Random gen = random();
     // for (int i = 0; i < repeats(); i++) {
@@ -551,7 +546,7 @@ public abstract class TDigestTest extends AbstractTest {
     // }
     // }
     //
-    // @Test
+
     // public void testGamma() {
     // // this Gamma distribution is very heavily skewed. The 0.1%-ile is 6.07e-30 while
     // // the median is 0.006 and the 99.9th %-ile is 33.6 while the mean is 1.
@@ -571,7 +566,6 @@ public abstract class TDigestTest extends AbstractTest {
     // }
     // }
 
-    // @Test
     // public void testNarrowNormal() {
     // // this mixture of a uniform and normal distribution has a very narrow peak which is centered
     // // near the median. Our system should be scale invariant and work well regardless.
@@ -597,7 +591,6 @@ public abstract class TDigestTest extends AbstractTest {
     // }
     // }
 
-    @Test
     public void testMidPointRule() {
         TDigest dist = factory(200).create();
         dist.add(1);
@@ -608,7 +601,7 @@ public abstract class TDigestTest extends AbstractTest {
             dist.add(1);
             dist.add(2);
             if (i % 8 == 0) {
-                String message = String.format("i = %d", i);
+                String message = String.format(Locale.ROOT, "i = %d", i);
                 assertEquals(message, 0, dist.cdf(1 - 1e-9), 0);
                 assertEquals(message, 0.25, dist.cdf(1), 0.01 * scale);
                 assertEquals(message, 0.5, dist.cdf(1 + 1e-9), 0.03 * scale);
@@ -639,7 +632,6 @@ public abstract class TDigestTest extends AbstractTest {
 
     }
 
-    // @Test
     // public void testRepeatedValues() {
     // final Random gen = random();
     //
@@ -686,7 +678,6 @@ public abstract class TDigestTest extends AbstractTest {
     // }
     // }
 
-    // @Test
     // public void testSequentialPoints() {
     // for (int i = 0; i < repeats(); i++) {
     // runTest(factory(), new AbstractContinousDistribution() {
@@ -701,7 +692,6 @@ public abstract class TDigestTest extends AbstractTest {
     // }
     // }
 
-    @Test
     public void testSerialization() {
         Random gen = random();
         final double compression = 20 + randomDouble() * 100;
@@ -714,7 +704,7 @@ public abstract class TDigestTest extends AbstractTest {
 
         ByteBuffer buf = ByteBuffer.allocate(20000);
         dist.asBytes(buf);
-        assertTrue(String.format("size is %d\n", buf.position()), buf.position() < 12000);
+        assertTrue("size is " + buf.position(), buf.position() < 12000);
         assertEquals(dist.byteSize(), buf.position());
 
         buf.flip();
@@ -760,7 +750,6 @@ public abstract class TDigestTest extends AbstractTest {
      * Does basic sanity testing for a particular small example that used to fail. See
      * https://github.com/addthis/stream-lib/issues/138
      */
-    @Test
     public void testThreePointExample() {
         TDigest tdigest = factory(100).create();
         double x0 = 0.18615591526031494;
@@ -785,13 +774,12 @@ public abstract class TDigestTest extends AbstractTest {
         assertEquals(x0, tdigest.quantile(0.0), 0);
         assertEquals(x2, tdigest.quantile(1.0), 0);
 
-        assertTrue(String.valueOf(p10),Double.compare(x0, p10) < 0);
-        assertTrue(String.valueOf(p10),Double.compare(x1, p10) > 0);
-        assertTrue(String.valueOf(p99),Double.compare(x1, p99) < 0);
-        assertTrue(String.valueOf(p99),Double.compare(x2, p99) > 0);
+        assertTrue(String.valueOf(p10), Double.compare(x0, p10) < 0);
+        assertTrue(String.valueOf(p10), Double.compare(x1, p10) > 0);
+        assertTrue(String.valueOf(p99), Double.compare(x1, p99) < 0);
+        assertTrue(String.valueOf(p99), Double.compare(x2, p99) > 0);
     }
 
-    @Test
     public void testSingletonInACrowd() {
         TDigest dist = factory(100).create();
         for (int i = 0; i < 10000; i++) {
@@ -811,7 +799,6 @@ public abstract class TDigestTest extends AbstractTest {
         assertEquals(20.0, dist.quantile(1), 0);
     }
 
-    @Test
     public void testIntEncoding() {
         Random gen = random();
         ByteBuffer buf = ByteBuffer.allocate(10000);
@@ -827,24 +814,22 @@ public abstract class TDigestTest extends AbstractTest {
 
         for (int i = 0; i < 3000; i++) {
             int n = AbstractTDigest.decode(buf);
-            assertEquals(String.format("%d:", i), ref.get(i).intValue(), n);
+            assertEquals(i, ref.get(i), n);
         }
     }
 
-    @Test()
     public void testSizeControl() throws ExecutionException, InterruptedException {
-        final Random gen0 = random();
         List<Callable<String>> tasks = new ArrayList<>();
         for (final int size : new int[] { 10, 100, 1000, 10000 }) {
             tasks.add(new Callable<>() {
-                final Random gen = new Random(gen0.nextLong());
+                final Random gen = random();
 
                 @Override
                 public String call() {
                     for (double compression : new double[] { 50, 100, 200, 500 }) {
                         TDigest dist = factory(compression).create();
                         for (int i = 0; i < size * 1000; i++) {
-                            dist.add(gen.nextDouble());
+                            dist.add(gen.nextDouble() * size);
                         }
                         dist.compress();
                     }
@@ -860,7 +845,6 @@ public abstract class TDigestTest extends AbstractTest {
         assertTrue("Dangling executor thread", executor.awaitTermination(5, TimeUnit.SECONDS));
     }
 
-    @Test
     public void testScaling() {
         final Random gen = random();
         for (int k = 0; k < 10; k++) {
@@ -887,7 +871,6 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    @Test
     public void testMonotonicity() {
         TDigest digest = factory().create();
         final Random gen = random();
@@ -908,7 +891,6 @@ public abstract class TDigestTest extends AbstractTest {
         }
     }
 
-    // @Test
     // public void testKSDrift() {
     // final Random gen = random();
     // int N1 = 50;

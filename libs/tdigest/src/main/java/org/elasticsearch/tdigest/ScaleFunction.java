@@ -1,9 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
@@ -87,7 +98,6 @@ public enum ScaleFunction {
             };
             return ScaleFunction.limitCall(f, q, 1e-15, 1 - 1e-15);
         }
-
 
         @Override
         public double q(double k, final double compression, double n) {
@@ -584,13 +594,13 @@ public enum ScaleFunction {
                 return Math.asin(x);
             } else {
                 // the models
-                double[] m0 = {0.2955302411, 1.2221903614, 0.1488583743, 0.2422015816, -0.3688700895, 0.0733398445};
-                double[] m1 = {-0.0430991920, 0.9594035750, -0.0362312299, 0.1204623351, 0.0457029620, -0.0026025285};
-                double[] m2 = {-0.034873933724, 1.054796752703, -0.194127063385, 0.283963735636, 0.023800124916, -0.000872727381};
-                double[] m3 = {-0.37588391875, 2.61991859025, -2.48835406886, 1.48605387425, 0.00857627492, -0.00015802871};
+                double[] m0 = { 0.2955302411, 1.2221903614, 0.1488583743, 0.2422015816, -0.3688700895, 0.0733398445 };
+                double[] m1 = { -0.0430991920, 0.9594035750, -0.0362312299, 0.1204623351, 0.0457029620, -0.0026025285 };
+                double[] m2 = { -0.034873933724, 1.054796752703, -0.194127063385, 0.283963735636, 0.023800124916, -0.000872727381 };
+                double[] m3 = { -0.37588391875, 2.61991859025, -2.48835406886, 1.48605387425, 0.00857627492, -0.00015802871 };
 
                 // the parameters for all of the models
-                double[] vars = {1, x, x * x, x * x * x, 1 / (1 - x), 1 / (1 - x) / (1 - x)};
+                double[] vars = { 1, x, x * x, x * x * x, 1 / (1 - x), 1 / (1 - x) / (1 - x) };
 
                 // raw grist for interpolation coefficients
                 double x0 = bound((c0High - x) / c0High);
@@ -599,7 +609,7 @@ public enum ScaleFunction {
                 double x3 = bound((c3High - x) / (c3High - c4Low));
 
                 // interpolation coefficients
-                //noinspection UnnecessaryLocalVariable
+                // noinspection UnnecessaryLocalVariable
                 double mix0 = x0;
                 double mix1 = (1 - x0) * x1;
                 double mix2 = (1 - x1) * x2;

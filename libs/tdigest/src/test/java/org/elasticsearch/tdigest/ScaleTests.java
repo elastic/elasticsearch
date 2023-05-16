@@ -1,35 +1,46 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
 
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assume.assumeTrue;
-
 /**
  * Tests scaling properties of t-digest variants
  */
-public class ScaleTest {
-    @Test
+public class ScaleTests extends ESTestCase {
+
     public void testGrowth() {
-        assumeTrue(Boolean.parseBoolean(System.getProperty("runSlowTests")));
-        for (Limit limit : new Limit[]{
-                new RootLinearLimit(), new RootLimit(),
-                new StandardLimit(), new LinearLimit(), new PiecewiseLinearLimit(0.05),
-                new PiecewiseLinearLimit(0.1), new PiecewiseLinearLimit(0.2),
-        }) {
-            for (long n : new long[]{1000, 10000, 100000, 1000000L, 10000000L, 100000000L, 1000000000L}) {
+        for (Limit limit : new Limit[] {
+            new RootLinearLimit(),
+            new RootLimit(),
+            new StandardLimit(),
+            new LinearLimit(),
+            new PiecewiseLinearLimit(0.05),
+            new PiecewiseLinearLimit(0.1),
+            new PiecewiseLinearLimit(0.2), }) {
+            for (long n : new long[] { 1000, 10000, 100000, 1000000L, 10000000L, 100000000L, 1000000000L }) {
                 List<Centroid> r = size(n, 200.0, limit);
                 int nonTrivial = 0;
                 for (Centroid centroid : r) {
@@ -37,7 +48,6 @@ public class ScaleTest {
                         nonTrivial++;
                     }
                 }
-                System.out.printf("%s\t%d\t%d\t%d\n", limit.getClass().getSimpleName(), n, r.size(), nonTrivial);
             }
         }
     }

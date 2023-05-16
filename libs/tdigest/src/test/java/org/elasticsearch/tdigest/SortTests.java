@@ -1,26 +1,35 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
 
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+public class SortTests extends ESTestCase {
 
-public class SortTest {
-    @Test
     public void testReverse() {
         int[] x = new int[0];
 
@@ -28,7 +37,7 @@ public class SortTest {
         Sort.reverse(x);
 
         // reverse stuff!
-        x = new int[]{1, 2, 3, 4, 5};
+        x = new int[] { 1, 2, 3, 4, 5 };
         Sort.reverse(x);
         for (int i = 0; i < 5; i++) {
             assertEquals(5 - i, x[i]);
@@ -50,26 +59,23 @@ public class SortTest {
         assertEquals(4, x[3]);
         assertEquals(1, x[4]);
 
-        x = new int[]{1, 2, 3, 4, 5, 6};
+        x = new int[] { 1, 2, 3, 4, 5, 6 };
         Sort.reverse(x);
         for (int i = 0; i < 6; i++) {
             assertEquals(6 - i, x[i]);
         }
     }
 
-    @Test
     public void testEmpty() {
-        Sort.sort(new int[]{}, new double[]{}, null, 0);
+        Sort.sort(new int[] {}, new double[] {}, null, 0);
     }
 
-    @Test
     public void testOne() {
         int[] order = new int[1];
-        Sort.sort(order, new double[]{1}, new double[]{1}, 1);
+        Sort.sort(order, new double[] { 1 }, new double[] { 1 }, 1);
         assertEquals(0, order[0]);
     }
 
-    @Test
     public void testIdentical() {
         int[] order = new int[6];
         double[] values = new double[6];
@@ -78,7 +84,6 @@ public class SortTest {
         checkOrder(order, values);
     }
 
-    @Test
     public void testRepeated() {
         int n = 50;
         int[] order = new int[n];
@@ -91,7 +96,6 @@ public class SortTest {
         checkOrder(order, values);
     }
 
-    @Test
     public void testRepeatedSortByWeight() {
         // this needs to be long enough to force coverage of both quicksort and insertion sort
         // (i.e. >64)
@@ -140,7 +144,6 @@ public class SortTest {
         assertEquals(totalWeight, sum, 0);
     }
 
-    @Test
     public void testStableSort() {
         // this needs to be long enough to force coverage of both quicksort and insertion sort
         // (i.e. >64)
@@ -160,7 +163,7 @@ public class SortTest {
         }
 
         // verify: test weights should be evenly distributed
-        double[] tmp = new double[n/z];
+        double[] tmp = new double[n / z];
         for (int i = 0; i < n; i++) {
             tmp[(int) values[i]] += weights[i];
         }
@@ -212,7 +215,6 @@ public class SortTest {
         return sofar;
     }
 
-    @Test
     public void testShort() {
         int[] order = new int[6];
         double[] values = new double[6];
@@ -238,7 +240,6 @@ public class SortTest {
         checkOrder(order, values);
     }
 
-    @Test
     public void testLonger() {
         int[] order = new int[20];
         double[] values = new double[20];
@@ -249,7 +250,6 @@ public class SortTest {
         checkOrder(order, values);
     }
 
-    @Test
     public void testMultiPivots() {
         // more pivots than low split on first pass
         // multiple pivots, but more low data on second part of recursion
@@ -274,7 +274,6 @@ public class SortTest {
         checkOrder(order, values);
     }
 
-    @Test
     public void testMultiPivotsInPlace() {
         // more pivots than low split on first pass
         // multiple pivots, but more low data on second part of recursion
@@ -300,9 +299,8 @@ public class SortTest {
         checkOrder(keys, 0, keys.length, v);
     }
 
-    @Test
     public void testRandomized() {
-        Random rand = new Random();
+        Random rand = random();
 
         for (int k = 0; k < 100; k++) {
             int[] order = new int[30];
@@ -316,9 +314,8 @@ public class SortTest {
         }
     }
 
-    @Test
     public void testRandomizedShortSort() {
-        Random rand = new Random();
+        Random rand = random();
 
         for (int k = 0; k < 100; k++) {
             double[] keys = new double[30];
@@ -377,7 +374,7 @@ public class SortTest {
         assert start + length <= key.length;
 
         for (int i = start; i < start + length - 1; i++) {
-            assertTrue(String.format("bad ordering at %d, %f > %f", i, key[i], key[i + 1]), key[i] <= key[i + 1]);
+            assertTrue(String.format(Locale.ROOT, "bad ordering at %d, %f > %f", i, key[i], key[i + 1]), key[i] <= key[i + 1]);
         }
 
         checkValues(key, start, length, values);
@@ -389,13 +386,16 @@ public class SortTest {
             double[] v = values[k];
             assertEquals(key.length, v.length);
             for (int i = start; i < length; i++) {
-                assertEquals(String.format("value %d not correlated, key=%.5f, k=%d, v=%.5f", i, key[i], k, values[k][i]),
-                        fractionalPart(key[i] * scale), values[k][i], 0);
+                assertEquals(
+                    String.format(Locale.ROOT, "value %d not correlated, key=%.5f, k=%d, v=%.5f", i, key[i], k, values[k][i]),
+                    fractionalPart(key[i] * scale),
+                    values[k][i],
+                    0
+                );
             }
             scale = scale * 5;
         }
     }
-
 
     private double fractionalPart(double v) {
         return v - Math.floor(v);
@@ -408,7 +408,7 @@ public class SortTest {
             counts.put(i, counts.getOrDefault(i, 0) + 1);
             double v = values[order[i]];
             if (v < previous) {
-                throw new IllegalArgumentException("Values out of order at %d");
+                throw new IllegalArgumentException("Values out of order");
             }
             previous = v;
         }

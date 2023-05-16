@@ -21,9 +21,30 @@
 
 package org.elasticsearch.tdigest;
 
-/**
- * A DigestFactory is used in tests to abstract what kind of digest is being tested.
- */
-public interface DigestFactory {
-    TDigest getDigest(double compression);
+import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
+public class AVLTreeDigestTests extends TDigestTests {
+    @BeforeClass
+    public static void setup() throws IOException {
+        TDigestTests.setup("avl-tree");
+    }
+
+    protected DigestFactory factory(final double compression) {
+        return new DigestFactory() {
+            @Override
+            public TDigest create() {
+                AVLTreeDigest digest = new AVLTreeDigest(compression);
+                digest.setRandomSeed(randomLong());
+                return digest;
+            }
+        };
+    }
+
+    @Override
+    protected TDigest fromBytes(ByteBuffer bytes) {
+        return AVLTreeDigest.fromBytes(bytes);
+    }
 }

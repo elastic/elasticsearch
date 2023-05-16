@@ -1,9 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
@@ -12,7 +23,6 @@ package org.elasticsearch.tdigest;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,12 +30,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
-public class MergingDigestTest extends TDigestTest {
+public class MergingDigestTests extends TDigestTests {
     @BeforeClass
     public static void setup() throws IOException {
-        TDigestTest.setup("merge");
+        TDigestTests.setup("merge");
     }
 
     protected DigestFactory factory(final double compression) {
@@ -43,7 +54,6 @@ public class MergingDigestTest extends TDigestTest {
     }
 
     // This test came from PR#145 by github user pulver
-    @Test
     public void testNanDueToBadInitialization() {
         int compression = 30;
         int factor = 5;
@@ -76,7 +86,7 @@ public class MergingDigestTest extends TDigestTest {
         }
         Assert.assertFalse(Double.isNaN(md.quantile(0.01)));
 
-        for (double q : new double[]{0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.90, 0.95, 0.99}) {
+        for (double q : new double[] { 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.90, 0.95, 0.99 }) {
             double est = md.quantile(q);
             double actual = Dist.quantile(q, raw);
             double qx = md.cdf(actual);
@@ -85,12 +95,10 @@ public class MergingDigestTest extends TDigestTest {
         }
     }
 
-
     /**
      * Verifies interpolation between a singleton and a larger centroid.
      */
-    @Test
-    public void singleMultiRange() {
+    public void testSingleMultiRange() {
         TDigest digest = factory(50).create();
         digest.setScaleFunction(ScaleFunction.K_0);
         for (int i = 0; i < 100; i++) {
@@ -107,7 +115,7 @@ public class MergingDigestTest extends TDigestTest {
         Centroid second = ix.next();
         assertEquals(1, first.count());
         assertEquals(0, first.mean(), 0);
-//        assertTrue(second.count() > 1);
+        // assertTrue(second.count() > 1);
         assertEquals(1.0, second.mean(), 0);
 
         assertEquals(0.5 / digest.size(), digest.cdf(0), 0);
@@ -118,11 +126,10 @@ public class MergingDigestTest extends TDigestTest {
     /**
      * Make sure that the first and last centroids have unit weight
      */
-    @Test
     public void testSingletonsAtEnds() {
         TDigest d = new MergingDigest(50);
         d.recordAllData();
-        Random gen = new Random(1);
+        Random gen = random();
         double[] data = new double[100];
         for (int i = 0; i < data.length; i++) {
             data[i] = Math.floor(gen.nextGaussian() * 3);
@@ -145,10 +152,9 @@ public class MergingDigestTest extends TDigestTest {
     /**
      * Verify centroid sizes.
      */
-    @Test
     public void testFill() {
         MergingDigest x = new MergingDigest(300);
-        Random gen = new Random();
+        Random gen = random();
         ScaleFunction scale = x.getScaleFunction();
         double compression = x.compression();
         for (int i = 0; i < 1000000; i++) {
@@ -160,46 +166,45 @@ public class MergingDigestTest extends TDigestTest {
             double q1 = q0 + (double) centroid.count() / x.size();
             double dk = scale.k(q1, compression, x.size()) - scale.k(q0, compression, x.size());
             if (centroid.count() > 1) {
-                assertTrue(String.format("K-size for centroid %d at %.3f is %.3f", i, centroid.mean(), dk), dk <= 1);
+                assertTrue(String.format(Locale.ROOT, "K-size for centroid %d at %.3f is %.3f", i, centroid.mean(), dk), dk <= 1);
             }
             q0 = q1;
             i++;
         }
     }
 
-//    /**
-//     * Test with adversarial inputs.
-//     */
-//    @Test
-//    public void testAdversarial() throws FileNotFoundException {
-//        int kilo = 1000;
-//        Random gen = new Random();
-//        double maxE = Math.log(10) * 308;
-//        try (PrintWriter out = new PrintWriter("adversarial.csv")) {
-//            out.printf("k,n,E,q,x0,x1,q0,q1\n");
-//            for (int N : new int[]{100 * kilo, 1000 * kilo}) {
-//                System.out.printf("%d\n", N);
-//                double[] data = new double[N];
-//                for (double E : new double[]{10, 100, 300, 700, maxE}) {
-//                    TDigest digest = new MergingDigest(500);
-//                    for (int i = 0; i < N; i++) {
-//                        double u = gen.nextDouble();
-//                        data[i] = (gen.nextDouble() < 0.01 ? -1 : 1) * Math.exp((2 * u - 1) * E);
-//                        digest.add(data[i]);
-//                    }
-//                    Arrays.sort(data);
-//
-//                    for (int k = 0; k < 10; k++) {
-//                        for (double q : new double[]{0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1, 0.5}) {
-//                            double x0 = Dist.quantile(q, data);
-//                            double x1 = digest.quantile(q);
-//                            double q0 = Dist.cdf(x0, data);
-//                            double q1 = Dist.cdf(x1, data);
-//                            out.printf("%d,%d,%.0f,%.6f,%.6g,%.6g,%.6f,%.6f\n", k, N, E, q, x0, x1, q0, q1);
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
+    // /**
+    // * Test with adversarial inputs.
+    // */
+    // public void testAdversarial() throws FileNotFoundException {
+    // int kilo = 1000;
+    // Random gen = random();
+    // double maxE = Math.log(10) * 308;
+    // try (PrintWriter out = new PrintWriter("adversarial.csv")) {
+    // out.printf("k,n,E,q,x0,x1,q0,q1\n");
+    // for (int N : new int[]{100 * kilo, 1000 * kilo}) {
+    // System.out.printf("%d\n", N);
+    // double[] data = new double[N];
+    // for (double E : new double[]{10, 100, 300, 700, maxE}) {
+    // TDigest digest = new MergingDigest(500);
+    // for (int i = 0; i < N; i++) {
+    // double u = gen.nextDouble();
+    // data[i] = (gen.nextDouble() < 0.01 ? -1 : 1) * Math.exp((2 * u - 1) * E);
+    // digest.add(data[i]);
+    // }
+    // Arrays.sort(data);
+    //
+    // for (int k = 0; k < 10; k++) {
+    // for (double q : new double[]{0, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.1, 0.5}) {
+    // double x0 = Dist.quantile(q, data);
+    // double x1 = digest.quantile(q);
+    // double q0 = Dist.cdf(x0, data);
+    // double q1 = Dist.cdf(x1, data);
+    // out.printf("%d,%d,%.0f,%.6f,%.6g,%.6g,%.6f,%.6f\n", k, N, E, q, x0, x1, q0, q1);
+    // }
+    // }
+    // }
+    // }
+    // }
+    // }
 }

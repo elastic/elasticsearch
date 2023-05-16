@@ -21,9 +21,31 @@
 
 package org.elasticsearch.tdigest;
 
-/**
- * A DigestFactory is used in tests to abstract what kind of digest is being tested.
- */
-public interface DigestFactory {
-    TDigest getDigest(double compression);
+import org.elasticsearch.test.ESTestCase;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+public class TDigestUtilTests extends ESTestCase {
+
+    public void testIntEncoding() {
+        Random gen = random();
+        ByteBuffer buf = ByteBuffer.allocate(10000);
+        List<Integer> ref = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            int n = gen.nextInt();
+            n = n >>> (i / 100);
+            ref.add(n);
+            AbstractTDigest.encode(buf, n);
+        }
+
+        buf.flip();
+
+        for (int i = 0; i < 3000; i++) {
+            int n = AbstractTDigest.decode(buf);
+            assertEquals(i, ref.get(i), n);
+        }
+    }
 }

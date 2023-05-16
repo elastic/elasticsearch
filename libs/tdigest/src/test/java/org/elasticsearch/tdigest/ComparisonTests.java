@@ -1,36 +1,48 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  *
  * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
 
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
-public class ComparisonTest extends AbstractTest {
+public class ComparisonTests extends ESTestCase {
     /**
      * This is a demo as well as a test. The scenario is that we have a thing that
      * normally has a moderately long-tailed distribution of response times. Then
      * some small fraction of transactions take 5x longer than normal. We need to
      * detect this by looking at the overall response time distribution.
      */
-    @Test
-    public void detectLatencyProblem() throws FileNotFoundException {
-        Random gen = new Random();
+    public void testLatencyProblem() throws IOException {
+        Random gen = random();
 
-        try (PrintStream out = new PrintStream("detector.csv")) {
-            out.printf("name,rate,t,failure,llr\n");
+        try (PrintStream out = new PrintStream("detector.csv", StandardCharsets.UTF_8)) {
+            out.printf(Locale.ROOT, "name,rate,t,failure,llr\n");
             runSimulation(gen, new TdigestDetector(), out, 1000);
             runSimulation(gen, new TdigestDetector(), out, 100);
             runSimulation(gen, new TdigestDetector(), out, 10);
@@ -53,8 +65,15 @@ public class ComparisonTest extends AbstractTest {
             if (t - currentMinute >= 60) {
                 currentMinute += 60;
                 if (d.isReady()) {
-                    out.printf("%s, %.0f, %.0f, %.0f, %.3f\n",
-                            d.name(), rate, currentMinute, failureRate > 0 ? -Math.log10(failureRate) : 0, d.score());
+                    out.printf(
+                        Locale.ROOT,
+                        "%s, %.0f, %.0f, %.0f, %.3f\n",
+                        d.name(),
+                        rate,
+                        currentMinute,
+                        failureRate > 0 ? -Math.log10(failureRate) : 0,
+                        d.score()
+                    );
                 }
                 d.flush();
             }
@@ -77,14 +96,18 @@ public class ComparisonTest extends AbstractTest {
 
     private interface Detector {
         boolean isReady();
+
         void add(double sample);
+
         void flush();
+
         double score();
+
         String name();
     }
 
     private static class TdigestDetector implements Detector {
-        double[] cuts = new double[]{0.9, 0.99, 0.999, 0.9999};
+        double[] cuts = new double[] { 0.9, 0.99, 0.999, 0.9999 };
 
         List<TDigest> history = new ArrayList<>();
         TDigest current = new MergingDigest(100);
@@ -159,16 +182,15 @@ public class ComparisonTest extends AbstractTest {
         }
     }
 
-    @Test
-    public void compareMergingDigests() {
+    public void testMergingDigests() {
         TDigest d1 = new MergingDigest(100);
         TDigest d2 = new MergingDigest(100);
 
         d1.add(1);
         d2.add(3);
-        assertEquals(2.77, Comparison.compareChi2(d1, d2, new double[]{1}), 0.01);
+        assertEquals(2.77, Comparison.compareChi2(d1, d2, new double[] { 1 }), 0.01);
 
-        Random r = new Random();
+        Random r = random();
         int failed = 0;
         for (int i = 0; i < 1000; i++) {
             d1 = new MergingDigest(100);
@@ -183,31 +205,29 @@ public class ComparisonTest extends AbstractTest {
             }
 
             // 5 degrees of freedom, Pr(llr > 20) < 0.005
-            if (Comparison.compareChi2(d1, d2, new double[]{0.1, 0.3, 0.5, 0.8, 0.9}) > 25) {
+            if (Comparison.compareChi2(d1, d2, new double[] { 0.1, 0.3, 0.5, 0.8, 0.9 }) > 25) {
                 failed++;
             }
 
             // 1 degree of freedom, Pr(llr > 10) < 0.005
-            if (Comparison.compareChi2(d1, d2, new double[]{0.1}) > 20) {
+            if (Comparison.compareChi2(d1, d2, new double[] { 0.1 }) > 20) {
                 failed++;
             }
 
             // 1 degree of freedom, Pr(llr > 10) < 0.005
-            if (Comparison.compareChi2(d1, d2, new double[]{0.5}) > 20) {
+            if (Comparison.compareChi2(d1, d2, new double[] { 0.5 }) > 20) {
                 failed++;
             }
 
-            if (Comparison.compareChi2(d1, d3, new double[]{0.1, 0.5, 0.9}) < 90) {
+            if (Comparison.compareChi2(d1, d3, new double[] { 0.1, 0.5, 0.9 }) < 90) {
                 failed++;
             }
         }
         assertEquals(0, failed, 5);
-        System.out.printf("Failed %d times (up to 5 acceptable)", failed);
     }
 
-    @Test
-    public void ks() {
-        Random r = new Random();
+    public void testKsFunction() {
+        Random r = random();
         double mean = 0;
         double s2 = 0;
         for (int i = 0; i < 10; i++) {
@@ -228,13 +248,10 @@ public class ComparisonTest extends AbstractTest {
 
             assertEquals(0, Comparison.ks(d1, d3), 3.5);
         }
-
-        System.out.printf("%.5f %.5f\n", mean, Math.sqrt(s2 / 10));
     }
 
-    @Test
-    public void compareLogHistograms() {
-        Random r = new Random();
+    public void testLogHistograms() {
+        Random r = random();
         int failed = 0;
 
         try {
@@ -274,8 +291,7 @@ public class ComparisonTest extends AbstractTest {
         assertEquals(0, failed, 5);
     }
 
-    @Test
-    public void llr() {
+    public void TestLlrFunction() {
         double[][] count = new double[2][2];
         count[0][0] = 1;
         count[1][1] = 1;

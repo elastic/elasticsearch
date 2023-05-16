@@ -1305,10 +1305,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * @param dateFieldType the date field type of '@timestamp' field and
+     * @param dateFieldType the date field type of '@timestamp' field which is
      *                      used to convert the start and end times recorded in index metadata
      *                      to the right format that is being used by '@timestamp' field.
-     *                      For example, the '@timestamp' can be configured to nanosecond precision.
+     *                      For example, the '@timestamp' can be configured with nanosecond precision.
      * @return the time range this index represents if this index is in time series mode.
      *         Otherwise <code>null</code> is returned.
      */

@@ -1246,7 +1246,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1353,7 +1358,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1402,7 +1412,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1546,13 +1561,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-3");
 
-            // Based on precedence only the latest
+            // The index template has higher precedence and overwrites the retention of the others.
             assertThat(resolvedLifecycle, equalTo(dataLifecycle2));
         }
         {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i4*"),
-                new Template(null, null, null, DataLifecycle.NULL),
+                new Template(null, null, null, new DataLifecycle()),
                 List.of("ct_no_lifecycle", "ct_1"),
                 0L,
                 1L,
@@ -1564,15 +1579,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-4");
 
-            // The nullified data lifecycle in the index template unsets the lifecycle
-            assertThat(resolvedLifecycle, nullValue());
+            // The index template lifecycle does not have a retention so the one from ct_1 remains unchanged.
+            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
         }
         {
-            // If one of the component templates has null lifecycle, treat like it was missing.
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i5*"),
-                new Template(null, null, null),
-                List.of("ct_1", "ct_null_lifecycle"),
+                new Template(null, null, null, DataLifecycle.NULL),
+                List.of("ct_no_lifecycle", "ct_1"),
                 0L,
                 1L,
                 null,
@@ -1583,8 +1597,27 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-5");
 
-            // Based on precedence only the latest
-            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
+            // The nullified data lifecycle in the index template unsets the lifecycle
+            assertThat(resolvedLifecycle, nullValue());
+        }
+        {
+            // If one of the component templates has null lifecycle, treat like it was missing.
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i6*"),
+                new Template(null, null, null),
+                List.of("ct_1", "ct_null_lifecycle"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-6", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-6");
+
+            // Since the last component template was explicitly nullified
+            assertThat(resolvedLifecycle, nullValue());
         }
     }
 

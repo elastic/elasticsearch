@@ -144,7 +144,6 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
         EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
         EnumSet.noneOf(WildcardStates.class)
     );
-
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = new IndicesOptions(
         EnumSet.of(Option.FORBID_CLOSED_INDICES),
         EnumSet.noneOf(WildcardStates.class)

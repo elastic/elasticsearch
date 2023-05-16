@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -127,16 +128,19 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(AggregationAndBucket other, long thisBucket) {
-        MinAggregator minAggregator = (MinAggregator) other.aggregator();
+    public void merge(List<AggregationAndBucket> others, long thisBucket) {
         if (thisBucket >= mins.size()) {
             long from = mins.size();
             mins = bigArrays().grow(mins, thisBucket + 1);
             mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
         }
-        final double value = minAggregator.mins.get(other.bucketOrdinal());
         double min = mins.get(thisBucket);
-        min = Math.min(min, value);
+
+        for (AggregationAndBucket other : others) {
+            MinAggregator minAggregator = (MinAggregator) other.aggregator();
+            final double value = minAggregator.mins.get(other.bucketOrdinal());
+            min = Math.min(min, value);
+        }
         mins.set(thisBucket, min);
     }
 

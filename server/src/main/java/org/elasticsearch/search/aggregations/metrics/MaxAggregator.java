@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -128,16 +129,18 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public void merge(AggregationAndBucket other, long thisBucket) {
-        MaxAggregator maxAggregator = (MaxAggregator) other.aggregator();
+    public void merge(List<AggregationAndBucket> others, long thisBucket) {
         if (thisBucket >= maxes.size()) {
             long from = maxes.size();
             maxes = bigArrays().grow(maxes, thisBucket + 1);
             maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        final double value = maxAggregator.maxes.get(other.bucketOrdinal());
         double max = maxes.get(thisBucket);
-        max = Math.max(max, value);
+        for (AggregationAndBucket other : others) {
+            MaxAggregator maxAggregator = (MaxAggregator) other.aggregator();
+            final double value = maxAggregator.maxes.get(other.bucketOrdinal());
+            max = Math.max(max, value);
+        }
         maxes.set(thisBucket, max);
     }
 

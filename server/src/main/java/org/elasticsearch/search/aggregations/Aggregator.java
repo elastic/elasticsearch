@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
@@ -177,7 +178,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public abstract Aggregator[] subAggregators();
 
-    public void merge(AggregationAndBucket other, long thisBucket) {
+    public void merge(List<AggregationAndBucket> others, long thisBucket) {
         // NOCOMMIT: this should be abstract
         throw new UnsupportedOperationException();
     }

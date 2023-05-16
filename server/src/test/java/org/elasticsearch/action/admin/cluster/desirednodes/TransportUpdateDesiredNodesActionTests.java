@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,7 +49,7 @@ import static org.mockito.Mockito.verify;
 
 public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase {
 
-    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null) {
+    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null, Settings.EMPTY) {
         @Override
         public void validate(List<DesiredNode> desiredNodes) {}
     };
@@ -96,7 +97,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     }
 
     public void testSettingsGetValidated() throws Exception {
-        DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null) {
+        DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null, Settings.EMPTY) {
             @Override
             public void validate(List<DesiredNode> desiredNodes) {
                 throw new IllegalArgumentException("Invalid settings");

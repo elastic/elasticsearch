@@ -994,7 +994,8 @@ public class Node implements Closeable {
 
             final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
             final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                clusterService.getSettings()
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);

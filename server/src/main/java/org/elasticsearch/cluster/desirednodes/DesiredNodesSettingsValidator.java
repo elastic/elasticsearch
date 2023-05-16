@@ -27,9 +27,11 @@ public class DesiredNodesSettingsValidator {
     private record DesiredNodeValidationError(int position, @Nullable String externalId, RuntimeException exception) {}
 
     private final ClusterSettings clusterSettings;
+    private final Settings nodeSettings;
 
-    public DesiredNodesSettingsValidator(ClusterSettings clusterSettings) {
+    public DesiredNodesSettingsValidator(ClusterSettings clusterSettings, Settings nodeSettings) {
         this.clusterSettings = clusterSettings;
+        this.nodeSettings = nodeSettings;
     }
 
     public void validate(List<DesiredNode> nodes) {
@@ -104,7 +106,16 @@ public class DesiredNodesSettingsValidator {
             settings = updatedSettings.build();
         }
 
-        clusterSettings.validate(settings, true);
+        final Settings settingsToValidate;
+        if (nodeSettings.getSecureSettings() != null) {
+            // It's possible that some settings depend on a secure setting that's not present in the desired node settings,
+            // in those cases we inject the available secure settings only for validation purposes.
+            settingsToValidate = Settings.builder().setSecureSettings(nodeSettings.getSecureSettings()).put(settings).build();
+        } else {
+            settingsToValidate = settings;
+        }
+
+        clusterSettings.validate(settingsToValidate, true);
     }
 
 }

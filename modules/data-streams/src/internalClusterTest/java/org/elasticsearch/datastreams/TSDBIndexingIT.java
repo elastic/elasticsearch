@@ -112,9 +112,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
         } else {
             var putComponentTemplateRequest = new PutComponentTemplateAction.Request("1");
-            putComponentTemplateRequest.componentTemplate(
-                new ComponentTemplate(new Template(null, mapping, null), null, null)
-            );
+            putComponentTemplateRequest.componentTemplate(new ComponentTemplate(new Template(null, mapping, null), null, null));
             client().execute(PutComponentTemplateAction.INSTANCE, putComponentTemplateRequest).actionGet();
 
             var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");

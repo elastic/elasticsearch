@@ -343,7 +343,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // THEN
         final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
         final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards()).filter(x -> x.isSearchIdle() == false).toList();
-        assertEquals(70, activeShards.size());
+        assertEquals(activeIndexShardsCount, activeShards.size());
     }
 
     public void testSearchIdleExistsQueryMatchOneIndex() throws InterruptedException {

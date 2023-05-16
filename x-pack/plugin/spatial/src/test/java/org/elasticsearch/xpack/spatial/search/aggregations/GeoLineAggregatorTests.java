@@ -296,6 +296,95 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testUnmapped() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
+            .subAggregation(lineAggregationBuilder);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedNumericDocValuesField("other_field", NumericUtils.doubleToSortableLong(randomDouble())),
+                    new SortedDocValuesField("group_id", new BytesRef("groupOrd"))
+                )
+            );
+        }, terms -> {
+            assertEquals(1, terms.getBuckets().size());
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertNotNull(geoLine);
+            Map<String, Object> geojson = geoLine.geoJSONGeometry();
+            assertEquals("LineString", geojson.get("type"));
+            assertTrue(geojson.get("coordinates") instanceof Object[]);
+            Object[] coordinates = (Object[]) geojson.get("coordinates");
+            assertEquals(0, coordinates.length);
+        });
+    }
+
+    public void testPointUnmapped() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
+            .subAggregation(lineAggregationBuilder);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            iw.addDocument(
+                Arrays.asList(
+                    new SortedNumericDocValuesField("sort_field", NumericUtils.doubleToSortableLong(randomDouble())),
+                    new SortedDocValuesField("group_id", new BytesRef("groupOrd"))
+                )
+            );
+        }, terms -> {
+            assertEquals(1, terms.getBuckets().size());
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertNotNull(geoLine);
+            Map<String, Object> geojson = geoLine.geoJSONGeometry();
+            assertEquals("LineString", geojson.get("type"));
+            assertTrue(geojson.get("coordinates") instanceof Object[]);
+            Object[] coordinates = (Object[]) geojson.get("coordinates");
+            assertEquals(0, coordinates.length);
+        });
+    }
+
+    public void testSortUnmapped() throws IOException {
+        int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
+        MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
+        MultiValuesSourceFieldConfig sortConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("sort_field").build();
+        GeoLineAggregationBuilder lineAggregationBuilder = new GeoLineAggregationBuilder("_name").point(valueConfig)
+            .sortOrder(SortOrder.ASC)
+            .sort(sortConfig)
+            .size(size);
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
+            .subAggregation(lineAggregationBuilder);
+        testCase(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            double lon = GeoEncodingUtils.decodeLongitude(randomInt());
+            double lat = GeoEncodingUtils.decodeLatitude(randomInt());
+            iw.addDocument(
+                Arrays.asList(
+                    new LatLonDocValuesField("value_field", lat, lon),
+                    new SortedDocValuesField("group_id", new BytesRef("groupOrd"))
+                )
+            );
+        }, terms -> {
+            assertEquals(1, terms.getBuckets().size());
+            InternalGeoLine geoLine = terms.getBuckets().get(0).getAggregations().get("_name");
+            assertNotNull(geoLine);
+            Map<String, Object> geojson = geoLine.geoJSONGeometry();
+            assertEquals("LineString", geojson.get("type"));
+            assertTrue(geojson.get("coordinates") instanceof Object[]);
+            Object[] coordinates = (Object[]) geojson.get("coordinates");
+            assertEquals(0, coordinates.length);
+        });
+    }
+
     private void testAggregator(SortOrder sortOrder) throws IOException {
         int size = randomIntBetween(1, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();

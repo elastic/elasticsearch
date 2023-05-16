@@ -4,6 +4,8 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
+ *
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
@@ -12,8 +14,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Random;
-
-import static org.elasticsearch.tdigest.ScaleFunction.*;
 
 public class ReproTest {
 
@@ -37,7 +37,7 @@ public class ReproTest {
             TDigest distHigh = new MergingDigest(100);
             for (int i = 0; i < 500; i++) {
                 MergingDigest d1 = new MergingDigest(100);
-                d1.setScaleFunction(K_2);
+                d1.setScaleFunction(ScaleFunction.K_2);
                 for (double x : data) {
                     d1.add(x);
                 }

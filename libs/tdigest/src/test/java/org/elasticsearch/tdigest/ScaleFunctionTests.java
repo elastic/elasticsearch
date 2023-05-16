@@ -4,23 +4,8 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
- */
-
-/*
- * Licensed to Ted Dunning under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
@@ -85,7 +70,7 @@ public class ScaleFunctionTests {
                             double left = i - (n - 1) / 2;
                             double right = i + cnt - (n - 1) / 2;
                             boolean sameSide = left * right > 0;
-                            if (!k.toString().endsWith("NO_NORM") && sameSide) {
+                            if (k.toString().endsWith("NO_NORM") == false && sameSide) {
                                 assertTrue(String.format("%s %.0f %.0f %.3f vs %.3f @ %.3f", k, compression, n, cnt, size, i / (n - 1)),
                                         cnt == 1 || cnt <= max(1.1 * size, size + 1));
                             }
@@ -96,7 +81,7 @@ public class ScaleFunctionTests {
                         clusterCount.put(k.toString(), m);
                         out.printf("%s,%.0f,%.0f,%d,%d,%.4f\n", k, compression, n, m, singles, k.normalizer(compression, n));
 
-                        if (!k.toString().endsWith("NO_NORM")) {
+                        if (k.toString().endsWith("NO_NORM") == false) {
                             assertTrue(String.format("%s %d, %.0f", k, m, compression),
                                     n < 3 * compression || (m >= compression / 3 && m <= compression));
                         }

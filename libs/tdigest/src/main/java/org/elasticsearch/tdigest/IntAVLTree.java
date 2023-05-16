@@ -1,23 +1,15 @@
 /*
- * Licensed to Ted Dunning under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This project is based on a modification of https://github.com/tdunning/t-digest which is licensed under the Apache 2.0 License.
  */
 
 package org.elasticsearch.tdigest;
 
-import java.io.Serializable;
 import java.util.Arrays;
 
 
@@ -27,7 +19,7 @@ import java.util.Arrays;
  * want to add data to the nodes, typically by using arrays and node
  * identifiers as indices.
  */
-abstract class IntAVLTree implements Serializable {
+abstract class IntAVLTree {
 
     /**
      * We use <code>0</code> instead of <code>-1</code> so that left(NIL) works without
@@ -213,7 +205,8 @@ abstract class IntAVLTree implements Serializable {
             fixAggregates(root);
             return true;
         } else {
-            int node = root; assert parent(root) == NIL;
+            int node = root;
+            assert parent(root) == NIL;
             int parent;
             int cmp;
             do {
@@ -239,7 +232,6 @@ abstract class IntAVLTree implements Serializable {
             if (cmp < 0) {
                 left(parent, node);
             } else {
-                assert cmp > 0;
                 right(parent, node);
             }
 
@@ -525,7 +517,7 @@ abstract class IntAVLTree implements Serializable {
     /**
      * A stack of int values.
      */
-    private static class IntStack implements Serializable {
+    private static class IntStack {
 
         private int[] stack;
         private int size;
@@ -553,7 +545,7 @@ abstract class IntAVLTree implements Serializable {
 
     }
 
-    private static class NodeAllocator implements Serializable {
+    private static class NodeAllocator {
 
         private int nextNode;
         private final IntStack releasedNodes;

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationService.RoutingAllocationAction;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -70,7 +70,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface DesiredBalanceReconcilerAction {
-        ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction);
+        ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
     }
 
     public DesiredBalanceShardsAllocator(
@@ -242,21 +242,20 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-    private RoutingAllocationAction createReconcileAllocationAction(DesiredBalance desiredBalance) {
-        return new RoutingAllocationAction() {
+    private RerouteStrategy createReconcileAllocationAction(DesiredBalance desiredBalance) {
+        return new RerouteStrategy() {
             @Override
-            public boolean removeDelayMarkers() {
+            public void removeDelayMarkers(RoutingAllocation allocation) {
                 // it is possible that desired balance is computed before some delayed allocations are expired but reconciled after.
                 // If delayed markers are removed during reconciliation then
                 // * shards are not assigned anyway as balance is not computed for them
                 // * followup reroute is not scheduled to allocate them
                 // for this reason we should keep delay markers during reconciliation
-                return false;
             }
 
             @Override
-            public void execute(RoutingAllocation routingAllocation) {
-                reconcile(desiredBalance, routingAllocation);
+            public void execute(RoutingAllocation allocation) {
+                reconcile(desiredBalance, allocation);
             }
         };
     }

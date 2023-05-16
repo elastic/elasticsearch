@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationService.RoutingAllocationAction;
+import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -145,7 +145,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
@@ -248,7 +248,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var reconciledStateRef = new AtomicReference<ClusterState>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 ClusterState reconciled = allocationServiceRef.get()
                     .executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
                 reconciledStateRef.set(reconciled);
@@ -324,7 +324,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 reconciliations.incrementAndGet();
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
@@ -426,7 +426,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var allocationServiceRef = new SetOnce<AllocationService>();
         var reconcileAction = new DesiredBalanceReconcilerAction() {
             @Override
-            public ClusterState apply(ClusterState clusterState, RoutingAllocationAction routingAllocationAction) {
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
                 return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
             }
         };
@@ -544,7 +544,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, routingAllocationAction) -> reconcilerClusterState
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -596,7 +596,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             desiredBalanceComputer,
-            (reconcilerClusterState, routingAllocationAction) -> reconcilerClusterState
+            (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());

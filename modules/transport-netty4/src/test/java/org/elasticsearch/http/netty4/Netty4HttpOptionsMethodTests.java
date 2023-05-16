@@ -99,7 +99,7 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
         try (Netty4HttpServerTransport transport = getHttpServerTransport(dispatchedRequestReference)) {
             final ChannelHandler handler = transport.configureServerChannelHandler();
             final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            // also test that requests following an OPTIONS are not affected
+            // also test that requests following an OPTIONS one are not affected
             for (String httpMethod : List.of("OPTIONS", randomFrom("PUT", "POST", "GET", "DELETE"))) {
                 // OPTIONS request with fixed length content written in one chunk
                 ByteBuf buf = ch.alloc().buffer();
@@ -176,7 +176,7 @@ public class Netty4HttpOptionsMethodTests extends AbstractHttpServerTransportTes
         try (Netty4HttpServerTransport transport = getHttpServerTransport(dispatchedRequestReference)) {
             final ChannelHandler handler = transport.configureServerChannelHandler();
             final EmbeddedChannel ch = new EmbeddedChannel(handler);
-            // also test that requests following an OPTIONS are not affected
+            // also test that requests following an OPTIONS one are not affected
             for (String httpMethod : List.of("OPTIONS", randomFrom("PUT", "POST", "GET", "DELETE"))) {
                 ByteBuf buf = ch.alloc().buffer();
                 ByteBufUtil.copy(AsciiString.of(httpMethod + " /url/whatever/fixed-length?multiple-chunks=true HTTP/1.1"), buf);

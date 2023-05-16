@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -92,8 +93,8 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 RemoteClusterNodesAction.NAME,
                 SearchAction.NAME,
-                ClusterStateAction.NAME,
                 ClusterSearchShardsAction.NAME,
+                SearchShardsAction.NAME,
                 ResolveIndexAction.NAME,
                 FieldCapabilitiesAction.NAME,
                 FieldCapabilitiesAction.NAME + "[n]",
@@ -101,6 +102,7 @@ final class CrossClusterAccessServerTransportFilter extends ServerTransportFilte
                 XPackInfoAction.NAME,
                 GetCheckpointAction.NAME,
                 // CCR actions
+                ClusterStateAction.NAME,
                 HasPrivilegesAction.NAME,
                 IndicesStatsAction.NAME,
                 RetentionLeaseActions.Add.ACTION_NAME,

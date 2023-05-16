@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.junit.After;
@@ -64,7 +64,7 @@ public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServic
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode master = TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();

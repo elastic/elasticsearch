@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.ccr.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -146,7 +146,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         );
         primaryTerm = randomLongBetween(primaryTerm, primaryTerm + 10);
         final IndexShard newPrimary = reinitShard(oldPrimary);
-        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = TestDiscoveryNode.create("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         newPrimary.markAsRecovering("store", new RecoveryState(newPrimary.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newPrimary));
         IndexShardTestCase.updateRoutingEntry(

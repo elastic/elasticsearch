@@ -21,10 +21,16 @@ import java.io.IOException;
 /**
  * A {@link Collector} that early terminates collection after <code>maxCountHits</code> docs have been collected.
  */
-public class EarlyTerminatingCollector extends FilterCollector {
+class EarlyTerminatingCollector extends FilterCollector {
     static final class EarlyTerminationException extends RuntimeException {
-        EarlyTerminationException(String msg) {
+        private EarlyTerminationException(String msg) {
             super(msg);
+        }
+
+        @Override
+        public Throwable fillInStackTrace() {
+            // never re-thrown so we can save the expensive stacktrace
+            return this;
         }
     }
 

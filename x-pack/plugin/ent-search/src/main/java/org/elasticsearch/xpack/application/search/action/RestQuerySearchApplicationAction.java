@@ -12,7 +12,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
 import java.io.IOException;
@@ -40,12 +41,14 @@ public class RestQuerySearchApplicationAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         final String searchAppName = restRequest.param("name");
         SearchApplicationSearchRequest request;
-        if (restRequest.hasContent()) {
-            request = SearchApplicationSearchRequest.fromXContent(searchAppName, restRequest.contentParser());
+        if (restRequest.hasContentOrSourceParam()) {
+            request = SearchApplicationSearchRequest.fromXContent(searchAppName, restRequest.contentOrSourceParamParser());
         } else {
             request = new SearchApplicationSearchRequest(searchAppName);
         }
-        final SearchApplicationSearchRequest finalRequest = request;
-        return channel -> client.execute(QuerySearchApplicationAction.INSTANCE, finalRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
+            cancelClient.execute(QuerySearchApplicationAction.INSTANCE, request, new RestChunkedToXContentListener<>(channel));
+        };
     }
 }

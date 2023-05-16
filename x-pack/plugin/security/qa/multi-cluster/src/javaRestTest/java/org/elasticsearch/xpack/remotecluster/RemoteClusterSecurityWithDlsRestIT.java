@@ -24,28 +24,18 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
 
     private static final AtomicReference<Map<String, Object>> API_KEY_REFERENCE = new AtomicReference<>();
 
-    private static final String API_KEY_ROLE = """
+    private static final String API_KEY_ACCESS = """
         {
-          "role1": {
-            "cluster": ["cross_cluster_access"],
-            "index": [
+            "search": [
               {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
                   "query": {"term" : {"field1" : "value1"}}
-              }
-            ]
-          },
-          "role2": {
-            "cluster": ["cross_cluster_access"],
-            "index": [
+              },
               {
                   "names": ["remote_index1"],
-                  "privileges": ["read", "read_cross_cluster"],
                   "query": {"term" : {"field2" : "value1"}}
               }
             ]
-          }
         }""";
 
     static {
@@ -67,7 +57,7 @@ public class RemoteClusterSecurityWithDlsRestIT extends AbstractRemoteClusterSec
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .keystore(
                 "cluster.remote." + REMOTE_CLUSTER_DLS + ".credentials",
-                () -> createCrossClusterAccessApiKey(API_KEY_ROLE, API_KEY_REFERENCE)
+                () -> createCrossClusterAccessApiKey(API_KEY_ACCESS, API_KEY_REFERENCE)
             )
             .build();
     }

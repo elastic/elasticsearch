@@ -8,7 +8,6 @@
 
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,13 +55,12 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         final DiscoveryNode node;
 
         FakeHttpTransport() {
-            node = new DiscoveryNode(
+            node = TestDiscoveryNode.create(
                 "local",
                 "local",
                 buildNewFakeTransportAddress(),
                 emptyMap(),
-                Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+                Set.of(DiscoveryNodeRole.MASTER_ROLE)
             );
         }
 

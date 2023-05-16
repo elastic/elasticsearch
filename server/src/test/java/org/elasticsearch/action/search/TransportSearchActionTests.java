@@ -1369,7 +1369,7 @@ public class TransportSearchActionTests extends ESTestCase {
             } else {
                 // relocated or no longer assigned
                 relocatedContexts.add(new ShardId(indexMetadata.getIndex(), shardId));
-                targetNode = randomFrom(clusterState.nodes()).getId();
+                targetNode = randomFrom(clusterState.nodes().getAllNodes()).getId();
             }
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), shardId),
@@ -1423,7 +1423,7 @@ public class TransportSearchActionTests extends ESTestCase {
             anotherShardId,
             new SearchContextIdForNode(
                 null,
-                randomFrom(clusterState.nodes()).getId(),
+                randomFrom(clusterState.nodes().getAllNodes()).getId(),
                 new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)
             )
         );

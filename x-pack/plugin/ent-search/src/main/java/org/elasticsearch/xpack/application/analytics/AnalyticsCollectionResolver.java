@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -23,6 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PATTERN;
 
 /**
  * A service that allows the resolution of {@link AnalyticsCollection} by name.
@@ -30,9 +32,23 @@ import static java.util.function.Predicate.not;
 public class AnalyticsCollectionResolver {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
+    private final ClusterService clusterService;
+
     @Inject
-    public AnalyticsCollectionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
+    public AnalyticsCollectionResolver(IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.clusterService = clusterService;
+    }
+
+    /**
+     * Resolves a collection by exact name and returns it.
+     *
+     * @param collectionName Collection name
+     * @return The {@link AnalyticsCollection} object
+     * @throws ResourceNotFoundException when no analytics collection is found.
+     */
+    public AnalyticsCollection collection(String collectionName) throws ResourceNotFoundException {
+        return collection(clusterService.state(), collectionName);
     }
 
     /**
@@ -43,7 +59,7 @@ public class AnalyticsCollectionResolver {
      * @return The {@link AnalyticsCollection} object
      * @throws ResourceNotFoundException when no analytics collection is found.
      */
-    public AnalyticsCollection collection(ClusterState state, String collectionName) {
+    public AnalyticsCollection collection(ClusterState state, String collectionName) throws ResourceNotFoundException {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
         if (state.metadata().dataStreams().containsKey(collection.getEventDataStream()) == false) {
@@ -67,7 +83,7 @@ public class AnalyticsCollectionResolver {
         List<String> dataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
             IndicesOptions.lenientExpandOpen(),
-            AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PATTERN
+            EVENT_DATA_STREAM_INDEX_PATTERN
         );
 
         Map<String, AnalyticsCollection> collections = dataStreams.stream()

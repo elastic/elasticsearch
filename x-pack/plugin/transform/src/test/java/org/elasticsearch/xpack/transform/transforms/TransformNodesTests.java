@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -303,10 +303,10 @@ public class TransformNodesTests extends ESTestCase {
     }
 
     private static ClusterState newClusterState(DiscoveryNodes nodes) {
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
     }
 
     private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
+        return TestDiscoveryNode.create(id, buildNewFakeTransportAddress(), emptyMap(), new HashSet<>(Arrays.asList(roles)), version);
     }
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
@@ -225,31 +225,28 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < numDataNodes; i++) {
             builder.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "_id" + i,
                     buildNewFakeTransportAddress(),
                     Collections.emptyMap(),
-                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-                    Version.CURRENT
+                    Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
                 )
             );
         }
         builder.add(
-            new DiscoveryNode(
+            TestDiscoveryNode.create(
                 "master",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT
+                Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)
             )
         );
         builder.add(
-            new DiscoveryNode(
+            TestDiscoveryNode.create(
                 "ingest",
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
-                Collections.singleton(DiscoveryNodeRole.INGEST_ROLE),
-                Version.CURRENT
+                Collections.singleton(DiscoveryNodeRole.INGEST_ROLE)
             )
         );
 

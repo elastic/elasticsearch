@@ -31,9 +31,9 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
         buildFile << """
         import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
         import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
-        
+
         apply plugin:'java'
-        
+
         group = 'org.elasticsearch'
         version = 'current'
         repositories {
@@ -45,8 +45,8 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
             }
           }
           mavenCentral()
-        }    
-        
+        }
+
         tasks.named("thirdPartyAudit").configure {
           signatureFile = file('signature-file.txt')
         }
@@ -98,6 +98,8 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
         def output = normalized(result.getOutput())
         assertOutputContains(output, """\
             Forbidden APIs output:
+            DEBUG: Classpath: [file:./build/precommit/thirdPartyAudit/thirdPartyAudit/]
+            DEBUG: Detected Java 9 or later with module system.
             ERROR: Forbidden class/interface use: java.io.File [non-public internal runtime class]
             ERROR:   in org.acme.TestingIO (method declaration of 'getFile()')
             ERROR: Scanned 1 class file(s) for forbidden API invocations (in 0.00s), 1 error(s).
@@ -134,7 +136,11 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
         def output = normalized(result.getOutput())
         assertOutputContains(output, """\
             Forbidden APIs output:
-            WARNING: Class 'org.apache.logging.log4j.LogManager' cannot be loaded (while looking up details about referenced class 'org.apache.logging.log4j.LogManager'). Please fix the classpath!
+            DEBUG: Classpath: [file:./build/precommit/thirdPartyAudit/thirdPartyAudit/]
+            DEBUG: Detected Java 9 or later with module system.
+            DEBUG: Class 'org.apache.logging.log4j.LogManager' cannot be loaded (while looking up details about referenced class 'org.apache.logging.log4j.LogManager').
+            WARNING: While scanning classes to check, the following referenced classes were not found on classpath (this may miss some violations):
+            WARNING:   org.apache.logging.log4j.LogManager
             ==end of forbidden APIs==
             Missing classes:
               * org.apache.logging.log4j.LogManager""".stripIndent())
@@ -177,7 +183,7 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
             Execution failed for task ':thirdPartyAudit'.
             > Audit of third party dependencies failed:
                 Jar Hell with the JDK:
-                * 
+                *
             """.stripIndent())
         assertOutputMissing(output, "Classes with violations:");
         assertNoDeprecationWarning(result);

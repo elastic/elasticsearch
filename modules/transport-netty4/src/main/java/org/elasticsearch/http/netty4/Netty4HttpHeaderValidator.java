@@ -9,7 +9,6 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
@@ -20,7 +19,10 @@ import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
+import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayDeque;
 
@@ -32,17 +34,14 @@ import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAIT
 
 public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
 
-    public static final TriConsumer<HttpRequest, Channel, ActionListener<Void>> NOOP_VALIDATOR = ((
-        httpRequest,
-        channel,
-        listener) -> listener.onResponse(null));
-
-    private final TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator;
+    private final HttpValidator validator;
+    private final ThreadContext threadContext;
     private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
     private State state = WAITING_TO_START;
 
-    public Netty4HttpHeaderValidator(TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator) {
+    public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
         this.validator = validator;
+        this.threadContext = threadContext;
     }
 
     State getState() {
@@ -110,23 +109,27 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
             // this looks like a malformed request and will forward without validation
             ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
         } else {
-            validator.apply(httpRequest, ctx.channel(), new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                    ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
-                    ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e));
-                }
-            });
+            Transports.assertDefaultThreadContext(threadContext);
+            // this prevents thread-context changes to propagate to the validation listener
+            // atm, the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
+            // so this is just a defensive play, in case the code inside the listener changes to not use the event loop executor
+            ContextPreservingActionListener<Void> contextPreservingActionListener = new ContextPreservingActionListener<>(
+                threadContext.wrapRestorable(threadContext.newStoredContext()),
+                ActionListener.wrap(aVoid ->
+                // Always use "Submit" to prevent reentrancy concerns if we are still on event loop
+                ctx.channel().eventLoop().submit(() -> forwardFullRequest(ctx)),
+                    e -> ctx.channel().eventLoop().submit(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e))
+                )
+            );
+            // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+                validator.validate(httpRequest, ctx.channel(), contextPreservingActionListener);
+            }
         }
     }
 
     private void forwardFullRequest(ChannelHandlerContext ctx) {
+        Transports.assertDefaultThreadContext(threadContext);
         assert ctx.channel().eventLoop().inEventLoop();
         assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;
@@ -146,6 +149,7 @@ public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
     }
 
     private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
+        Transports.assertDefaultThreadContext(threadContext);
         assert ctx.channel().eventLoop().inEventLoop();
         assert ctx.channel().config().isAutoRead() == false;
         assert state == QUEUEING_DATA;

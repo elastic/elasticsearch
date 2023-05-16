@@ -125,9 +125,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
-        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
+        Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
 
         request.settings(settingsBuilder.build());
 
@@ -140,9 +138,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         PutRequest request = new PutRequest("test", "test_specified_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
-        Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
+        Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
 
         request.settings(settingsBuilder.build());
 
@@ -1250,7 +1246,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1357,7 +1358,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1406,7 +1412,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }).toList();
             assertThat(
                 parsedMappings.get(0),
-                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
+                equalTo(
+                    Map.of(
+                        "_doc",
+                        Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date", "ignore_malformed", "false")))
+                    )
+                )
             );
             assertThat(
                 parsedMappings.get(1),
@@ -1494,15 +1505,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, null, null, dataLifecycle2), null, null);
         ComponentTemplate ctNoLifecycle = new ComponentTemplate(new Template(null, null, null, null), null, null);
 
-        state = service.addComponentTemplate(state, true, "ct_high", ct1);
-        state = service.addComponentTemplate(state, true, "ct_low", ct2);
+        state = service.addComponentTemplate(state, true, "ct_1", ct1);
+        state = service.addComponentTemplate(state, true, "ct_2", ct2);
         state = service.addComponentTemplate(state, true, "ct_no_lifecycle", ctNoLifecycle);
         {
             // Respect the order the templates are defined
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i1*"),
                 new Template(null, null, null),
-                List.of("ct_low", "ct_high"),
+                List.of("ct_2", "ct_1"),
                 0L,
                 1L,
                 null,
@@ -1519,7 +1530,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i2*"),
                 new Template(null, null, null),
-                List.of("ct_high", "ct_no_lifecycle"),
+                List.of("ct_1", "ct_no_lifecycle"),
                 0L,
                 1L,
                 null,
@@ -1537,7 +1548,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("i3*"),
                 new Template(null, null, null, dataLifecycle2),
-                List.of("ct_no_lifecycle", "ct_high"),
+                List.of("ct_no_lifecycle", "ct_1"),
                 0L,
                 1L,
                 null,
@@ -1548,8 +1559,26 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-3");
 
-            // Based on precedence only the latest
+            // The index template has higher precedence and overwrites the retention of the others.
             assertThat(resolvedLifecycle, equalTo(dataLifecycle2));
+        }
+        {
+            ComposableIndexTemplate it = new ComposableIndexTemplate(
+                List.of("i4*"),
+                new Template(null, null, null, new DataLifecycle()),
+                List.of("ct_no_lifecycle", "ct_1"),
+                0L,
+                1L,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
+            );
+            state = service.addIndexTemplateV2(state, true, "my-template-4", it);
+
+            DataLifecycle resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(state.metadata(), "my-template-4");
+
+            // The index template lifecycle does not have a retention so the one from ct_1 remains unchanged.
+            assertThat(resolvedLifecycle, equalTo(dataLifecycle1));
         }
     }
 
@@ -1664,6 +1693,40 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             e.getMessage(),
             containsString("component templates [ct] cannot be removed as they are still in use by index templates [template]")
         );
+    }
+
+    public void testRemoveRequiredAndNonRequiredComponents() throws Exception {
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("pattern"),
+            null,
+            List.of("required1", "non-required", "required2"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.singletonList("non-required")
+        );
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState clusterState = service.addComponentTemplate(ClusterState.EMPTY_STATE, false, "required1", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "required2", ct);
+        clusterState = service.addComponentTemplate(clusterState, false, "non-required", ct);
+        clusterState = service.addIndexTemplateV2(clusterState, false, "composable-index-template", composableIndexTemplate);
+
+        final ClusterState cs = clusterState;
+        Exception e = expectThrows(IllegalArgumentException.class, () -> innerRemoveComponentTemplate(cs, "required*"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "component templates [required1, required2] cannot be removed as they are still in use by index templates "
+                    + "[composable-index-template]"
+            )
+        );
+
+        // This removal should succeed
+        innerRemoveComponentTemplate(cs, "non-required*");
     }
 
     /**
@@ -1874,16 +1937,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
-                    .build()
             )
             .build();
 
@@ -1911,16 +1966,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
-                    .build()
             )
             .build();
 
@@ -2034,16 +2081,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-unreferenced-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid2"))
                     )
-                    .build()
             )
             .build();
 
@@ -2071,16 +2110,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     )
                     .put(
                         IndexMetadata.builder(".ds-logs-mysql-default-000001")
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .build()
-                            )
+                            .settings(indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"))
                     )
-                    .build()
             )
             .build();
 

@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -54,11 +54,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
-import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
@@ -123,6 +123,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testUnhealthyNodesGetsRemoved() {
+        testUnhealthyNodesGetsRemoved(true);
+    }
+
+    protected void testUnhealthyNodesGetsRemoved(boolean verifyVotingConfiguration) {
         AtomicReference<StatusInfo> healthStatusInfo = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
@@ -148,7 +152,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + 2 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
 
-            {
+            if (verifyVotingConfiguration) {
                 assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
                 final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
                 assertThat(
@@ -190,7 +194,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     // then wait for the followup reconfiguration
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
-            {
+
+            if (verifyVotingConfiguration) {
                 final ClusterNode newLeader = cluster.getAnyLeader();
                 final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState()
                     .getLastCommittedConfiguration();
@@ -215,7 +220,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
-        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+        testLeaderDisconnectionWithDisconnectEventDetectedQuickly(Settings.EMPTY, TimeValue.ZERO);
+    }
+
+    protected void testLeaderDisconnectionWithDisconnectEventDetectedQuickly(Settings settings, TimeValue extraStabilisationTime) {
+        try (Cluster cluster = new Cluster(randomIntBetween(3, 5), true, settings)) {
             cluster.runRandomly();
             cluster.stabilise();
 
@@ -234,6 +243,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
                     // then wait for the followup reconfiguration
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                    // plus possibly some extra time according to the config
+                    + extraStabilisationTime.millis()
             );
             assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
         }
@@ -646,7 +657,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksIfLeaderStandsDown() {
-        try (Cluster cluster = new Cluster(3)) {
+        testAckListenerReceivesNacksIfLeaderStandsDown(Settings.EMPTY, TimeValue.ZERO);
+    }
+
+    protected void testAckListenerReceivesNacksIfLeaderStandsDown(Settings settings, TimeValue extraStabilisationTime) {
+        try (Cluster cluster = new Cluster(3, true, settings)) {
             cluster.runRandomly();
             cluster.stabilise();
             final ClusterNode leader = cluster.getAnyLeader();
@@ -659,7 +674,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             // let followers elect a leader among themselves before healing the leader and running the publication
             cluster.runFor(
                 DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
-                    + DEFAULT_ELECTION_DELAY,
+                    + DEFAULT_ELECTION_DELAY + extraStabilisationTime.millis(),
                 "elect new leader"
             );
             // cluster has two nodes in mode LEADER, in different terms ofc, and the one in the lower term won’t be able to publish anything
@@ -1291,12 +1306,14 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             final ClusterNode newNode = cluster1.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), nodeInOtherCluster.getLocalNode(), n -> cluster1.createPersistedStateFromExistingState(
-                    n,
-                    nodeInOtherCluster.persistedState,
-                    Function.identity(),
-                    Function.identity()
-                ), nodeInOtherCluster.nodeSettings, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
+                nextNodeIndex.getAndIncrement(), nodeInOtherCluster.getLocalNode(), (node, threadPool) -> cluster1
+                    .createPersistedStateFromExistingState(
+                        node,
+                        nodeInOtherCluster.persistedState,
+                        Function.identity(),
+                        Function.identity(),
+                        threadPool
+                    ), nodeInOtherCluster.nodeSettings, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
             );
 
             cluster1.clusterNodes.add(newNode);
@@ -1412,28 +1429,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             leader.clearActionBlocks();
-        }
-    }
-
-    public void testDiscoveryUsesNodesFromLastClusterState() {
-        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
-            cluster.runRandomly();
-            cluster.stabilise();
-
-            final ClusterNode partitionedNode = cluster.getAnyNode();
-            if (randomBoolean()) {
-                logger.info("--> blackholing {}", partitionedNode);
-                partitionedNode.blackhole();
-            } else {
-                logger.info("--> disconnecting {}", partitionedNode);
-                partitionedNode.disconnect();
-            }
-            cluster.setEmptySeedHostsList();
-            cluster.stabilise();
-
-            partitionedNode.heal();
-            cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
-            cluster.stabilise();
         }
     }
 
@@ -1568,7 +1563,6 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94905")
     public void testClusterRecoversAfterExceptionDuringSerialization() {
         try (Cluster cluster = new Cluster(randomIntBetween(2, 5))) {
             cluster.runRandomly();
@@ -1584,7 +1578,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
                 failed.set(true);
             });
-            cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
+            // allow for forking 3 times:
+            // - once onto the master-service thread
+            // - once to fork the publication in FakeThreadPoolMasterService
+            // - once to fork the publication listener back onto the master-service thread
+            cluster.runFor(3 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 
             cluster.stabilise();
@@ -1609,6 +1607,13 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"
     )
     public void testLogsWarningPeriodicallyIfClusterNotFormed() {
+        testLogsWarningPeriodicallyIfClusterNotFormed(
+            "master not discovered or elected yet, an election requires at least 2 nodes with ids from [",
+            nodeId -> "*have only discovered non-quorum *" + nodeId + "*discovery will continue*"
+        );
+    }
+
+    protected void testLogsWarningPeriodicallyIfClusterNotFormed(String expectedMessageStart, UnaryOperator<String> discoveryMessageFn) {
         final long warningDelayMillis;
         final Settings settings;
         if (randomBoolean()) {
@@ -1652,10 +1657,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                         @Override
                         public void match(LogEvent event) {
                             final String message = event.getMessage().getFormattedMessage();
-                            assertThat(
-                                message,
-                                startsWith("master not discovered or elected yet, an election requires at least 2 nodes with ids from [")
-                            );
+                            assertThat(message, startsWith(expectedMessageStart));
 
                             final List<ClusterNode> matchingNodes = cluster.clusterNodes.stream()
                                 .filter(
@@ -1666,13 +1668,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                                 .toList();
                             assertThat(matchingNodes, hasSize(1));
 
-                            assertTrue(
-                                message,
-                                Regex.simpleMatch(
-                                    "*have only discovered non-quorum *" + matchingNodes.get(0).toString() + "*discovery will continue*",
-                                    message
-                                )
-                            );
+                            assertTrue(message, Regex.simpleMatch(discoveryMessageFn.apply(matchingNodes.get(0).toString()), message));
 
                             nodesLogged.add(matchingNodes.get(0).getLocalNode());
                         }
@@ -1938,13 +1934,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     ) {
         DiscoveryNodes newNodes = DiscoveryNodes.builder(currentState.nodes())
             .add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "resolvableNodeName",
                     "resolvableNodeId",
                     buildNewFakeTransportAddress(),
                     emptyMap(),
-                    Set.of(DiscoveryNodeRole.MASTER_ROLE),
-                    Version.CURRENT
+                    Set.of(DiscoveryNodeRole.MASTER_ROLE)
                 )
             )
             .build();

@@ -10,21 +10,24 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 
-public class TransportStats implements Writeable, ToXContentFragment {
+public class TransportStats implements Writeable, ChunkedToXContent {
 
     private final long serverOpen;
     private final long totalOutboundConnections;
@@ -182,34 +185,46 @@ public class TransportStats implements Writeable, ToXContentFragment {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.TRANSPORT);
-        builder.field(Fields.SERVER_OPEN, serverOpen);
-        builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
-        builder.field(Fields.RX_COUNT, rxCount);
-        builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
-        builder.field(Fields.TX_COUNT, txCount);
-        builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
-        if (inboundHandlingTimeBucketFrequencies.length > 0) {
-            histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
-            histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
-        } else {
-            // Stats came from before v8.1
-            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-        }
-        if (transportActionStats.isEmpty() == false) {
-            builder.startObject(Fields.ACTIONS);
-            for (final var entry : transportActionStats.entrySet()) {
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.<ToXContent>concat(
+
+            Iterators.single((builder, params) -> {
+                builder.startObject(Fields.TRANSPORT);
+                builder.field(Fields.SERVER_OPEN, serverOpen);
+                builder.field(Fields.TOTAL_OUTBOUND_CONNECTIONS, totalOutboundConnections);
+                builder.field(Fields.RX_COUNT, rxCount);
+                builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, ByteSizeValue.ofBytes(rxSize));
+                builder.field(Fields.TX_COUNT, txCount);
+                builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, ByteSizeValue.ofBytes(txSize));
+                if (inboundHandlingTimeBucketFrequencies.length > 0) {
+                    histogramToXContent(builder, inboundHandlingTimeBucketFrequencies, Fields.INBOUND_HANDLING_TIME_HISTOGRAM);
+                    histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
+                } else {
+                    // Stats came from before v8.1
+                    assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+                }
+                if (transportActionStats.isEmpty() == false) {
+                    builder.startObject(Fields.ACTIONS);
+                } else {
+                    // Stats came from before v8.8
+                    assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+                }
+                return builder;
+            }),
+
+            Iterators.flatMap(transportActionStats.entrySet().iterator(), entry -> Iterators.single((builder, params) -> {
                 builder.field(entry.getKey());
                 entry.getValue().toXContent(builder, params);
-            }
-            builder.endObject();
-        } else {
-            // Stats came from before v8.8
-            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-        }
-        builder.endObject();
-        return builder;
+                return builder;
+            })),
+
+            Iterators.single((builder, params) -> {
+                if (transportActionStats.isEmpty() == false) {
+                    builder.endObject();
+                }
+                return builder.endObject();
+            })
+        );
     }
 
     static void histogramToXContent(XContentBuilder builder, long[] bucketFrequencies, String fieldName) throws IOException {

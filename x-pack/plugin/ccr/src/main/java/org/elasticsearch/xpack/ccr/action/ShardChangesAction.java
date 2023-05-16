@@ -308,7 +308,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
-            out.writeArray(Translog.Operation::writeOperation, operations);
+            out.writeArray(operations);
             out.writeVLong(tookInMillis);
         }
 

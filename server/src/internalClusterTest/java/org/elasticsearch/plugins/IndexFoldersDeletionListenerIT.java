@@ -10,7 +10,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -267,14 +266,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         logger.debug("--> creating [{}] leftover indices on data node [{}]", leftovers.length, dataNode);
         for (int i = 0; i < leftovers.length; i++) {
             final String indexName = "index-" + i;
-            createIndex(
-                indexName,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put("index.routing.allocation.include._name", dataNode)
-                    .build()
-            );
+            createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
             ensureGreen(indexName);
             leftovers[i] = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
         }
@@ -290,16 +282,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         logger.debug("--> creating a new index [{}]", indexName);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.NONE)
-                        .build()
-                )
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.enable", EnableAllocationDecider.Allocation.NONE).build())
                 .setWaitForActiveShards(ActiveShardCount.NONE)
         );
 

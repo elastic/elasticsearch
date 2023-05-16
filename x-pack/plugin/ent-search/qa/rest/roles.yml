@@ -1,4 +1,4 @@
-entsearch:
+admin:
   cluster:
     - manage_search_application
     - manage_behavioral_analytics
@@ -12,6 +12,8 @@ entsearch:
         "test-index3",
         "test-index4",
         "test-index-does-not-exist",
+        "test-search-index1",
+        "test-search-index2",
         # Search Applications (needed to create aliases)
         "test-search-application",
         "test-search-application-1",
@@ -22,5 +24,16 @@ entsearch:
         "test-re-creating-search-application",
         "test-search-application-to-delete",
         "test-nonexistent-search-application",
-      ]
-      privileges: [ "manage" ]
+        "test-search-application-with-invalid-template"
+    ]
+      privileges: [ "manage", "write" ]
+
+user:
+  cluster:
+    - post_behavioral_analytics_event
+  indices:
+    - names: [
+      "test-search-application"
+    ]
+      privileges: [ "read" ]
+

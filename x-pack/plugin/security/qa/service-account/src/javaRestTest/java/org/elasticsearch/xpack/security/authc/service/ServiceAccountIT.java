@@ -104,6 +104,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    "profiling-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "auto_configure"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     "traces-apm.sampled-*"
                   ],
                   "privileges": [
@@ -112,6 +123,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "maintenance"
                   ],
                   "allow_restricted_indices": false
+                },
+                {
+                  "names": [
+                    ".fleet-secrets*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices":true
                 },
                 {
                   "names": [
@@ -203,6 +223,7 @@ public class ServiceAccountIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .module("analysis-common")
+        .module("rest-root")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")

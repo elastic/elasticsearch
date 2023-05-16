@@ -18,6 +18,8 @@ Gets the lifecycle of a set of data streams.
 
 Gets the lifecycle of the specified data streams. If multiple data streams are requested but at least one of them
 does not exist, then the API will respond with `404` since at least one of the requested resources could not be retrieved.
+If the requested data streams do not have a lifecycle configured they will still be included in the API response but the
+`lifecycle` key will be missing.
 
 [[dlm-get-lifecycle-path-params]]
 ==== {api-path-parms-title}
@@ -53,18 +55,18 @@ Contains information about retrieved data stream lifecycles.
 (string)
 Name of the data stream.
 `lifecycle`::
-(object)
+(Optional, object)
 +
 .Properties of `lifecycle`
 [%collapsible%open]
 =====
 `data_retention`::
-(string)
+(Optional, string)
 If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
 duration the document could be deleted. When undefined, every document in this data stream will be stored indefinitely.
 
 `rollover`::
-(object)
+(Optional, object)
 The conditions which will trigger the rollover of a backing index as configured by the cluster setting
 `cluster.dlm.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
 param `include_defaults` is set to `true`. The contents of this field are subject to change.

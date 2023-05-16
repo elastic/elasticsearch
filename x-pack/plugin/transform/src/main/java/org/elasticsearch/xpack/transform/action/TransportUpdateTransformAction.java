@@ -133,6 +133,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     settings,
                     client,
                     transformConfigManager,
+                    auditor,
                     configAndVersion.v1(),
                     update,
                     configAndVersion.v2(),

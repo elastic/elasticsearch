@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -24,9 +25,9 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardsLimitAllocationTests extends ESAllocationTestCase {
@@ -55,9 +56,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
@@ -96,9 +95,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
@@ -156,9 +153,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
         logger.info("Adding one node and reroute");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
@@ -166,7 +161,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         logger.info("Start the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(5));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), STARTED), equalTo(5));
 
         logger.info("add another index with 5 shards");
         metadata = Metadata.builder(clusterState.metadata())
@@ -185,7 +180,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), STARTED), equalTo(10));
+        assertThat(numberOfShardsWithState(clusterState.getRoutingNodes(), STARTED), equalTo(10));
 
         for (ShardRouting shardRouting : clusterState.getRoutingNodes().node("node1")) {
             assertThat(shardRouting.getIndexName(), equalTo("test"));

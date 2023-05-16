@@ -64,6 +64,7 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         writeTestFile(env.configFile().resolve("secrets").resolve("secrets.json"), testJSON);
         LocallyMountedSecrets secrets = new LocallyMountedSecrets(env);
         assertTrue(secrets.isLoaded());
+        assertThat(secrets.getVersion(), equalTo(1L));
         assertThat(secrets.getSettingNames(), containsInAnyOrder("aaa", "ccc"));
         assertEquals("bbb", secrets.getString("aaa").toString());
         assertEquals("ddd", secrets.getString("ccc").toString());
@@ -137,6 +138,17 @@ public class LocallyMountedSecretsTests extends ESTestCase {
         secrets.close();
         assertNull(secrets.getString("aaa"));
         assertNull(secrets.getString("ccc"));
+    }
+
+    public void testResolveSecretsDir() {
+        assertTrue(LocallyMountedSecrets.resolveSecretsDir(env).endsWith("config/" + LocallyMountedSecrets.SECRETS_DIRECTORY));
+    }
+
+    public void testResolveSecretsFile() {
+        assertTrue(
+            LocallyMountedSecrets.resolveSecretsFile(env)
+                .endsWith("config/" + LocallyMountedSecrets.SECRETS_DIRECTORY + "/" + LocallyMountedSecrets.SECRETS_FILE_NAME)
+        );
     }
 
     private void writeTestFile(Path path, String contents) throws IOException {

@@ -7,36 +7,30 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
-import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.mockLicenseState;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyExceptionIsThrownOnInvalidLicence;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyNoExceptionIsThrown;
+import static org.elasticsearch.xpack.application.analytics.action.AnalyticsTransportActionTestUtils.verifyNoResponseIsSent;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
-    @SuppressWarnings("unchecked")
+
     public void testWithSupportedLicense() {
         AnalyticsCollectionService analyticsCollectionService = mock(AnalyticsCollectionService.class);
 
@@ -45,11 +39,13 @@ public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
 
         ClusterState clusterState = mock(ClusterState.class);
 
+        @SuppressWarnings("unchecked")
         ActionListener<GetAnalyticsCollectionAction.Response> listener = mock(ActionListener.class);
 
         transportAction.masterOperation(mock(Task.class), request, clusterState, listener);
+
         verify(analyticsCollectionService, times(1)).getAnalyticsCollection(clusterState, request, listener);
-        verify(listener, never()).onFailure(any());
+        verifyNoExceptionIsThrown(listener);
     }
 
     public void testWithUnsupportedLicense() {
@@ -60,33 +56,14 @@ public class TransportGetAnalyticsCollectionActionTests extends ESTestCase {
 
         ClusterState clusterState = mock(ClusterState.class);
 
-        final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<GetAnalyticsCollectionAction.Response> responseRef = new AtomicReference<>();
-        ActionListener<GetAnalyticsCollectionAction.Response> listener = ActionListener.wrap(
-            r -> responseRef.set(r),
-            e -> throwableRef.set(e)
-        );
+        @SuppressWarnings("unchecked")
+        ActionListener<GetAnalyticsCollectionAction.Response> listener = mock(ActionListener.class);
 
         transportAction.masterOperation(mock(Task.class), request, clusterState, listener);
 
-        assertThat(responseRef.get(), is(nullValue()));
-        assertThat(throwableRef.get(), instanceOf(ElasticsearchSecurityException.class));
-        assertThat(
-            throwableRef.get().getMessage(),
-            containsString("Search Applications and behavioral analytics require an active trial, platinum or enterprise license.")
-        );
-
+        verifyExceptionIsThrownOnInvalidLicence(listener);
+        verifyNoResponseIsSent(listener);
         verify(analyticsCollectionService, never()).getAnalyticsCollection(any(), any(), any());
-    }
-
-    private MockLicenseState mockLicenseState(boolean supported) {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
-
-        when(licenseState.isAllowed(LicenseUtils.LICENSED_ENT_SEARCH_FEATURE)).thenReturn(supported);
-        when(licenseState.isActive()).thenReturn(supported);
-        when(licenseState.statusDescription()).thenReturn("invalid license");
-
-        return licenseState;
     }
 
     private TransportGetAnalyticsCollectionAction createTransportAction(

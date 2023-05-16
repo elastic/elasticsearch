@@ -23,6 +23,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Explicit;
@@ -171,12 +172,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public void testIndexSortedOnField() {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.sort.field", "sort_field")
-            .build();
+        Settings settings = indexSettings(Version.CURRENT, 1, 1).put("index.sort.field", "sort_field").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
@@ -440,13 +436,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
-        indexMetadataBuilder.settings(
-            Settings.builder()
-                .put("index.version.created", Version.CURRENT)
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
-        );
+        indexMetadataBuilder.settings(indexSettings(Version.CURRENT, 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, indexUuid));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mappingLookup);
@@ -487,6 +477,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
                 mapperRegistry.getRuntimeFieldParsers()::get,
                 indexSettings.getIndexVersionCreated(),
+                () -> TransportVersion.CURRENT,
                 searchExecutionContextSupplier,
                 ScriptCompiler.NONE,
                 indexAnalyzers,

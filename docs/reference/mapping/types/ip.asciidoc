@@ -95,7 +95,7 @@ The following parameters are accepted by `ip` fields:
     (default).
 
 `time_series_dimension`::
-preview:[] (Optional, Boolean)
+    (Optional, Boolean)
 +
 --
 include::keyword.asciidoc[tag=dimension]

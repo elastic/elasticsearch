@@ -98,7 +98,7 @@ teardown:
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
 
@@ -114,7 +114,7 @@ teardown:
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -133,7 +133,7 @@ teardown:
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -154,7 +154,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -171,7 +171,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -185,7 +185,7 @@ teardown:
 
   - do:
       catch: "forbidden"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: nonexisting-test-search-application
         body:

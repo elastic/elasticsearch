@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -67,7 +66,6 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -633,59 +631,46 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         return searchShardsResponses;
                     }
                 };
-            final StepListener<Void> ensureConnectedListener = new StepListener<>();
-            if (skipUnavailable) {
-                ensureConnectedListener.onResponse(null);
-            } else {
-                remoteClusterService.ensureConnected(clusterAlias, ensureConnectedListener);
-            }
-            ensureConnectedListener.addListener(ActionListener.wrap(nullValue -> {
-                final Transport.Connection connection;
-                try {
-                    connection = remoteClusterService.getConnection(clusterAlias);
-                } catch (NoSuchRemoteClusterException ex) {
-                    // attempt to reconnect but don't wait
-                    if (skipUnavailable) {
-                        remoteClusterService.ensureConnected(clusterAlias, ActionListener.noop());
+            remoteClusterService.maybeEnsureConnectedAndGetConnection(
+                clusterAlias,
+                skipUnavailable == false,
+                ActionListener.wrap(connection -> {
+                    final String[] indices = entry.getValue().indices();
+                    // TODO: support point-in-time
+                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
+                        SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+                            indices,
+                            indicesOptions,
+                            query,
+                            routing,
+                            preference,
+                            allowPartialResults,
+                            clusterAlias
+                        );
+                        transportService.sendRequest(
+                            connection,
+                            SearchShardsAction.NAME,
+                            searchShardsRequest,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new)
+                        );
+                    } else {
+                        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
+                            indicesOptions
+                        ).local(true).preference(preference).routing(routing);
+                        transportService.sendRequest(
+                            connection,
+                            ClusterSearchShardsAction.NAME,
+                            searchShardsRequest,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(
+                                singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                                ClusterSearchShardsResponse::new
+                            )
+                        );
                     }
-                    throw ex;
-                }
-                final String[] indices = entry.getValue().indices();
-                // TODO: support point-in-time
-                if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersion.V_8_500_000)) {
-                    SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-                        indices,
-                        indicesOptions,
-                        query,
-                        routing,
-                        preference,
-                        allowPartialResults,
-                        clusterAlias
-                    );
-                    transportService.sendRequest(
-                        connection,
-                        SearchShardsAction.NAME,
-                        searchShardsRequest,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(singleListener, SearchShardsResponse::new)
-                    );
-                } else {
-                    ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(indicesOptions)
-                        .local(true)
-                        .preference(preference)
-                        .routing(routing);
-                    transportService.sendRequest(
-                        connection,
-                        ClusterSearchShardsAction.NAME,
-                        searchShardsRequest,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            singleListener.map(SearchShardsResponse::fromLegacyResponse),
-                            ClusterSearchShardsResponse::new
-                        )
-                    );
-                }
-            }, singleListener::onFailure));
+                }, singleListener::onFailure)
+            );
         }
     }
 

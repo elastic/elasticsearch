@@ -218,7 +218,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * Ensures that the given cluster alias is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    public void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
+    void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
         final RemoteClusterConnection remoteClusterConnection;
         try {
             remoteClusterConnection = getRemoteClusterConnection(clusterAlias);
@@ -238,6 +238,37 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
     public Transport.Connection getConnection(String cluster) {
         return getRemoteClusterConnection(cluster).getConnection();
+    }
+
+    /**
+     * Unlike {@link #getConnection(String)} this method might attempt to re-establish a remote connection if there is no connection
+     * available before returning a connection to the remote cluster.
+     *
+     * @param clusterAlias    the remote cluster
+     * @param ensureConnected whether requests should wait for a connection attempt when there isn't available connection
+     * @param listener        a listener that will be notified the connection or failure
+     */
+    public void maybeEnsureConnectedAndGetConnection(
+        String clusterAlias,
+        boolean ensureConnected,
+        ActionListener<Transport.Connection> listener
+    ) {
+        ActionListener<Void> ensureConnectedListener = ActionListener.wrap(nullValue -> ActionListener.completeWith(listener, () -> {
+            try {
+                return getConnection(clusterAlias);
+            } catch (NoSuchRemoteClusterException e) {
+                if (ensureConnected == false) {
+                    // trigger another connection attempt, but don't wait for it to complete
+                    ensureConnected(clusterAlias, ActionListener.noop());
+                }
+                throw e;
+            }
+        }), listener::onFailure);
+        if (ensureConnected) {
+            ensureConnected(clusterAlias, ensureConnectedListener);
+        } else {
+            ensureConnectedListener.onResponse(null);
+        }
     }
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {

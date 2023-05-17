@@ -1572,22 +1572,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 hasRefreshPending = needsWaitForRefresh || (indexShard.hasRefreshPending() && checkRefreshPending);
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
-            if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
-                final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-                    indexService.newSearchExecutionContext(
-                        request.shardId().getId(),
-                        request.shardRequestIndex(),
-                        null,
-                        request::nowInMillis,
-                        request.getClusterAlias(),
-                        request.getRuntimeMappings()
-                    )
-                );
-                if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
-                    return new CanMatchShardResponse(false, null);
-                }
-            }
             try (canMatchSearcher) {
+                if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
+                    final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+                        indexService.newSearchExecutionContext(
+                            request.shardId().getId(),
+                            request.shardRequestIndex(),
+                            null,
+                            request::nowInMillis,
+                            request.getClusterAlias(),
+                            request.getRuntimeMappings()
+                        )
+                    );
+                    if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
+                        return new CanMatchShardResponse(false, null);
+                    }
+                }
                 SearchExecutionContext context = indexService.newSearchExecutionContext(
                     request.shardId().id(),
                     0,

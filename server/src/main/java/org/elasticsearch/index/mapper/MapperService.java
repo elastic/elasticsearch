@@ -122,7 +122,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final MappingParserContext mappingParserContext;
-
+    private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private volatile DocumentMapper mapper;
 
     public MapperService(
@@ -164,7 +164,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        this.mappingParserContext = new MappingParserContext(
+        this.mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
@@ -176,12 +176,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
+        this.mappingParserContext = this.mappingParserContextSupplier.get();
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContext);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
         this.mappingParser = new MappingParser(
-            mappingParserContext,
+            mappingParserContextSupplier,
             metadataMapperParsers,
             this::getMetadataMappers,
             this::resolveDocumentType

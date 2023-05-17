@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class MappingParserTests extends MapperServiceTestCase {
 
@@ -54,6 +55,20 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexSettings,
             indexSettings.getMode().idFieldMapperWithoutFieldData()
         );
+        Supplier<MappingParserContext> mappingParserContextSupplier = () -> new MappingParserContext(
+            similarityService::getSimilarity,
+            type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
+            mapperRegistry.getRuntimeFieldParsers()::get,
+            indexSettings.getIndexVersionCreated(),
+            () -> transportVersion,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            scriptService,
+            indexAnalyzers,
+            indexSettings,
+            indexSettings.getMode().idFieldMapperWithoutFieldData()
+        );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -64,7 +79,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             }
         });
         return new MappingParser(
-            mappingParserContext,
+            mappingParserContextSupplier,
             metadataMapperParsers,
             () -> metadataMappers,
             type -> MapperService.SINGLE_MAPPING_NAME

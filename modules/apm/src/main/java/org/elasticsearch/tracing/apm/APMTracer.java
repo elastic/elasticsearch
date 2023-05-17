@@ -40,6 +40,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_ENABLED_SETTING;
@@ -187,6 +188,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             }
 
             setSpanAttributes(threadContext, attributes, spanBuilder);
+
+            Long startTimeInMillisSinceEpoch = threadContext.getTransient(Task.TRACE_START_TIME);
+            if (startTimeInMillisSinceEpoch != null) {
+                spanBuilder.setStartTimestamp(startTimeInMillisSinceEpoch, TimeUnit.MILLISECONDS);
+            }
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
 

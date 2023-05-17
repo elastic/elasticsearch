@@ -579,6 +579,7 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
+        threadContext.putTransient(Task.TRACE_START_TIME, threadPool.absoluteTimeInMillis());
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

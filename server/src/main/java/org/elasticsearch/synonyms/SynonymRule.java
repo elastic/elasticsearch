@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SynonymRule implements Writeable, ToXContentObject {
 
@@ -95,5 +96,18 @@ public class SynonymRule implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(id);
         out.writeString(synonym);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SynonymRule that = (SynonymRule) o;
+        return Objects.equals(synonym, that.synonym) && Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(synonym, id);
     }
 }

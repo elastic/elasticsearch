@@ -54,6 +54,11 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
             this.synonymSet = SynonymSet.fromXContent(XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType));
         }
 
+        Request(String name, SynonymSet synonymSet) {
+            this.name = name;
+            this.synonymSet = synonymSet;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -67,6 +72,7 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeString(name);
             synonymSet.writeTo(out);
         }
@@ -77,6 +83,19 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
 
         public SynonymSet synonymSet() {
             return synonymSet;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            return Objects.equals(name, request.name) && Objects.equals(synonymSet, request.synonymSet);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, synonymSet);
         }
     }
 
@@ -115,6 +134,19 @@ public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
                 case CREATED -> RestStatus.CREATED;
                 default -> RestStatus.OK;
             };
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return result == response.result;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(result);
         }
 
         public enum Result {

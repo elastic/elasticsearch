@@ -89,22 +89,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         clusters = new Clusters(in);
-
-        /// MP DEBUG
-        try {
-            if (clusters.getTotal() == 3) {
-                if (successfulShards == 1) {
-                    throw new RuntimeException("III: SearchResponse(StreamInput)");
-                } else if (successfulShards == 3) {
-                    throw new RuntimeException("FFF: SearchResponse(StreamInput)");
-                }
-            }
-        } catch (RuntimeException e) {
-            logger.warn(e.getMessage());
-            logger.warn(e.getMessage().substring(0, 4) + " ABC stack trace", e);
-        }
-        /// MP END DEBUG
-
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
@@ -148,31 +132,30 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
 
-        // this cluster has completed
-        if (clusters != null && totalShards == (successfulShards + skippedShards + shardFailures.length)) {
+        // try to determine if this cluster has completed in order to update successful counter in Counters object
+        // this is used for async CCS minimizeRoundtrips scenario to update user on search status (how many finished and pending clusters)
+        if (clusterHasLikelyFinished(totalShards, successfulShards, skippedShards, shardFailures.length, clusters)) {
             this.clusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
         } else {
             this.clusters = clusters;
         }
 
-        /// MP DEBUG
-        try {
-            if (clusters.getTotal() == 3) {
-                if (successfulShards == 1) {
-                    throw new RuntimeException("III: SearchResponse ABC");
-                } else if (successfulShards == 3) {
-                    throw new RuntimeException("FFF: SearchResponse ABC");
-                }
-            }
-        } catch (RuntimeException e) {
-            logger.warn(e.getMessage());
-            logger.warn(e.getMessage().substring(0, 4) + " ABC stack trace", e);
-        }
-        /// MP END DEBUG
-
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
+    }
+
+    private static boolean clusterHasLikelyFinished(
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        int failedShards,
+        Clusters clusters
+    ) {
+        return clusters != null
+            && clusters.equals(Clusters.EMPTY) == false  // EMPTY is often used for placeholder (not with CCS minimize round trips)
+            && totalShards == (successfulShards + skippedShards + failedShards)
+            && clusters.getTotal() - (clusters.getSuccessful() + clusters.getSkipped()) > 0;
     }
 
     public RestStatus status() {

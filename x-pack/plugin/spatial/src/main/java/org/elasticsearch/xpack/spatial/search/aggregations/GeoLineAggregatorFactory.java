@@ -46,7 +46,7 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metaData) throws IOException {
-        return new GeoLineAggregator(name, null, context, parent, metaData, includeSort, sortOrder, size);
+        return new GeoLineAggregator.Empty(name, context, parent, metaData, includeSort, sortOrder, size);
     }
 
     @Override
@@ -58,7 +58,11 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
         Map<String, Object> metaData
     ) throws IOException {
         GeoLineMultiValuesSource valuesSources = new GeoLineMultiValuesSource(configs);
-        return new GeoLineAggregator(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
+        if (context.isInSortOrderExecutionRequired()) {
+            return new GeoLineAggregator.TimeSeries(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
+        } else {
+            return new GeoLineAggregator.Normal(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
+        }
     }
 
     @Override

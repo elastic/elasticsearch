@@ -7,21 +7,14 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiValuesSource;
 
 import java.io.IOException;
@@ -37,11 +30,11 @@ import static org.elasticsearch.xpack.spatial.search.aggregations.GeoLineAggrega
  * bucket based on whether there are too many items in the bucket that
  * need to be dropped based on their sort value.
  */
-class GeoLineBucketedSort extends BucketedSort.ForDoubles {
+class TimeSeriesGeoLineBucketedSort extends BucketedSort.ForDoubles {
     private final GeoLineMultiValuesSource valuesSources;
     private final SortOrder sortOrder;
 
-    GeoLineBucketedSort(
+    TimeSeriesGeoLineBucketedSort(
         BigArrays bigArrays,
         SortOrder sortOrder,
         DocValueFormat format,
@@ -82,7 +75,7 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         long end = rootIndex + bucketSize;
         long size = 0;
         for (long index = start; index < end; index++) {
-            if (((Extra) extra).empty.isEmpty(index) == false) {
+            if (((GeoLineBucketedSort.Extra) extra).empty.isEmpty(index) == false) {
                 size += 1;
             }
         }
@@ -106,7 +99,7 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         double[] result = new double[(int) sizeOf(bucket)];
         int i = 0;
         for (long index = start; index < end; index++) {
-            if (((Extra) extra).empty.isEmpty(index) == false) {
+            if (((GeoLineBucketedSort.Extra) extra).empty.isEmpty(index) == false) {
                 double timestampValue = ((DoubleArray) values()).get(index);
                 result[i++] = timestampValue;
             }
@@ -130,8 +123,8 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
         long[] result = new long[(int) sizeOf(bucket)];
         int i = 0;
         for (long index = start; index < end; index++) {
-            if (((Extra) extra).empty.isEmpty(index) == false) {
-                long geoPointValue = ((Extra) extra).values.get(index);
+            if (((GeoLineBucketedSort.Extra) extra).empty.isEmpty(index) == false) {
+                long geoPointValue = ((GeoLineBucketedSort.Extra) extra).values.get(index);
                 result[i++] = geoPointValue;
             }
         }
@@ -170,70 +163,5 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
                 return docValue;
             }
         };
-    }
-
-    /**
-     * An {@link BucketedSort.ExtraData} representing the geo-point for a document
-     * within a bucket.
-     */
-    static class Extra implements BucketedSort.ExtraData, Releasable {
-
-        private final BigArrays bigArrays;
-        private final GeoLineMultiValuesSource valuesSources;
-        LongArray values;
-        final MissingHelper empty;
-
-        Extra(BigArrays bigArrays, GeoLineMultiValuesSource valuesSources) {
-            this.bigArrays = bigArrays;
-            this.valuesSources = valuesSources;
-            this.values = bigArrays.newLongArray(1, false);
-            this.empty = new MissingHelper(bigArrays);
-        }
-
-        @Override
-        public void swap(long lhs, long rhs) {
-            long tmp = values.get(lhs);
-            values.set(lhs, values.get(rhs));
-            values.set(rhs, tmp);
-            empty.swap(lhs, rhs);
-        }
-
-        @Override
-        public Loader loader(LeafReaderContext ctx) {
-            final MultiGeoPointValues docGeoPointValues = valuesSources.getGeoPointField(
-                GeoLineAggregationBuilder.POINT_FIELD.getPreferredName(),
-                ctx
-            );
-            return (index, doc) -> {
-                if (false == docGeoPointValues.advanceExact(doc)) {
-                    empty.markMissing(index);
-                    return;
-                }
-
-                if (docGeoPointValues.docValueCount() > 1) {
-                    throw new AggregationExecutionException(
-                        "Encountered more than one geo_point value for a "
-                            + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
-                    );
-                }
-
-                if (index >= values.size()) {
-                    values = bigArrays.grow(values, index + 1);
-                }
-
-                final GeoPoint point = docGeoPointValues.nextValue();
-                int encodedLat = GeoEncodingUtils.encodeLatitude(point.lat());
-                int encodedLon = GeoEncodingUtils.encodeLongitude(point.lon());
-                long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
-
-                values.set(index, lonLat);
-                empty.markNotMissing(index);
-            };
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(values, empty);
-        }
     }
 }

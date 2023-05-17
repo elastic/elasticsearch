@@ -1,0 +1,237 @@
+---
+setup:
+  - skip:
+      version: " - 8.7.99"
+      reason: position metric introduced in 8.8.0
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ city ]
+              time_series:
+                start_time: 2023-01-01T00:00:00Z
+                end_time: 2024-01-01T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              city:
+                type: keyword
+                time_series_dimension: true
+              name:
+                type: keyword
+                time_series_dimension: false
+              location:
+                type: geo_point
+                time_series_metric: position
+
+  - do:
+      bulk:
+        index: locations
+        refresh: true
+        body: |
+          {"index":{}}
+          {"@timestamp": "2023-01-02T09:00:00Z", "location": "POINT(4.889187 52.373184)", "city": "Amsterdam", "name": "Royal Palace Amsterdam"}
+          {"index":{}}
+          {"@timestamp": "2023-01-02T10:00:00Z", "location": "POINT(4.885057 52.370159)", "city": "Amsterdam", "name": "The Amsterdam Dungeon"}
+          {"index":{}}
+          {"@timestamp": "2023-01-02T13:00:00Z", "location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}
+          {"index":{}}
+          {"@timestamp": "2023-01-02T16:00:00Z", "location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}
+          {"index":{}}
+          {"@timestamp": "2023-01-03T12:00:00Z", "location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{}}
+          {"@timestamp": "2023-01-04T12:00:00Z", "location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}
+          {"index":{}}
+          {"@timestamp": "2023-01-05T10:00:00Z", "location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}
+          {"index":{}}
+          {"@timestamp": "2023-01-05T14:00:00Z", "location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}
+  - do:
+      indices.refresh: { }
+
+---
+"geo_line on position field":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: locations
+        rest_total_hits_as_int: true
+        body:
+          aggregations:
+            by_time_series:
+              time_series: {}
+              aggregations:
+                museum_tour:
+                  geo_line:
+                    point:
+                      field: location
+                    sort:
+                      field: "@timestamp"
+  - match: { hits.total: 8 }
+  - length: { aggregations.by_time_series.buckets: 3 }
+  - match:
+      aggregations.by_time_series.buckets:
+        "{city=Paris}":
+          key: { city: Paris }
+          doc_count: 2
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [[2.336389, 48.861111], [2.327, 48.86]]
+              type: LineString
+            properties: { complete: true }
+        "{city=Antwerp}":
+          key: { city: Antwerp }
+          doc_count: 1
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [4.4052, 51.2229]
+              type: Point
+            properties: { complete: true }
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
+          doc_count: 5
+          museum_tour:
+            type: Feature
+            geometry:
+              coordinates: [[4.889187, 52.373184], [4.885057, 52.370159], [4.901618, 52.369219], [4.91235, 52.374081], [4.914722, 52.371667]]
+              type: LineString
+            properties: { complete: true }
+
+---
+"geo_line on position field same grouping as time-series without time-series":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: locations
+        rest_total_hits_as_int: true
+        body:
+          aggregations:
+            not_time_series:
+              terms:
+                field: city
+              aggregations:
+                museum_tour:
+                  geo_line:
+                    point:
+                      field: location
+                    sort:
+                      field: "@timestamp"
+  - match: { hits.total: 8 }
+  - length: { aggregations.not_time_series.buckets: 3 }
+  - match:
+      aggregations.not_time_series.buckets.0:
+        key: Amsterdam
+        doc_count: 5
+        museum_tour:
+          type: Feature
+          geometry:
+            coordinates: [[4.889187, 52.373184], [4.885057, 52.370159], [4.901618, 52.369219], [4.91235, 52.374081], [4.914722, 52.371667]]
+            type: LineString
+          properties: { complete: true }
+  - match:
+      aggregations.not_time_series.buckets.1:
+        key: Paris
+        doc_count: 2
+        museum_tour:
+          type: Feature
+          geometry:
+            coordinates: [[2.336389, 48.861111], [2.327, 48.86]]
+            type: LineString
+          properties: { complete: true }
+  - match:
+      aggregations.not_time_series.buckets.2:
+        key: Antwerp
+        doc_count: 1
+        museum_tour:
+          type: Feature
+          geometry:
+            coordinates: [4.4052, 51.2229]
+            type: Point
+          properties: { complete: true }
+
+
+---
+"geo_line on position field same grouping as time-series with time-series":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        index: locations
+        rest_total_hits_as_int: true
+        body:
+          aggregations:
+            with_time_series:
+              time_series: {}
+              aggregations:
+                museums:
+                  terms:
+                    field: city
+                  aggregations:
+                    museum_tour:
+                      geo_line:
+                        point:
+                          field: location
+                        sort:
+                          field: "@timestamp"
+  - match: { hits.total: 8 }
+  - length: { aggregations.with_time_series.buckets: 3 }
+  - match:
+      aggregations.with_time_series.buckets:
+        "{city=Amsterdam}":
+          key: { city: Amsterdam }
+          doc_count: 5
+          museums:
+            doc_count_error_upper_bound: 0
+            sum_other_doc_count: 0
+            buckets:
+              - key: Amsterdam
+                doc_count: 5
+                museum_tour:
+                  type: Feature
+                  geometry:
+                    coordinates: [[4.889187, 52.373184], [4.885057, 52.370159], [4.901618, 52.369219], [4.91235, 52.374081], [4.914722, 52.371667]]
+                    type: LineString
+                  properties:
+                    complete: true
+        "{city=Paris}":
+          key: { city: Paris }
+          doc_count: 2
+          museums:
+            doc_count_error_upper_bound: 0
+            sum_other_doc_count: 0
+            buckets:
+            - key: Paris
+              doc_count: 2
+              museum_tour:
+                type: Feature
+                geometry:
+                  coordinates: [[2.336389, 48.861111], [2.327, 48.86]]
+                  type: LineString
+                properties:
+                  complete: true
+        "{city=Antwerp}":
+          key: { city: Antwerp }
+          doc_count: 1
+          museums:
+            doc_count_error_upper_bound: 0
+            sum_other_doc_count: 0
+            buckets:
+            - key: Antwerp
+              doc_count: 1
+              museum_tour:
+                type: Feature
+                geometry:
+                  coordinates: [4.4052, 51.2229]
+                  type: Point
+                properties:
+                  complete: true

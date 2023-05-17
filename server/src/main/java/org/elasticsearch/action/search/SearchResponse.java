@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
@@ -55,7 +53,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(SearchResponse.class);
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -132,8 +129,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
 
-        // try to determine if this cluster has completed in order to update successful counter in Counters object
-        // this is used for async CCS minimizeRoundtrips scenario to update user on search status (how many finished and pending clusters)
+        // try to determine if this cluster has completed its search in order to update the 'successful' counter in the Clusters object
+        // used for async CCS minimizeRoundtrips scenario to update a user on search status while it is still running
         if (clusterHasLikelyFinished(totalShards, successfulShards, skippedShards, shardFailures.length, clusters)) {
             this.clusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
         } else {
@@ -152,9 +149,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int failedShards,
         Clusters clusters
     ) {
-        return clusters != null
-            && clusters.equals(Clusters.EMPTY) == false  // EMPTY is often used for placeholder (not with CCS minimize round trips)
-            && totalShards == (successfulShards + skippedShards + failedShards)
+        return clusters != null  // should never be null for CCS minimizeRoundtrips scenario
+            && clusters.equals(Clusters.EMPTY) == false  // EMPTY is often used as a placeholder (not used for CCS minimizeRoundtrips)
+            && totalShards == (successfulShards + skippedShards + failedShards) // if all shards are now accounted for (none pending)
+            // ensure that incrementing the 'successful' count will not cause successful+skipped to be larger than total
             && clusters.getTotal() - (clusters.getSuccessful() + clusters.getSkipped()) > 0;
     }
 

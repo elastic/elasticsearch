@@ -15,6 +15,7 @@ Aggregations::
 Allocation::
 * Avoid copying during iteration of all shards in routing table {es-pull}94417[#94417]
 * Avoid duplicate application of `RoutingTable` diff {es-pull}94379[#94379]
+* Fix `RebalanceOnlyWhenActiveAllocationDecider` {es-pull}96025[#96025]
 * Streamline `AsyncShardFetch#getNumberOfInFlightFetches` {es-pull}93632[#93632] (issue: {es-issue}93631[#93631])
 
 Application::
@@ -37,17 +38,21 @@ DLM::
 
 Data streams::
 * Allow deletion of component templates that are specified in the `ignore_missing_component_templates` array {es-pull}95527[#95527]
+* Fix searching a filtered and unfiltered data stream alias {es-pull}95865[#95865] (issue: {es-issue}95786[#95786])
 
 Distributed::
+* Check shard availability before including in stats {es-pull}96015[#96015] (issues: {es-issue}96000[#96000], {es-issue}87001[#87001])
 * Fix `GetPipelineResponse` equality {es-pull}93695[#93695]
 
 Engine::
 * Ensure refresh to return the latest commit generation {es-pull}94249[#94249]
 
 Geo::
+* Adjust `BoundedGeoHexGridTiler#FACTOR` to prevent missing hits {es-pull}96088[#96088] (issue: {es-issue}96057[#96057])
 * Fix bug where `geo_line` does not respect `sort_order` {es-pull}94734[#94734] (issue: {es-issue}94733[#94733])
 
 ILM+SLM::
+* Retry downsample ILM action using a new target index {es-pull}94965[#94965] (issue: {es-issue}93580[#93580])
 * Strip disallowed chars from generated snapshot name {es-pull}95767[#95767] (issue: {es-issue}95593[#95593])
 * [ILM] Fix the migrate to tiers service and migrate action tiers configuration {es-pull}95934[#95934]
 
@@ -87,6 +92,7 @@ Search::
 Snapshot/Restore::
 * Cancel cold cache prewarming tasks if store is closing {es-pull}95891[#95891] (issue: {es-issue}95504[#95504])
 * Fix 0 default value for repo snapshot speed {es-pull}95854[#95854] (issue: {es-issue}95561[#95561])
+* Fix Azure `InputStream#read` method {es-pull}96034[#96034]
 * Stop sorting indices in get-snapshots API {es-pull}94890[#94890]
 
 Transform::
@@ -296,6 +302,7 @@ Packaging::
 * Bump bundled JDK to Java `20.0.1` {es-pull}95359[#95359]
 
 Search::
+* Upgrade Lucene to the final 9.6.0 release {es-pull}95967[#95967]
 * Upgrade to `lucene-9.6.0-snapshot-8a815153fbe` {es-pull}94635[#94635]
 * Upgrade to `lucene-9.6.0-snapshot-f5d1e1c787c` {es-pull}94494[#94494]
 

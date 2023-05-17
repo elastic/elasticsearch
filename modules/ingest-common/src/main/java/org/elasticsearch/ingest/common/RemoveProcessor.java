@@ -57,6 +57,7 @@ public final class RemoveProcessor extends AbstractProcessor {
     }
 
     private void fieldsToRemoveProcessor(IngestDocument document) {
+        // micro-optimization note: actual for-each loops here rather than a .forEach because it happens to be ~5% faster in benchmarks
         if (ignoreMissing) {
             for (TemplateScript.Factory field : fieldsToRemove) {
                 removeWhenPresent(document, document.renderTemplate(field));

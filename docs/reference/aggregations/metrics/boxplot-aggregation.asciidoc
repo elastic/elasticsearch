@@ -55,9 +55,9 @@ The response will look like this:
     "load_time_boxplot": {
       "min": 0.0,
       "max": 990.0,
-      "q1": 165.0,
+      "q1": 167.5,
       "q2": 445.0,
-      "q3": 725.0,
+      "q3": 722.5,
       "lower": 0.0,
       "upper": 990.0
     }
@@ -114,9 +114,9 @@ GET latency/_search
     "load_time_boxplot": {
       "min": 0.0,
       "max": 99.0,
-      "q1": 16.5,
+      "q1": 16.75,
       "q2": 44.5,
-      "q3": 72.5,
+      "q3": 72.25,
       "lower": 0.0,
       "upper": 99.0
     }

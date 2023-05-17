@@ -15,7 +15,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -928,7 +927,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (indexSettings.getRefreshInterval().millis() > 0 || force) {
             for (IndexShard shard : this.shards.values()) {
                 try {
-                    shard.scheduledRefresh(ActionListener.noop());
+                    shard.scheduledRefresh();
                 } catch (IndexShardClosedException | AlreadyClosedException ex) {
                     // fine - continue;
                 }

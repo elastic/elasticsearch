@@ -3737,10 +3737,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 logger.trace("refresh with source [schedule]");
                 getEngine().maybeRefresh("schedule", listener);
             }
-        } else {
-            getEngine().maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
-            listener.onResponse(Engine.RefreshResult.NO_REFRESH);
+            return;
         }
+        final Engine engine = getEngine();
+        engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+        listener.onResponse(Engine.RefreshResult.NO_REFRESH);
+    }
+
+    public void scheduledRefresh() {
+        scheduledRefresh(ActionListener.noop());
     }
 
     /**

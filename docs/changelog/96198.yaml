@@ -2,4 +2,5 @@ pr: 96198
 summary: New HTTP stats endpoint
 area: Stats
 type: feature
-issues: []
+issues:
+ - 95391

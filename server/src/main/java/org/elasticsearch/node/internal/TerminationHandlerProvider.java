@@ -25,7 +25,7 @@ public interface TerminationHandlerProvider {
      * Returns a {@link TerminationHandler} implementation which will be invoked when the node is about to shut down, but before
      * the core services are terminated.
      *
-     * @return A list of {@link  TerminationHandler}s
+     * @return A {@link  TerminationHandler}s
      */
     TerminationHandler handler();
 }

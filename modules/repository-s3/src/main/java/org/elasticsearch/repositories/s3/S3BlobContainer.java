@@ -803,7 +803,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         ActionListener.run(ActionListener.releaseAfter(listener.delegateResponse((delegate, e) -> {
             if (e instanceof AmazonS3Exception amazonS3Exception && amazonS3Exception.getStatusCode() == 404) {
                 // an uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it
-                delegate.onResponse(null);
+                delegate.onResponse(OptionalBytesReference.MISSING);
             } else {
                 delegate.onFailure(e);
             }

@@ -1,0 +1,48 @@
+{
+  "index_patterns": [
+    ".profiling-sq-executables*"
+  ],
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "hidden": true
+      }
+    },
+    "mappings": {
+      "_source": {
+        "mode": "synthetic"
+      },
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true
+        },
+        "Executable.file.id": {
+          "type": "keyword",
+          "index": false
+        },
+        "Time.created": {
+          "type": "date",
+          "index": true
+        },
+        "Symbolization.time.next": {
+          "type": "date",
+          "index": true
+        },
+        "Symbolization.retries": {
+          "type": "short",
+          "index": true
+        }
+      }
+    }
+  },
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for .profiling-sq-executables"
+  },
+  "version": ${xpack.profiling.template.version}
+}
+

@@ -70,6 +70,7 @@ public class LocallyMountedSecrets implements SecureSettings {
     public static final String SECRETS_FILE_NAME = "secrets.json";
     public static final String SECRETS_DIRECTORY = "secrets";
 
+    // TODO[wrb]: remove deprecated name once controller and performance have updated their formats
     public static final ParseField STRING_SECRETS_FIELD = new ParseField("string_secrets", "secrets");
     public static final ParseField FILE_SECRETS_FIELD = new ParseField("file_secrets");
     public static final ParseField METADATA_FIELD = new ParseField("metadata");
@@ -243,11 +244,23 @@ public class LocallyMountedSecrets implements SecureSettings {
 
     record LocalFileSecrets(Map<String, byte[]> entries, ReservedStateVersion metadata) implements Writeable {
 
+        /**
+         * Read LocalFileSecrets from stream input
+         *
+         * <p>This class should only be used node-locally, to represent the local secrets on a particular
+         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         */
         public static LocalFileSecrets readFrom(StreamInput in) throws IOException {
             assert in.getTransportVersion() == TransportVersion.CURRENT;
             return new LocalFileSecrets(in.readMap(StreamInput::readString, StreamInput::readByteArray), ReservedStateVersion.readFrom(in));
         }
 
+        /**
+         * Write LocalFileSecrets to stream output
+         *
+         * <p>This class should only be used node-locally, to represent the local secrets on a particular
+         * node. Thus, the transport version should always be {@link TransportVersion#CURRENT}
+         */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getTransportVersion() == TransportVersion.CURRENT;

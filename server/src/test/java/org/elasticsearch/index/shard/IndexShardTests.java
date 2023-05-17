@@ -2954,7 +2954,7 @@ public class IndexShardTests extends IndexShardTestCase {
             });
 
             PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
-            shard.addRefreshListener(10, listener);
+            shard.addRefreshListener(10, randomBoolean(), listener);
             expectThrows(IllegalIndexShardStateException.class, listener::actionGet);
         };
         IndexShard replica = newShard(primary.shardId(), false, "n2", metadata, null);
@@ -3801,7 +3801,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), new ActionListener<Void>() {
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void unused) {
                     latch.countDown();
@@ -3827,7 +3827,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), ActionListener.running(latch1::countDown));
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), ActionListener.running(latch1::countDown));
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());

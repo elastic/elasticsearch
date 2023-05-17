@@ -11,8 +11,8 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -202,7 +202,7 @@ public class FetchContext {
      * backwards offsets in term vectors
      */
     public boolean containsBrokenAnalysis(String field) {
-        return getSearchExecutionContext().containsBrokenAnalysis(field);
+        return getValueFetchContext().containsBrokenAnalysis(field);
     }
 
     /**
@@ -247,7 +247,7 @@ public class FetchContext {
         return searchContext.getSearchExt(name);
     }
 
-    public SearchExecutionContext getSearchExecutionContext() {
+    public ValueFetchContext getValueFetchContext() {
         return searchContext.getSearchExecutionContext();
     }
 

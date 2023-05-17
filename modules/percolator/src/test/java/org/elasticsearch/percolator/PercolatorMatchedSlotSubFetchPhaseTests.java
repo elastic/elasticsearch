@@ -74,7 +74,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
                     SearchExecutionContext sec = mock(SearchExecutionContext.class);
-                    when(sc.getSearchExecutionContext()).thenReturn(sec);
+                    when(sc.getValueFetchContext()).thenReturn(sec);
                     when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
@@ -105,7 +105,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
                     SearchExecutionContext sec = mock(SearchExecutionContext.class);
-                    when(sc.getSearchExecutionContext()).thenReturn(sec);
+                    when(sc.getValueFetchContext()).thenReturn(sec);
                     when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);
@@ -135,7 +135,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     FetchContext sc = mock(FetchContext.class);
                     when(sc.query()).thenReturn(percolateQuery);
                     SearchExecutionContext sec = mock(SearchExecutionContext.class);
-                    when(sc.getSearchExecutionContext()).thenReturn(sec);
+                    when(sc.getValueFetchContext()).thenReturn(sec);
                     when(sec.indexVersionCreated()).thenReturn(Version.CURRENT);
 
                     FetchSubPhaseProcessor processor = phase.getProcessor(sc);

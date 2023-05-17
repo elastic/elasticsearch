@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -31,7 +30,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public SourceValueFetcher(String fieldName, SearchExecutionContext context) {
+    public SourceValueFetcher(String fieldName, ValueFetchContext context) {
         this(fieldName, context, null);
     }
 
@@ -39,7 +38,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
      * @param context   The query shard context
      * @param nullValue An optional substitute value if the _source value is 'null'.
      */
-    public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
+    public SourceValueFetcher(String fieldName, ValueFetchContext context, Object nullValue) {
         this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue);
     }
 
@@ -109,7 +108,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that passes through source values unmodified.
      */
-    public static SourceValueFetcher identity(String fieldName, SearchExecutionContext context, String format) {
+    public static SourceValueFetcher identity(String fieldName, ValueFetchContext context, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
@@ -124,7 +123,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     /**
      * Creates a {@link SourceValueFetcher} that converts source values to strings.
      */
-    public static SourceValueFetcher toString(String fieldName, SearchExecutionContext context, String format) {
+    public static SourceValueFetcher toString(String fieldName, ValueFetchContext context, String format) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }

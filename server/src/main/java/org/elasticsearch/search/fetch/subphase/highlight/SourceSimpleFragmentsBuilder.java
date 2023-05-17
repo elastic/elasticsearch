@@ -38,7 +38,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
         this.fetchContext = fetchContext;
         this.source = source;
-        this.valueFetcher = fieldType.valueFetcher(fetchContext.getSearchExecutionContext(), null);
+        this.valueFetcher = fieldType.valueFetcher(fetchContext.getValueFetchContext(), null);
     }
 
     public static final Field[] EMPTY_FIELDS = new Field[0];

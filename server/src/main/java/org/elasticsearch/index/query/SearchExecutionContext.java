@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
@@ -85,7 +86,7 @@ import java.util.function.Predicate;
  * This context is used in several components of search execution, including
  * building queries and fetching hits.
  */
-public class SearchExecutionContext extends QueryRewriteContext {
+public class SearchExecutionContext extends QueryRewriteContext implements ValueFetchContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;

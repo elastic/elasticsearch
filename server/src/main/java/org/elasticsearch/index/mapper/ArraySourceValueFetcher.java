@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -30,7 +29,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
 
-    public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
+    public ArraySourceValueFetcher(String fieldName, ValueFetchContext context) {
         this(fieldName, context, null);
     }
 
@@ -39,7 +38,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
      * @param context The query shard context
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
-    public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
+    public ArraySourceValueFetcher(String fieldName, ValueFetchContext context, Object nullValue) {
         this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
         this.nullValue = nullValue;
     }

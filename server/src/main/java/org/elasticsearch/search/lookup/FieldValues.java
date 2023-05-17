@@ -9,8 +9,8 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, SearchExecutionContext context) {
+    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, ValueFetchContext context) {
         return valueFetcher(fieldValues, v -> v, context);
     }
 
@@ -49,7 +49,7 @@ public interface FieldValues<T> {
      * @param context the search execution context
      * @return the value fetcher
      */
-    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, Function<Object, Object> formatter, SearchExecutionContext context) {
+    static ValueFetcher valueFetcher(FieldValues<?> fieldValues, Function<Object, Object> formatter, ValueFetchContext context) {
         return new ValueFetcher() {
             LeafReaderContext ctx;
 
@@ -86,7 +86,7 @@ public interface FieldValues<T> {
     static <T> ValueFetcher valueListFetcher(
         FieldValues<T> fieldValues,
         Function<List<T>, List<Object>> formatter,
-        SearchExecutionContext context
+        ValueFetchContext context
     ) {
         return new ValueFetcher() {
             LeafReaderContext ctx;

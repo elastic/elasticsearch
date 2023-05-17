@@ -668,7 +668,7 @@ public final class DocumentParser {
         "no-op",
         new MappedFieldType("no-op", false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
             @Override
-            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 

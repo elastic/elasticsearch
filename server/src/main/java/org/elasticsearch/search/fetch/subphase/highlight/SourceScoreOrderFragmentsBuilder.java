@@ -44,7 +44,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         this.fetchContext = fetchContext;
         this.fieldType = fieldType;
         this.source = source;
-        this.valueFetcher = fieldType.valueFetcher(fetchContext.getSearchExecutionContext(), null);
+        this.valueFetcher = fieldType.valueFetcher(fetchContext.getValueFetchContext(), null);
         this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
 

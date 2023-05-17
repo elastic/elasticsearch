@@ -168,7 +168,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(fetchContext.getIndexName()).thenReturn("index");
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
         when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
-        when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
+        when(fetchContext.getValueFetchContext()).thenReturn(sec);
 
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity);
 

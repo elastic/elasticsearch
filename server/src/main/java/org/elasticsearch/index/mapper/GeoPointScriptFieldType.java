@@ -190,7 +190,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+    public ValueFetcher valueFetcher(ValueFetchContext context, String format) {
         GeoPointFieldScript.LeafFactory leafFactory = leafFactory(context.lookup());
         Function<List<GeoPoint>, List<Object>> formatter = GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY.getFormatter(
             format != null ? format : GeometryFormatterFactory.GEOJSON,

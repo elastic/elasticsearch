@@ -105,14 +105,14 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<OrderedTextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        final int maxAnalyzedOffset = context.getValueFetchContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(
-            context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
+            context.getValueFetchContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
         );
 
-        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext);
+        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getValueFetchContext(), hitContext);
 
         int fragNumBase = 0;
         for (Object textToHighlight : textsToHighlight) {

@@ -45,7 +45,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) {
                 String index = fetchContext.getIndexName();
-                if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
+                if (fetchContext.getValueFetchContext().isSourceEnabled() == false) {
                     if (fetchSourceContext.hasFilter()) {
                         throw new IllegalArgumentException(
                             "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"

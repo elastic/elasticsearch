@@ -12,9 +12,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
@@ -31,10 +31,10 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
     protected List<Object> loadFieldValues(
-        CustomUnifiedHighlighter highlighter,
-        SearchExecutionContext searchContext,
-        MappedFieldType fieldType,
-        HitContext hitContext
+            CustomUnifiedHighlighter highlighter,
+            ValueFetchContext searchContext,
+            MappedFieldType fieldType,
+            HitContext hitContext
     ) throws IOException {
         List<Object> fieldValues = super.loadFieldValues(highlighter, searchContext, fieldType, hitContext);
 

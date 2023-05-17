@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -71,7 +71,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
         List<StoredField> storedFields = new ArrayList<>(METADATA_FIELDS);
         Set<String> fieldsToLoad = new HashSet<>();
         if (storedFieldsContext.fieldNames() != null) {
-            SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
+            ValueFetchContext sec = fetchContext.getValueFetchContext();
             for (String field : storedFieldsContext.fieldNames()) {
                 if (SourceFieldMapper.NAME.equals(field) == false) {
                     Collection<String> fieldNames = sec.getMatchingFieldNames(field);

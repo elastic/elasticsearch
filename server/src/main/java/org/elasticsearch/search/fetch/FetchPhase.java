@@ -86,7 +86,7 @@ public class FetchPhase {
 
     private static class PreloadedSourceProvider implements SourceProvider {
 
-        Source source;
+        private Source source;
 
         @Override
         public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
@@ -115,7 +115,7 @@ public class FetchPhase {
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
-            LeafReaderContext ctx;
+            LeafReaderContext leafReaderContext;
             LeafNestedDocuments leafNestedDocuments;
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
@@ -123,7 +123,7 @@ public class FetchPhase {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 profiler.startNextReader();
-                this.ctx = ctx;
+                this.leafReaderContext = ctx;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
@@ -146,9 +146,10 @@ public class FetchPhase {
                     leafNestedDocuments,
                     leafStoredFieldLoader,
                     doc,
-                    ctx,
+                    leafReaderContext,
                     leafSourceLoader
                 );
+                // writing to the two caches here
                 sourceProvider.source = hit.source();
                 fieldLookupProvider.storedFields = hit.loadedFields();
                 for (FetchSubPhaseProcessor processor : processors) {

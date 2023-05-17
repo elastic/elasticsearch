@@ -54,7 +54,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         boolean singlePercolateQuery = percolateQueries.size() == 1;
         for (PercolateQuery pq : percolateQueries) {
             percolateContexts.add(
-                new PercolateContext(pq, singlePercolateQuery, fetchContext.getSearchExecutionContext().indexVersionCreated())
+                new PercolateContext(pq, singlePercolateQuery, fetchContext.getValueFetchContext().indexVersionCreated())
             );
         }
         if (percolateContexts.isEmpty()) {
@@ -84,7 +84,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                         // This is not a document with a percolator field.
                         continue;
                     }
-                    query = pc.filterNestedDocs(query, fetchContext.getSearchExecutionContext().indexVersionCreated());
+                    query = pc.filterNestedDocs(query, fetchContext.getValueFetchContext().indexVersionCreated());
                     IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
                     int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
                     TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));

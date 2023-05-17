@@ -11,8 +11,8 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
@@ -33,9 +33,9 @@ public final class HighlightUtils {
      * Load field values for highlighting.
      */
     public static List<Object> loadFieldValues(
-        MappedFieldType fieldType,
-        SearchExecutionContext searchContext,
-        FetchSubPhase.HitContext hitContext
+            MappedFieldType fieldType,
+            ValueFetchContext searchContext,
+            FetchSubPhase.HitContext hitContext
     ) throws IOException {
         if (fieldType.isStored()) {
             List<Object> values = hitContext.loadedFields().get(fieldType.name());

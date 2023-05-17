@@ -111,7 +111,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.highlight()).thenReturn(search.highlighter().build(context));
         when(fetchContext.parsedQuery()).thenReturn(new ParsedQuery(search.query().toQuery(context)));
-        when(fetchContext.getSearchExecutionContext()).thenReturn(context);
+        when(fetchContext.getValueFetchContext()).thenReturn(context);
         when(fetchContext.sourceLoader()).thenReturn(context.newSourceLoader(false));
         return fetchContext;
     }

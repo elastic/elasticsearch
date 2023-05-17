@@ -22,7 +22,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
@@ -66,7 +66,7 @@ public class UnifiedHighlighter implements Highlighter {
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
             List<Object> fieldValues = loadFieldValues(
                 highlighter,
-                fieldContext.context.getSearchExecutionContext(),
+                fieldContext.context.getValueFetchContext(),
                 fieldType,
                 hitContext
             );
@@ -107,11 +107,11 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
-        int maxAnalyzedOffset = fieldContext.context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int maxAnalyzedOffset = fieldContext.context.getValueFetchContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
         Analyzer analyzer = wrapAnalyzer(
-            fieldContext.context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
+            fieldContext.context.getValueFetchContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
         );
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
@@ -166,7 +166,7 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
-        SearchExecutionContext searchContext,
+        ValueFetchContext searchContext,
         MappedFieldType fieldType,
         FetchSubPhase.HitContext hitContext
     ) throws IOException {

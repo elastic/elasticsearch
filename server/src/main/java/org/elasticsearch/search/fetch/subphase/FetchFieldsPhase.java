@@ -32,7 +32,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             return null;
         }
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
+        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getValueFetchContext(), fetchFieldsContext.fields());
 
         return new FetchSubPhaseProcessor() {
             @Override

@@ -73,7 +73,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(sec.nestedLookup()).thenReturn(NestedLookup.EMPTY);
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchFieldsContext()).thenReturn(ffc);
-        when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
+        when(fetchContext.getValueFetchContext()).thenReturn(sec);
 
         FetchFieldsPhase phase = new FetchFieldsPhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

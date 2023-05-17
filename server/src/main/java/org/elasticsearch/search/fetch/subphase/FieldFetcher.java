@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
+import org.elasticsearch.index.mapper.ValueFetchContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -44,13 +44,13 @@ public class FieldFetcher {
      */
     private static final int AUTOMATON_MAX_DETERMINIZED_STATES = 100000;
 
-    public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
+    public static FieldFetcher create(ValueFetchContext context, Collection<FieldAndFormat> fieldAndFormats) {
         Set<String> nestedMappingPaths = context.nestedLookup().getNestedMappers().keySet();
         return create(context, fieldAndFormats, nestedMappingPaths, "");
     }
 
     private static FieldFetcher create(
-        SearchExecutionContext context,
+        ValueFetchContext context,
         Collection<FieldAndFormat> fieldAndFormats,
         Set<String> nestedMappingsInScope,
         String nestedScopePath
@@ -272,7 +272,7 @@ public class FieldFetcher {
         }
     }
 
-    private static Set<String> getParentPaths(Set<String> nestedPathsInScope, SearchExecutionContext context) {
+    private static Set<String> getParentPaths(Set<String> nestedPathsInScope, ValueFetchContext context) {
         Set<String> parentPaths = new HashSet<>();
         for (String candidate : nestedPathsInScope) {
             String nestedParent = context.nestedLookup().getNestedParent(candidate);

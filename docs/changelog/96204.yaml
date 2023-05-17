@@ -1,0 +1,5 @@
+pr: 96204
+summary: Revert "Include search idle info to shard stats"
+area: "TSDB, Search"
+type: bug
+issues: []

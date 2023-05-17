@@ -434,7 +434,7 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
-import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.synonyms.SynonymsAPI;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
@@ -772,7 +772,7 @@ public class ActionModule extends AbstractModule {
         actions.register(FetchHealthInfoCacheAction.INSTANCE, FetchHealthInfoCacheAction.TransportAction.class);
 
         // Synonyms
-        if (SynonymsManagementAPIService.isEnabled()) {
+        if (SynonymsAPI.isEnabled()) {
             actions.register(PutSynonymsAction.INSTANCE, TransportPutSynonymsAction.class);
         }
 
@@ -984,7 +984,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatAction(catActions));
 
         // Synonyms
-        if (SynonymsManagementAPIService.isEnabled()) {
+        if (SynonymsAPI.isEnabled()) {
             registerHandler.accept(new RestPutSynonymsAction());
         }
     }

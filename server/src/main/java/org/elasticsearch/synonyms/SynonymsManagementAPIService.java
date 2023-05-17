@@ -18,7 +18,6 @@ import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
@@ -33,7 +32,6 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SynonymsManagementAPIService {
-    private static final FeatureFlag SYNONYMS_API_FEATURE_FLAG = new FeatureFlag("synonyms_api");
     public static final String SYNONYMS_INDEX = ".synonyms";
     public static final String SYNONYMS_ORIGIN = "synonyms";
 
@@ -156,7 +154,4 @@ public class SynonymsManagementAPIService {
             .build();
     }
 
-    public static boolean isEnabled() {
-        return SYNONYMS_API_FEATURE_FLAG.isEnabled();
-    }
 }

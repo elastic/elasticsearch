@@ -681,7 +681,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
-     *  for instance if this rewrite context is used to index queries (percolation). */
+     * which happens in two cases:
+     * 1. if this rewrite context is used to index queries (percolation)
+     * 2. if we use mapping information to skip shards while doing shards pre-filtering in the 'can match' phase
+     */
     public IndexSearcher searcher() {
         return searcher;
     }

@@ -24,16 +24,19 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -273,6 +276,33 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore
         );
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
+    }
+
+    public void testGetProperty() {
+        // Create a SearchHit containing: { "foo": 1000.0 } and use it to initialize an InternalTopHits instance.
+        SearchHit hit = new SearchHit(0);
+        hit = hit.sourceRef(Source.fromMap(Map.of("foo", 1000.0), XContentType.YAML).internalSourceRef());
+        hit.sortValues(new Object[] { 10.0 }, new DocValueFormat[] { DocValueFormat.RAW });
+        hit.score(1.0f);
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 0);
+        InternalTopHits internalTopHits = new InternalTopHits("test", 0, 0, null, hits, null);
+
+        assertEquals(internalTopHits, internalTopHits.getProperty(Collections.emptyList()));
+        assertEquals(1000.0, internalTopHits.getProperty(List.of("_source.foo")));
+        assertEquals(10.0, internalTopHits.getProperty(List.of("_sort")));
+        assertEquals(1.0f, internalTopHits.getProperty(List.of("_score")));
+
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("nosuchfield")));
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("too", "many", "fields")));
+
+        // Sort value retrieval requires a single value.
+        hit.sortValues(new Object[] { 10.0, 20.0 }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("_sort")));
+
+        // Two SearchHit instances are not allowed, only the first will be used without assertion.
+        hits = new SearchHits(new SearchHit[] { hit, hit }, null, 0);
+        InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits, null);
+        expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
     }
 
     @Override

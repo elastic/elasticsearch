@@ -68,6 +68,20 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
         out.writeBoolean(wrapLongitude);
     }
 
+    public static InternalGeoBounds empty(String name, boolean wrapLongitude, Map<String, Object> metadata) {
+        return new InternalGeoBounds(
+            name,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            wrapLongitude,
+            metadata
+        );
+    }
+
     @Override
     public String getWriteableName() {
         return GeoBoundsAggregationBuilder.NAME;

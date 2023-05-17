@@ -1,0 +1,5 @@
+pr: 95996
+summary: Fixing `DateProcessor` when the format is `epoch_millis`
+area: Ingest Node
+type: bug
+issues: []

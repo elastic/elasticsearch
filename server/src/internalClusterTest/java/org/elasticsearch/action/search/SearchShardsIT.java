@@ -61,7 +61,6 @@ public class SearchShardsIT extends ESIntegTestCase {
             for (SearchShardsGroup g : resp.getGroups()) {
                 String indexName = g.shardId().getIndexName();
                 assertThat(g.allocatedNodes(), not(empty()));
-                assertTrue(g.preFiltered());
                 if (indexName.contains("without")) {
                     assertTrue(g.skipped());
                     skipped++;
@@ -87,7 +86,6 @@ public class SearchShardsIT extends ESIntegTestCase {
             assertThat(resp.getGroups(), hasSize(indicesWithData + indicesWithoutData));
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
-                assertTrue(g.preFiltered());
             }
         }
     }

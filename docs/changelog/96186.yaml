@@ -1,6 +1,0 @@
-pr: 96186
-summary: Address flakiness in `top_metrics.having` test
-area: Aggregations
-type: bug
-issues:
- - 96149

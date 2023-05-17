@@ -28,10 +28,4 @@ public class S3SnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestTest
 
         return Settings.builder().put("client", "repo_test_kit").put("bucket", bucket).put("base_path", basePath).build();
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96162")
-    @Override
-    public void testRepositoryAnalysis() throws Exception {
-        super.testRepositoryAnalysis();
-    }
 }

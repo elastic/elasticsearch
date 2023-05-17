@@ -180,8 +180,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final String activeIndex = "test2";
         // NOTE: we need many shards because shard pre-filtering and the "can match" phase
         // are executed only if we have enough shards.
-        int idleIndexShardsCount = 60;
-        int activeIndexShardsCount = 70;
+        int idleIndexShardsCount = 3;
+        int activeIndexShardsCount = 3;
         assertAcked(createIndex(idleIndex, idleIndexShardsCount));
         assertAcked(createIndex(activeIndex, activeIndexShardsCount));
         assertAcked(createIndexMapping(idleIndex, "constant_keyword", "type=constant_keyword,value=test1_value"));
@@ -205,6 +205,7 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // WHEN
         final SearchResponse searchResponse = client().prepareSearch("test*")
             .setQuery(new WildcardQueryBuilder("constant_keyword", "test2*"))
+            .setPreFilterShardSize(5)
             .get();
         assertEquals(RestStatus.OK, searchResponse.status());
         assertEquals(idleIndexShardsCount, searchResponse.getSkippedShards());

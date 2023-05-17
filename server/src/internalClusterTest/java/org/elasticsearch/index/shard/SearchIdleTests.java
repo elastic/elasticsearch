@@ -352,8 +352,8 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         final String activeIndex = "test2";
         // NOTE: we need many shards because shard pre-filtering and the "can match" phase
         // are executed only if we have enough shards.
-        int idleIndexShardsCount = 60;
-        int activeIndexShardsCount = 70;
+        int idleIndexShardsCount = 3;
+        int activeIndexShardsCount = 3;
         assertAcked(
             client().admin()
                 .indices()
@@ -414,6 +414,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         // THEN
         final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
         final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards()).filter(x -> x.isSearchIdle() == false).toList();
-        assertEquals(70, activeShards.size());
+        assertEquals(activeIndexShardsCount, activeShards.size());
     }
 }

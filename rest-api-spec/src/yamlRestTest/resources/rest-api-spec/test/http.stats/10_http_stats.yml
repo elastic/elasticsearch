@@ -1,7 +1,7 @@
 ---
 "HTTP Stats":
   - skip:
-      version: "- 8.3.99"
+      version: " - 8.8.99"
       reason: "HTTP stats only available from v8.9"
 
   - do:

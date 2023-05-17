@@ -29,15 +29,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyList;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
-    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
+    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
         "reindex.remote.whitelist",
-        emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 

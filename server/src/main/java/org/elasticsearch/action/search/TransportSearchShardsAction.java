@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,6 +25,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -34,18 +34,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * An internal search shards API performs the can_match phase and returns target shards of indices that might match a query.
  */
 public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
+    private final TransportService transportService;
     private final TransportSearchAction transportSearchAction;
     private final SearchService searchService;
     private final RemoteClusterService remoteClusterService;
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportSearchShardsAction(
@@ -58,12 +61,14 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(SearchShardsAction.NAME, transportService, actionFilters, SearchShardsRequest::new);
+        this.transportService = transportService;
         this.transportSearchAction = transportSearchAction;
         this.searchService = searchService;
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.threadPool = transportService.getThreadPool();
     }
 
     @Override
@@ -103,27 +108,35 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     concreteIndices
                 );
                 String[] concreteIndexNames = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
-                var shardIterators = transportSearchAction.getLocalShardsIterator(
-                    clusterState,
-                    searchRequest,
-                    indicesAndAliases,
-                    concreteIndexNames
+                GroupShardsIterator<SearchShardIterator> shardIts = GroupShardsIterator.sortAndCreate(
+                    transportSearchAction.getLocalShardsIterator(
+                        clusterState,
+                        searchRequest,
+                        searchShardsRequest.clusterAlias(),
+                        indicesAndAliases,
+                        concreteIndexNames
+                    )
                 );
-                var canMatchPhase = new CanMatchPreFilterSearchPhase(
-                    logger,
-                    searchTransportService,
-                    (clusterAlias, node) -> searchTransportService.getConnection(clusterAlias, clusterState.nodes().get(node)),
-                    aliasFilters,
-                    Map.of(),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                    searchRequest,
-                    GroupShardsIterator.sortAndCreate(shardIterators),
-                    timeProvider,
-                    (SearchTask) task,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
-                    listener.map(shardIts -> new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters))
-                );
-                canMatchPhase.start();
+                if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
+                    listener.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
+                } else {
+                    var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                        assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
+                        return transportService.getConnection(clusterState.nodes().get(node));
+                    },
+                        aliasFilters,
+                        Map.of(),
+                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                        searchRequest,
+                        shardIts,
+                        timeProvider,
+                        (SearchTask) task,
+                        false,
+                        searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                        listener.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
+                    );
+                    canMatchPhase.start();
+                }
             }, listener::onFailure)
         );
     }
@@ -139,7 +152,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 targetNodes.add(target.getNodeId());
             }
             ShardId shardId = shardIt.shardId();
-            groups.add(new SearchShardsGroup(shardId, targetNodes, true, skip));
+            groups.add(new SearchShardsGroup(shardId, targetNodes, skip));
         }
         return groups;
     }

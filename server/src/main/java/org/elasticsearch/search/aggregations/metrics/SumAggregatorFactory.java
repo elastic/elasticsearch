@@ -51,7 +51,8 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new SumAggregator(name, config, context, parent, metadata);
+        final Sum empty = Sum.empty(name, config.format(), metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

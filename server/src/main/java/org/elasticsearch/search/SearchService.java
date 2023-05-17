@@ -515,6 +515,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             final AtomicBoolean isDone = new AtomicBoolean(false);
+            // TODO: this logic should be improved, the timeout should be handled in a way that removes the listener from the logic in the
+            // index shard on timeout so that a timed-out listener does not use up any listener slots.
             final TimeValue timeout = request.getWaitForCheckpointsTimeout();
             final Scheduler.ScheduledCancellable timeoutTask = NO_TIMEOUT.equals(timeout) ? null : threadPool.schedule(() -> {
                 if (isDone.compareAndSet(false, true)) {
@@ -523,7 +525,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     );
                 }
             }, timeout, Names.SAME);
-            shard.addRefreshListener(waitForCheckpoint, new ActionListener<>() {
+
+            // allow waiting for not-yet-issued sequence number if shard isn't promotable to primary and the timeout is less than or equal
+            // to 30s
+            final boolean allowWaitForNotYetIssued = shard.routingEntry().isPromotableToPrimary() == false
+                && NO_TIMEOUT.equals(timeout) == false
+                && timeout.getSeconds() <= 30L;
+            shard.addRefreshListener(waitForCheckpoint, allowWaitForNotYetIssued, new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     // We must check that the sequence number is smaller than or equal to the global checkpoint. If it is not,
@@ -1442,7 +1450,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Used to indicate which result object should be instantiated when creating a search context
      */
-    enum ResultsType {
+    protected enum ResultsType {
         DFS {
             @Override
             void addResultsObject(SearchContext context) {

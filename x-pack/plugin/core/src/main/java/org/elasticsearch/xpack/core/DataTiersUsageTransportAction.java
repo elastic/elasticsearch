@@ -206,7 +206,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 accumulator.docCount += shardStat.getTotal().getDocs().getCount();
 
                 // Accumulate stats about started shards
-                if (node.getByShardId(shardStat.getShardId()).state() == ShardRoutingState.STARTED) {
+                ShardRouting shardRouting = node.getByShardId(shardStat.getShardId());
+                if (shardRouting != null && shardRouting.state() == ShardRoutingState.STARTED) {
                     accumulator.totalShardCount += 1;
 
                     // Accumulate stats about started primary shards

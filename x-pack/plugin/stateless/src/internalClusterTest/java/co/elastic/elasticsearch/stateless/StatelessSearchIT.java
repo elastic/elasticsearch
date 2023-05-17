@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -74,6 +75,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -815,6 +817,39 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 .get()
         );
         assertThat(exception.getMessage(), containsString("disabling [track_total_hits] is not allowed in a scroll context"));
+    }
+
+    public void testSearchWithWaitForCheckpoint() throws ExecutionException, InterruptedException {
+        startMasterOnlyNode();
+        var indexNode = startIndexNodes(1).get(0);
+        startSearchNodes(1);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false).build());
+        ensureGreen(indexName);
+        final int docCount = randomIntBetween(1, 100);
+        indexDocs(indexName, docCount);
+        final Index index = clusterAdmin().prepareState().get().getState().metadata().index(indexName).getIndex();
+        var seqNoStats = clusterAdmin().prepareNodesStats(indexNode)
+            .setIndices(true)
+            .get()
+            .getNodes()
+            .get(0)
+            .getIndices()
+            .getShardStats(index)
+            .get(0)
+            .getShards()[0].getSeqNoStats();
+        boolean refreshBefore = randomBoolean();
+        if (refreshBefore) {
+            refresh(indexName);
+        }
+        var searchFuture = client().prepareSearch(indexName)
+            .setWaitForCheckpoints(Map.of(indexName, new long[] { seqNoStats.getGlobalCheckpoint() }))
+            .execute();
+        if (refreshBefore == false) {
+            refresh(indexName);
+        }
+        final SearchResponse response = searchFuture.get();
+        assertHitCount(response, docCount);
     }
 
     private static SearchResponse countDocsInRange(Client client, String index, int min, int max) {

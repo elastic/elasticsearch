@@ -13,10 +13,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -127,24 +123,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
         MockTransportService newService = MockTransportService.createNewService(s, version, transportVersion, threadPool, null);
         try {
-            newService.registerRequestHandler(
-                ClusterSearchShardsAction.NAME,
-                ThreadPool.Names.SAME,
-                ClusterSearchShardsRequest::new,
-                (request, channel, task) -> {
-                    if ("index_not_found".equals(request.preference())) {
-                        channel.sendResponse(new IndexNotFoundException("index"));
-                    } else {
-                        channel.sendResponse(
-                            new ClusterSearchShardsResponse(
-                                new ClusterSearchShardsGroup[0],
-                                knownNodes.toArray(new DiscoveryNode[0]),
-                                Collections.emptyMap()
-                            )
-                        );
-                    }
-                }
-            );
             newService.registerRequestHandler(
                 SearchShardsAction.NAME,
                 ThreadPool.Names.SAME,

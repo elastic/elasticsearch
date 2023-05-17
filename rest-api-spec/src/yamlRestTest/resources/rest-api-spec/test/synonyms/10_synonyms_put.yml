@@ -1,0 +1,32 @@
+---
+"Create synonym set":
+  - do:
+      synonyms.put:
+        synonym_set: test-create-synonyms
+        body:
+          synonyms:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+              id: "test-id"
+
+  - match: { result: "created" }
+
+---
+"Update synonym set":
+  - do:
+      synonyms.put:
+        synonym_set: test-update-synonyms
+        body:
+          synonyms:
+            - synonyms: "hello, hi"
+            - synonyms: "bye => goodbye"
+              id: "test-id"
+
+  - do:
+      synonyms.put:
+        synonym_set: test-update-synonyms
+        body:
+          synonyms:
+            - synonyms: "other, another"
+
+  - match: { result: "updated" }

@@ -1,0 +1,39 @@
+{
+  "synonyms.put": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/put-synonyms.html",
+      "description": "Creates or updates a synonym set"
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "es.synonyms_feature_flag_enabled",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_synonyms/{synonym_set}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "synonym_set": {
+              "type": "string",
+              "description": "The name of the synonym set to be created or updated"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "Synonym set rules",
+      "required": true
+    }
+  }
+}

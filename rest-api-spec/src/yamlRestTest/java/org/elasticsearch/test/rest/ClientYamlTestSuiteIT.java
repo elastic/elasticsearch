@@ -31,6 +31,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("rest-root")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.DLM_ENABLED)
+        .feature(FeatureFlag.SYNONYMS_ENABLED)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

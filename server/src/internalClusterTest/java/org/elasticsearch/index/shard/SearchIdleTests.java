@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -324,9 +325,13 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test*").get();
-        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+        final IndicesStatsResponse idleIndexStatsBefore = client().admin().indices().prepareStats("test1").get();
+        Arrays.stream(idleIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(idleIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+
+        final IndicesStatsResponse activeIndexStatsBefore = client().admin().indices().prepareStats("test2").get();
+        Arrays.stream(activeIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(activeIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
 
         // WHEN
         final SearchResponse searchResponse = client().prepareSearch("test*")
@@ -341,9 +346,13 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertEquals(1, searchResponse.getHits().getHits().length);
 
         // THEN
-        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
-        final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards()).filter(x -> x.isSearchIdle() == false).toList();
-        assertEquals(activeIndexShardsCount, activeShards.size());
+        final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
+        Arrays.stream(idleIndexStatsAfter.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+
+        final IndicesStatsResponse activeIndexStatsAfter = client().admin().indices().prepareStats(activeIndex).get();
+        Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
+
+        assertRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
     }
 
     public void testSearchIdleExistsQueryMatchOneIndex() throws InterruptedException {
@@ -395,9 +404,13 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
             TimeUnit.SECONDS
         );
 
-        final IndicesStatsResponse statsResponse = client().admin().indices().prepareStats("test*").get();
-        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
-        Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+        final IndicesStatsResponse idleIndexStatsBefore = client().admin().indices().prepareStats("test1").get();
+        Arrays.stream(idleIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(idleIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
+
+        final IndicesStatsResponse activeIndexStatsBefore = client().admin().indices().prepareStats("test2").get();
+        Arrays.stream(activeIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+        Arrays.stream(activeIndexStatsBefore.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
 
         // WHEN
         final SearchResponse searchResponse = client().prepareSearch("test*")
@@ -412,8 +425,22 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         assertEquals(1, searchResponse.getHits().getHits().length);
 
         // THEN
-        final IndicesStatsResponse afterStatsResponse = client().admin().indices().prepareStats("test*").get();
-        final List<ShardStats> activeShards = Arrays.stream(afterStatsResponse.getShards()).filter(x -> x.isSearchIdle() == false).toList();
-        assertEquals(activeIndexShardsCount, activeShards.size());
+        final IndicesStatsResponse idleIndexStatsAfter = client().admin().indices().prepareStats(idleIndex).get();
+        Arrays.stream(idleIndexStatsAfter.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
+
+        final IndicesStatsResponse activeIndexStatsAfter = client().admin().indices().prepareStats(activeIndex).get();
+        Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
+
+        assertRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
+    }
+
+    private static void assertRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {
+        final List<RefreshStats> refreshStatsBefore = Arrays.stream(before.getShards()).map(x -> x.getStats().refresh).toList();
+        final List<RefreshStats> refreshStatsAfter = Arrays.stream(after.getShards()).map(x -> x.getStats().refresh).toList();
+        assertTrue(
+            refreshStatsBefore.size() == refreshStatsAfter.size()
+                && refreshStatsAfter.containsAll(refreshStatsBefore)
+                && refreshStatsBefore.containsAll(refreshStatsAfter)
+        );
     }
 }

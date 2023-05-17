@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
@@ -20,9 +19,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.List;
 import java.util.Set;
@@ -38,25 +35,10 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
         final TransportService transportService,
         final ActionFilters actionFilters,
         final ApiKeyService apiKeyService,
-        final SecurityContext context,
-        final CompositeRolesStore rolesStore,
-        final NamedXContentRegistry xContentRegistry
+        final SecurityContext context
     ) {
-        super(
-            UpdateCrossClusterApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            UpdateCrossClusterApiKeyRequest::new,
-            context,
-            rolesStore,
-            xContentRegistry
-        );
+        super(UpdateCrossClusterApiKeyAction.NAME, transportService, actionFilters, UpdateCrossClusterApiKeyRequest::new, context);
         this.apiKeyService = apiKeyService;
-    }
-
-    @Override
-    void resolveUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
-        listener.onResponse(Set.of());
     }
 
     @Override
@@ -64,7 +46,6 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
         final Task task,
         final UpdateCrossClusterApiKeyRequest request,
         final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
         apiKeyService.updateApiKeys(

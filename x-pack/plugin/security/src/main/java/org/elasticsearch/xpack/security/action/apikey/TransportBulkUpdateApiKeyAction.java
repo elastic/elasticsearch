@@ -18,12 +18,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyActio
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.Set;
 
 public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<
     BulkUpdateApiKeyRequest,
@@ -41,22 +38,9 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(
-            BulkUpdateApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            BulkUpdateApiKeyRequest::new,
-            context,
-            rolesStore,
-            xContentRegistry
-        );
+        super(BulkUpdateApiKeyAction.NAME, transportService, actionFilters, BulkUpdateApiKeyRequest::new, context);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
-    }
-
-    @Override
-    void resolveUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
-        resolver.resolveUserRoleDescriptors(authentication, listener);
     }
 
     @Override
@@ -64,9 +48,14 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final Task task,
         final BulkUpdateApiKeyRequest request,
         final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
-        apiKeyService.updateApiKeys(authentication, request, roleDescriptors, listener);
+        resolver.resolveUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.updateApiKeys(authentication, request, roleDescriptors, listener),
+                listener::onFailure
+            )
+        );
     }
 }

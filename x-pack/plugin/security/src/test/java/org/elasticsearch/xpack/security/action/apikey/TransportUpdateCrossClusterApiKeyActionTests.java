@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,9 +59,7 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             apiKeyService,
-            securityContext,
-            mock(CompositeRolesStore.class),
-            NamedXContentRegistry.EMPTY
+            securityContext
         );
 
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
@@ -128,9 +124,7 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             mock(ApiKeyService.class),
-            securityContext,
-            mock(CompositeRolesStore.class),
-            NamedXContentRegistry.EMPTY
+            securityContext
         );
         final var request = new UpdateCrossClusterApiKeyRequest(randomAlphaOfLength(10), null, Map.of());
 

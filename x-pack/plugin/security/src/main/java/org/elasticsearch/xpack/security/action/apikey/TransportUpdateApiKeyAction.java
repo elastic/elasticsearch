@@ -19,12 +19,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-
-import java.util.Set;
 
 public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
@@ -40,14 +37,9 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new, context, rolesStore, xContentRegistry);
+        super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new, context);
         this.apiKeyService = apiKeyService;
         this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
-    }
-
-    @Override
-    void resolveUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
-        resolver.resolveUserRoleDescriptors(authentication, listener);
     }
 
     @Override
@@ -55,14 +47,22 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
         final Task task,
         final UpdateApiKeyRequest request,
         final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
-        apiKeyService.updateApiKeys(
+        resolver.resolveUserRoleDescriptors(
             authentication,
-            BulkUpdateApiKeyRequest.wrap(request),
-            roleDescriptors,
-            ActionListener.wrap(bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)), listener::onFailure)
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.updateApiKeys(
+                    authentication,
+                    BulkUpdateApiKeyRequest.wrap(request),
+                    roleDescriptors,
+                    ActionListener.wrap(
+                        bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)),
+                        listener::onFailure
+                    )
+                ),
+                listener::onFailure
+            )
         );
     }
 }

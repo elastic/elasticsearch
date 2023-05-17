@@ -98,7 +98,7 @@ teardown:
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
 
@@ -114,7 +114,7 @@ teardown:
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -133,7 +133,7 @@ teardown:
       reason: "AwaitsFix https://github.com/elastic/enterprise-search-team/issues/4540"
 
   - do:
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -154,7 +154,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -171,7 +171,7 @@ teardown:
 
   - do:
       catch: "bad_request"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: test-search-application
         body:
@@ -185,37 +185,10 @@ teardown:
 
   - do:
       catch: "forbidden"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
       search_application.search:
         name: nonexisting-test-search-application
         body:
           params:
             field_name: field3
             field_value: value3
-
----
-"Query Search Application - no read permissions on index":
-  - skip:
-      features: headers
-
-  - do:
-      search_application.put:
-        name: test-search-application
-        body:
-          indices: [ "test-search-index1", "test-search-index2", "test-index" ]
-          analytics_collection_name: "test-analytics"
-          template:
-            script:
-              source:
-                query:
-                  term:
-                    "{{field_name}}": "{{field_value}}"
-              params:
-                field_name: field1
-                field_value: value1
-
-  - do:
-      catch: "forbidden"
-      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user
-      search_application.search:
-        name: test-search-application

@@ -12,6 +12,8 @@ admin:
         "test-index3",
         "test-index4",
         "test-index-does-not-exist",
+        "test-search-index1",
+        "test-search-index2",
         # Search Applications (needed to create aliases)
         "test-search-application",
         "test-search-application-1",
@@ -24,13 +26,7 @@ admin:
         "test-nonexistent-search-application",
         "test-search-application-with-invalid-template"
     ]
-      privileges: [ "manage", "read" ]
-    - names: [
-      # indices used for indexing and searching
-      "test-search-index1",
-      "test-search-index2",
-    ]
-      privileges: [ "manage", "read", "write" ]
+      privileges: [ "manage", "write" ]
 
 user:
   cluster:

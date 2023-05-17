@@ -140,9 +140,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testIndexTemplates() throws Exception {
-        client().admin()
-            .indices()
-            .preparePutTemplate("foo_template")
+        indicesAdmin().preparePutTemplate("foo_template")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setMapping(
@@ -164,9 +162,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             )
             .get();
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("fuu_template")
+        indicesAdmin().preparePutTemplate("fuu_template")
             .setPatterns(Collections.singletonList("test*"))
             .setOrder(1)
             .setMapping(
@@ -253,9 +249,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int numberOfShards = scaledRandomIntBetween(1, cluster().numDataNodes());
         // if the create index is ack'ed, then all nodes have successfully processed the cluster state
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(
                     indexSettings(numberOfShards, 0).put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 )

@@ -102,9 +102,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
 
         // update the mapping. this should cause the new meta data to be written although index is closed
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")
@@ -135,9 +133,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
          * what we write. This is why we explicitly test for it.
          */
         internalCluster().restartNode(dataNode, new RestartCallback());
-        client().admin()
-            .indices()
-            .preparePutMapping(index)
+        indicesAdmin().preparePutMapping(index)
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("properties")

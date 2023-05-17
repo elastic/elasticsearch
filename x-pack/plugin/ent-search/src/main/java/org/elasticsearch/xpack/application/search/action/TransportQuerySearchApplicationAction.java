@@ -68,7 +68,7 @@ public class TransportQuerySearchApplicationAction extends SearchApplicationTran
         systemIndexService.getSearchApplication(request.name(), listener.delegateFailure((l, searchApplication) -> {
             try {
                 SearchSourceBuilder sourceBuilder = templateService.renderQuery(searchApplication, request.queryParams());
-                SearchRequest searchRequest = new SearchRequest(searchApplication.indices()).source(sourceBuilder);
+                SearchRequest searchRequest = new SearchRequest(searchApplication.name()).source(sourceBuilder);
 
                 client.execute(
                     SearchAction.INSTANCE,

@@ -1525,18 +1525,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
-            final SearchSourceBuilder rewritten = Rewriteable.rewrite(
-                request.source(),
-                indicesService.getMappingAwareRewriteContextProvider(
-                    request.shardId().getIndex(),
-                    request::nowInMillis,
-                    request.shardId(),
-                    request.shardRequestIndex(),
-                    request.getClusterAlias(),
-                    request.getRuntimeMappings().isEmpty() == false
-                ).get()
+            final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+                indicesService.indexServiceSafe(request.shardId().getIndex())
+                    .newSearchExecutionContext(
+                        request.shardId().getId(),
+                        request.shardRequestIndex(),
+                        null,
+                        request::nowInMillis,
+                        request.getClusterAlias(),
+                        request.getRuntimeMappings()
+                    )
             );
-            if (rewritten.query() instanceof MatchNoneQueryBuilder) {
+            if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
                 return new CanMatchShardResponse(false, null);
             }
         }

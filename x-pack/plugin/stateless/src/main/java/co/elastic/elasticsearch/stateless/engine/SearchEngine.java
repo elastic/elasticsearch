@@ -86,6 +86,10 @@ public class SearchEngine extends Engine {
 
     private volatile SegmentInfos segmentInfos;
 
+    private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
+
+    private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
+
     public SearchEngine(EngineConfig config) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -102,7 +106,11 @@ public class SearchEngine extends Engine {
             );
             readerManager = new ElasticsearchReaderManager(directoryReader);
             this.segmentInfos = store.readLastCommittedSegmentsInfo();
+            this.setSequenceNumbers(segmentInfos);
             this.readerManager = readerManager;
+            for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
+                readerManager.addListener(refreshListener);
+            }
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -178,6 +186,9 @@ public class SearchEngine extends Engine {
                     logger.trace(() -> "updating directory with commit " + notification);
                     directory.updateCommit(notification);
 
+                    final SegmentInfos next = Lucene.readSegmentInfos(directory);
+                    setSequenceNumbers(next);
+
                     readerManager.maybeRefreshBlocking();
                     var reader = readerManager.acquire();
                     try {
@@ -188,7 +199,6 @@ public class SearchEngine extends Engine {
                                 + notification.generation()
                                 + ']';
 
-                        final SegmentInfos next = Lucene.readSegmentInfos(reader.getIndexCommit());
                         assert current.getGeneration() < next.getGeneration()
                             : "SegmentInfos generation ["
                                 + next.getGeneration()
@@ -223,6 +233,16 @@ public class SearchEngine extends Engine {
                 }
             }
         });
+    }
+
+    private void setSequenceNumbers(SegmentInfos segmentInfos) {
+        final var commit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(segmentInfos.userData.entrySet());
+        assert commit.maxSeqNo >= maxSequenceNumber
+            : "Commit [" + commit + "] max sequence number less than tracked max sequence number [" + maxSequenceNumber + "]";
+        maxSequenceNumber = commit.maxSeqNo;
+        assert commit.localCheckpoint >= processedLocalCheckpoint
+            : "Commit [" + commit + "] local checkpoint less than tracked local checkpoint [" + processedLocalCheckpoint + "]";
+        processedLocalCheckpoint = commit.localCheckpoint;
     }
 
     @Override
@@ -275,22 +295,22 @@ public class SearchEngine extends Engine {
 
     @Override
     public long getMaxSeqNo() {
-        throw unsupportedException();
+        return maxSequenceNumber;
     }
 
     @Override
     public long getProcessedLocalCheckpoint() {
-        throw unsupportedException();
+        return processedLocalCheckpoint;
     }
 
     @Override
     public long getPersistedLocalCheckpoint() {
-        throw unsupportedException();
+        return processedLocalCheckpoint;
     }
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
-        throw unsupportedException();
+        return processedLocalCheckpoint;
     }
 
     @Override

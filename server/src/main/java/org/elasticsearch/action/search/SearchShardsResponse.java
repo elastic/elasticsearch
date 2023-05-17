@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
@@ -21,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -95,14 +93,11 @@ public final class SearchShardsResponse extends ActionResponse {
         return Objects.hash(groups, nodes, aliasFilters);
     }
 
-    public static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
-        List<SearchShardsGroup> groups = new ArrayList<>(oldResp.getGroups().length);
+    static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
         Map<String, Index> indexByNames = new HashMap<>();
         for (ClusterSearchShardsGroup oldGroup : oldResp.getGroups()) {
             ShardId shardId = oldGroup.getShardId();
             indexByNames.put(shardId.getIndexName(), shardId.getIndex());
-            List<String> allocatedNodes = Arrays.stream(oldGroup.getShards()).map(ShardRouting::currentNodeId).toList();
-            groups.add(new SearchShardsGroup(shardId, allocatedNodes, false, false));
         }
         // convert index_name -> alias_filters to index_uuid -> alias_filters
         Map<String, AliasFilter> aliasFilters = Maps.newMapWithExpectedSize(oldResp.getIndicesAndFilters().size());
@@ -110,6 +105,8 @@ public final class SearchShardsResponse extends ActionResponse {
             Index index = indexByNames.get(e.getKey());
             aliasFilters.put(index.getUUID(), e.getValue());
         }
+        List<SearchShardsGroup> groups = Arrays.stream(oldResp.getGroups()).map(SearchShardsGroup::new).toList();
+        assert groups.stream().noneMatch(SearchShardsGroup::preFiltered) : "legacy responses must not have preFiltered set";
         return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters);
     }
 }

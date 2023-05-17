@@ -10,6 +10,7 @@ package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 
@@ -20,7 +21,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.OptionalLong;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -204,10 +204,15 @@ public interface BlobContainer {
      * @param key      key of the value to update
      * @param expected the expected value
      * @param updated  the new value
-     * @param listener a listener, completed with the value read from the register (before it was updated) or {@code OptionalLong#empty}
-     *                 if the value could not be read due to concurrent activity.
+     * @param listener a listener, completed with the value read from the register (before it was updated) or
+     *                 {@link OptionalBytesReference#MISSING} if the value could not be read due to concurrent activity.
      */
-    void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener);
+    void compareAndExchangeRegister(
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    );
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
@@ -217,22 +222,27 @@ public interface BlobContainer {
      * @param expected the expected value
      * @param updated  the new value
      * @param listener a listener which is completed with {@link Boolean#TRUE} if successful, {@link Boolean#FALSE} if the expected value
-     *                 did not match the updated value
+     *                 did not match the updated value or the value could not be read due to concurrent activity
      */
-    default void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
-        compareAndExchangeRegister(key, expected, updated, listener.map(witness -> witness.isPresent() && witness.getAsLong() == expected));
+    default void compareAndSetRegister(String key, BytesReference expected, BytesReference updated, ActionListener<Boolean> listener) {
+        compareAndExchangeRegister(
+            key,
+            expected,
+            updated,
+            listener.map(witness -> witness.isPresent() && witness.bytesReference().equals(expected))
+        );
     }
 
     /**
-     * Gets the value set by {@link #compareAndSetRegister(String, long, long, ActionListener)} for a given key.
-     * If a key has not yet been used, the initial value is 0.
+     * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
+     * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
      *
      * @param key      key of the value to get
-     * @param listener a listener, completed with the value read from the register or {@code null} if the value could not be read due to
-     *                 concurrent activity.
+     * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
+     *                 could not be read due to concurrent activity.
      */
-    default void getRegister(String key, ActionListener<OptionalLong> listener) {
-        compareAndExchangeRegister(key, 0, 0, listener);
+    default void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+        compareAndExchangeRegister(key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
     }
 
 }

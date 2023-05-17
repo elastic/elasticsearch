@@ -1,12 +1,6 @@
 {
   "processors": [
     {
-      "pipeline" : {
-        "name": "logs-json-pipeline",
-        "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
-      }
-    },
-    {
       "set": {
         "description": "If '@timestamp' is missing, set it with the ingest timestamp",
         "field": "@timestamp",

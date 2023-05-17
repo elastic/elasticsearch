@@ -1699,4 +1699,8 @@ public class IndexNameExpressionResolver {
     private static boolean isWildcard(String expression) {
         return Regex.isSimpleMatchPattern(expression);
     }
+
+    public SystemIndices getSystemIndices() {
+        return systemIndices;
+    }
 }

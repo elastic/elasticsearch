@@ -24,22 +24,18 @@ import java.util.Objects;
 public class SearchShardsGroup implements Writeable {
     private final ShardId shardId;
     private final List<String> allocatedNodes;
-    private final boolean preFiltered;
     private final boolean skipped;
 
-    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean preFiltered, boolean skipped) {
+    public SearchShardsGroup(ShardId shardId, List<String> allocatedNodes, boolean skipped) {
         this.shardId = shardId;
         this.allocatedNodes = allocatedNodes;
         this.skipped = skipped;
-        this.preFiltered = preFiltered;
-        assert skipped == false || preFiltered;
     }
 
     public SearchShardsGroup(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.allocatedNodes = in.readStringList();
         this.skipped = in.readBoolean();
-        this.preFiltered = in.readBoolean();
     }
 
     @Override
@@ -47,7 +43,6 @@ public class SearchShardsGroup implements Writeable {
         shardId.writeTo(out);
         out.writeStringCollection(allocatedNodes);
         out.writeBoolean(skipped);
-        out.writeBoolean(preFiltered);
     }
 
     public ShardId shardId() {
@@ -62,14 +57,6 @@ public class SearchShardsGroup implements Writeable {
     }
 
     /**
-     * Returns true if the can_match was performed against this group. This flag is for BWC purpose. It's always
-     * true for a response from the new search_shards API; but always false for a response from the old API.
-     */
-    public boolean preFiltered() {
-        return preFiltered;
-    }
-
-    /**
      * The list of node ids that shard copies on this group are allocated on.
      */
     public List<String> allocatedNodes() {
@@ -81,14 +68,11 @@ public class SearchShardsGroup implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchShardsGroup group = (SearchShardsGroup) o;
-        return skipped == group.skipped
-            && preFiltered == group.preFiltered
-            && shardId.equals(group.shardId)
-            && allocatedNodes.equals(group.allocatedNodes);
+        return skipped == group.skipped && shardId.equals(group.shardId) && allocatedNodes.equals(group.allocatedNodes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, allocatedNodes, skipped, preFiltered);
+        return Objects.hash(shardId, allocatedNodes, skipped);
     }
 }

@@ -1824,4 +1824,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
+
+    protected static boolean isTurkishLocale() {
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
+    }
 }

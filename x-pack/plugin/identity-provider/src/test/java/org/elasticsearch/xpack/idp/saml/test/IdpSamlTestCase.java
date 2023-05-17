@@ -76,11 +76,6 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         }
     }
 
-    private static boolean isTurkishLocale() {
-        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
-            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
-    }
-
     @AfterClass
     public static void restoreLocale() {
         if (restoreLocale != null) {

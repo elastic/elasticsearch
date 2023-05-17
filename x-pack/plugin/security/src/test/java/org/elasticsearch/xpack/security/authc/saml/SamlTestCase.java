@@ -52,11 +52,6 @@ public abstract class SamlTestCase extends ESTestCase {
         SamlUtils.initialize(logger);
     }
 
-    private static boolean isTurkishLocale() {
-        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
-            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
-    }
-
     @AfterClass
     public static void restoreLocale() {
         if (restoreLocale != null) {

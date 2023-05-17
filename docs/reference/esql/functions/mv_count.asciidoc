@@ -6,7 +6,13 @@ of values:
 [source,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_count]
-include::{esql-specs}/string.csv-spec[tag=mv_count-result]
 ----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_count-result]
+|===
 
 NOTE: This function accepts all types and always returns an `integer`.

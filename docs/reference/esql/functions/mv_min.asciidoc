@@ -5,8 +5,14 @@ Converts a multivalued field into a single valued field containing the minimum v
 [source,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_min]
-include::{esql-specs}/math.csv-spec[tag=mv_min-result]
 ----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_min-result]
+|===
 
 It can be used by any field type, including `keyword` fields. In that case picks the
 first string, comparing their utf-8 representation byte by byte:
@@ -14,5 +20,11 @@ first string, comparing their utf-8 representation byte by byte:
 [source,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_min]
-include::{esql-specs}/string.csv-spec[tag=mv_min-result]
 ----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_min-result]
+|===

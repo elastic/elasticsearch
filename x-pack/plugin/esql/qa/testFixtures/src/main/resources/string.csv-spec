@@ -213,8 +213,8 @@ ROW words="foo;bar;baz;qux;quux;corge"
 // end::split[]
 ;
 
-words:keyword | word:keyword
 // tag::split-result[]
+             words:keyword | word:keyword
 foo;bar;baz;qux;quux;corge | [foo,bar,baz,qux,quux,corge]
 // end::split-result[]
 ;

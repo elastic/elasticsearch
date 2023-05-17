@@ -6,7 +6,14 @@ of all of the values. For example:
 [source,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_avg]
-include::{esql-specs}/math.csv-spec[tag=mv_avg-result]
 ----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_avg-result]
+|===
+
 
 NOTE: The output type is always a `double` and the input type can be any number.

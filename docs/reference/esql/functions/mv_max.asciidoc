@@ -5,8 +5,14 @@ Converts a multivalued field into a single valued field containing the maximum v
 [source,esql]
 ----
 include::{esql-specs}/math.csv-spec[tag=mv_max]
-include::{esql-specs}/math.csv-spec[tag=mv_max-result]
 ----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=mv_max-result]
+|===
 
 It can be used by any field type, including `keyword` fields. In that case picks the
 last string, comparing their utf-8 representation byte by byte:
@@ -14,5 +20,11 @@ last string, comparing their utf-8 representation byte by byte:
 [source,esql]
 ----
 include::{esql-specs}/string.csv-spec[tag=mv_max]
-include::{esql-specs}/string.csv-spec[tag=mv_max-result]
 ----
+
+Returns:
+
+[%header,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_max-result]
+|===

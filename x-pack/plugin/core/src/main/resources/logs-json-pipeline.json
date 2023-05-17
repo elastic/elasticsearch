@@ -28,7 +28,7 @@
     },
     {
       "dot_expander" : {
-        "if": "ctx?._tmp_json_message != null",
+        "if": "ctx._tmp_json_message != null",
         "field": "*",
         "override": true
       }

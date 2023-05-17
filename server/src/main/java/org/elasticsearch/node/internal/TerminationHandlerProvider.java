@@ -22,10 +22,10 @@ package org.elasticsearch.node.internal;
 public interface TerminationHandlerProvider {
 
     /**
-     * Returns a list of {@link TerminationHandler} implementations which will be called when the node is about to shut down, but before
+     * Returns a {@link TerminationHandler} implementation which will be invoked when the node is about to shut down, but before
      * the core services are terminated.
      *
      * @return A list of {@link  TerminationHandler}s
      */
-    TerminationHandler handlers();
+    TerminationHandler handler();
 }

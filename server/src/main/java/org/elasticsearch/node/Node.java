@@ -771,7 +771,7 @@ public class Node implements Closeable {
 
             List<TerminationHandler> terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
                 .stream()
-                .map(prov -> prov.handlers())
+                .map(prov -> prov.handler())
                 .toList();
             if (terminationHandlers.size() == 1) {
                 this.terminationHandler.set(terminationHandlers.get(0));

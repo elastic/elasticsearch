@@ -133,7 +133,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public boolean hasMetric(String name) {
-        return InternalStats.Metrics.hasMetric(name);
+        return InternalExtendedStats.Metrics.hasMetric(name);
     }
 
     @Override

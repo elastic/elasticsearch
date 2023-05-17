@@ -48,7 +48,7 @@ public class InternalTDigestPercentileRanks extends AbstractInternalTDigestPerce
         DocValueFormat format,
         Map<String, Object> metadata
     ) {
-        return InternalTDigestPercentileRanks.empty(name, keys, compression, keyed, format, metadata);
+        return new InternalTDigestPercentileRanks(name, keys, new TDigestState(compression), keyed, format, metadata);
     }
 
     @Override

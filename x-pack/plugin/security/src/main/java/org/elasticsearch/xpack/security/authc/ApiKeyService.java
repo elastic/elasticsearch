@@ -298,7 +298,8 @@ public class ApiKeyService {
         Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
-        assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty();
+        assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
+            : "owner user role descriptor must be empty for cross-cluster API keys";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
@@ -414,6 +415,8 @@ public class ApiKeyService {
         final Set<RoleDescriptor> userRoleDescriptors,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
+        assert request.getType() != ApiKey.Type.CROSS_CLUSTER || userRoleDescriptors.isEmpty()
+            : "owner user role descriptor must be empty for cross-cluster API keys";
         ensureEnabled();
 
         if (authentication == null) {
@@ -677,6 +680,7 @@ public class ApiKeyService {
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
+        assert currentApiKeyDoc.type == request.getType();
         if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
             return null;
         }
@@ -735,7 +739,6 @@ public class ApiKeyService {
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) {
-        assert apiKeyDoc.type == request.getType();
         if (apiKeyDoc.version != targetDocVersion.id) {
             return false;
         }

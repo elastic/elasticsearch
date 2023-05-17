@@ -1,0 +1,13 @@
+{
+  "index_patterns": [
+    "profiling-executables*"
+  ],
+  "composed_of": [
+    "profiling-executables"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for profiling-executables"
+  },
+  "version": ${xpack.profiling.template.version}
+}

@@ -1602,6 +1602,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    /**
+     * This method tries to rewrite a query without using a searcher (before we get a valid one). It takes advantage of the fact that
+     * we can skip some shards in the query phase because we have enough information in the index mapping to decide the 'can match'
+     * outcome. One such example are queries like {@link org.elasticsearch.index.query.MatchPhraseQueryBuilder} queries which are rewritten
+     * to {@link org.elasticsearch.index.query.MatchNoneQueryBuilder} after being rewritten to {@link org.elasticsearch.index.query.TermQueryBuilder}.
+     * Other queries have a similar pattern, especially when using {@link org.elasticsearch.index.mapper.ConstantFieldType} or
+     * unmapped fields, they all rewrite to {@link org.elasticsearch.index.query.MatchNoneQueryBuilder} (if conditions are met).
+     * This allows us to avoid extra work other than making the shard search active and waiting for refreshes. As a result, we only wait for
+     * refreshes to happen on shards that have actual data.
+     */
     private static CanMatchShardResponse canMatchAfterRewrite(ShardSearchRequest request, IndexService indexService) throws IOException {
         final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             indexService.newSearchExecutionContext(

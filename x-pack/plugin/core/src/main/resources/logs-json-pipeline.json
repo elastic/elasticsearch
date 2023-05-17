@@ -10,7 +10,7 @@
     },
     {
       "json": {
-        "if": "ctx?._tmp_json_message != null",
+        "if": "ctx._tmp_json_message != null",
         "field": "_tmp_json_message",
         "add_to_root": true,
         "add_to_root_conflict_strategy": "merge",
@@ -28,7 +28,7 @@
     },
     {
       "dot_expander" : {
-        "if": "ctx?._tmp_json_message != null",
+        "if": "ctx._tmp_json_message != null",
         "field": "*",
         "override": true
       }

@@ -10,27 +10,33 @@ package org.elasticsearch.action.synonyms;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.synonyms.SynonymSet;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
-public class PutSynonymsAction extends ActionType<AcknowledgedResponse> {
+public class PutSynonymsAction extends ActionType<PutSynonymsAction.Response> {
 
     public static final PutSynonymsAction INSTANCE = new PutSynonymsAction();
     public static final String NAME = "cluster:admin/synonyms/put";
 
     public PutSynonymsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest {
@@ -71,6 +77,49 @@ public class PutSynonymsAction extends ActionType<AcknowledgedResponse> {
 
         public SynonymSet synonymSet() {
             return synonymSet;
+        }
+    }
+
+    public static class Response extends ActionResponse implements StatusToXContentObject {
+
+        private final Result result;
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            this.result = in.readEnum((Result.class));
+        }
+
+        public Response(Result result) {
+            super();
+            Objects.requireNonNull(result, "Result must not be null");
+            this.result = result;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
+            builder.field("result", result.name().toLowerCase(Locale.ENGLISH));
+            builder.endObject();
+
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(result);
+        }
+
+        @Override
+        public RestStatus status() {
+            return switch (result) {
+                case CREATED -> RestStatus.CREATED;
+                default -> RestStatus.OK;
+            };
+        }
+
+        public enum Result {
+            CREATED,
+            UPDATED
         }
     }
 }

@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -95,7 +95,7 @@ public class SynonymsManagementAPIService {
         }
     }
 
-    public void putSynonymSet(String resourceName, SynonymSet synonymSet, ActionListener<AcknowledgedResponse> listener) {
+    public void putSynonymSet(String resourceName, SynonymSet synonymSet, ActionListener<PutSynonymsAction.Response> listener) {
 
         // TODO Add synonym rules validation
 
@@ -135,7 +135,10 @@ public class SynonymsManagementAPIService {
 
             bulkRequestBuilder.execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
                 if (bulkResponse.hasFailures() == false) {
-                    bulkResponseListener.onResponse(AcknowledgedResponse.of(true));
+                    PutSynonymsAction.Response.Result result = created
+                        ? PutSynonymsAction.Response.Result.CREATED
+                        : PutSynonymsAction.Response.Result.UPDATED;
+                    bulkResponseListener.onResponse(new PutSynonymsAction.Response(result));
                 } else {
                     bulkResponseListener.onFailure(
                         new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())

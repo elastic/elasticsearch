@@ -31,10 +31,6 @@ import java.util.Map;
 
 abstract class AbstractHistoBackedHDRPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
-    // private static int indexOfKey(double[] keys, double key) {
-    // return ArrayUtils.binarySearch(keys, key, 0.001);
-    // }
-
     protected final double[] keys;
     protected final ValuesSource valuesSource;
     protected final DocValueFormat format;

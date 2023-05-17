@@ -1564,21 +1564,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 canMatchSearcher = searcher;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
-                    final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-                        indexService.newSearchExecutionContext(
-                            request.shardId().getId(),
-                            request.shardRequestIndex(),
-                            null,
-                            request::nowInMillis,
-                            request.getClusterAlias(),
-                            request.getRuntimeMappings()
-                        )
-                    );
-                    if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
-                        return new CanMatchShardResponse(false, null);
-                    }
-                }
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
                 // If this request wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,
@@ -1586,6 +1571,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // However, this will request modifying the engine to surface that information.
                 hasRefreshPending = needsWaitForRefresh || (indexShard.hasRefreshPending() && checkRefreshPending);
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+            }
+            if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
+                final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+                    indexService.newSearchExecutionContext(
+                        request.shardId().getId(),
+                        request.shardRequestIndex(),
+                        null,
+                        request::nowInMillis,
+                        request.getClusterAlias(),
+                        request.getRuntimeMappings()
+                    )
+                );
+                if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
+                    return new CanMatchShardResponse(false, null);
+                }
             }
             try (canMatchSearcher) {
                 SearchExecutionContext context = indexService.newSearchExecutionContext(

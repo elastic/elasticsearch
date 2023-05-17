@@ -6,7 +6,7 @@
 <titleabbrev>Clear trained model deployment cache</titleabbrev>
 ++++
 
-Clears a trained model deployment cache on all nodes where the trained model is 
+Clears a trained model deployment cache on all nodes where the deployment is 
 assigned.
 
 [[clear-trained-model-deployment-cache-request]]
@@ -23,9 +23,9 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 [[clear-trained-model-deployment-cache-desc]]
 == {api-description-title}
 
-A trained model deployment may have an inference cache enabled. As requests are handled by each allocated node,
-their responses may be cached on that individual node. Calling this API clears the caches without restarting the
-deployment.
+A trained model deployment may have an inference cache enabled. As requests are 
+handled by each allocated node, their responses may be cached on that individual 
+node. Calling this API clears the caches without restarting the deployment.
 
 [[clear-trained-model-deployment-cache-path-params]]
 == {api-path-parms-title}

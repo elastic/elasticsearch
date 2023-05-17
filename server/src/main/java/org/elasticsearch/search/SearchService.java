@@ -1532,22 +1532,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
-            final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
-                indicesService.indexServiceSafe(request.shardId().getIndex())
-                    .newSearchExecutionContext(
-                        request.shardId().getId(),
-                        request.shardRequestIndex(),
-                        null,
-                        request::nowInMillis,
-                        request.getClusterAlias(),
-                        request.getRuntimeMappings()
-                    )
-            );
-            if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
-                return new CanMatchShardResponse(false, null);
-            }
-        }
         Releasable releasable = null;
         try {
             IndexService indexService;
@@ -1580,6 +1564,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 canMatchSearcher = searcher;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+                if (request.source() != null && (request.source().query() instanceof MatchNoneQueryBuilder) == false) {
+                    final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+                        indexService.newSearchExecutionContext(
+                            request.shardId().getId(),
+                            request.shardRequestIndex(),
+                            null,
+                            request::nowInMillis,
+                            request.getClusterAlias(),
+                            request.getRuntimeMappings()
+                        )
+                    );
+                    if (queryStillMatchesAfterRewrite(request, searchExecutionContext) == false) {
+                        return new CanMatchShardResponse(false, null);
+                    }
+                }
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
                 // If this request wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,

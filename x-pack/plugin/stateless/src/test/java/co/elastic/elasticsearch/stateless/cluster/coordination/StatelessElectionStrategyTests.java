@@ -22,7 +22,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
 import org.elasticsearch.core.TimeValue;
@@ -93,7 +95,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 }
 
                 @Override
-                public void getRegister(String key, ActionListener<OptionalLong> listener) {
+                public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
                     if (failToReadRegister) {
                         listener.onFailure(new IOException("Unable to get register value"));
                     } else {
@@ -102,7 +104,12 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 }
 
                 @Override
-                public void compareAndSetRegister(String key, long expected, long updated, ActionListener<Boolean> listener) {
+                public void compareAndSetRegister(
+                    String key,
+                    BytesReference expected,
+                    BytesReference updated,
+                    ActionListener<Boolean> listener
+                ) {
                     if (failCASOperation) {
                         listener.onFailure(new IOException("Failed CAS"));
                     } else {
@@ -222,8 +229,15 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                     }
 
                     @Override
-                    public void getRegister(String key, ActionListener<OptionalLong> listener) {
-                        listener.onResponse(registerValueRef.get());
+                    public void getRegister(String key, ActionListener<OptionalBytesReference> listener) {
+                        ActionListener.completeWith(listener, () -> {
+                            final var registerValue = registerValueRef.get();
+                            if (registerValue.isEmpty()) {
+                                return OptionalBytesReference.MISSING;
+                            } else {
+                                return OptionalBytesReference.of(StatelessElectionStrategy.bytesFromLong(registerValue.getAsLong()));
+                            }
+                        });
                     }
                 };
             }

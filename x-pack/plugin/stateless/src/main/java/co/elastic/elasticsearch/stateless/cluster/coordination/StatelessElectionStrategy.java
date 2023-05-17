@@ -19,9 +19,14 @@ import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.function.Supplier;
@@ -82,13 +87,13 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     @Override
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
         getCurrentLeaseTerm(listener.delegateFailure((delegate, currentLeaseTermOpt) -> {
-            long currentLeaseTerm = currentLeaseTermOpt.orElse(0);
+            final long currentLeaseTerm = currentLeaseTermOpt.orElse(0L);
             final long electionTerm = Math.max(proposedTerm, currentLeaseTerm + 1);
 
             blobContainer().compareAndSetRegister(
                 LEASE_BLOB,
-                currentLeaseTerm,
-                electionTerm,
+                bytesFromLong(currentLeaseTerm),
+                bytesFromLong(electionTerm),
                 delegate.delegateFailure((delegate2, termGranted) -> {
                     if (termGranted) {
                         listener.onResponse(new StartJoinRequest(candidateMasterNode, electionTerm));
@@ -154,7 +159,14 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     public void getCurrentLeaseTerm(ActionListener<OptionalLong> listener) {
-        threadPool.executor(getExecutorName()).execute(ActionRunnable.wrap(listener, l -> blobContainer().getRegister(LEASE_BLOB, l)));
+        threadPool.executor(getExecutorName())
+            .execute(ActionRunnable.wrap(listener, l -> blobContainer().getRegister(LEASE_BLOB, l.map(optionalBytesReference -> {
+                if (optionalBytesReference.isPresent()) {
+                    return OptionalLong.of(longFromBytes(optionalBytesReference.bytesReference()));
+                } else {
+                    return OptionalLong.empty();
+                }
+            }))));
     }
 
     protected String getExecutorName() {
@@ -163,5 +175,33 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     private BlobContainer blobContainer() {
         return Objects.requireNonNull(blobContainerSupplier.get());
+    }
+
+    static long longFromBytes(BytesReference bytesReference) {
+        if (bytesReference.length() == 0) {
+            return 0L;
+        } else if (bytesReference.length() == Long.BYTES) {
+            try (var baos = new ByteArrayOutputStream(Long.BYTES)) {
+                bytesReference.writeTo(baos);
+                final var bytes = baos.toByteArray();
+                assert bytes.length == Long.BYTES;
+                return ByteUtils.readLongBE(bytes, 0);
+            } catch (IOException e) {
+                assert false : "no IO takes place";
+                throw new IllegalStateException("unexpected conversion error", e);
+            }
+        } else {
+            throw new IllegalArgumentException("cannot read long from BytesReference of length " + bytesReference.length());
+        }
+    }
+
+    static BytesReference bytesFromLong(long value) {
+        if (value == 0L) {
+            return BytesArray.EMPTY;
+        } else {
+            final var bytes = new byte[Long.BYTES];
+            ByteUtils.writeLongBE(value, bytes, 0);
+            return new BytesArray(bytes);
+        }
     }
 }

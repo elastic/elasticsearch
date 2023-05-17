@@ -694,7 +694,7 @@ public final class DateFieldMapper extends FieldMapper {
         ) throws IOException {
             if (reader == null) {
                 // NOTE: in case we rewrite a query before we have a reader available
-                return Relation.DISJOINT;
+                return Relation.INTERSECTS;
             }
             if (isIndexed() == false && pointsMetadataAvailable == false && hasDocValues()) {
                 // we don't have a quick way to run this check on doc values, so fall back to default assuming we are within bounds

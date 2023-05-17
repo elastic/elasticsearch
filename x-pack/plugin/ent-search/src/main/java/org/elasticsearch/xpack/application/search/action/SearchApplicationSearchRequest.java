@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.application.search.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class SearchApplicationSearchRequest extends ActionRequest {
+public class SearchApplicationSearchRequest extends ActionRequest implements IndicesRequest {
 
     private static final ParseField QUERY_PARAMS_FIELD = new ParseField("params");
     private final String name;
@@ -109,5 +111,15 @@ public class SearchApplicationSearchRequest extends ActionRequest {
     @Override
     public int hashCode() {
         return Objects.hash(name, queryParams);
+    }
+
+    @Override
+    public String[] indices() {
+        return new String[] { name };
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictNoExpandForbidClosed();
     }
 }

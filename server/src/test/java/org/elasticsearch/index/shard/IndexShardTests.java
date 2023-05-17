@@ -3680,7 +3680,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        assertTrue(scheduledRefresh(primary));
         assertFalse(primary.isSearchIdle());
 
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
@@ -3727,7 +3727,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        assertTrue(scheduledRefresh(primary));
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
         settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO).build();
         scopedSettings.applySettings(settings);
@@ -3736,7 +3736,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
         long lastSearchAccess = primary.getLastSearcherAccess();
-        assertFalse(primary.scheduledRefresh());
+        assertFalse(scheduledRefresh(primary));
         assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
         // wait until the thread-pool has moved the timestamp otherwise we can't assert on this below
         assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
@@ -3761,7 +3761,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(1, searcher.getIndexReader().numDocs());
         }
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        assertTrue(scheduledRefresh(primary));
         latch.await();
         CountDownLatch latch1 = new CountDownLatch(1);
         primary.awaitShardSearchActive(refreshed -> {
@@ -3776,11 +3776,11 @@ public class IndexShardTests extends IndexShardTestCase {
         latch1.await();
 
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
-        assertFalse(primary.scheduledRefresh());
+        assertFalse(scheduledRefresh(primary));
         assertTrue(primary.isSearchIdle());
         assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
-        assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
+        assertTrue(scheduledRefresh(primary)); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
@@ -3795,7 +3795,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        assertTrue(scheduledRefresh(primary));
         Engine.IndexResult doc = indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         CountDownLatch latch = new CountDownLatch(1);
         if (randomBoolean()) {
@@ -3815,7 +3815,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        assertTrue(scheduledRefresh(primary));
         latch.await();
 
         IndexScopedSettings scopedSettings = primary.indexSettings().getScopedSettings();
@@ -3831,7 +3831,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
-        assertTrue(primary.scheduledRefresh());
+        assertTrue(scheduledRefresh(primary));
         latch1.await();
         closeShards(primary);
     }
@@ -4674,5 +4674,14 @@ public class IndexShardTests extends IndexShardTestCase {
         PlainActionFuture.<Void, RuntimeException>get(
             f -> indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), consumer, f)
         );
+    }
+
+    /**
+     * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
+     */
+    public boolean scheduledRefresh(IndexShard indexShard) {
+        PlainActionFuture<Engine.RefreshResult> future = PlainActionFuture.newFuture();
+        indexShard.scheduledRefresh(future);
+        return future.actionGet().refreshed();
     }
 }

@@ -15,11 +15,13 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
@@ -87,7 +89,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         indexingDone.countDown(); // one doc is indexed above blocking
         IndexShard shard = indexService.getShard(0);
-        boolean hasRefreshed = shard.scheduledRefresh();
+        boolean hasRefreshed = scheduledRefresh(shard);
         if (randomTimeValue == TimeValue.ZERO) {
             // with ZERO we are guaranteed to see the doc since we will wait for a refresh in the background
             assertFalse(hasRefreshed);
@@ -149,14 +151,14 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         ensureGreen();
         client().prepareIndex("test").setId("0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
-        assertFalse(shard.scheduledRefresh());
+        assertFalse(scheduledRefresh(shard));
         assertTrue(shard.isSearchIdle());
         CountDownLatch refreshLatch = new CountDownLatch(1);
         // async on purpose to make sure it happens concurrently
         client().admin().indices().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
         assertHitCount(client().prepareSearch().get(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        assertFalse(shard.scheduledRefresh());
+        assertFalse(scheduledRefresh(shard));
         assertTrue(shard.hasRefreshPending());
 
         // now disable background refresh and make sure the refresh happens
@@ -175,7 +177,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         // otherwise, it will compete to call `Engine#maybeRefresh` with the `scheduledRefresh` that we are going to verify.
         ensureNoPendingScheduledRefresh(indexService.getThreadPool());
         client().prepareIndex("test").setId("2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        assertTrue(shard.scheduledRefresh());
+        assertTrue(scheduledRefresh(shard));
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
         assertHitCount(client().prepareSearch().get(), 3);
@@ -223,4 +225,12 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertTrue(Arrays.stream(statsResponse.getShards()).allMatch(x -> x.getSearchIdleTime() >= searchIdleAfter));
     }
 
+    /**
+     * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
+     */
+    public boolean scheduledRefresh(IndexShard indexShard) {
+        PlainActionFuture<Engine.RefreshResult> future = PlainActionFuture.newFuture();
+        indexShard.scheduledRefresh(future);
+        return future.actionGet().refreshed();
+    }
 }

@@ -1546,7 +1546,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     releasable = readerContext.markAsUsed(getKeepAlive(request));
                     indexService = readerContext.indexService();
                     final CanMatchShardResponse canMatchAfterRewrite = canMatchAfterRewriteWithoutSearcher(request, indexService);
-                    if (canMatchAfterRewrite != null) return canMatchAfterRewrite;
+                    if (canMatchAfterRewrite != null) {
+                        return canMatchAfterRewrite;
+                    }
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 } catch (SearchContextMissingException e) {
                     final String searcherId = request.readerId().getSearcherId();
@@ -1555,7 +1557,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                     final CanMatchShardResponse canMatchShardResponse = canMatchAfterRewriteWithoutSearcher(request, indexService);
-                    if (canMatchShardResponse != null) return canMatchShardResponse;
+                    if (canMatchShardResponse != null) {
+                        return canMatchShardResponse;
+                    }
                     IndexShard indexShard = indexService.getShard(request.shardId().getId());
                     final Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier();
                     if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
@@ -1569,7 +1573,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 final CanMatchShardResponse canMatchShardResponse = canMatchAfterRewriteWithoutSearcher(request, indexService);
-                if (canMatchShardResponse != null) return canMatchShardResponse;
+                if (canMatchShardResponse != null) {
+                    return canMatchShardResponse;
+                }
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
                 // If this request wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,

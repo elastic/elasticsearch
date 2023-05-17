@@ -321,12 +321,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
-                    // TODO: is localIndices != null sufficient? to indicate local shards are not being searched?
-                    // TODO: could localIndices.indices() be null or have size 0 that should be checked here?
-                    // Notifies the task listener that searches on remote clusters will not report their progress.
-                    task.getProgressListener().notifyMinimizeRoundtrips(localIndices != null, remoteClusterIndices.size());
-                    int totalClusters = (localIndices == null ? 0 : 1) + remoteClusterIndices.size();
-                    SearchResponse.Clusters clusterInfo = new SearchResponse.Clusters(totalClusters, 0, 0);
+                    // Notifies the task progress listener that searches on remote clusters will not report their progress.
+                    boolean hasLocalShards = hasLocalIndicesToSearch(localIndices);
+                    task.getProgressListener().notifyMinimizeRoundtrips(hasLocalShards, remoteClusterIndices.size());
+                    final int totalClusters = (hasLocalShards ? 1 : 0) + remoteClusterIndices.size();
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -343,7 +341,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             r,
                             localIndices,
                             clusterState,
-                            clusterInfo,
+                            new SearchResponse.Clusters(totalClusters, 0, 0),
                             searchContext,
                             searchPhaseProvider.apply(l)
                         )
@@ -408,6 +406,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }, listener::onFailure);
         Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
+    }
+
+    private boolean hasLocalIndicesToSearch(OriginalIndices localIndices) {
+        if (localIndices == null) {
+            return false;
+        }
+        if (localIndices.indices() == null) {
+            return false;
+        }
+        return localIndices.indices().length > 0;
     }
 
     static void adjustSearchType(SearchRequest searchRequest, boolean singleShard) {

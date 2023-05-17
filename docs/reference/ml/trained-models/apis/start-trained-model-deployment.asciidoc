@@ -27,7 +27,8 @@ in an ingest pipeline or directly in the <<infer-trained-model>> API.
 
 A model can be deployed multiple times by using deployment IDs. A deployment ID 
 must be unique and should not match any other deployment ID or model ID, unless 
-it is the same as the ID of the model being deployed.  
+it is the same as the ID of the model being deployed. If `deployment_id` is not 
+set, it defaults to the `model_id`.
 
 Scaling inference performance can be achieved by setting the parameters
 `number_of_allocations` and `threads_per_allocation`.
@@ -67,6 +68,7 @@ cache, `0b` can be provided.
 `deployment_id`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+Defaults to `model_id`.
 
 `number_of_allocations`::
 (Optional, integer)
@@ -164,7 +166,8 @@ The API returns the following results:
 === Using deployment IDs
 
 The following example starts a new deployment for the `my_model` trained model 
-with the ID `my_model_for_ingest`. 
+with the ID `my_model_for_ingest`. The deployment ID an be used in {infer} API 
+calls or in {infer} processors.
 
 [source,console]
 --------------------------------------------------

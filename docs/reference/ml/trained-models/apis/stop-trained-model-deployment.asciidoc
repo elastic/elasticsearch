@@ -11,7 +11,7 @@ Stops a trained model deployment.
 [[stop-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployment/_stop`
+`POST _ml/trained_models/<deployment_id>/deployment/_stop`
 
 [[stop-trained-model-deployment-prereq]]
 == {api-prereq-title}
@@ -27,12 +27,8 @@ Deployment is required only for trained models that have a PyTorch `model_type`.
 [[stop-trained-model-deployment-path-params]]
 == {api-path-parms-title}
 
-`<model_id>`::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
-
 `<deployment_id>`::
-(Optional, string)
+(Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 
@@ -62,17 +58,7 @@ until you restart the model deployment.
 [[stop-trained-model-deployment-example]]
 == {api-examples-title}
 
-The following example stops a deployment of a
-`elastic__distilbert-base-uncased-finetuned-conll03-english` trained model:
-
-[source,console]
---------------------------------------------------
-POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/_stop
---------------------------------------------------
-
-
-The following example stops the `my_model_for_search` deployment of the 
-`my_model` trained model:
+The following example stops the `my_model_for_search` deployment:
 
 [source,console]
 --------------------------------------------------

@@ -6,12 +6,13 @@
 <titleabbrev>Clear trained model deployment cache</titleabbrev>
 ++++
 
-Clears a trained model deployment cache on all nodes where the trained model is assigned.
+Clears a trained model deployment cache on all nodes where the trained model is 
+assigned.
 
 [[clear-trained-model-deployment-cache-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployment/cache/_clear`
+`POST _ml/trained_models/<deployment_id>/deployment/cache/_clear`
 
 [[clear-trained-model-deployment-cache-prereq]]
 == {api-prereq-title}
@@ -29,9 +30,9 @@ deployment.
 [[clear-trained-model-deployment-cache-path-params]]
 == {api-path-parms-title}
 
-`<model_id>`::
+`deployment_id`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[clear-trained-model-deployment-cache-example]]
 == {api-examples-title}

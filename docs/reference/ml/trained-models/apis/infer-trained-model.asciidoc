@@ -33,8 +33,11 @@ directly from the {infer} cache.
 == {api-path-parms-title}
 
 `<model_id>`::
-(Required, string)
+(Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+If you specify the `model_id` in the API call, and the model has multiple 
+deployments, a random deployment will be used. If the `model_id` matches the ID 
+of one of the deployments, that deployment will be used.
 
 `<deployment_id>`::
 (Optional, string)

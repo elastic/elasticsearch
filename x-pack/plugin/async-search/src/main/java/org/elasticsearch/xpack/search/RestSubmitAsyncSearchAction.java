@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -31,7 +29,6 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchR
 
 @ServerlessScope(Scope.PUBLIC)
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(RestSubmitAsyncSearchAction.class);
     static final String TYPED_KEYS_PARAM = "typed_keys";
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
 
@@ -79,11 +76,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         if (request.hasParam("keep_on_completion")) {
             submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
-        logger.warn(
-            "MMM {} : RestSubmitAsyncSearchAction execute with ccs_minimize_roundtrips={}",
-            request.getRequestId(),
-            submit.isCcsMinimizeRoundtrips()
-        );
         return channel -> {
             RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

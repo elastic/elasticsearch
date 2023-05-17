@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -93,15 +92,14 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         IntStream.range(0, between(1, 5))
             .mapToObj(
-                i -> new DiscoveryNode(
+                i -> TestDiscoveryNode.create(
                     "node_" + i,
                     UUIDs.randomBase64UUID(),
                     buildNewFakeTransportAddress(),
                     Map.of(),
                     randomSubsetOf(between(1, roles.size()), roles).stream()
                         .map(DiscoveryNodeRole::getRoleFromRoleName)
-                        .collect(Collectors.toSet()),
-                    Version.CURRENT
+                        .collect(Collectors.toSet())
                 )
             )
             .forEach(builder::add);

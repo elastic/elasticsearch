@@ -35,7 +35,7 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
             if (script != null) {
                 throw new IllegalArgumentException("Cannot use scripts for time-series counters");
             }
-            if (fieldContext.indexFieldData()instanceof IndexNumericFieldData fieldData) {
+            if (fieldContext.indexFieldData() instanceof IndexNumericFieldData fieldData) {
                 return new ValuesSource.Numeric.FieldData(fieldData);
             }
             throw new IllegalArgumentException(

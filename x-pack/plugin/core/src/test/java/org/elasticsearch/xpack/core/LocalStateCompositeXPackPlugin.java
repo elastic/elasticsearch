@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -58,7 +59,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -140,7 +141,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
-    private ClusterStateLicenseService clusterStateLicenseService;
+    private LicenseService licenseService;
     private LongSupplier epochMillisSupplier;
     protected List<Plugin> plugins = new ArrayList<>();
 
@@ -160,13 +161,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    protected ClusterStateLicenseService getLicenseService() {
-        return clusterStateLicenseService;
+    protected LicenseService getLicenseService() {
+        return licenseService;
     }
 
     @Override
-    protected void setLicenseService(ClusterStateLicenseService clusterStateLicenseService) {
-        this.clusterStateLicenseService = clusterStateLicenseService;
+    protected void setLicenseService(LicenseService licenseService) {
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -412,6 +413,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -428,6 +430,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
+                        perRequestThreadContext,
                         clusterSettings,
                         tracer
                     )

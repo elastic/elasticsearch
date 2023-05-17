@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
@@ -63,7 +64,12 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile());
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile()) {
+            @Override
+            protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+                // tests don't run modular
+            }
+        };
     }
 
     static PluginsService newMockPluginsService(List<Class<? extends Plugin>> classpathPlugins) {
@@ -493,10 +499,9 @@ public class PluginsServiceTests extends ESTestCase {
         class TestExtension implements TestExtensionPoint {
             private TestExtension() {}
         }
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -525,10 +530,9 @@ public class PluginsServiceTests extends ESTestCase {
 
             }
         }
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TestExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -546,10 +550,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testBadSingleParameterConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(BadSingleParameterConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -571,10 +574,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testTooManyParametersExtensionConstructors() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(TooManyParametersConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -594,10 +596,9 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testThrowingConstructor() {
         TestPlugin plugin = new TestPlugin();
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> { PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin); }
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            PluginsService.createExtension(ThrowingConstructorExtension.class, TestExtensionPoint.class, plugin);
+        });
 
         assertThat(
             e,
@@ -882,14 +883,14 @@ public class PluginsServiceTests extends ESTestCase {
     // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
-            if (lp.loader()instanceof URLClassLoader urlClassLoader) {
+            if (lp.loader() instanceof URLClassLoader urlClassLoader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(urlClassLoader);
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
             }
-            if (lp.loader()instanceof UberModuleClassLoader loader) {
+            if (lp.loader() instanceof UberModuleClassLoader loader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
                 } catch (Exception e) {

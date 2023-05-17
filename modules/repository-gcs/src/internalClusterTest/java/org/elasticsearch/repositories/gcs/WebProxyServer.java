@@ -7,134 +7,86 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.apache.http.Header;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
-
 /**
  * Emulates a <a href="https://en.wikipedia.org/wiki/Proxy_server#Web_proxy_servers">Web Proxy Server</a>
  */
 class WebProxyServer extends MockHttpProxyServer {
 
-    private static final Set<String> BLOCKED_HEADERS = Stream.of("Host", "Proxy-Connection", "Proxy-Authenticate")
-        .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
+    private static final Set<String> BLOCKED_HEADERS = Stream.of(
+        "Host",
+        "Proxy-Connection",
+        "Proxy-Authenticate",
+        "Content-Length",
+        "Transfer-Encoding"
+    ).collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
 
-    WebProxyServer() throws IOException {
-        super(WebProxyServer::handle);
-    }
+    private final CloseableHttpClient httpClient = HttpClients.createDefault();
 
-    @SuppressForbidden(reason = "Proxy makes requests to the upstream HTTP server")
-    private static void handle(InputStream is, OutputStream os) throws IOException {
-        // We can't make a com.sun.net.httpserver act as an HTTP proxy, so we have to do work with
-        // raw sockets and do HTTP parsing ourselves
-        String requestLine = readLine(is);
-        String[] parts = requestLine.split(" ");
-        String requestMethod = parts[0];
-        String originUrl = parts[1];
-
-        var upstreamHttpConnection = (HttpURLConnection) URI.create(originUrl).toURL().openConnection();
-        upstreamHttpConnection.setRequestMethod(requestMethod);
-        upstreamHttpConnection.setRequestProperty("X-Via", "test-web-proxy-server");
-
-        int requestContentLength = -1;
-        boolean chunkedRequest = false;
-        while (true) {
-            String requestHeader = readLine(is);
-            if (requestHeader.isEmpty()) {
-                // End of the headers block
-                break;
+    @Override
+    public void handle(HttpRequest request, HttpResponse response, HttpContext context) throws IOException {
+        var upstreamRequest = new HttpEntityEnclosingRequestBase() {
+            @Override
+            public String getMethod() {
+                return request.getRequestLine().getMethod();
             }
-            String[] headerParts = requestHeader.split(":");
-            String headerName = headerParts[0].trim();
-            String headerValue = headerParts[1].trim();
-            if (headerName.equalsIgnoreCase("Content-Length")) {
-                requestContentLength = Integer.parseInt(headerValue);
-            } else if (headerName.equalsIgnoreCase("Transfer-Encoding") && headerValue.equalsIgnoreCase("chunked")) {
-                chunkedRequest = true;
-            }
+        };
+        upstreamRequest.setURI(URI.create(request.getRequestLine().getUri()));
+        upstreamRequest.setHeader("X-Via", "test-web-proxy-server");
+        for (Header requestHeader : request.getAllHeaders()) {
+            String headerName = requestHeader.getName();
+            String headerValue = requestHeader.getValue();
             if (BLOCKED_HEADERS.contains(headerName) == false) {
-                upstreamHttpConnection.setRequestProperty(headerName, headerValue);
+                upstreamRequest.setHeader(headerName, headerValue);
             }
         }
-        if (requestContentLength > 0) {
-            upstreamHttpConnection.setDoOutput(true);
-            try (var uos = upstreamHttpConnection.getOutputStream()) {
-                uos.write(is.readNBytes(requestContentLength));
-            }
-        } else if (chunkedRequest) {
-            upstreamHttpConnection.setDoOutput(true);
-            upstreamHttpConnection.setChunkedStreamingMode(0);
-            try (var uos = upstreamHttpConnection.getOutputStream()) {
-                while (true) {
-                    int chunkSize = Integer.parseInt(readLine(is), 16);
-                    if (chunkSize == 0) {
-                        // End of the chunked body
-                        break;
-                    }
-                    uos.write(is.readNBytes(chunkSize));
-                    if (is.read() != '\r' || is.read() != '\n') {
-                        throw new IllegalStateException("Not CRLF");
-                    }
+        if (request instanceof HttpEntityEnclosingRequest entityRequest) {
+            upstreamRequest.setEntity(
+                new ByteArrayEntity(EntityUtils.toByteArray(entityRequest.getEntity()), ContentType.get(entityRequest.getEntity()))
+            );
+        }
+        try (CloseableHttpResponse upstreamResponse = httpClient.execute(upstreamRequest)) {
+            response.setStatusLine(upstreamResponse.getStatusLine());
+            for (Header upstreamHeader : upstreamResponse.getAllHeaders()) {
+                String name = upstreamHeader.getName();
+                if (BLOCKED_HEADERS.contains(name) == false) {
+                    response.addHeader(name, upstreamHeader.getValue());
                 }
             }
-        }
-        upstreamHttpConnection.connect();
-
-        String upstreamStatusLine = Strings.format(
-            "HTTP/1.1 %s %s\r\n",
-            upstreamHttpConnection.getResponseCode(),
-            upstreamHttpConnection.getResponseMessage()
-        );
-        os.write(upstreamStatusLine.getBytes(ISO_8859_1));
-        StringBuilder responseHeaders = new StringBuilder();
-        for (var upstreamHeader : upstreamHttpConnection.getHeaderFields().entrySet()) {
-            if (upstreamHeader.getKey() == null) {
-                continue;
+            if (upstreamResponse.getEntity() != null) {
+                response.setEntity(
+                    new ByteArrayEntity(
+                        EntityUtils.toByteArray(upstreamResponse.getEntity()),
+                        ContentType.get(upstreamResponse.getEntity())
+                    )
+                );
             }
-            responseHeaders.append(upstreamHeader.getKey()).append(": ");
-            for (int i = 0; i < upstreamHeader.getValue().size(); i++) {
-                responseHeaders.append(upstreamHeader.getValue().get(i));
-                if (i < upstreamHeader.getValue().size() - 1) {
-                    responseHeaders.append(",");
-                }
-            }
-            responseHeaders.append("\r\n");
-        }
-        responseHeaders.append("\r\n");
-        os.write(responseHeaders.toString().getBytes(ISO_8859_1));
-        // HttpURLConnection handles chunked and fixed-length responses transparently
-        try (var uis = upstreamHttpConnection.getInputStream()) {
-            uis.transferTo(os);
         }
     }
 
-    private static String readLine(InputStream is) throws IOException {
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        while (true) {
-            int b = is.read();
-            if (b == -1) {
-                break;
-            }
-            if (b == '\r') {
-                if (is.read() != '\n') {
-                    throw new IllegalStateException("Not CRLF");
-                }
-                break;
-            }
-            os.write(b);
-        }
-        return os.toString(ISO_8859_1);
+    @Override
+    public void close() throws IOException {
+        httpClient.close();
+        super.close();
     }
+
 }

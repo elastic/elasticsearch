@@ -77,10 +77,10 @@ public class TransformUsageIT extends TransformRestTestCase {
                     + "be prevented by default"
             )
         );
-        // Verify that we have one stat document
+        // Verify that we have 4 stat documents, one per transform
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
-            assertEquals(1, XContentMapValues.extractValue("hits.total.value", hasStatsMap));
+            assertEquals(4, XContentMapValues.extractValue("hits.total.value", hasStatsMap));
         });
 
         startAndWaitForContinuousTransform("test_usage_continuous", "pivot_reviews_continuous", null);

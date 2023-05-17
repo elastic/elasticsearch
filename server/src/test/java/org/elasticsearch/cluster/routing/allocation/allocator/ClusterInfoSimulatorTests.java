@@ -39,6 +39,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -64,6 +65,30 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
                     .withNode("node-0", new DiskUsageBuilder(1000, 1000))
                     .withNode("node-1", new DiskUsageBuilder(1000, 1000))
                     .withShard(newPrimary, 0)
+                    .build()
+            )
+        );
+    }
+
+    public void testInitializeNewPrimaryWithKnownExpectedSize() {
+
+        var newPrimary = newShardRouting("index-1", 0, null, true, UNASSIGNED).initialize("node-0", null, 100);
+
+        var simulator = new ClusterInfoSimulator(
+            new ClusterInfoTestBuilder() //
+                .withNode("node-0", new DiskUsageBuilder(1000, 1000))
+                .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                .build()
+        );
+        simulator.simulateShardStarted(newPrimary);
+
+        assertThat(
+            simulator.getClusterInfo(),
+            equalTo(
+                new ClusterInfoTestBuilder() //
+                    .withNode("node-0", new DiskUsageBuilder(1000, 900))
+                    .withNode("node-1", new DiskUsageBuilder(1000, 1000))
+                    .withShard(newPrimary, 100)
                     .build()
             )
         );
@@ -329,12 +354,7 @@ public class ClusterInfoSimulatorTests extends ESTestCase {
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {
         var name = shardRouting.getIndexName();
-        var settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT)
-            .build();
-        metadataBuilder.put(IndexMetadata.builder(name).settings(settings));
+        metadataBuilder.put(IndexMetadata.builder(name).settings(indexSettings(Version.CURRENT, 1, 0)));
         routingTableBuilder.add(IndexRoutingTable.builder(metadataBuilder.get(name).getIndex()).addShard(shardRouting));
     }
 

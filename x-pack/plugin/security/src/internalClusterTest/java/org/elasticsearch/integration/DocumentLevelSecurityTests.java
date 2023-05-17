@@ -893,7 +893,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50, null);
 
         if (randomBoolean()) {
             query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
@@ -1339,7 +1339,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(indexSettings(1, 0))
                 .setMapping("field1", "type=text", "suggest_field1", "type=text", "suggest_field2", "type=completion")
         );
 
@@ -1366,7 +1366,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("fls-index")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(indexSettings(1, 0))
                 .setMapping(
                     "field1",
                     "type=text",
@@ -1454,7 +1454,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(indexSettings(1, 0))
                 .setMapping("field1", "type=text", "other_field", "type=text")
         );
 
@@ -1473,7 +1473,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("fls-index")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(indexSettings(1, 0))
                 .setMapping("field1", "type=text", "other_field", "type=text", "yet_another", "type=text")
         );
 

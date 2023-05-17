@@ -10,6 +10,7 @@ package org.elasticsearch.core;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Utility methods to work with {@link Releasable}s. */
@@ -89,12 +90,32 @@ public enum Releasables {
      *  </pre>
      */
     public static Releasable wrap(final Iterable<Releasable> releasables) {
-        return () -> close(releasables);
+        return new Releasable() {
+            @Override
+            public void close() {
+                Releasables.close(releasables);
+            }
+
+            @Override
+            public String toString() {
+                return "wrapped[" + releasables + "]";
+            }
+        };
     }
 
     /** @see #wrap(Iterable) */
     public static Releasable wrap(final Releasable... releasables) {
-        return () -> close(releasables);
+        return new Releasable() {
+            @Override
+            public void close() {
+                Releasables.close(releasables);
+            }
+
+            @Override
+            public String toString() {
+                return "wrapped" + Arrays.toString(releasables);
+            }
+        };
     }
 
     /**

@@ -1,5 +1,0 @@
-pr: 91869
-summary: Load stable plugins as synthetic modules
-area: Infra/Plugins
-type: enhancement
-issues: []

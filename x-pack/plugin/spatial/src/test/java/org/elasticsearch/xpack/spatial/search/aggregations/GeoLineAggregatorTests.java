@@ -12,7 +12,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -323,13 +322,19 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 int encodedLon = GeoEncodingUtils.encodeLongitude(point.getLon());
                 long lonLat = (((long) encodedLon) << 32) | encodedLat & 0xffffffffL;
                 points[i] = lonLat;
-                sortValues[i] = SortOrder.ASC.equals(sortOrder) ? i : numPoints - i;
+                sortValues[i] = i;
             }
             int lineSize = Math.min(numPoints, size);
             // re-sort line to be ascending
             long[] linePoints = Arrays.copyOf(points, lineSize);
             double[] lineSorts = Arrays.copyOf(sortValues, lineSize);
-            new PathArraySorter(linePoints, lineSorts, SortOrder.ASC).sort();
+            // When we combine sort DESC with limit (size less than number of points), we actually truncate off the beginning of the data
+            if (lineSize < points.length && sortOrder == SortOrder.DESC) {
+                int offset = points.length - lineSize;
+                System.arraycopy(points, offset, linePoints, 0, lineSize);
+                System.arraycopy(sortValues, offset, lineSorts, 0, lineSize);
+            }
+            new PathArraySorter(linePoints, lineSorts, sortOrder).sort();
 
             lines.put(String.valueOf(groupOrd), new InternalGeoLine("_name", linePoints, lineSorts, null, complete, true, sortOrder, size));
 
@@ -403,7 +408,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
         indexWriter.close();
-        IndexReader indexReader = DirectoryReader.open(directory);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         try {

@@ -205,6 +205,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         );
     }
 
+    @Override
     public TransportVersion getVersion() {
         return version;
     }
@@ -273,7 +274,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         public Version getVersion() {
             // TODO: this should be the below, but in some cases the node version does not match the passed-in version.
             // return node.getVersion();
-            return Version.fromId(version.id);
+            return Version.fromId(version.id());
         }
 
         @Override
@@ -1001,7 +1002,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             messagesSent,
             bytesWritten,
             networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram()
+            outboundHandlingTimeTracker.getHistogram(),
+            requestHandlers.getStats()
         );
     }
 

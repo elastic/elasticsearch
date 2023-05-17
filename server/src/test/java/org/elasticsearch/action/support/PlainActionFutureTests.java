@@ -16,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -49,18 +48,14 @@ public class PlainActionFutureTests extends ESTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread main = Thread.currentThread();
         final Thread thread = new Thread(() -> {
-            try {
-                barrier.await();
-            } catch (final BrokenBarrierException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            safeAwait(barrier);
             main.interrupt();
         });
         thread.start();
 
         final AtomicBoolean interrupted = new AtomicBoolean();
 
-        barrier.await();
+        safeAwait(barrier);
 
         try {
             runnable.run();

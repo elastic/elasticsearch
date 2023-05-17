@@ -221,6 +221,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(engine.getLiveVersionMap().getArchive(), LiveVersionMapArchive.NOOP_ARCHIVE);
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }
@@ -836,7 +837,7 @@ public abstract class EngineTestCase extends ESTestCase {
             primaryTerm,
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             null,
-            System::nanoTime,
+            this::relativeTimeInNanos,
             indexCommitListener,
             true
         );
@@ -1341,7 +1342,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.source(), equalTo(translogOp.source()));
+                assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
             }
         }
     }
@@ -1608,5 +1609,13 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected static CodecService newCodecService() {
         return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    /**
+     * Supplier of relative timestamps for the engine. Override this method to control how time passes as seen by the engine. The default
+     * implementation returns {@link System#nanoTime()}.
+     */
+    protected long relativeTimeInNanos() {
+        return System.nanoTime();
     }
 }

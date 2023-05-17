@@ -214,6 +214,19 @@ import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
 
+    /**
+     * When this value is non-null, {@link #relativeTimeInNanos()} reads from it instead of calling System#nanoTime().
+     */
+    private AtomicLong relativeTimeInNanosOverride;
+
+    @Override
+    protected long relativeTimeInNanos() {
+        if (relativeTimeInNanosOverride != null) {
+            return relativeTimeInNanosOverride.get();
+        }
+        return super.relativeTimeInNanos();
+    }
+
     public void testVersionMapAfterAutoIDDocument() throws IOException {
         engine.refresh("warm_up");
         ParsedDocument doc = testParsedDocument(
@@ -658,6 +671,43 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(recoveringEngine);
         }
+    }
+
+    public void testPreCommitRecordedSegmentGeneration() throws IOException {
+        engine.close();
+        final AtomicLong preCommitGen = new AtomicLong(-1);
+        final AtomicLong lastSegmentInfoGenUponCommit = new AtomicLong(-1);
+        final AtomicLong postFlushSegmentInfoGen = new AtomicLong(-1);
+        engine = new InternalEngine(engine.config()) {
+
+            @Override
+            protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {
+                preCommitGen.set(getPreCommitSegmentGeneration());
+                lastSegmentInfoGenUponCommit.set(getLastCommittedSegmentInfos().getGeneration());
+                super.commitIndexWriter(writer, translog);
+            }
+
+            @Override
+            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+                super.flush(force, waitIfOngoing, listener);
+                postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
+                assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
+            }
+        };
+        if (randomBoolean()) {
+            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        } else {
+            engine.skipTranslogRecovery();
+        }
+        engine.ensureCanFlush(); // recovered already
+        ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
+        engine.index(indexForDoc(doc));
+        engine.flush();
+        assertThat(preCommitGen.get(), greaterThan(-1L));
+        assertThat(lastSegmentInfoGenUponCommit.get(), greaterThan(-1L));
+        assertThat(postFlushSegmentInfoGen.get(), greaterThan(-1L));
+        assertThat(preCommitGen.get(), equalTo(lastSegmentInfoGenUponCommit.get() + 1));
+        assertThat(preCommitGen.get(), equalTo(postFlushSegmentInfoGen.get()));
     }
 
     public void testTranslogRecoveryWithMultipleGenerations() throws IOException {
@@ -2528,7 +2578,7 @@ public class InternalEngineTests extends EngineTestCase {
         private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
 
         List<String> messages() {
-            return messages;
+            return List.copyOf(messages);
         }
 
         MockMTAppender(final String name) throws IllegalAccessException {
@@ -5783,7 +5833,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testShouldPeriodicallyFlush() throws Exception {
+    public void testShouldPeriodicallyFlushOnSize() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         // A new engine may have more than one empty translog files - the test should account this extra.
         final Translog translog = engine.getTranslog();
@@ -5827,7 +5877,7 @@ public class InternalEngineTests extends EngineTestCase {
         SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
         assertThat(uncommittedTranslogOperationsSinceLastCommit.getAsInt(), equalTo(numDocs));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
-        engine.flush(false, false);
+        engine.flush();
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
         assertThat(uncommittedTranslogOperationsSinceLastCommit.getAsInt(), equalTo(0));
         // If the new index commit still points to the same translog generation as the current index commit,
@@ -5844,6 +5894,21 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
                 assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             }
+        }
+    }
+
+    public void testShouldPeriodicallyFlushOnAge() throws Exception {
+        try {
+            relativeTimeInNanosOverride = new AtomicLong(relativeTimeInNanos());
+            assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+            relativeTimeInNanosOverride.addAndGet(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.get(Settings.EMPTY).nanos() + 1);
+            assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
+            engine.flush();
+            assertThat("An engine that just flushed on age doesn't need flushing again", engine.shouldPeriodicallyFlush(), equalTo(false));
+            relativeTimeInNanosOverride.addAndGet(1);
+            assertThat("An engine that just flushed on age doesn't need flushing again", engine.shouldPeriodicallyFlush(), equalTo(false));
+        } finally {
+            relativeTimeInNanosOverride = null;
         }
     }
 

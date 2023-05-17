@@ -45,11 +45,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
     @Override
     protected TextExpansionQueryBuilder doCreateTestQueryBuilder() {
-        var builder = new TextExpansionQueryBuilder(
-            RANK_FEATURES_FIELD,
-            randomAlphaOfLength(4),
-            randomBoolean() ? null : randomAlphaOfLength(4)
-        );
+        var builder = new TextExpansionQueryBuilder(RANK_FEATURES_FIELD, randomAlphaOfLength(4), randomAlphaOfLength(4));
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -86,11 +82,11 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         // asserts that 2 rewritten queries are the same
         var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.WeightedToken(i, (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
-            .setModelId(request.getModelId())
+            .setId(request.getId())
             .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.
@@ -129,27 +125,34 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new TextExpansionQueryBuilder(null, "model text", null)
+                () -> new TextExpansionQueryBuilder(null, "model text", "model id")
             );
             assertEquals("[text_expansion] requires a fieldName", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new TextExpansionQueryBuilder("field name", null, null)
+                () -> new TextExpansionQueryBuilder("field name", null, "model id")
             );
             assertEquals("[text_expansion] requires a model_text value", e.getMessage());
         }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new TextExpansionQueryBuilder("field name", "model text", null)
+            );
+            assertEquals("[text_expansion] requires a model_id value", e.getMessage());
+        }
     }
 
-    public void testToXContentWithDefaults() throws IOException {
-        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", null);
+    public void testToXContent() throws IOException {
+        QueryBuilder query = new TextExpansionQueryBuilder("foo", "bar", "baz");
         checkGeneratedJson("""
             {
               "text_expansion": {
                 "foo": {
                   "model_text": "bar",
-                  "model_id": "slim"
+                  "model_id": "baz"
                 }
               }
             }""", query);

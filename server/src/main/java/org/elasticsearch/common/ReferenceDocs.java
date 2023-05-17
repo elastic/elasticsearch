@@ -29,6 +29,15 @@ import java.util.Map;
  * {@code reference-docs-links.json} which must include definitions for exactly the set of values of this enum.
  */
 public enum ReferenceDocs {
+    /*
+     * Note that the docs subsystem parses {@code reference-docs-links.json} with regexes, not a JSON parser, so the whitespace in the file
+     * is important too. See {@code sub check_elasticsearch_links} in {@code https://github.com/elastic/docs/blob/master/build_docs.pl} for
+     * more details.
+     *
+     * Also note that the docs are built from the HEAD of each minor release branch, so in principle docs can move around independently of
+     * the ES release process. To avoid breaking any links that have been baked into earlier patch releases, you may only add links in a
+     * patch release and must not modify or remove any existing links.
+     */
     INITIAL_MASTER_NODES,
     DISCOVERY_TROUBLESHOOTING,
     UNSTABLE_CLUSTER_TROUBLESHOOTING,

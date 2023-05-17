@@ -216,12 +216,10 @@ public class TransportRolloverActionTests extends ESTestCase {
             minPrimaryShardDocsCondition
         );
 
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 1000), 10).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
 
         final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
@@ -285,12 +283,10 @@ public class TransportRolloverActionTests extends ESTestCase {
             minPrimaryShardDocsCondition
         );
 
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 1000))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(10))
-            .build();
+        final Settings settings = indexSettings(Version.CURRENT, randomIntBetween(1, 1000), 10).put(
+            IndexMetadata.SETTING_INDEX_UUID,
+            UUIDs.randomBase64UUID()
+        ).build();
 
         final IndexMetadata metadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
@@ -447,11 +443,7 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     private static IndexMetadata createMetadata(String indexName) {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        final Settings settings = indexSettings(Version.CURRENT, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .build();
         return IndexMetadata.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
@@ -498,7 +490,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null));
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0));
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(

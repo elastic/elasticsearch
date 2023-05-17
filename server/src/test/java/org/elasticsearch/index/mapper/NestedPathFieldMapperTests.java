@@ -8,14 +8,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
+
+import static org.hamcrest.Matchers.empty;
 
 public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
 
@@ -40,6 +39,6 @@ public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument document = mapper.parse(new SourceToParse("id", new BytesArray("{}"), XContentType.JSON));
-        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
+        assertThat(document.rootDoc().getFields(NestedPathFieldMapper.NAME), empty());
     }
 }

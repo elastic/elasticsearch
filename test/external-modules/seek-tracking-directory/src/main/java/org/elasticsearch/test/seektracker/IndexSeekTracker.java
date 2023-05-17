@@ -17,7 +17,12 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class IndexSeekTracker {
 
+    private final String index;
     private final Map<String, Map<String, LongAdder>> seeks = new HashMap<>();
+
+    public IndexSeekTracker(String index) {
+        this.index = index;
+    }
 
     public void track(String shard) {
         seeks.computeIfAbsent(shard, k -> new ConcurrentHashMap<>());   // increment can be called by multiple threads
@@ -39,4 +44,8 @@ public class IndexSeekTracker {
         return new ShardSeekStats(shard, seeksPerFile);
     }
 
+    @Override
+    public String toString() {
+        return "seeks for " + index + ": " + seeks;
+    }
 }

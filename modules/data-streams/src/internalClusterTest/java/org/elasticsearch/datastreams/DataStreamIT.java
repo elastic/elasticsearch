@@ -80,7 +80,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -134,6 +133,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItemInArray;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -802,6 +802,53 @@ public class DataStreamIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1");
     }
 
+    public void testSearchFilteredAndUnfilteredAlias() throws Exception {
+        putComposableIndexTemplate("id1", List.of("logs-*"));
+        String dataStreamName = "logs-foobar";
+        client().prepareIndex(dataStreamName)
+            .setId("1")
+            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"x\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .get();
+        client().prepareIndex(dataStreamName)
+            .setId("2")
+            .setSource("{\"@timestamp\": \"2022-12-12\", \"type\": \"y\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .get();
+        refresh(dataStreamName);
+
+        AliasActions addFilteredAliasAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
+            .aliases("foo")
+            .filter(Map.of("term", Map.of("type", Map.of("value", "y"))));
+        AliasActions addUnfilteredAliasAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName).aliases("bar");
+
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addFilteredAliasAction);
+        aliasesAddRequest.addAliasAction(addUnfilteredAliasAction);
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(response.getDataStreamAliases(), hasKey("logs-foobar"));
+        assertThat(
+            response.getDataStreamAliases().get("logs-foobar"),
+            containsInAnyOrder(
+                new DataStreamAlias("bar", List.of("logs-foobar"), null, null),
+                new DataStreamAlias(
+                    "foo",
+                    List.of("logs-foobar"),
+                    null,
+                    Map.of("logs-foobar", Map.of("term", Map.of("type", Map.of("value", "y"))))
+                )
+            )
+        );
+
+        // Searching the filtered and unfiltered aliases should return all results (unfiltered):
+        SearchResponse searchResponse = client().prepareSearch("foo", "bar").get();
+        assertSearchHits(searchResponse, "1", "2");
+        // Searching the data stream name and the filtered alias should return all results (unfiltered):
+        searchResponse = client().prepareSearch("foo", dataStreamName).get();
+        assertSearchHits(searchResponse, "1", "2");
+    }
+
     public void testRandomDataSteamAliasesUpdate() throws Exception {
         putComposableIndexTemplate("id1", List.of("log-*"));
 
@@ -1319,7 +1366,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create").source("{}", XContentType.JSON);
-        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        Exception e = expectThrows(Exception.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
     }
 
@@ -1331,7 +1378,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         IndexRequest indexRequest = new IndexRequest(dataStreamName).opType("create")
             .source("{\"@timestamp\": [\"2020-12-12\",\"2022-12-12\"]}", XContentType.JSON);
-        Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
+        Exception e = expectThrows(Exception.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
@@ -1570,10 +1617,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     // Test that datastream's segments by default are sorted on @timestamp desc
     public void testSegmentsSortedOnTimestampDesc() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        Settings settings = indexSettings(1, 0).build();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null);
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -2048,10 +2092,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final String dataStreamName = "logs-es";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .build();
+        final var indexSettings = indexSettings(numberOfShards, numberOfReplicas).build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
@@ -2098,10 +2139,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final List<String> dataOnlyNodes = internalCluster().startDataOnlyNodes(4);
         final String dataStreamName = "logs-es";
 
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
+        final var indexSettings = indexSettings(2, 1).put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes))
             .build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -2173,11 +2211,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final String dataOnlyNode = internalCluster().startDataOnlyNode();
         final String dataStreamName = "logs-es";
 
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.require._name", dataOnlyNode)
-            .build();
+        final var indexSettings = indexSettings(1, 0).put("index.routing.allocation.require._name", dataOnlyNode).build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
@@ -2218,10 +2252,7 @@ public class DataStreamIT extends ESIntegTestCase {
         final String dataStreamName = "logs-es";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 1);
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
-            .build();
+        final var indexSettings = indexSettings(numberOfShards, numberOfReplicas).build();
         DataStreamIT.putComposableIndexTemplate("my-template", null, List.of("logs-*"), indexSettings, null);
         final var request = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());

@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
 import java.util.Collection;
@@ -61,6 +63,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -80,6 +83,10 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> MANAGE_BEHAVIORAL_ANALYTICS_PATTERN = Set.of("cluster:admin/xpack/application/analytics/*");
+    private static final Set<String> POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN = Set.of(
+        "cluster:admin/xpack/application/analytics/post_event"
+    );
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
@@ -97,9 +104,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
         "indices:admin/template/*",
-        "indices:admin/index_template/*",
-        "indices:admin/data_stream/*"
+        "indices:admin/index_template/*"
     );
+    private static final Predicate<String> ACTION_MATCHER = Automatons.predicate(ALL_CLUSTER_PATTERN);
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of(
         "cluster:admin/data_frame/*",
@@ -145,9 +152,19 @@ public class ClusterPrivilegeResolver {
         GetStatusAction.NAME
     );
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
-    private static final Set<String> CROSS_CLUSTER_ACCESS_PATTERN = Set.of(
+
+    private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
+
+    private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME
+        RemoteClusterNodesAction.NAME,
+        XPackInfoAction.NAME
+    );
+    private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
+        RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+        RemoteClusterNodesAction.NAME,
+        XPackInfoAction.NAME,
+        ClusterStateAction.NAME
     );
     private static final Set<String> MANAGE_ENRICH_AUTOMATON = Set.of("cluster:admin/xpack/enrich/*");
 
@@ -256,9 +273,28 @@ public class ClusterPrivilegeResolver {
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
 
-    public static final NamedClusterPrivilege CROSS_CLUSTER_ACCESS = new ActionClusterPrivilege(
-        "cross_cluster_access",
-        CROSS_CLUSTER_ACCESS_PATTERN
+    public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
+        "manage_search_application",
+        MANAGE_SEARCH_APPLICATION_PATTERN
+    );
+    public static final NamedClusterPrivilege MANAGE_BEHAVIORAL_ANALYTICS = new ActionClusterPrivilege(
+        "manage_behavioral_analytics",
+        MANAGE_BEHAVIORAL_ANALYTICS_PATTERN
+    );
+
+    public static final NamedClusterPrivilege POST_BEHAVIORAL_ANALYTICS_EVENT = new ActionClusterPrivilege(
+        "post_behavioral_analytics_event",
+        POST_BEHAVIORAL_ANALYTICS_EVENT_PATTERN
+    );
+
+    public static final NamedClusterPrivilege CROSS_CLUSTER_SEARCH = new ActionClusterPrivilege(
+        "cross_cluster_search",
+        CROSS_CLUSTER_SEARCH_PATTERN
+    );
+
+    public static final NamedClusterPrivilege CROSS_CLUSTER_REPLICATION = new ActionClusterPrivilege(
+        "cross_cluster_replication",
+        CROSS_CLUSTER_REPLICATION_PATTERN
     );
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
@@ -306,7 +342,11 @@ public class ClusterPrivilegeResolver {
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
             CANCEL_TASK,
-            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_ACCESS : null
+            MANAGE_SEARCH_APPLICATION,
+            MANAGE_BEHAVIORAL_ANALYTICS,
+            POST_BEHAVIORAL_ANALYTICS_EVENT,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_SEARCH : null,
+            TcpTransport.isUntrustedRemoteClusterEnabled() ? CROSS_CLUSTER_REPLICATION : null
         ).filter(Objects::nonNull).toList()
     );
 
@@ -343,9 +383,7 @@ public class ClusterPrivilegeResolver {
     }
 
     public static boolean isClusterAction(String actionName) {
-        return actionName.startsWith("cluster:")
-            || actionName.startsWith("indices:admin/template/")
-            || actionName.startsWith("indices:admin/index_template/");
+        return ACTION_MATCHER.test(actionName);
     }
 
     private static String actionToPattern(String text) {

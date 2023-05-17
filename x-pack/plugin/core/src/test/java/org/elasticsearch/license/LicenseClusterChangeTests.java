@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.junit.After;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
+public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
 
@@ -36,12 +36,12 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void setup() {
         licenseState = new TestUtils.AssertingLicenseState();
         setInitialState(null, licenseState, Settings.EMPTY);
-        clusterStateLicenseService.start();
+        licenseService.start();
     }
 
     @After
     public void teardown() {
-        clusterStateLicenseService.stop();
+        licenseService.stop();
     }
 
     public void testNotificationOnNewLicense() throws Exception {
@@ -49,7 +49,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
         Metadata metadata = Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metadata(metadata).build();
-        clusterStateLicenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licenseState.activeUpdates.size(), equalTo(1));
         assertTrue(licenseState.activeUpdates.get(0));
     }
@@ -59,19 +59,19 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         Metadata metadata = Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metadata(metadata).build();
         ClusterState oldState = ClusterState.builder(newState).build();
-        clusterStateLicenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licenseState.activeUpdates.size(), equalTo(0));
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode master = TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
 
-        clusterStateLicenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);

@@ -13,7 +13,6 @@ import fixture.gcs.TestUtils;
 
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -41,7 +40,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "We start an HTTP proxy server to test proxy support for GCS")
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/93811")
 public class GcsProxyIntegrationTests extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer upstreamServer;

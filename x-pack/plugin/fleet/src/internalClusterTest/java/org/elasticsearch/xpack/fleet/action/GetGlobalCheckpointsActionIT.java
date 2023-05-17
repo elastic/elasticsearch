@@ -55,12 +55,10 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             .indices()
             .prepareCreate(indexName)
             .setSettings(
-                Settings.builder()
+                indexSettings(shards, 1)
                     // ESIntegTestCase randomizes durability settings. The global checkpoint only advances after a fsync, hence we
                     // must run with REQUEST durability
                     .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", shards)
-                    .put("index.number_of_replicas", 1)
             )
             .get();
 
@@ -108,12 +106,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 1)
-            )
+            .setSettings(indexSettings(1, 1).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -155,12 +148,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final int totalDocuments = 30;
@@ -188,12 +176,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final long[] incorrectArrayLength = new long[2];
@@ -220,12 +203,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 3)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(3, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -290,12 +268,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate(indexName)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
         client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
@@ -319,10 +292,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             .prepareCreate("not-assigned")
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
             )
             .get();
@@ -348,10 +318,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             .prepareCreate("not-assigned")
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
             )
             .get();
@@ -377,10 +344,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             .prepareCreate(indexName)
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                     .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
             )
             .get();
@@ -406,12 +370,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
             .indices()
             .prepareCreate(indexName)
             .setWaitForActiveShards(ActiveShardCount.NONE)
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
-            )
+            .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
 
         long start = System.nanoTime();

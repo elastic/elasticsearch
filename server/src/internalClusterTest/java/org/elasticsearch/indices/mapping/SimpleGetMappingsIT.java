@@ -41,7 +41,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testGetMappingsWhereThereAreNone() {
         createIndex("index");
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().containsKey("index"), equalTo(true));
         assertEquals(MappingMetadata.EMPTY_MAPPINGS, response.mappings().get("index"));
     }
@@ -59,12 +59,10 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
     }
 
     public void testSimpleGetMappings() throws Exception {
-        client().admin().indices().prepareCreate("indexa").setMapping(getMappingForType()).execute().actionGet();
-        client().admin().indices().prepareCreate("indexb").setMapping(getMappingForType()).execute().actionGet();
+        indicesAdmin().prepareCreate("indexa").setMapping(getMappingForType()).execute().actionGet();
+        indicesAdmin().prepareCreate("indexb").setMapping(getMappingForType()).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin()
-            .cluster()
-            .prepareHealth()
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .execute()
@@ -72,31 +70,31 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // Get all mappings
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings().execute().actionGet();
         assertThat(response.mappings().size(), equalTo(2));
         assertThat(response.mappings().get("indexa"), notNullValue());
         assertThat(response.mappings().get("indexb"), notNullValue());
 
         // Get all mappings, via wildcard support
-        response = client().admin().indices().prepareGetMappings("*").execute().actionGet();
+        response = indicesAdmin().prepareGetMappings("*").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(2));
         assertThat(response.mappings().get("indexa"), notNullValue());
         assertThat(response.mappings().get("indexb"), notNullValue());
 
         // Get mappings in indexa
-        response = client().admin().indices().prepareGetMappings("indexa").execute().actionGet();
+        response = indicesAdmin().prepareGetMappings("indexa").execute().actionGet();
         assertThat(response.mappings().size(), equalTo(1));
         assertThat(response.mappings().get("indexa"), notNullValue());
     }
 
     public void testGetMappingsWithBlocks() throws IOException {
-        client().admin().indices().prepareCreate("test").setMapping(getMappingForType()).execute().actionGet();
+        indicesAdmin().prepareCreate("test").setMapping(getMappingForType()).execute().actionGet();
         ensureGreen();
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {
                 enableIndexBlock("test", block);
-                GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
+                GetMappingsResponse response = indicesAdmin().prepareGetMappings().execute().actionGet();
                 assertThat(response.mappings().size(), equalTo(1));
                 assertNotNull(response.mappings().get("test"));
             } finally {
@@ -106,7 +104,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
         try {
             enableIndexBlock("test", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareGetMappings(), INDEX_METADATA_BLOCK);
+            assertBlocked(indicesAdmin().prepareGetMappings(), INDEX_METADATA_BLOCK);
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }

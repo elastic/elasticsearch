@@ -21,6 +21,7 @@
             "Aggregations",
             "Allocation",
             "Analysis",
+            "Application",
             "Audit",
             "Authentication",
             "Authorization",

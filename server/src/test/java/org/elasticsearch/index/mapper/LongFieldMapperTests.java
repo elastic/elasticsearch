@@ -20,8 +20,9 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
 
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -90,16 +91,16 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         ParsedDocument doc = mapper.parse(
             source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
         );
-        assertEquals(0, doc.rootDoc().getFields("field").length);
+        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
     public void testLongIndexingCoercesIntoRange() throws Exception {
         // the following two strings are in-range for a long after coercion
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "9223372036854775807.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(1));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(1));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
     }
 
     @Override

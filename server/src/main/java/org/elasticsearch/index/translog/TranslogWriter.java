@@ -84,6 +84,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final DiskIoBufferPool diskIoBufferPool;
 
+    // package private for testing
+    LastModifiedTimeCache lastModifiedTimeCache;
+
+    // package private for testing
+    record LastModifiedTimeCache(long lastModifiedTime, long totalOffset, long syncedOffset) {}
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -127,6 +133,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
         this.operationListener = operationListener;
+        this.lastModifiedTimeCache = new LastModifiedTimeCache(-1, -1, -1);
     }
 
     public static TranslogWriter create(
@@ -641,5 +648,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     protected final boolean isClosed() {
         return closed.get();
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        if (lastModifiedTimeCache.totalOffset() != totalOffset || lastModifiedTimeCache.syncedOffset() != lastSyncedCheckpoint.offset) {
+            long mtime = super.getLastModifiedTime();
+            lastModifiedTimeCache = new LastModifiedTimeCache(mtime, totalOffset, lastSyncedCheckpoint.offset);
+        }
+        return lastModifiedTimeCache.lastModifiedTime();
     }
 }

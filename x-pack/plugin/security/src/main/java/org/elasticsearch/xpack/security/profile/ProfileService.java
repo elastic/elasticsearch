@@ -1065,5 +1065,5 @@ public class ProfileService {
 
     }
 
-    public record SubjectSearchResultsAndErrors<T> (List<Tuple<Subject, T>> results, Map<Subject, Exception> errors) {}
+    public record SubjectSearchResultsAndErrors<T>(List<Tuple<Subject, T>> results, Map<Subject, Exception> errors) {}
 }

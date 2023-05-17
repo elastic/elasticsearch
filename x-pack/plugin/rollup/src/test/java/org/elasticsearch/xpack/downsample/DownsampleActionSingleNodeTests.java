@@ -175,10 +175,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
          * check that the value of the label (last value) matches the value
          * of the corresponding metric which uses a last_value metric type.
          */
-        Settings.Builder settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+        Settings.Builder settings = indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
             .put(
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
@@ -351,7 +348,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
+            .put(IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean());
 
         final Integer totalFieldsLimit = randomBoolean() ? randomIntBetween(100, 10_000) : null;
         if (totalFieldsLimit != null) {
@@ -436,13 +433,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate(rollupIndex)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
-                .get()
-        );
+        assertAcked(client().admin().indices().prepareCreate(rollupIndex).setSettings(indexSettings(1, 0)).get());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
@@ -458,21 +449,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
-    public void testCannotRollupIndexWithNoMetrics() {
+    public void testRollupIndexWithNoMetrics() throws IOException {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         client().admin()
             .indices()
             .prepareCreate(sourceIndex)
             .setSettings(
-                Settings.builder()
-                    .put("index.number_of_shards", numOfShards)
-                    .put("index.number_of_replicas", numOfReplicas)
-                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
-                    .build()
             )
             .setMapping(
                 FIELD_TIMESTAMP,
@@ -486,8 +473,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         prepareSourceIndex(sourceIndex);
-        Exception exception = expectThrows(ActionRequestValidationException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("does not contain any metric fields"));
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(sourceIndex, rollupIndex, config);
     }
 
     public void testCannotRollupWriteableIndex() {
@@ -1098,10 +1085,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template indexTemplate = new Template(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            indexSettings(numOfShards, numOfReplicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                 .build(),
             new CompressedXContent("""

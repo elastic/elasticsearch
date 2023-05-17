@@ -18,11 +18,11 @@ public class FieldLookup {
     private final List<Object> values = new ArrayList<>();
     private boolean valuesLoaded = false;
 
-    FieldLookup(MappedFieldType fieldType) {
+    public FieldLookup(MappedFieldType fieldType) {
         this.fieldType = fieldType;
     }
 
-    MappedFieldType fieldType() {
+    public MappedFieldType fieldType() {
         return fieldType;
     }
 
@@ -31,7 +31,7 @@ public class FieldLookup {
      */
     public void setValues(List<Object> values) {
         assert valuesLoaded == false : "Call clear() before calling setValues()";
-        this.values.addAll(values);
+        values.stream().map(fieldType::valueForDisplay).forEach(this.values::add);
         this.valuesLoaded = true;
     }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.action.support.replication.TransportWriteActionTestHelp
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -149,13 +150,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {
-        return new DiscoveryNode(
+        return TestDiscoveryNode.create(
             id,
             id,
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
+            Collections.singleton(DiscoveryNodeRole.DATA_ROLE)
         );
     }
 
@@ -195,7 +195,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             (_shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(
                 _shardId,
                 retentionLeases,
-                ActionListener.wrap(r -> {}, e -> { throw new AssertionError("failed to background sync retention lease", e); })
+                ActionListener.wrap(r -> {}, e -> {
+                    throw new AssertionError("failed to background sync retention lease", e);
+                })
             )
         );
 
@@ -617,8 +619,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 getPrimary().getLastKnownGlobalCheckpoint(),
                 getPrimary().getMaxSeqNoOfUpdatesOrDeletes(),
                 acquirePermitFuture,
-                ThreadPool.Names.SAME,
-                request
+                ThreadPool.Names.SAME
             );
             try (Releasable ignored = acquirePermitFuture.actionGet()) {
                 replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
@@ -791,8 +792,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             delegatedListener.onFailure(e);
                         }
                     }),
-                    ThreadPool.Names.WRITE,
-                    replicaRequest
+                    ThreadPool.Names.WRITE
                 );
             }
 
@@ -883,7 +883,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
-        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
+        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME);
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (_update, _shardId, _listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
@@ -938,8 +938,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             permitAcquiredFuture,
-            ThreadPool.Names.SAME,
-            request
+            ThreadPool.Names.SAME
         );
         final Translog.Location location;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
@@ -1084,8 +1083,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             globalCheckpointOnPrimary,
             maxSeqNoOfUpdatesOrDeletes,
             acquirePermitFuture,
-            ThreadPool.Names.SAME,
-            request
+            ThreadPool.Names.SAME
         );
         try (Releasable ignored = acquirePermitFuture.actionGet()) {
             location = TransportResyncReplicationAction.performOnReplica(request, replica);

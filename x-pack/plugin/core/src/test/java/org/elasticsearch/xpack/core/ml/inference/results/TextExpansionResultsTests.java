@@ -13,8 +13,18 @@ import org.elasticsearch.ingest.IngestDocument;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpansionResults> {
+    public static TextExpansionResults createRandomResults() {
+        int numTokens = randomIntBetween(0, 20);
+        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
+        for (int i = 0; i < numTokens; i++) {
+            tokenList.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
+        }
+        return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
+    }
+
     @Override
     protected Writeable.Reader<TextExpansionResults> instanceReader() {
         return TextExpansionResults::new;
@@ -22,12 +32,7 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     @Override
     protected TextExpansionResults createTestInstance() {
-        int numTokens = randomIntBetween(0, 20);
-        List<TextExpansionResults.WeightedToken> tokenList = new ArrayList<>();
-        for (int i = 0; i < numTokens; i++) {
-            tokenList.add(new TextExpansionResults.WeightedToken(i, (float) randomDoubleBetween(0.0, 5.0, false)));
-        }
-        return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
+        return createRandomResults();
     }
 
     @Override
@@ -38,18 +43,15 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
     @Override
     @SuppressWarnings("unchecked")
     void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String resultsField) {
-        var ingestedTokens = (List<Map<String, Object>>) document.getFieldValue(
+        var ingestedTokens = (Map<String, Object>) document.getFieldValue(
             resultsField + '.' + createdInstance.getResultsField(),
-            List.class
+            Map.class
         );
-        var originalTokens = createdInstance.getWeightedTokens();
-        assertEquals(originalTokens.size(), ingestedTokens.size());
-        for (int i = 0; i < createdInstance.getWeightedTokens().size(); i++) {
-            assertEquals(
-                originalTokens.get(i).weight(),
-                (float) ingestedTokens.get(i).get(Integer.toString(originalTokens.get(i).token())),
-                0.0001
-            );
-        }
+        var tokenMap = createdInstance.getWeightedTokens()
+            .stream()
+            .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
+        assertEquals(tokenMap.size(), ingestedTokens.size());
+
+        assertEquals(tokenMap, ingestedTokens);
     }
 }

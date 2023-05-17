@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -33,10 +34,10 @@ import java.util.Objects;
  */
 public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentObject {
 
-    public static final Setting<RolloverConditions> CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING = new Setting<>(
+    public static final Setting<RolloverConfiguration> CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.dlm.default.rollover",
-        "max_age=7d,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
-        (s) -> RolloverConditions.parseSetting(s, "cluster.dlm.default.rollover"),
+        "max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000",
+        (s) -> RolloverConfiguration.parseSetting(s, "cluster.dlm.default.rollover"),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -46,10 +47,10 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public static final DataLifecycle EMPTY = new DataLifecycle();
     public static final String DLM_ORIGIN = "data_lifecycle";
 
-    private static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
+    public static final ParseField DATA_RETENTION_FIELD = new ParseField("data_retention");
     private static final ParseField ROLLOVER_FIELD = new ParseField("rollover");
 
-    private static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
         (args, unused) -> new DataLifecycle((TimeValue) args[0])
@@ -81,6 +82,54 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     public DataLifecycle(long timeInMills) {
         this(TimeValue.timeValueMillis(timeInMills));
+    }
+
+    /**
+     * This method composes a series of lifecycles to a final one. The lifecycles are getting composed one level deep,
+     * meaning that the keys present on the latest lifecycle will override the ones of the others. If a key is missing
+     * then it keeps the value of the previous lifecycles. For example, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "20d"
+     *     }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "20d"}} because the second data retention overrides the first.
+     * However, if we have the following two lifecycles:
+     * [
+     *   {
+     *     "lifecycle": {
+     *       "data_retention" : "10d"
+     *     }
+     *   },
+     *   {
+     *   "lifecycle": { }
+     *   }
+     * ]
+     * The result will be { "lifecycle": { "data_retention" : "10d"} } because the latest lifecycle does not have any
+     * information on retention.
+     * @param lifecycles a sorted list of lifecycles in the order that they will be composed
+     * @return the final lifecycle
+     */
+    @Nullable
+    public static DataLifecycle compose(List<DataLifecycle> lifecycles) {
+        DataLifecycle.Builder builder = null;
+        for (DataLifecycle current : lifecycles) {
+            if (builder == null) {
+                builder = Builder.newBuilder(current);
+            } else {
+                if (current.dataRetention != null) {
+                    builder.dataRetention(current.getDataRetention());
+                }
+            }
+        }
+        return builder == null ? null : builder.build();
     }
 
     @Nullable
@@ -128,14 +177,15 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     /**
      * Converts the data lifecycle to XContent and injects the RolloverConditions if they exist.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params ignored, @Nullable RolloverConditions rolloverConditions)
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
         builder.startObject();
         if (dataRetention != null) {
             builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
         }
-        if (rolloverConditions != null) {
-            builder.field(ROLLOVER_FIELD.getPreferredName(), rolloverConditions);
+        if (rolloverConfiguration != null) {
+            builder.field(ROLLOVER_FIELD.getPreferredName());
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, dataRetention);
         }
         builder.endObject();
         return builder;
@@ -143,5 +193,26 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     public static DataLifecycle fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    /**
+     * This builder helps during the composition of the data lifecycle templates.
+     */
+    static class Builder {
+        @Nullable
+        private TimeValue dataRetention = null;
+
+        Builder dataRetention(@Nullable TimeValue value) {
+            dataRetention = value;
+            return this;
+        }
+
+        DataLifecycle build() {
+            return new DataLifecycle(dataRetention);
+        }
+
+        static Builder newBuilder(DataLifecycle dataLifecycle) {
+            return new Builder().dataRetention(dataLifecycle.getDataRetention());
+        }
     }
 }

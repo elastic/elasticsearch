@@ -31,30 +31,30 @@ public class ClearDeploymentCacheAction extends ActionType<ClearDeploymentCacheA
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private final String modelId;
+        private final String deploymentId;
 
-        public Request(String modelId) {
-            this.modelId = ExceptionsHelper.requireNonNull(modelId, InferModelAction.Request.MODEL_ID);
+        public Request(String deploymentId) {
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, InferModelAction.Request.ID);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.modelId = in.readString();
+            this.deploymentId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(modelId);
+            out.writeString(deploymentId);
         }
 
-        public String getModelId() {
-            return modelId;
+        public String getDeploymentId() {
+            return deploymentId;
         }
 
         @Override
         public boolean match(Task task) {
-            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, modelId);
+            return StartTrainedModelDeploymentAction.TaskMatcher.match(task, deploymentId);
         }
 
         @Override
@@ -62,12 +62,12 @@ public class ClearDeploymentCacheAction extends ActionType<ClearDeploymentCacheA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(modelId, request.modelId);
+            return Objects.equals(deploymentId, request.deploymentId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId);
+            return Objects.hash(deploymentId);
         }
     }
 

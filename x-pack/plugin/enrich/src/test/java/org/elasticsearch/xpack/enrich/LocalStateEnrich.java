@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.ClusterStateLicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -42,10 +42,10 @@ public class LocalStateEnrich extends LocalStateCompositeXPackPlugin {
         public EnrichTransportXPackInfoAction(
             TransportService transportService,
             ActionFilters actionFilters,
-            ClusterStateLicenseService clusterStateLicenseService,
+            LicenseService licenseService,
             NodeClient client
         ) {
-            super(transportService, actionFilters, clusterStateLicenseService, client);
+            super(transportService, actionFilters, licenseService, client);
         }
 
         @Override

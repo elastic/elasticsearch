@@ -57,9 +57,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         IndicesService service = internalCluster().getInstance(IndicesService.class, dataNode);
-        String uuid = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices(INDEX_NAME))
+        String uuid = indicesAdmin().getIndex(new GetIndexRequest().indices(INDEX_NAME))
             .actionGet()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path path = service.indexService(new Index(INDEX_NAME, uuid)).getShard(0).shardPath().getShardStatePath();
@@ -75,7 +73,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
 
         ensureGreen(INDEX_NAME);
         final RetentionLeases retentionLeases = getRetentionLeases();
-        final String nodeId = client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
+        final String nodeId = clusterAdmin().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
         assertTrue(
             "expected lease for [" + nodeId + "] in " + retentionLeases,
             retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId))

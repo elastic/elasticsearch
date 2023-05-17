@@ -47,13 +47,13 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NodeMappingStats;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
-import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -124,6 +124,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
     private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexingOperationListeners;
     private final BooleanSupplier allowExpensiveQueries;
@@ -145,8 +146,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-
-    private final ReplicationTracker.Factory replicationTrackerFactory;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -179,8 +178,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener,
-        ReplicationTracker.Factory replicationTrackerFactory
+        Engine.IndexCommitListener indexCommitListener
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -192,9 +190,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.indexAnalyzers = indexAnalyzers;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
+                clusterService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,
@@ -255,7 +255,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
-        this.replicationTrackerFactory = replicationTrackerFactory;
         updateFsyncTaskIfNecessary();
     }
 
@@ -357,7 +356,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     bitsetFilterCache,
                     indexCache,
                     indexFieldData,
-                    mapperService,
+                    indexAnalyzers,
                     refreshTask,
                     fsyncTask,
                     trimTranslogTask,
@@ -526,8 +525,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 snapshotCommitSupplier,
                 System::nanoTime,
-                indexCommitListener,
-                replicationTrackerFactory
+                indexCommitListener
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -770,6 +768,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
+        public void onCache(ShardId shardId, String fieldName, GlobalOrdinalsAccounting info) {
+            if (shardId != null) {
+                final IndexShard shard = indexService.getShardOrNull(shardId.id());
+                if (shard != null) {
+                    shard.fieldData().onCache(shardId, fieldName, info);
+                }
+            }
+        }
+
+        @Override
         public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
             if (shardId != null) {
                 final IndexShard shard = indexService.getShardOrNull(shardId.id());
@@ -975,7 +983,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                     && e instanceof ShardNotInPrimaryModeException == false) {
                                     logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
-                            }, ThreadPool.Names.SAME, source + " sync");
+                            }, ThreadPool.Names.SAME);
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

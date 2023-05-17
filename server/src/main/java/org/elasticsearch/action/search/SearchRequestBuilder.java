@@ -19,6 +19,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -162,6 +163,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
         sourceBuilder().query(queryBuilder);
+        return this;
+    }
+
+    /**
+     * Constructs a new search source builder with a list of search queries.
+     */
+    public SearchRequestBuilder setQueries(List<SearchQueryBuilder> queries) {
+        sourceBuilder().queries(queries);
         return this;
     }
 

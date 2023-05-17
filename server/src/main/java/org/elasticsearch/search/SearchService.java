@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -77,6 +76,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -104,6 +104,7 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.search.query.SearchQuery;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -985,13 +986,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.size() == -1) {
                 context.size(DEFAULT_SIZE);
             }
-            if (request.rankQueryBuilders().isEmpty() == false) {
-                List<Query> rankQueries = new ArrayList<>();
-                for (QueryBuilder queryBuilder : request.rankQueryBuilders()) {
-                    rankQueries.add(queryBuilder.toQuery(context.getSearchExecutionContext()));
-                }
-                context.rankShardContext(request.source().rankBuilder().buildRankShardContext(rankQueries, context.from()));
-            }
             context.setTask(task);
 
             context.preProcess();
@@ -1159,7 +1153,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source, boolean includeAggregations) throws IOException {
         // nothing to parse...
         if (source == null) {
             return;
@@ -1366,6 +1360,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             final CollapseContext collapseContext = source.collapse().build(searchExecutionContext);
             context.collapse(collapseContext);
+        }
+
+        if (source.rankBuilder() != null) {
+            List<SearchQuery> searchQueries = new ArrayList<>();
+            for (SearchQueryBuilder searchQueryBuilder : source.queries()) {
+                searchQueries.add(searchQueryBuilder.toSearchQuery(context.getSearchExecutionContext()));
+            }
+            context.rankShardContext(source.rankBuilder().buildRankShardContext(searchQueries, context.from()));
         }
     }
 

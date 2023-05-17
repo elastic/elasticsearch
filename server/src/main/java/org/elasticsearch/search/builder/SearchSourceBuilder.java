@@ -1093,7 +1093,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public SearchSourceBuilder rewrite(QueryRewriteContext context) throws IOException {
         assert (this.equals(
-            shallowCopy(queryBuilder, searchQueryBuilders, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder)
+            shallowCopy(
+                queryBuilder,
+                searchQueryBuilders,
+                postQueryBuilder,
+                knnSearch,
+                aggregations,
+                sliceBuilder,
+                sorts,
+                rescoreBuilders,
+                highlightBuilder
+            )
         ));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
@@ -1145,7 +1155,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Create a shallow copy of this builder with a new slice configuration.
      */
     public SearchSourceBuilder shallowCopy() {
-        return shallowCopy(queryBuilder, searchQueryBuilders, postQueryBuilder, knnSearch, aggregations, sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
+        return shallowCopy(
+            queryBuilder,
+            searchQueryBuilders,
+            postQueryBuilder,
+            knnSearch,
+            aggregations,
+            sliceBuilder,
+            sorts,
+            rescoreBuilders,
+            highlightBuilder
+        );
     }
 
     /**

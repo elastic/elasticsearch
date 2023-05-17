@@ -9,9 +9,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsKnnResults;
@@ -170,6 +170,7 @@ final class DfsQueryPhase extends SearchPhase {
 
             KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
             SearchSourceBuilder newSource = source.shallowCopy().knnSearch(List.of());
+            // TODO: support queries here or error?
             if (source.query() == null) {
                 newSource.query(knnQuery);
             } else {
@@ -180,9 +181,10 @@ final class DfsQueryPhase extends SearchPhase {
             // this path will keep knn queries separate for ranking per shard
             // if there are multiple knn queries
 
-            List<QueryBuilder> rankQueryBuilders = new ArrayList<>();
+            List<SearchQueryBuilder> searchQueryBuilders = new ArrayList<>(source.queries());
+
             if (source.query() != null) {
-                rankQueryBuilders.add(source.query());
+                searchQueryBuilders.add(new SearchQueryBuilder(source.query()));
             }
 
             for (DfsKnnResults dfsKnnResults : knnResults) {
@@ -194,17 +196,16 @@ final class DfsQueryPhase extends SearchPhase {
                 }
                 scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
                 KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
-                rankQueryBuilders.add(knnQuery);
+                searchQueryBuilders.add(new SearchQueryBuilder(knnQuery));
             }
 
             BoolQueryBuilder searchQuery = new BoolQueryBuilder();
-            for (QueryBuilder queryBuilder : rankQueryBuilders) {
-                searchQuery.should(queryBuilder);
+            for (SearchQueryBuilder searchQueryBuilder : searchQueryBuilders) {
+                searchQuery.should(searchQueryBuilder.getQueryBuilder());
             }
 
-            SearchSourceBuilder newSource = source.shallowCopy().query(searchQuery).knnSearch(List.of());
+            SearchSourceBuilder newSource = source.shallowCopy().query(searchQuery).queries(searchQueryBuilders).knnSearch(List.of());
             request.source(newSource);
-            request.rankQueryBuilders(rankQueryBuilders);
         }
 
         return request;

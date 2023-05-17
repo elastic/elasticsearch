@@ -15,6 +15,8 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.query.SearchQuery;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -77,5 +79,13 @@ public class SearchQueryBuilder implements ToXContent, Writeable, Rewriteable<Se
     public SearchQueryBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         QueryBuilder rewrittenQueryBuilder = queryBuilder.rewrite(ctx);
         return rewrittenQueryBuilder == queryBuilder ? this : new SearchQueryBuilder(rewrittenQueryBuilder);
+    }
+
+    public QueryBuilder getQueryBuilder() {
+        return queryBuilder;
+    }
+
+    public SearchQuery toSearchQuery(SearchExecutionContext context) throws IOException {
+        return new SearchQuery(queryBuilder.toQuery(context));
     }
 }

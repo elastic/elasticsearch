@@ -378,10 +378,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                         validationException
                     );
                 }
-                if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+                int queryCount = (source.query() == null ? 0 : 1) + source.queries().size() + source.knnSearch().size();
+                if (queryCount < 2) {
                     validationException = addValidationError(
-                        "[rank] requires a minimum of [2] result sets which"
-                            + " either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                        "[rank] requires a minimum of [2] result sets" + " using a combination of queries and/or knn searches",
                         validationException
                     );
                 }

@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -163,6 +164,54 @@ public class RRFRankIT extends ESIntegTestCase {
         assertEquals(3, hit.getRank());
         assertEquals(1.0, ((Number) hit.field("vector").getValue()).doubleValue(), 0.0);
         assertEquals("other", hit.field("text").getValue());
+    }
+
+    public void testMultiBM25() {
+        float[] queryVector = { 500.0f };
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+        SearchResponse response = client().prepareSearch("nrd_index")
+            .setRankBuilder(new RRFRankBuilder(101, 1))
+            .setTrackTotalHits(false)
+            // .setKnnSearch(List.of(knnSearch))
+            .setQueries(
+                List.of(
+                    new SearchQueryBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text", "500").boost(11.0f))
+                            .should(QueryBuilders.termQuery("text", "499").boost(10.0f))
+                            .should(QueryBuilders.termQuery("text", "498").boost(9.0f))
+                            .should(QueryBuilders.termQuery("text", "497").boost(8.0f))
+                            .should(QueryBuilders.termQuery("text", "496").boost(7.0f))
+                            .should(QueryBuilders.termQuery("text", "495").boost(6.0f))
+                            .should(QueryBuilders.termQuery("text", "494").boost(5.0f))
+                            .should(QueryBuilders.termQuery("text", "493").boost(4.0f))
+                            .should(QueryBuilders.termQuery("text", "492").boost(3.0f))
+                            .should(QueryBuilders.termQuery("text", "491").boost(2.0f))
+                    ),
+                    new SearchQueryBuilder(
+                        QueryBuilders.boolQuery()
+                            .should(QueryBuilders.termQuery("text", "491").boost(11.0f))
+                            .should(QueryBuilders.termQuery("text", "499").boost(10.0f))
+                    )
+                )
+            )
+            .addFetchField("vector_asc")
+            .addFetchField("text")
+            .setSize(11)
+            .get();
+
+        assertNull(response.getHits().getTotalHits());
+        assertEquals(11, response.getHits().getHits().length);
+
+        SearchHit hit = response.getHits().getAt(0);
+        assertEquals(1, hit.getRank());
+        assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
+        assertEquals("term 500", hit.field("text").getValue());
+
+        Set<Double> vectors = Arrays.stream(response.getHits().getHits())
+            .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(492.0, 493.0, 494.0, 495.0, 496.0, 497.0, 498.0, 499.0, 500.0, 501.0, 502.0), vectors);
     }
 
     public void testBM25AndKnn() {

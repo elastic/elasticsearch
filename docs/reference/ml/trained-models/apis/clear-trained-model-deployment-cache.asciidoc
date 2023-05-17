@@ -6,8 +6,7 @@
 <titleabbrev>Clear trained model deployment cache</titleabbrev>
 ++++
 
-Clears a trained model deployment cache on all nodes where the deployment is 
-assigned.
+Clears the {infer} cache on all nodes where the deployment is assigned.
 
 [[clear-trained-model-deployment-cache-request]]
 == {api-request-title}

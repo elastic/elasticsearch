@@ -1545,7 +1545,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     readerContext = findReaderContext(request.readerId(), request);
                     releasable = readerContext.markAsUsed(getKeepAlive(request));
                     indexService = readerContext.indexService();
-                    final CanMatchShardResponse canMatchAfterRewrite = canMatchAfterRewrite(request, indexService);
+                    final CanMatchShardResponse canMatchAfterRewrite = canMatchAfterRewriteWithoutSearcher(request, indexService);
                     if (canMatchAfterRewrite != null) return canMatchAfterRewrite;
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 } catch (SearchContextMissingException e) {
@@ -1554,7 +1554,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         throw e;
                     }
                     indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                    final CanMatchShardResponse canMatchShardResponse = canMatchAfterRewrite(request, indexService);
+                    final CanMatchShardResponse canMatchShardResponse = canMatchAfterRewriteWithoutSearcher(request, indexService);
                     if (canMatchShardResponse != null) return canMatchShardResponse;
                     IndexShard indexShard = indexService.getShard(request.shardId().getId());
                     final Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier();
@@ -1568,7 +1568,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 canMatchSearcher = searcher;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                final CanMatchShardResponse canMatchShardResponse = canMatchAfterRewrite(request, indexService);
+                final CanMatchShardResponse canMatchShardResponse = canMatchAfterRewriteWithoutSearcher(request, indexService);
                 if (canMatchShardResponse != null) return canMatchShardResponse;
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
@@ -1612,7 +1612,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * This allows us to avoid extra work other than making the shard search active and waiting for refreshes. As a result, we only wait for
      * refreshes to happen on shards that have actual data.
      */
-    private static CanMatchShardResponse canMatchAfterRewrite(ShardSearchRequest request, IndexService indexService) throws IOException {
+    private static CanMatchShardResponse canMatchAfterRewriteWithoutSearcher(
+        final ShardSearchRequest request,
+        final IndexService indexService
+    ) throws IOException {
         final SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             indexService.newSearchExecutionContext(
                 request.shardId().getId(),

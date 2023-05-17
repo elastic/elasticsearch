@@ -33,7 +33,7 @@ public abstract class SearchProgressListener {
     private List<SearchShard> shards;
 
     /**
-     * Executed one when minimize round trips is enabled to indicate the number of remote clusters
+     * Executed once when minimize round trips is enabled to indicate the number of remote clusters
      * that will not be monitored during the search.
      *
      * @param hasLocalShards whether the search will include searching local shards

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -53,7 +51,6 @@ import static java.util.Collections.singletonList;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask implements AsyncTask {
-    private static final Logger logger = LogManager.getLogger(AsyncSearchTask.class);
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -62,7 +59,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     private final Map<String, String> originHeaders;
 
-    private boolean ccsMinimizeRoundtrips; /// MP: TODO I'm not convinced we need this flag in this class - find out
+    private boolean ccsMinimizeRoundtrips;
     private boolean hasInitialized;
     private boolean hasCompleted;
     private long completionId;
@@ -406,16 +403,13 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         protected void onMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {
-            logger.warn("MMM onMinimizeRoundtrips: ccsMinimizeRoundtrips BEFORE: {}", ccsMinimizeRoundtrips);
             // best effort to cancel expired tasks
             checkCancellation();
             ccsMinimizeRoundtrips = numRemoteClusters > 0;
             if (hasLocalShards == false) {
-                // since onListShards will not be called normally, call here to properly initialize task state
-                onListShards(Collections.emptyList(), Collections.emptyList(), null, false);
-                // executeInitListeners(); // will be called in onListShards if search executes locally
+                // since onListShards will not be called in this case, call here to properly initialize task state
+                onListShards(Collections.emptyList(), Collections.emptyList(), null, false); // TODO: pass in non-null Clusters!!
             }
-            logger.warn("MMM onMinimizeRoundtrips: ccsMinimizeRoundtrips AFTER: {}", ccsMinimizeRoundtrips);
         }
 
         @Override

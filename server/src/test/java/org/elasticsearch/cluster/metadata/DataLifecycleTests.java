@@ -39,19 +39,17 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
-        if (randomBoolean()) {
-            return new DataLifecycle();
-        } else {
-            return new DataLifecycle(randomMillisUpToYear9999());
-        }
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new DataLifecycle();
+            case 1 -> new DataLifecycle.Builder().nullified(true).build();
+            case 2 -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(null)).build();
+            default -> new DataLifecycle(randomMillisUpToYear9999());
+        };
     }
 
     @Override
     protected DataLifecycle mutateInstance(DataLifecycle instance) throws IOException {
-        if (instance.getDataRetention() == null) {
-            return new DataLifecycle(randomMillisUpToYear9999());
-        }
-        return new DataLifecycle(instance.getDataRetention().millis() + randomMillisUpToYear9999());
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 
     @Override
@@ -67,7 +65,7 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             dataLifecycle.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(dataLifecycle.getDataRetention())
+            for (String label : rolloverConfiguration.resolveRolloverConditions(dataLifecycle.getEffectiveDataRetention())
                 .getConditions()
                 .keySet()) {
                 assertThat(serialized, containsString(label));
@@ -95,7 +93,10 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         {
             DataLifecycle lifecycleWithRetention = new DataLifecycle(randomMillisUpToYear9999());
             List<DataLifecycle> lifecycles = List.of(lifecycleWithRetention, new DataLifecycle());
-            assertThat(DataLifecycle.compose(lifecycles).getDataRetention(), equalTo(lifecycleWithRetention.getDataRetention()));
+            assertThat(
+                DataLifecycle.compose(lifecycles).getEffectiveDataRetention(),
+                equalTo(lifecycleWithRetention.getEffectiveDataRetention())
+            );
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
         {

@@ -1224,7 +1224,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             creationAndRolloverTimes,
             settings(Version.CURRENT),
             new DataLifecycle() {
-                public TimeValue getDataRetention() {
+                public TimeValue getEffectiveDataRetention() {
                     return testRetentionReference.get();
                 }
             }
@@ -1464,7 +1464,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStream.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

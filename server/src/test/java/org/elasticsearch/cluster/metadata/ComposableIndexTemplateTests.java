@@ -313,7 +313,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

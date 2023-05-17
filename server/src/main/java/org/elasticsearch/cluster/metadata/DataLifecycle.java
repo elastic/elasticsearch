@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
@@ -56,16 +57,18 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     public static final ConstructingObjectParser<DataLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
         false,
-        (args, unused) -> new DataLifecycle((TimeValue) args[0])
+        (args, unused) -> new DataLifecycle((Retention) args[0], false)
     );
 
     static {
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
-            DATA_RETENTION_FIELD,
-            ObjectParser.ValueType.STRING_OR_NULL
-        );
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            String value = p.textOrNull();
+            if (value == null) {
+                return Retention.NULL;
+            } else {
+                return new Retention(TimeValue.parseTimeValue(value, DATA_RETENTION_FIELD.getPreferredName()));
+            }
+        }, DATA_RETENTION_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
     }
 
     public static boolean isEnabled() {
@@ -73,18 +76,18 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     @Nullable
-    private final TimeValue dataRetention;
+    private final Retention dataRetention;
     private final boolean nullified;
 
     public DataLifecycle() {
-        this((TimeValue) null);
+        this(null, false);
     }
 
     public DataLifecycle(@Nullable TimeValue dataRetention) {
-        this(dataRetention, false);
+        this(new Retention(dataRetention), false);
     }
 
-    private DataLifecycle(@Nullable TimeValue dataRetention, boolean nullified) {
+    private DataLifecycle(@Nullable Retention dataRetention, boolean nullified) {
         this.dataRetention = dataRetention;
         this.nullified = nullified;
     }
@@ -143,8 +146,26 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         return builder == null ? null : builder.build();
     }
 
+    /**
+     * The least amount of time data should be kept by elasticsearch.
+     * @return the time period or null, null represents the data should never be deleted.
+     */
     @Nullable
-    public TimeValue getDataRetention() {
+    public TimeValue getEffectiveDataRetention() {
+        return dataRetention == null ? null : dataRetention.value;
+    }
+
+    /**
+     * The configuration as provided by the user about the least amount of time data should be kept by elasticsearch.
+     * This method differentiates between a missing retention and a nullified retention and this is useful for template
+     * composition.
+     * @return one of the following:
+     * - `null`, represents that the user did not provide data retention, this represents the user has no opinion about retention
+     * - `Retention{value = null}`, represents that the user explicitly wants to have infinite retention
+     * - `Retention{value = "10d"}`, represents that the user has requested the data to be kept at least 10d.
+     */
+    @Nullable
+    Retention getDataRetention() {
         return dataRetention;
     }
 
@@ -168,12 +189,12 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalTimeValue(dataRetention);
+        out.writeOptionalWriteable(dataRetention);
         out.writeBoolean(nullified);
     }
 
     public DataLifecycle(StreamInput in) throws IOException {
-        this(in.readOptionalTimeValue(), in.readBoolean());
+        this(in.readOptionalWriteable(Retention::read), in.readBoolean());
     }
 
     public static Diff<DataLifecycle> readDiffFrom(StreamInput in) throws IOException {
@@ -201,11 +222,15 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
 
         builder.startObject();
         if (dataRetention != null) {
-            builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.getStringRep());
+            if (dataRetention.value() == null) {
+                builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
+            } else {
+                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
+            }
         }
         if (rolloverConfiguration != null) {
             builder.field(ROLLOVER_FIELD.getPreferredName());
-            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, dataRetention);
+            rolloverConfiguration.evaluateAndConvertToXContent(builder, params, getEffectiveDataRetention());
         }
         builder.endObject();
         return builder;
@@ -220,19 +245,43 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
      */
     static class Builder {
         @Nullable
-        private TimeValue dataRetention = null;
+        private Retention dataRetention = null;
+        private boolean nullified = false;
 
-        Builder dataRetention(@Nullable TimeValue value) {
+        Builder dataRetention(@Nullable Retention value) {
             dataRetention = value;
             return this;
         }
 
+        Builder nullified(boolean value) {
+            nullified = value;
+            return this;
+        }
+
         DataLifecycle build() {
-            return new DataLifecycle(dataRetention);
+            return new DataLifecycle(dataRetention, nullified);
         }
 
         static Builder newBuilder(DataLifecycle dataLifecycle) {
-            return new Builder().dataRetention(dataLifecycle.getDataRetention());
+            return new Builder().dataRetention(dataLifecycle.getDataRetention()).nullified(dataLifecycle.isNullified());
+        }
+    }
+
+    /**
+     * Retention is the least amount of time that the data will be kept by elasticsearch.
+     * @param value is a time period or null. Null represents an explicitly set infinite retention period
+     */
+    record Retention(@Nullable TimeValue value) implements Writeable {
+
+        public static final Retention NULL = new Retention(null);
+
+        public static Retention read(StreamInput in) throws IOException {
+            return new Retention(in.readOptionalTimeValue());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalTimeValue(value);
         }
     }
 }

@@ -135,7 +135,7 @@ public class CrudDataLifecycleIT extends ESIntegTestCase {
             DataLifecycle lifecycle = randomDataLifecycle();
             PutDataLifecycleAction.Request putDataLifecycleRequest = new PutDataLifecycleAction.Request(
                 new String[] { "*" },
-                lifecycle.getDataRetention()
+                lifecycle.getEffectiveDataRetention()
             );
             assertThat(client().execute(PutDataLifecycleAction.INSTANCE, putDataLifecycleRequest).get().isAcknowledged(), equalTo(true));
             GetDataLifecycleAction.Request getDataLifecycleRequest = new GetDataLifecycleAction.Request(new String[] { "my-data-stream" });

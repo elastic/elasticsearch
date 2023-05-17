@@ -120,7 +120,12 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     private static DataLifecycle randomLifecycle() {
-        return randomBoolean() ? DataLifecycle.NULL : new DataLifecycle(randomMillisUpToYear9999());
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new DataLifecycle();
+            case 1 -> new DataLifecycle.Builder().nullified(true).build();
+            case 2 -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(null)).build();
+            default -> new DataLifecycle(randomMillisUpToYear9999());
+        };
     }
 
     private static Map<String, Object> randomMeta() {
@@ -273,7 +278,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

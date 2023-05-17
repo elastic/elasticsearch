@@ -103,6 +103,7 @@ public abstract class FetchSizeTestCase extends JdbcIntegrationTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95151")
     public void testScrollWithDatetimeAndTimezoneParam() throws IOException, SQLException {
         Request request = new Request("PUT", "/test_date_timezone");
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();

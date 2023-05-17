@@ -64,7 +64,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
@@ -87,7 +86,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final ClusterService clusterService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final LongSupplier nowSupplier;
+    private final String enrichIndexName;
     private final int fetchSize;
     private final int maxForceMergeAttempts;
 
@@ -99,7 +98,7 @@ public class EnrichPolicyRunner implements Runnable {
         ClusterService clusterService,
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        LongSupplier nowSupplier,
+        String enrichIndexName,
         int fetchSize,
         int maxForceMergeAttempts
     ) {
@@ -110,7 +109,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = wrapClient(client, policyName, task, clusterService);
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        this.nowSupplier = Objects.requireNonNull(nowSupplier);
+        this.enrichIndexName = enrichIndexName;
         this.fetchSize = fetchSize;
         this.maxForceMergeAttempts = maxForceMergeAttempts;
     }
@@ -371,8 +370,6 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
-        long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = EnrichPolicy.getIndexName(policyName, nowTimestamp);
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)

@@ -610,8 +610,42 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         List<IndexMetadata> indices,
         SingleNodeShutdownMetadata.Type shutdownType
     ) {
+        return createTestClusterState(indexRoutingTable, indices, shutdownType, false);
+    }
+
+    private ClusterState createTestClusterState(
+        RoutingTable indexRoutingTable,
+        List<IndexMetadata> indices,
+        SingleNodeShutdownMetadata.Type shutdownType,
+        boolean shuttingDownNodeAlreadyLeft
+    ) {
         ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
         indices.forEach(imd -> { indicesTable.fPut(imd.getIndex().getName(), imd); });
+
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                    LIVE_NODE_ID
+                )
+            )
+            .add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9202),
+                    OTHER_LIVE_NODE_ID
+                )
+            );
+        if (shuttingDownNodeAlreadyLeft == false) {
+            discoveryNodesBuilder.add(
+                DiscoveryNode.createLocal(
+                    Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID).build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                    SHUTTING_DOWN_NODE_ID
+                )
+            );
+        }
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
@@ -632,36 +666,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                         )
                     )
             )
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), SHUTTING_DOWN_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            SHUTTING_DOWN_NODE_ID
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), LIVE_NODE_ID).build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            LIVE_NODE_ID
-                        )
-                    )
-                    .add(
-                        DiscoveryNode.createLocal(
-                            Settings.builder()
-                                .put(Settings.builder().build())
-                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
-                                .build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9202),
-                            OTHER_LIVE_NODE_ID
-                        )
-                    )
-            )
+            .nodes(discoveryNodesBuilder)
             .routingTable(indexRoutingTable)
             .build();
     }
@@ -717,7 +722,12 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), Arrays.asList(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            Arrays.asList(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            randomBoolean()
+        );
 
         return TransportGetShutdownStatusAction.shardMigrationStatus(
             state,

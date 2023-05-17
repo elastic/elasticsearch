@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks.EnrichPolicyLock;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 import org.junit.After;
 
@@ -47,7 +48,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         // fail if the state of this is left locked
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
     }
 
     public void testDeletePolicyDoesNotExistUnlocksPolicy() throws InterruptedException {
@@ -76,7 +77,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
         // fail if the state of this is left locked
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
     }
 
     public void testDeleteWithoutIndex() throws Exception {
@@ -106,7 +107,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         assertTrue(reference.get().isAcknowledged());
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
         assertNull(EnrichStore.getPolicy(name, clusterService.state()));
     }
@@ -169,7 +170,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         }
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
         assertNull(EnrichStore.getPolicy(name, clusterService.state()));
     }
@@ -186,10 +187,10 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         createIndex(EnrichPolicy.getIndexName(name, 1002));
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
-        assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
-        enrichPolicyLocks.lockPolicy(name);
-        assertTrue(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+        EnrichPolicyLock policyLock = enrichPolicyLocks.lockPolicy(name);
+        assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(1));
 
         {
             final CountDownLatch latch = new CountDownLatch(1);
@@ -214,8 +215,8 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             );
         }
         {
-            enrichPolicyLocks.releasePolicy(name);
-            assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+            policyLock.close();
+            assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
             final CountDownLatch latch = new CountDownLatch(1);
             final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
@@ -235,7 +236,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertNotNull(reference.get());
             assertTrue(reference.get().isAcknowledged());
 
-            assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
+            assertThat(enrichPolicyLocks.lockedPolices().size(), equalTo(0));
 
             assertNull(EnrichStore.getPolicy(name, clusterService.state()));
         }

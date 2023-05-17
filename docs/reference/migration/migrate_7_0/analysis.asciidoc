@@ -63,8 +63,8 @@ or analyzing documents. Both names should be replaced by `ngram` or `edge_ngram`
 [discrete]
 ==== Limit to the difference between max_size and min_size in NGramTokenFilter and NGramTokenizer
 
-To safeguard against creating too many index terms, the difference between `max_ngram` and
-`min_ngram` in `NGramTokenFilter` and `NGramTokenizer` has been limited to 1. This default
+To safeguard against creating too many index terms, the difference between `max_gram` and
+`min_gram` in `NGramTokenFilter` and `NGramTokenizer` has been limited to 1. This default
 limit can be changed with the index setting `index.max_ngram_diff`. Note that if the limit is
 exceeded a error is thrown only for new indices. For existing pre-7.0 indices, a deprecation
 warning is logged.

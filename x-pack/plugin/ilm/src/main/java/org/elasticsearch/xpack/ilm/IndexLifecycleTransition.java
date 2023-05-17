@@ -94,8 +94,9 @@ public final class IndexLifecycleTransition {
         }
 
         final Set<Step.StepKey> cachedStepKeys = stepRegistry.parseStepKeysFromPhase(
-            lifecycleState.getPhaseDefinition(),
-            lifecycleState.getPhase()
+            indexPolicySetting,
+            lifecycleState.getPhase(),
+            lifecycleState.getPhaseDefinition()
         );
         boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
 

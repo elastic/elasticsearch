@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4NioSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
 import org.elasticsearch.transport.NettyByteBufSizer;
+import org.elasticsearch.transport.NetworkTraceFlag;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
@@ -356,7 +357,9 @@ public class Netty4Transport extends TcpTransport {
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", new ESLoggingHandler());
+            if (NetworkTraceFlag.TRACE_ENABLED) {
+                ch.pipeline().addLast("logging", new ESLoggingHandler());
+            }
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
             serverAcceptedChannel(nettyTcpChannel);
         }

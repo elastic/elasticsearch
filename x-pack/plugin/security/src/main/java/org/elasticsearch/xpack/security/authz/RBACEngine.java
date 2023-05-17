@@ -123,10 +123,11 @@ public class RBACEngine implements AuthorizationEngine {
     public RBACEngine(
         Settings settings,
         CompositeRolesStore rolesStore,
+        FieldPermissionsCache fieldPermissionsCache,
         LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
     ) {
         this.rolesStore = rolesStore;
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.fieldPermissionsCache = fieldPermissionsCache;
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
     }
 

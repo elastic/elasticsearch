@@ -188,12 +188,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        // The node is in `DiscoveryNodes`, but not `RoutingNodes` - so there are no shards assigned to it. We're done.
-        if (currentState.getRoutingNodes().node(nodeId) == null) {
-            // We don't know about that node
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
-        }
-
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
             currentState.getRoutingNodes(),
@@ -234,6 +228,12 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 ).getFormattedMessage(),
                 decision
             );
+        }
+
+        // The node is in `DiscoveryNodes`, but not `RoutingNodes` - so there are no shards assigned to it. We're done.
+        if (currentState.getRoutingNodes().node(nodeId) == null) {
+            // We don't know about that node
+            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
         }
 
         // Check if there are any shards currently on this node, and if there are any relocating shards

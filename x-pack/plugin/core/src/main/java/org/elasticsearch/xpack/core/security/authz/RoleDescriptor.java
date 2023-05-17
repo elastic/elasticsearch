@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -26,7 +27,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -58,6 +60,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private final String[] runAs;
     private final Map<String, Object> metadata;
     private final Map<String, Object> transientMetadata;
+
+    /**
+     * Needed as a stop-gap measure because {@link FieldPermissionsCache} has state (settings) but we need to use one
+     * within {@link #checkIfExceptFieldsIsSubsetOfGrantedFields(String, String[], String[])} which is static.
+     * Eventually we want to move parsing away from this class to its own object that can have an internal cache field
+     */
+    private static FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+
+    public static synchronized void setFieldPermissionsCache(FieldPermissionsCache cache) {
+        RoleDescriptor.fieldPermissionsCache = Objects.requireNonNull(cache);
+    }
 
     public RoleDescriptor(
         String name,
@@ -678,7 +691,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private static void checkIfExceptFieldsIsSubsetOfGrantedFields(String roleName, String[] grantedFields, String[] deniedFields) {
         try {
-            FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, deniedFields);
+            fieldPermissionsCache.getFieldPermissions(new FieldPermissionsDefinition(grantedFields, deniedFields));
         } catch (ElasticsearchSecurityException e) {
             throw new ElasticsearchParseException("failed to parse indices privileges for role [{}] - {}", e, roleName, e.getMessage());
         }

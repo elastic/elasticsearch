@@ -1187,4 +1187,41 @@ public class StoreTests extends ESTestCase {
             assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(org.elasticsearch.Version.CURRENT.toString())));
         }
     }
+
+    /**
+     * Comparison Experimentation
+     * Before optimization: write times 10000, total cost time: 270827ms, avg cost time: 27.0827ms
+     * After optimization: write times 10000, total cost time: 11603ms, avg cost time: 1.1603ms
+     * @throws IOException
+     */
+    public void testOptimizeVerifyingIndexOutput() throws IOException {
+        Directory dir = newFSDirectory(createTempDir());
+        IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
+        final int fileLength = (int)RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes();
+        BytesRef bytesRef = new BytesRef(randomByteArrayOfLength(fileLength));
+        output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        CodecUtil.writeFooter(output);
+        output.close();
+        IndexInput indexInput = dir.openInput("foo.bar", IOContext.DEFAULT);
+        String checksum = Store.digestToString(CodecUtil.retrieveChecksum(indexInput));
+        indexInput.seek(0);
+        long length = indexInput.length();
+        BytesRef ref = new BytesRef((int)length);
+        int min = (int) Math.min(length, ref.bytes.length);
+        indexInput.readBytes(ref.bytes, ref.offset, min);
+
+        final int writeTimes = 1;
+        long costSum = 0;
+        for (int i = 0; i < writeTimes; i++) {
+            final String fileName = "foo" + i + ".bar";
+            IndexOutput verifyingOutput = new Store.LuceneVerifyingIndexOutput(new StoreFileMetadata(fileName, length, checksum,
+                MIN_SUPPORTED_LUCENE_VERSION), dir.createOutput(fileName, IOContext.DEFAULT));
+            final long startTime = System.currentTimeMillis();
+            verifyingOutput.writeBytes(ref.bytes, ref.offset, min);
+            costSum += System.currentTimeMillis() - startTime;
+            IOUtils.close(verifyingOutput);
+        }
+        logger.info("VerifyingIndexOutput write times {}, total cost time: {}ms, avg cost time: {}ms", writeTimes, costSum, (costSum + 0.0)/writeTimes);
+        IOUtils.close(indexInput, dir);
+    }
 }

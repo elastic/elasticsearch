@@ -5,8 +5,8 @@
         synonym_set: test-create-synonyms
         body:
           synonyms:
-            - synonyms: "hello, hi"
-            - synonyms: "bye => goodbye"
+            - synonym: "hello, hi"
+            - synonym: "bye => goodbye"
               id: "test-id"
 
   - match: { result: "created" }
@@ -18,8 +18,8 @@
         synonym_set: test-update-synonyms
         body:
           synonyms:
-            - synonyms: "hello, hi"
-            - synonyms: "bye => goodbye"
+            - synonym: "hello, hi"
+            - synonym: "bye => goodbye"
               id: "test-id"
 
   - do:
@@ -27,6 +27,6 @@
         synonym_set: test-update-synonyms
         body:
           synonyms:
-            - synonyms: "other, another"
+            - synonym: "other, another"
 
   - match: { result: "updated" }

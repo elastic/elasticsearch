@@ -14,13 +14,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
-import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -53,7 +55,7 @@ public class SynonymsManagementAPIService {
 
     public SynonymsManagementAPIService(Client client) {
         // TODO Should we set an OriginSettingClient? We would need to check the origin at AuthorizationUtils if we set an
-        this.client = client;
+        this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
     }
 
     private static XContentBuilder mappings() {
@@ -98,52 +100,57 @@ public class SynonymsManagementAPIService {
         // TODO Add synonym rules validation
 
         // Delete synonym set if it existed previously
-        DeleteByQueryRequestBuilder deleteBuilder = new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE).source(
-            SYNONYMS_INDEX
-        ).filter(QueryBuilders.termQuery(SYNONYM_SET_FIELD, resourceName));
-        deleteBuilder.execute(listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
-            boolean created = bulkByScrollResponse.getDeleted() == 0;
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_INDEX).setQuery(
+            QueryBuilders.termQuery(SYNONYM_SET_FIELD, resourceName)
+        ).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
-            // Insert as bulk requests
-            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            try {
-                for (SynonymRule synonymRule : synonymSet.synonyms()) {
+        client.execute(
+            DeleteByQueryAction.INSTANCE,
+            dbqRequest,
+            listener.delegateFailure((deleteByQueryResponseListener, bulkByScrollResponse) -> {
+                boolean created = bulkByScrollResponse.getDeleted() == 0;
 
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                        builder.startObject();
-                        {
-                            builder.field(SYNONYM_FIELD, synonymRule.synonym());
-                            builder.field(SYNONYM_SET_FIELD, resourceName);
+                // Insert as bulk requests
+                BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+                try {
+                    for (SynonymRule synonymRule : synonymSet.synonyms()) {
+
+                        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                            builder.startObject();
+                            {
+                                builder.field(SYNONYM_FIELD, synonymRule.synonym());
+                                builder.field(SYNONYM_SET_FIELD, resourceName);
+                            }
+                            builder.endObject();
+
+                            final IndexRequest indexRequest = new IndexRequest(SYNONYMS_INDEX).opType(DocWriteRequest.OpType.INDEX)
+                                .source(builder);
+                            final String synonymRuleId = synonymRule.id();
+                            if (synonymRuleId != null) {
+                                indexRequest.id(synonymRuleId);
+                            }
+
+                            bulkRequestBuilder.add(indexRequest);
                         }
-                        builder.endObject();
-
-                        final IndexRequest indexRequest = new IndexRequest(SYNONYMS_INDEX).opType(DocWriteRequest.OpType.INDEX)
-                            .source(builder);
-                        final String synonymRuleId = synonymRule.id();
-                        if (synonymRuleId != null) {
-                            indexRequest.id(synonymRuleId);
-                        }
-
-                        bulkRequestBuilder.add(indexRequest);
                     }
+                } catch (IOException ex) {
+                    listener.onFailure(ex);
                 }
-            } catch (IOException ex) {
-                listener.onFailure(ex);
-            }
 
-            bulkRequestBuilder.execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
-                if (bulkResponse.hasFailures() == false) {
-                    PutSynonymsAction.Response.Result result = created
-                        ? PutSynonymsAction.Response.Result.CREATED
-                        : PutSynonymsAction.Response.Result.UPDATED;
-                    bulkResponseListener.onResponse(new PutSynonymsAction.Response(result));
-                } else {
-                    bulkResponseListener.onFailure(
-                        new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
-                    );
-                }
-            }));
-        }));
+                bulkRequestBuilder.execute(deleteByQueryResponseListener.delegateFailure((bulkResponseListener, bulkResponse) -> {
+                    if (bulkResponse.hasFailures() == false) {
+                        PutSynonymsAction.Response.Result result = created
+                            ? PutSynonymsAction.Response.Result.CREATED
+                            : PutSynonymsAction.Response.Result.UPDATED;
+                        bulkResponseListener.onResponse(new PutSynonymsAction.Response(result));
+                    } else {
+                        bulkResponseListener.onFailure(
+                            new ElasticsearchException("Couldn't update synonyms: " + bulkResponse.buildFailureMessage())
+                        );
+                    }
+                }));
+            })
+        );
     }
 
     static Settings settings() {

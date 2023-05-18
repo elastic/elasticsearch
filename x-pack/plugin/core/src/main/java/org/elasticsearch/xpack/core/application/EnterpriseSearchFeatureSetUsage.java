@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,14 +41,20 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public EnterpriseSearchFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.searchApplicationsUsage = in.readMap();
-        this.analyticsCollectionsUsage = in.readMap();
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            this.analyticsCollectionsUsage = in.readMap();
+        } else {
+            this.analyticsCollectionsUsage = Collections.emptyMap();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericMap(searchApplicationsUsage);
-        out.writeGenericMap(analyticsCollectionsUsage);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_9_0)) {
+            out.writeGenericMap(analyticsCollectionsUsage);
+        }
     }
 
     @Override

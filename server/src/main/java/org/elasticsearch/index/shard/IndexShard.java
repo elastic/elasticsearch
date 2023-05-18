@@ -3752,10 +3752,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (threadPool.relativeTimeInMillis() - lastSearcherAccess.get()) >= indexSettings.getSearchIdleAfter().getMillis();
     }
 
-    public long searchIdleTime() {
-        return threadPool.relativeTimeInMillis() - lastSearcherAccess.get();
-    }
-
     /**
      * Returns the last timestamp the searcher was accessed. This is a relative timestamp in milliseconds.
      */

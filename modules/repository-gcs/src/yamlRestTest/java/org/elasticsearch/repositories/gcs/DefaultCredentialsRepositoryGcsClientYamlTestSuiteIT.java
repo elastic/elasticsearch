@@ -9,56 +9,44 @@
 package org.elasticsearch.repositories.gcs;
 
 import fixture.gcs.GoogleCloudStorageHttpFixture;
-import fixture.gcs.TestUtils;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.nio.charset.StandardCharsets;
-
-public class RepositoryGcsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class DefaultCredentialsRepositoryGcsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.google.fixture", "true"));
 
-    private static GoogleCloudStorageHttpFixture fixture = new GoogleCloudStorageHttpFixture(USE_FIXTURE, "bucket", "o/oauth2/token");
-
-    protected static LocalClusterConfigProvider clusterConfig = b -> {};
+    private static GoogleCloudStorageHttpFixture fixture = new GoogleCloudStorageHttpFixture(
+        true,
+        "bucket",
+        "computeMetadata/v1/instance/service-accounts/default/token"
+    );
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-gcs")
-        .setting("gcs.client.integration_test.endpoint", () -> fixture.getAddress(), s -> USE_FIXTURE)
-        .setting("gcs.client.integration_test.token_uri", () -> fixture.getAddress() + "/o/oauth2/token", s -> USE_FIXTURE)
-        .apply(c -> {
-            if (USE_FIXTURE) {
-                c.keystore(
-                    "gcs.client.integration_test.credentials_file",
-                    Resource.fromString(() -> new String(TestUtils.createServiceAccount(random()), StandardCharsets.UTF_8))
-                );
-            } else {
-                c.keystore(
-                    "gcs.client.integration_test.credentials_file",
-                    Resource.fromFile(PathUtils.get(System.getProperty("test.google.account")))
-                );
-            }
-        })
-        .apply(() -> clusterConfig)
+        .setting("gcs.client.integration_test.endpoint", () -> fixture.getAddress())
+        .environment("GCE_METADATA_HOST", () -> fixture.getAddress().replace("http://", ""))
         .build();
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
 
-    public RepositoryGcsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public DefaultCredentialsRepositoryGcsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+    }
+
+    @BeforeClass
+    public static void checkFixtureEnabled() {
+        assumeTrue("Only run against test fixture", USE_FIXTURE);
     }
 
     @Override

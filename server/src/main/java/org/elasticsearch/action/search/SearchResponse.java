@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
@@ -55,7 +53,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(SearchResponse.class);
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -87,7 +84,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 shardFailures[i] = readShardSearchFailure(in);
             }
         }
-
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
@@ -126,31 +122,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.internalResponse = internalResponse;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
+        this.clusters = clusters;
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
-
-        // try to determine if this cluster has completed its search in order to update the 'successful' counter in the Clusters object
-        // used for async CCS minimizeRoundtrips scenario to update a user on search status while it is still running
-        // if (clusterHasLikelyFinished(totalShards, successfulShards, skippedShards, shardFailures.length, clusters)) {
-        // this.clusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
-        // logger.warn("QQQ SearchResponse ctor. Updating clusters to {}", this.clusters);
-        // } else {
-        // this.clusters = clusters;
-        // logger.warn("QQQ SearchResponse ctor. NOT Updating clusters: {}", this.clusters);
-        // }
-        /// MP DEBUG
-        this.clusters = clusters;
-        logger.warn("QQQ SearchResponse ctor. NOT Updating clusters: {}", this.clusters);
-        try {
-            throw new RuntimeException("QQQ SearchResponse ctor");
-        } catch (RuntimeException e) {
-            logger.warn(e.getMessage().substring(0, 4) + " stack trace", e);
-        }
-        /// MP END DEBUG
-
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";

@@ -15,7 +15,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -157,11 +156,7 @@ public class TransformUpdateIT extends TransformRestTestCase {
         // Create the transform
         createPivotReviewsTransform(transformId, destIndex, null, null, null);
 
-        final Request updateTransformRequest = createRequestWithAuth(
-            "POST",
-            getTransformEndpoint() + transformId + "/_update",
-            null
-        );
+        Request updateTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_update", null);
         updateTransformRequest.setJsonEntity("""
             { "settings": { "max_page_search_size": 123 } }""");
 

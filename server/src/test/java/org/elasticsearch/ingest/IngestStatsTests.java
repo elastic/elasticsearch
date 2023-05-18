@@ -25,7 +25,7 @@ public class IngestStatsTests extends ESTestCase {
         Map<String, List<IngestStats.ProcessorStat>> processorStats = createProcessorStats(pipelineStats);
         IngestStats ingestStats = new IngestStats(totalStats, pipelineStats, processorStats);
         IngestStats serializedStats = serialize(ingestStats);
-        assertIngestStats(ingestStats, serializedStats, true, true);
+        assertIngestStats(ingestStats, serializedStats);
     }
 
     private List<IngestStats.PipelineStat> createPipelineStats() {
@@ -60,12 +60,7 @@ public class IngestStatsTests extends ESTestCase {
         return new IngestStats(in);
     }
 
-    private void assertIngestStats(
-        IngestStats ingestStats,
-        IngestStats serializedStats,
-        boolean expectProcessors,
-        boolean expectProcessorTypes
-    ) {
+    private void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats) {
         assertNotSame(ingestStats, serializedStats);
         assertNotSame(ingestStats.totalStats(), serializedStats.totalStats());
         assertNotSame(ingestStats.pipelineStats(), serializedStats.pipelineStats());
@@ -82,28 +77,18 @@ public class IngestStatsTests extends ESTestCase {
             List<IngestStats.ProcessorStat> serializedProcessorStats = serializedStats.processorStats()
                 .get(serializedPipelineStat.pipelineId());
             List<IngestStats.ProcessorStat> processorStat = ingestStats.processorStats().get(serializedPipelineStat.pipelineId());
-            if (expectProcessors) {
-                if (processorStat != null) {
-                    Iterator<IngestStats.ProcessorStat> it = processorStat.iterator();
-                    // intentionally enforcing the identical ordering
-                    for (IngestStats.ProcessorStat serializedProcessorStat : serializedProcessorStats) {
-                        IngestStats.ProcessorStat ps = it.next();
-                        assertEquals(ps.name(), serializedProcessorStat.name());
-                        if (expectProcessorTypes) {
-                            assertEquals(ps.type(), serializedProcessorStat.type());
-                        } else {
-                            assertEquals("_NOT_AVAILABLE", serializedProcessorStat.type());
-                        }
-                        assertEquals(ps.stats(), serializedProcessorStat.stats());
-                    }
-                    assertFalse(it.hasNext());
+            if (processorStat != null) {
+                Iterator<IngestStats.ProcessorStat> it = processorStat.iterator();
+                // intentionally enforcing the identical ordering
+                for (IngestStats.ProcessorStat serializedProcessorStat : serializedProcessorStats) {
+                    IngestStats.ProcessorStat ps = it.next();
+                    assertEquals(ps.name(), serializedProcessorStat.name());
+                    assertEquals(ps.type(), serializedProcessorStat.type());
+                    assertEquals(ps.stats(), serializedProcessorStat.stats());
                 }
-            } else {
-                // pre 6.5 did not serialize any processor stats
-                assertNull(serializedProcessorStats);
+                assertFalse(it.hasNext());
             }
         }
-
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

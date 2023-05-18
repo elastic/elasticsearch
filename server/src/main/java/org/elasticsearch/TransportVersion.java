@@ -124,6 +124,8 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_001 = registerTransportVersion(8_500_001, "c943cfe5-c89d-4eae-989f-f5f4537e84e0");
     public static final TransportVersion V_8_500_002 = registerTransportVersion(8_500_002, "055dd314-ff40-4313-b4c6-9fccddfa42a8");
     public static final TransportVersion V_8_500_003 = registerTransportVersion(8_500_003, "30adbe0c-8614-40dd-81b5-44e9c657bb77");
+    public static final TransportVersion V_8_500_004 = registerTransportVersion(8_500_004, "77261d43-4149-40af-89c5-7e71e0454fce");
+
 
     /**
      * Reference to the most recent transport version.

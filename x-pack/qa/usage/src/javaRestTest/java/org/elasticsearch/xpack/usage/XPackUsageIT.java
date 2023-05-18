@@ -62,7 +62,7 @@ public class XPackUsageIT extends ESRestTestCase {
         assertThat(dataLifecycleMap.get("available"), equalTo(true));
         assertThat(dataLifecycleMap.get("enabled"), equalTo(true));
         assertThat(dataLifecycleMap.get("count"), equalTo(count));
-        assertThat(dataLifecycleMap.get("rollover_config"), notNullValue());
+        assertThat(dataLifecycleMap.get("default_rollover_used"), equalTo(true));
         Map<String, Object> retentionMap = (Map<String, Object>) dataLifecycleMap.get("retention");
         assertThat(retentionMap.size(), equalTo(3));
         assertThat(retentionMap.get("minimum_millis"), equalTo(minimumRetention));

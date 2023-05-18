@@ -431,4 +431,16 @@ public abstract class BucketsAggregator extends AggregatorBase {
         // Set LeafReaderContext to the doc_count provider
         docCountProvider.setLeafReaderContext(ctx);
     }
+    public class IteratorAndAggregator extends IteratorAndCurrent<Long> {
+        private final Aggregator aggregator;
+
+        public Aggregator getAggregator() {
+            return aggregator;
+        }
+
+        public IteratorAndAggregator(Iterator<Long> iterator, Aggregator aggregator) {
+            super(iterator);
+            this.aggregator = aggregator;
+        }
+    }
 }

@@ -48,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * Aggregator for {@code date_histogram} that rounds values using
@@ -312,31 +311,20 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         };
     }
 
-    // NOCOMMIT: Rename this. And probably put it somewhere else.
-    class Zwomp extends IteratorAndCurrent<Long> {
-
-        private final Aggregator aggregator;
-
-        Zwomp(Iterator<Long> iterator, Aggregator aggregator) {
-            super(iterator);
-            this.aggregator = aggregator;
-        }
-    }
-
     @Override
     public void merge(List<AggregationAndBucket> others, long thisBucket) {
         // Need one extra slot in the queue for this aggregator
-        final PriorityQueue<Zwomp> pq = new PriorityQueue<>(others.size() + 1) {
+        final PriorityQueue<IteratorAndAggregator> pq = new PriorityQueue<>(others.size() + 1) {
             @Override
-            public boolean lessThan(Zwomp a, Zwomp b) {
+            public boolean lessThan(IteratorAndAggregator a, IteratorAndAggregator b) {
                 return a.current() < b.current();
             }
         };
 
-        pq.add(new Zwomp(this.bucketOrds.keyOrderedIterator(thisBucket), this));
+        pq.add(new IteratorAndAggregator(this.bucketOrds.keyOrderedIterator(thisBucket), this));
         for (AggregationAndBucket other : others) {
             pq.add(
-                new Zwomp(
+                new IteratorAndAggregator(
                     ((DateHistogramAggregator) other.aggregator()).bucketOrds.keyOrderedIterator(other.bucketOrdinal()),
                     other.aggregator()
                 )
@@ -349,7 +337,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             List<AggregationAndBucket> currentBuckets = new ArrayList<>();
             long key = pq.top().current();
             do {
-                final Zwomp top = pq.top();
+                final IteratorAndAggregator top = pq.top();
 
                 if (top.current() != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
@@ -395,7 +383,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                     key = top.current();
                 }
 
-                currentBuckets.add(new AggregationAndBucket(top.current(), top.aggregator));
+                currentBuckets.add(new AggregationAndBucket(top.current(), top.getAggregator()));
 
                 if (top.hasNext()) {
                     top.next();

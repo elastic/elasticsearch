@@ -84,8 +84,6 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = EMPTY_TOTAL_HITS;
-
-        logger.warn("QQQ MutSearchResp ctor 2: hasLocalShards: {} ;; Clusters = {}", totalShards > 0, clusters);
     }
 
     /**
@@ -178,18 +176,13 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
-        logger.warn("QQQ buildResponse called. Creating new SearchResponse with Clusters: {}", clustersInfo.getClusters());
-        logger.warn("QQQ buildResponse called. localClusterSearchIsFinished?: {}", localClusterSearchIsFinished());
-
         if (clustersInfo.isLocalClusterStatusUpdated() == false && localClusterSearchIsFinished()) {
             if (clustersInfo.getClusters() != null) {
                 Clusters clusters = clustersInfo.getClusters();
                 Clusters newClusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
                 clustersInfo.setClusters(newClusters);
                 clustersInfo.setLocalClusterStatusUpdated(true);  // avoid double counting the local cluster
-                logger.debug("ClustersInfo updated to indicate that the local cluster search has completed: {}", newClusters);
-
-                logger.warn("QQQ buildResponse clusterHasLikelyFinished, so updating clusters to {}", clustersInfo.getClusters());
+                logger.debug("Updating ClustersInfo to indicate that the local cluster search has completed: {}", newClusters);
             }
         }
 
@@ -247,14 +240,12 @@ class MutableSearchResponse {
         }
         SearchResponse searchResponse;
         if (finalResponse != null) {
-            logger.warn("QQQ toAsyncSearchResponse NORMAL: NOT calling buildResponse, using the finalResponse");
             // We have a final response, use it.
             searchResponse = finalResponse;
         } else if (clustersInfo.getClusters() == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
-            logger.warn("QQQ toAsyncSearchResponse NORMAL: calling buildResponse");
             /*
              * Build the response, reducing aggs if we haven't already and
              * storing the result of the reduction so we won't have to reduce
@@ -333,7 +324,6 @@ class MutableSearchResponse {
         long expirationTime,
         ElasticsearchException reduceException
     ) {
-        logger.warn("QQQ toAsyncSearchResponse EXCEPTION: {} - calling buildResponse", reduceException.getMessage());
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }

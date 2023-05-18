@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -53,7 +51,6 @@ import static java.util.Collections.singletonList;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask implements AsyncTask {
-    private static final Logger logger = LogManager.getLogger(AsyncSearchTask.class);
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -412,11 +409,8 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             int totalClusters = numRemoteClusters;
             ccsMinimizeRoundtrips = totalClusters > 0;
             if (hasLocalShards == false) {
-                logger.warn("QQQ: onMinimizeRoundtrips calling onListShards with totalClusters: {}", totalClusters);
-                // since onListShards will not be called in this case, call here to properly initialize task state
+                // since onListShards will not be called otherwise, call here to properly initialize task state
                 onListShards(Collections.emptyList(), Collections.emptyList(), new Clusters(totalClusters, 0, 0), false);
-//            } else {
-//                totalClusters++;
             }
         }
 
@@ -424,19 +418,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
-            // TODO: should we check ccsMinimizeRoundtrips here to adjust Clusters to have the proper total number of clusters?
-            /// MP DEBUG
-//            if (ccsMinimizeRoundtrips) {
-//                //logger.warn("QQQ: onListShards totalClusters: {}; clusters incoming has: {}", totalClusters, clusters);
-//            }
-            try {
-                logger.warn("QQQ onListShards ccsMinimizeRoundtrips?: {}; clusters incoming has: {}", ccsMinimizeRoundtrips, clusters);
-                throw new RuntimeException("QQQ");
-            } catch (RuntimeException e) {
-                logger.warn(e.getMessage() + " ~onListShards stacktrace~ ", e);
-            }
-
-            /// END MP DEBUG
             searchResponse.compareAndSet(
                 null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
@@ -446,9 +427,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
-            if (ccsMinimizeRoundtrips) {
-                logger.warn("QQQ: onPartialReduce called: num shards: {}", shards.size());
-            }
             // best effort to cancel expired tasks
             checkCancellation();
             // The way that the MutableSearchResponse will build the aggs.
@@ -472,9 +450,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggregations, int reducePhase) {
-            if (ccsMinimizeRoundtrips) {
-                logger.warn("QQQ: AsyncSearchTask onFinalReduce called: num shards: {}", shards.size());
-            }
             // best effort to cancel expired tasks
             checkCancellation();
             searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
@@ -482,9 +457,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
         @Override
         public void onResponse(SearchResponse response) {
-            if (ccsMinimizeRoundtrips) {
-                logger.warn("QQQ: AsyncSearchTask onResponse called: response.getClusters: {}", response.getClusters());
-            }
             searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }

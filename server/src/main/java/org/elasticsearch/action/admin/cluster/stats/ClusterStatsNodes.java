@@ -715,7 +715,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 if (nodeStat.getIngestStats() != null) {
                     for (Map.Entry<String, List<org.elasticsearch.ingest.IngestStats.ProcessorStat>> processorStats : nodeStat
                         .getIngestStats()
-                        .getProcessorStats()
+                        .processorStats()
                         .entrySet()) {
                         pipelineIds.add(processorStats.getKey());
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
@@ -723,15 +723,15 @@ public class ClusterStatsNodes implements ToXContentFragment {
                                 org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
                                 if (v == null) {
                                     return new long[] {
-                                        nodeIngestStats.getIngestCount(),
-                                        nodeIngestStats.getIngestFailedCount(),
-                                        nodeIngestStats.getIngestCurrent(),
-                                        nodeIngestStats.getIngestTimeInMillis() };
+                                        nodeIngestStats.ingestCount(),
+                                        nodeIngestStats.ingestFailedCount(),
+                                        nodeIngestStats.ingestCurrent(),
+                                        nodeIngestStats.ingestTimeInMillis() };
                                 } else {
-                                    v[0] += nodeIngestStats.getIngestCount();
-                                    v[1] += nodeIngestStats.getIngestFailedCount();
-                                    v[2] += nodeIngestStats.getIngestCurrent();
-                                    v[3] += nodeIngestStats.getIngestTimeInMillis();
+                                    v[0] += nodeIngestStats.ingestCount();
+                                    v[1] += nodeIngestStats.ingestFailedCount();
+                                    v[2] += nodeIngestStats.ingestCurrent();
+                                    v[3] += nodeIngestStats.ingestTimeInMillis();
                                     return v;
                                 }
                             });

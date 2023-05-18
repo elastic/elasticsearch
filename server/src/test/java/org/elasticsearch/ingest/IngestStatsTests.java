@@ -67,21 +67,21 @@ public class IngestStatsTests extends ESTestCase {
         boolean expectProcessorTypes
     ) {
         assertNotSame(ingestStats, serializedStats);
-        assertNotSame(ingestStats.getTotalStats(), serializedStats.getTotalStats());
-        assertNotSame(ingestStats.getPipelineStats(), serializedStats.getPipelineStats());
-        assertNotSame(ingestStats.getProcessorStats(), serializedStats.getProcessorStats());
+        assertNotSame(ingestStats.totalStats(), serializedStats.totalStats());
+        assertNotSame(ingestStats.pipelineStats(), serializedStats.pipelineStats());
+        assertNotSame(ingestStats.processorStats(), serializedStats.processorStats());
 
-        assertEquals(ingestStats.getTotalStats(), serializedStats.getTotalStats());
-        assertEquals(ingestStats.getPipelineStats().size(), serializedStats.getPipelineStats().size());
+        assertEquals(ingestStats.totalStats(), serializedStats.totalStats());
+        assertEquals(ingestStats.pipelineStats().size(), serializedStats.pipelineStats().size());
 
-        for (IngestStats.PipelineStat serializedPipelineStat : serializedStats.getPipelineStats()) {
+        for (IngestStats.PipelineStat serializedPipelineStat : serializedStats.pipelineStats()) {
             assertEquals(
-                getPipelineStats(ingestStats.getPipelineStats(), serializedPipelineStat.pipelineId()),
+                getPipelineStats(ingestStats.pipelineStats(), serializedPipelineStat.pipelineId()),
                 serializedPipelineStat.stats()
             );
-            List<IngestStats.ProcessorStat> serializedProcessorStats = serializedStats.getProcessorStats()
+            List<IngestStats.ProcessorStat> serializedProcessorStats = serializedStats.processorStats()
                 .get(serializedPipelineStat.pipelineId());
-            List<IngestStats.ProcessorStat> processorStat = ingestStats.getProcessorStats().get(serializedPipelineStat.pipelineId());
+            List<IngestStats.ProcessorStat> processorStat = ingestStats.processorStats().get(serializedPipelineStat.pipelineId());
             if (expectProcessors) {
                 if (processorStat != null) {
                     Iterator<IngestStats.ProcessorStat> it = processorStat.iterator();

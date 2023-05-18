@@ -467,40 +467,40 @@ public class NodeStatsTests extends ESTestCase {
                 if (ingestStats == null) {
                     assertNull(deserializedIngestStats);
                 } else {
-                    IngestStats.Stats totalStats = ingestStats.getTotalStats();
-                    assertEquals(totalStats.getIngestCount(), deserializedIngestStats.getTotalStats().getIngestCount());
-                    assertEquals(totalStats.getIngestCurrent(), deserializedIngestStats.getTotalStats().getIngestCurrent());
-                    assertEquals(totalStats.getIngestFailedCount(), deserializedIngestStats.getTotalStats().getIngestFailedCount());
-                    assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
-                    assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
-                    for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
+                    IngestStats.Stats totalStats = ingestStats.totalStats();
+                    assertEquals(totalStats.ingestCount(), deserializedIngestStats.totalStats().ingestCount());
+                    assertEquals(totalStats.ingestCurrent(), deserializedIngestStats.totalStats().ingestCurrent());
+                    assertEquals(totalStats.ingestFailedCount(), deserializedIngestStats.totalStats().ingestFailedCount());
+                    assertEquals(totalStats.ingestTimeInMillis(), deserializedIngestStats.totalStats().ingestTimeInMillis());
+                    assertEquals(ingestStats.pipelineStats().size(), deserializedIngestStats.pipelineStats().size());
+                    for (IngestStats.PipelineStat pipelineStat : ingestStats.pipelineStats()) {
                         String pipelineId = pipelineStat.pipelineId();
                         IngestStats.Stats deserializedPipelineStats = getPipelineStats(
-                            deserializedIngestStats.getPipelineStats(),
+                            deserializedIngestStats.pipelineStats(),
                             pipelineId
                         );
-                        assertEquals(pipelineStat.stats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
-                        assertEquals(pipelineStat.stats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
-                        assertEquals(pipelineStat.stats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
-                        assertEquals(pipelineStat.stats().getIngestCount(), deserializedPipelineStats.getIngestCount());
-                        List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
+                        assertEquals(pipelineStat.stats().ingestFailedCount(), deserializedPipelineStats.ingestFailedCount());
+                        assertEquals(pipelineStat.stats().ingestTimeInMillis(), deserializedPipelineStats.ingestTimeInMillis());
+                        assertEquals(pipelineStat.stats().ingestCurrent(), deserializedPipelineStats.ingestCurrent());
+                        assertEquals(pipelineStat.stats().ingestCount(), deserializedPipelineStats.ingestCount());
+                        List<IngestStats.ProcessorStat> processorStats = ingestStats.processorStats().get(pipelineId);
                         // intentionally validating identical order
-                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.getProcessorStats().get(pipelineId).iterator();
+                        Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.processorStats().get(pipelineId).iterator();
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
                             assertEquals(
-                                processorStat.stats().getIngestFailedCount(),
-                                deserializedProcessorStat.stats().getIngestFailedCount()
+                                processorStat.stats().ingestFailedCount(),
+                                deserializedProcessorStat.stats().ingestFailedCount()
                             );
                             assertEquals(
-                                processorStat.stats().getIngestTimeInMillis(),
-                                deserializedProcessorStat.stats().getIngestTimeInMillis()
+                                processorStat.stats().ingestTimeInMillis(),
+                                deserializedProcessorStat.stats().ingestTimeInMillis()
                             );
                             assertEquals(
-                                processorStat.stats().getIngestCurrent(),
-                                deserializedProcessorStat.stats().getIngestCurrent()
+                                processorStat.stats().ingestCurrent(),
+                                deserializedProcessorStat.stats().ingestCurrent()
                             );
-                            assertEquals(processorStat.stats().getIngestCount(), deserializedProcessorStat.stats().getIngestCount());
+                            assertEquals(processorStat.stats().ingestCount(), deserializedProcessorStat.stats().ingestCount());
                         }
                         assertFalse(it.hasNext());
                     }
@@ -580,10 +580,10 @@ public class NodeStatsTests extends ESTestCase {
     private static int expectedChunks(@Nullable IngestStats ingestStats) {
         return ingestStats == null
             ? 0
-            : 2 + ingestStats.getPipelineStats()
+            : 2 + ingestStats.pipelineStats()
                 .stream()
                 .mapToInt(
-                    pipelineStats -> 2 + ingestStats.getProcessorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size()
+                    pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size()
                 )
                 .sum();
     }

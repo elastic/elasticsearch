@@ -29,15 +29,15 @@ public class HttpStatsTests extends ESTestCase {
         assertEquals(merged.getClientStats(), Stream.concat(first.getClientStats().stream(), second.getClientStats().stream()).toList());
     }
 
-    private HttpStats randomHttpStats() {
+    public static HttpStats randomHttpStats() {
         return new HttpStats(
             randomLongBetween(0, Long.MAX_VALUE),
             randomLongBetween(0, Long.MAX_VALUE),
-            IntStream.range(1, randomIntBetween(2, 10)).mapToObj(this::randomClients).toList()
+            IntStream.range(1, randomIntBetween(2, 10)).mapToObj(HttpStatsTests::randomClients).toList()
         );
     }
 
-    private HttpStats.ClientStats randomClients(int i) {
+    public static HttpStats.ClientStats randomClients(int i) {
         return new HttpStats.ClientStats(
             randomInt(),
             randomAlphaOfLength(100),

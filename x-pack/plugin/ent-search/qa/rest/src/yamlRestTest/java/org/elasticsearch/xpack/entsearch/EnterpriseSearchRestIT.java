@@ -15,8 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
 
     public EnterpriseSearchRestIT(final ClientYamlTestCandidate testCandidate) {
@@ -30,14 +28,13 @@ public class EnterpriseSearchRestIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        final String value = basicAuthHeaderValue("entsearch-admin", new SecureString("entsearch-admin-password".toCharArray()));
+        final String value = basicAuthHeaderValue("entsearch-superuser", new SecureString("entsearch-superuser-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
     }
 
     @Override
     protected Settings restClientSettings() {
-        final String value = basicAuthHeaderValue("entsearch-user", new SecureString("entsearch-user-password".toCharArray()));
+        final String value = basicAuthHeaderValue("entsearch-admin", new SecureString("entsearch-admin-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
     }
-
 }

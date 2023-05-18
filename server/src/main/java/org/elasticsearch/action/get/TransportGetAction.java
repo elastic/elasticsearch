@@ -9,6 +9,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -58,6 +59,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         );
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
+        // register the internal TransportGetFromTranslogAction
+        new TransportGetFromTranslogAction(transportService, indicesService, actionFilters);
     }
 
     @Override
@@ -89,11 +92,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            super.asyncShardOperation(request, shardId, listener);
+            asyncGet(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {
-                    super.asyncShardOperation(request, shardId, listener);
+                    asyncGet(request, shardId, listener);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -103,13 +106,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected GetResponse shardOperation(GetRequest request, ShardId shardId) throws IOException {
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-
-        if (request.refresh() && request.realtime() == false) {
-            indexShard.refresh("refresh_flag_get");
-        }
-
+        var indexShard = getIndexShard(shardId);
         GetResult result = indexShard.getService()
             .get(
                 request.id(),
@@ -138,5 +135,21 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         } else {
             return super.getExecutor(request, shardId);
         }
+    }
+
+    private void asyncGet(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
+        if (request.refresh() && request.realtime() == false) {
+            threadPool.executor(getExecutor(request, shardId)).execute(ActionRunnable.wrap(listener, l -> {
+                var indexShard = getIndexShard(shardId);
+                indexShard.externalRefresh("refresh_flag_get", l.map(r -> shardOperation(request, shardId)));
+            }));
+        } else {
+            super.asyncShardOperation(request, shardId, listener);
+        }
+    }
+
+    private IndexShard getIndexShard(ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getShard(shardId.id());
     }
 }

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.TransportMainAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -30,7 +30,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestMainAction;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -56,7 +56,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class))
+            hasEntry(NodesInfoAction.INSTANCE.name(), new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class))
         );
     }
 
@@ -64,11 +64,11 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
+                return singletonList(new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
-        assertEquals("action for name [" + MainAction.NAME + "] already registered", e.getMessage());
+        assertEquals("action for name [" + NodesInfoAction.NAME + "] already registered", e.getMessage());
     }
 
     public void testPluginCanRegisterAction() {
@@ -133,11 +133,11 @@ public class ActionModuleTests extends ESTestCase {
 
                 @Override
                 public List<Route> routes() {
-                    return List.of(new Route(GET, "/"));
+                    return List.of(new Route(GET, "/_nodes"));
                 }
             })
         );
-        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
@@ -152,7 +152,7 @@ public class ActionModuleTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<DiscoveryNodes> nodesInCluster
             ) {
-                return singletonList(new RestMainAction() {
+                return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
 
                     @Override
                     public String getName() {
@@ -183,7 +183,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
-            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
             threadPool.shutdown();
         }

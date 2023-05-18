@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
+import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
@@ -48,6 +49,8 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     static final String EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "settings";
     static final String EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "mappings";
 
+    static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
+
     static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
 
     static {
@@ -76,6 +79,18 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
             }
         }
         COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
+    }
+
+    @Override
+    protected List<IngestPipelineConfig> getIngestPipelines() {
+        return List.of(
+            new IngestPipelineConfig(
+                EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
+                ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_INGEST_PIPELINE_NAME + ".json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            )
+        );
     }
 
     // Composable index templates configuration.

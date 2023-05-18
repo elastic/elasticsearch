@@ -1,5 +1,5 @@
 pr: 96198
-summary: New HTTP stats endpoint
+summary: New HTTP info endpoint
 area: Stats
 type: feature
 issues:

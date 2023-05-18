@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rest.action.stats;
+package org.elasticsearch.rest.action.info;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -17,19 +17,19 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.util.List;
 
-public class HttpStatsAction extends AbstractStatsAction {
+public class RestHttpInfoAction extends AbstractInfoAction {
 
     public static final NodesStatsRequest NODES_STATS_REQUEST = new NodesStatsRequest().clear()
         .addMetric(NodesStatsRequest.Metric.HTTP.metricName());
 
     @Override
     public String getName() {
-        return "http_stats_action";
+        return "http_info_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_http_stats"));
+        return List.of(new Route(RestRequest.Method.GET, "/_info/http"));
     }
 
     @Override

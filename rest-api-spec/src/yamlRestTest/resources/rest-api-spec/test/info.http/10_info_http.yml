@@ -2,10 +2,10 @@
 "HTTP Stats":
   - skip:
       version: " - 8.8.99"
-      reason: "HTTP stats only available from v8.9"
+      reason: "/_info/http only available from v8.9"
 
   - do:
-      http.stats: {}
+      info.http: {}
 
   - is_true: cluster_name
   - gte: { http.current_open: 0 }

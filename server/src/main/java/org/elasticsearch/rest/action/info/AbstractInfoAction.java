@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rest.action.stats;
+package org.elasticsearch.rest.action.info;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
-public abstract class AbstractStatsAction extends BaseRestHandler {
+public abstract class AbstractInfoAction extends BaseRestHandler {
 
     public abstract NodesStatsRequest buildNodeStatsRequest();
 

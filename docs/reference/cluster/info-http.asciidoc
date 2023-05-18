@@ -9,7 +9,7 @@ Returns cluster HTTP statistics.
 [[cluster-http-stats-api-request]]
 ==== {api-request-title}
 
-`GET /_http_stats` +
+`GET /_info/http` +
 
 [[cluster-http-stats-api-prereqs]]
 ==== {api-prereq-title}
@@ -117,5 +117,5 @@ Cumulative size in bytes of all requests from this client.
 [source,console]
 ----
 # returns the http stats of the cluster
-GET /_http_stats
+GET /_info/http
 ----

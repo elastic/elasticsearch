@@ -80,10 +80,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                 Stats processorStat = new Stats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
-            processorStats.put(pipelineId, processorStatsPerPipeline);
+            processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
         }
 
-        return Tuple.tuple(pipelineStats, processorStats);
+        return Tuple.tuple(Collections.unmodifiableList(pipelineStats), Collections.unmodifiableMap(processorStats));
     }
 
     @Override

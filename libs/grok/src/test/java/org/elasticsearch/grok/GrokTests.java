@@ -760,12 +760,12 @@ public class GrokTests extends ESTestCase {
         String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
             + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
         BiConsumer<Long, Runnable> scheduler = (delay, command) -> {
-            try {
-                Thread.sleep(delay);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
             Thread t = new Thread(() -> {
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
                 if (run.get()) {
                     command.run();
                 }

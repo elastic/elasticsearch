@@ -333,7 +333,7 @@ GET /_xpack/usage
     "enabled": true,
     "lifecycle": {
         "count": 0,
-        "rollover_config": "{\"max_age\":\"30s\",\"min_docs\":1,\"max_primary_shard_docs\":200000000,\"max_primary_shard_size\":\"50gb\"}",
+        "default_rollover_used": true,
         "retention": {
             "minimum_millis": 0,
             "maximum_millis": 0,

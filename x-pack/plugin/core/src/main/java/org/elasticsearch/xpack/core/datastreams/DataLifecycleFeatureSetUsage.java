@@ -47,7 +47,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.field("count", lifecycleStats.dataStreamsWithLifecyclesCount);
-        builder.field("rollover_config", lifecycleStats.rolloverConfigString);
+        builder.field("default_rollover_used", lifecycleStats.defaultRolloverUsed);
         builder.startObject("retention");
         builder.field("minimum_millis", lifecycleStats.minRetentionMillis);
         builder.field("maximum_millis", lifecycleStats.maxRetentionMillis);
@@ -82,20 +82,20 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         final long minRetentionMillis;
         final long maxRetentionMillis;
         final double averageRetentionMillis;
-        final String rolloverConfigString;
+        final boolean defaultRolloverUsed;
 
         public LifecycleStats(
             long dataStreamsWithLifecyclesCount,
             long minRetention,
             long maxRetention,
             double averageRetention,
-            String rolloverConfigString
+            boolean defaultRolloverUsed
         ) {
             this.dataStreamsWithLifecyclesCount = dataStreamsWithLifecyclesCount;
             this.minRetentionMillis = minRetention;
             this.maxRetentionMillis = maxRetention;
             this.averageRetentionMillis = averageRetention;
-            this.rolloverConfigString = rolloverConfigString;
+            this.defaultRolloverUsed = defaultRolloverUsed;
         }
 
         public LifecycleStats(StreamInput in) throws IOException {
@@ -104,13 +104,13 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 this.minRetentionMillis = in.readVLong();
                 this.maxRetentionMillis = in.readVLong();
                 this.averageRetentionMillis = in.readDouble();
-                this.rolloverConfigString = in.readString();
+                this.defaultRolloverUsed = in.readBoolean();
             } else {
                 this.dataStreamsWithLifecyclesCount = 0;
                 this.minRetentionMillis = 0;
                 this.maxRetentionMillis = 0;
                 this.averageRetentionMillis = 0.0;
-                this.rolloverConfigString = null;
+                this.defaultRolloverUsed = false;
             }
         }
 
@@ -121,7 +121,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 out.writeVLong(minRetentionMillis);
                 out.writeVLong(maxRetentionMillis);
                 out.writeDouble(averageRetentionMillis);
-                out.writeString(rolloverConfigString);
+                out.writeBoolean(defaultRolloverUsed);
             }
         }
 
@@ -132,7 +132,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 minRetentionMillis,
                 maxRetentionMillis,
                 averageRetentionMillis,
-                rolloverConfigString
+                defaultRolloverUsed
             );
         }
 
@@ -146,7 +146,7 @@ public class DataLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 && minRetentionMillis == other.minRetentionMillis
                 && maxRetentionMillis == other.maxRetentionMillis
                 && averageRetentionMillis == other.averageRetentionMillis
-                && Objects.equals(rolloverConfigString, other.rolloverConfigString);
+                && defaultRolloverUsed == other.defaultRolloverUsed;
         }
     }
 }

@@ -69,7 +69,7 @@ public class DataLifecycleUsageTransportAction extends XPackUsageFeatureTranspor
             minRetention,
             maxRetention,
             averageRetention,
-            rolloverConfigString
+            DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getDefault(null).toString().equals(rolloverConfigString)
         );
 
         final DataLifecycleFeatureSetUsage usage = new DataLifecycleFeatureSetUsage(stats);

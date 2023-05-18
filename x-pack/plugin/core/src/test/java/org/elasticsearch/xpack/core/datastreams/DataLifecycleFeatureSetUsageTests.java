@@ -21,7 +21,7 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomDouble(),
-                randomAlphaOfLength(10)
+                randomBoolean()
             )
         );
     }
@@ -35,7 +35,7 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
                     instance.lifecycleStats.minRetentionMillis,
                     instance.lifecycleStats.maxRetentionMillis,
                     instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.rolloverConfigString
+                    instance.lifecycleStats.defaultRolloverUsed
                 )
             );
             case 1 -> new DataLifecycleFeatureSetUsage(
@@ -44,7 +44,7 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
                     randomValueOtherThan(instance.lifecycleStats.minRetentionMillis, ESTestCase::randomLong),
                     instance.lifecycleStats.maxRetentionMillis,
                     instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.rolloverConfigString
+                    instance.lifecycleStats.defaultRolloverUsed
                 )
             );
             case 2 -> new DataLifecycleFeatureSetUsage(
@@ -53,7 +53,7 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
                     instance.lifecycleStats.minRetentionMillis,
                     randomValueOtherThan(instance.lifecycleStats.maxRetentionMillis, ESTestCase::randomLong),
                     instance.lifecycleStats.averageRetentionMillis,
-                    instance.lifecycleStats.rolloverConfigString
+                    instance.lifecycleStats.defaultRolloverUsed
                 )
             );
             case 3 -> new DataLifecycleFeatureSetUsage(
@@ -62,7 +62,7 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
                     instance.lifecycleStats.minRetentionMillis,
                     instance.lifecycleStats.maxRetentionMillis,
                     randomValueOtherThan(instance.lifecycleStats.averageRetentionMillis, ESTestCase::randomDouble),
-                    instance.lifecycleStats.rolloverConfigString
+                    instance.lifecycleStats.defaultRolloverUsed
                 )
             );
             case 4 -> new DataLifecycleFeatureSetUsage(
@@ -71,7 +71,7 @@ public class DataLifecycleFeatureSetUsageTests extends AbstractWireSerializingTe
                     instance.lifecycleStats.minRetentionMillis,
                     instance.lifecycleStats.maxRetentionMillis,
                     instance.lifecycleStats.averageRetentionMillis,
-                    randomValueOtherThan(instance.lifecycleStats.rolloverConfigString, () -> randomAlphaOfLength(20))
+                    instance.lifecycleStats.defaultRolloverUsed == false
                 )
             );
             default -> throw new RuntimeException("unreachable");

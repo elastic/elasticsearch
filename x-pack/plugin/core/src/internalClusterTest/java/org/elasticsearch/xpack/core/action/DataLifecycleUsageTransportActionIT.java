@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -43,7 +44,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_LIFECYCLE;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
     /*
@@ -55,7 +55,7 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
     }
 
     @After
-    private void removeDataStreamsFromClusterState() throws Exception {
+    private void cleanup() throws Exception {
         updateClusterState(clusterState -> {
             ClusterState.Builder clusterStateBuilder = new ClusterState.Builder(clusterState);
             Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
@@ -63,15 +63,20 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
             clusterStateBuilder.metadata(metadataBuilder);
             return clusterStateBuilder.build();
         });
+        updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), (String) null));
     }
 
     @SuppressWarnings("unchecked")
     public void testAction() throws Exception {
-        assertUsageResults(0, 0, 0, 0.0);
+        assertUsageResults(0, 0, 0, 0.0, true);
         AtomicLong count = new AtomicLong(0);
         AtomicLong totalRetentionTimes = new AtomicLong(0);
         AtomicLong minRetention = new AtomicLong(Long.MAX_VALUE);
         AtomicLong maxRetention = new AtomicLong(Long.MIN_VALUE);
+        boolean useDefaultRolloverConfig = randomBoolean();
+        if (useDefaultRolloverConfig == false) {
+            updateClusterSettings(Settings.builder().put(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=33"));
+        }
         /*
          * We now add a number of simulated data streams to the cluster state. Some have lifecycles, some don't. The ones with lifecycles
          * have varying retention periods. After adding them, we make sure the numbers add up.
@@ -124,11 +129,23 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
         int expectedMinimumRetention = minRetention.get() == Long.MAX_VALUE ? 0 : minRetention.intValue();
         int expectedMaximumRetention = maxRetention.get() == Long.MIN_VALUE ? 0 : maxRetention.intValue();
         double expectedAverageRetention = count.get() == 0 ? 0.0 : totalRetentionTimes.doubleValue() / count.get();
-        assertUsageResults(count.intValue(), expectedMinimumRetention, expectedMaximumRetention, expectedAverageRetention);
+        assertUsageResults(
+            count.intValue(),
+            expectedMinimumRetention,
+            expectedMaximumRetention,
+            expectedAverageRetention,
+            useDefaultRolloverConfig
+        );
     }
 
     @SuppressWarnings("unchecked")
-    private void assertUsageResults(int count, int minimumRetention, int maximumRetention, double averageRetention) throws Exception {
+    private void assertUsageResults(
+        int count,
+        int minimumRetention,
+        int maximumRetention,
+        double averageRetention,
+        boolean defaultRolloverUsed
+    ) throws Exception {
         XPackUsageFeatureResponse response = client().execute(DATA_LIFECYCLE, new XPackUsageRequest()).get();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder = response.getUsage().toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -142,7 +159,7 @@ public class DataLifecycleUsageTransportActionIT extends ESIntegTestCase {
         assertThat(map.get("available"), equalTo(true));
         assertThat(map.get("enabled"), equalTo(true));
         assertThat(map.get("count"), equalTo(count));
-        assertThat(map.get("rollover_config"), notNullValue());
+        assertThat(map.get("default_rollover_used"), equalTo(defaultRolloverUsed));
         Map<String, Object> retentionMap = (Map<String, Object>) map.get("retention");
         assertThat(retentionMap.size(), equalTo(3));
         assertThat(retentionMap.get("minimum_millis"), equalTo(minimumRetention));

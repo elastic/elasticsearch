@@ -63,7 +63,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final Map<String, String> originHeaders;
 
     private boolean ccsMinimizeRoundtrips;
-    private int totalClusters;
     private boolean hasInitialized;
     private boolean hasCompleted;
     private long completionId;
@@ -410,14 +409,14 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         protected void onMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {
             // best effort to cancel expired tasks
             checkCancellation();
-            totalClusters = numRemoteClusters;
+            int totalClusters = numRemoteClusters;
             ccsMinimizeRoundtrips = totalClusters > 0;
             if (hasLocalShards == false) {
                 logger.warn("QQQ: onMinimizeRoundtrips calling onListShards with totalClusters: {}", totalClusters);
                 // since onListShards will not be called in this case, call here to properly initialize task state
                 onListShards(Collections.emptyList(), Collections.emptyList(), new Clusters(totalClusters, 0, 0), false);
-            } else {
-                totalClusters++;
+//            } else {
+//                totalClusters++;
             }
         }
 
@@ -427,9 +426,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
             checkCancellation();
             // TODO: should we check ccsMinimizeRoundtrips here to adjust Clusters to have the proper total number of clusters?
             /// MP DEBUG
-            if (ccsMinimizeRoundtrips) {
-                logger.warn("QQQ: onListShards totalClusters: {}; clusters incoming has: {}", totalClusters, clusters);
+//            if (ccsMinimizeRoundtrips) {
+//                //logger.warn("QQQ: onListShards totalClusters: {}; clusters incoming has: {}", totalClusters, clusters);
+//            }
+            try {
+                logger.warn("QQQ onListShards ccsMinimizeRoundtrips?: {}; clusters incoming has: {}", ccsMinimizeRoundtrips, clusters);
+                throw new RuntimeException("QQQ");
+            } catch (RuntimeException e) {
+                logger.warn(e.getMessage() + " ~onListShards stacktrace~ ", e);
             }
+
             /// END MP DEBUG
             searchResponse.compareAndSet(
                 null,

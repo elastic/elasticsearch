@@ -38,11 +38,12 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
+
     private static final Logger logger = LogManager.getLogger(MutableSearchResponse.class);
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
-    private final Clusters clusters;
+    private SearchClustersInfo clustersInfo;
     private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
@@ -78,13 +79,13 @@ class MutableSearchResponse {
     MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
-        this.clusters = clusters;
+        this.clustersInfo = new SearchClustersInfo(totalShards > 0, clusters);
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = EMPTY_TOTAL_HITS;
 
-        logger.warn("QQQ MutSearchResp ctor: Clusters = {}", clusters);
+        logger.warn("QQQ MutSearchResp ctor 2: hasLocalShards: {} ;; Clusters = {}", totalShards > 0, clusters);
     }
 
     /**
@@ -177,8 +178,20 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
-        logger.warn("QQQ buildResponse called. Creating new SearchResponse with Clusters: {}", clusters);
-        logger.warn("QQQ buildResponse called. clusterHasLikelyFinished?: {}", clusterHasLikelyFinished());
+        logger.warn("QQQ buildResponse called. Creating new SearchResponse with Clusters: {}", clustersInfo.getClusters());
+        logger.warn("QQQ buildResponse called. localClusterSearchIsFinished?: {}", localClusterSearchIsFinished());
+
+        if (clustersInfo.isLocalClusterStatusUpdated() == false && localClusterSearchIsFinished()) {
+            if (clustersInfo.getClusters() != null) {
+                Clusters clusters = clustersInfo.getClusters();
+                Clusters newClusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
+                clustersInfo.setClusters(newClusters);
+                clustersInfo.setLocalClusterStatusUpdated(true);  // avoid double counting the local cluster
+                logger.debug("ClustersInfo updated to indicate that the local cluster search has completed: {}", newClusters);
+
+                logger.warn("QQQ buildResponse clusterHasLikelyFinished, so updating clusters to {}", clustersInfo.getClusters());
+            }
+        }
 
         InternalSearchResponse internal = new InternalSearchResponse(
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN),
@@ -198,18 +211,28 @@ class MutableSearchResponse {
             skippedShards,
             tookInMillis,
             buildQueryFailures(),
-            clusters
+            clustersInfo.getClusters()
         );
     }
 
-    private boolean clusterHasLikelyFinished(
-    ) {
+    /**
+     * Useful for long running CCS async searches when using minimize-roundtrips
+     * @return true if the local cluster is being searched, all of the shards for the local search are completed
+     *              and the Clusters object is in a state where it should be updated to indicate that the local
+     *              cluster search has completed.
+     */
+    private boolean localClusterSearchIsFinished() {
+        if (clustersInfo.hasLocalShards() == false) {
+            return false;
+        }
         int failedShards = buildQueryFailures().length;
-        return clusters != null  // should never be null for CCS minimizeRoundtrips scenario
-            && clusters.equals(Clusters.EMPTY) == false  // EMPTY is often used as a placeholder (not used for CCS minimizeRoundtrips)
-            && totalShards == (successfulShards + skippedShards + failedShards) // if all shards are now accounted for (none pending)
+        Clusters clusters = clustersInfo.getClusters();
+        if (clusters == null  // should never be null for CCS minimizeRoundtrips scenario
             // ensure that incrementing the 'successful' count will not cause successful+skipped to be larger than total
-            && clusters.getTotal() - (clusters.getSuccessful() + clusters.getSkipped()) > 0;
+            || (clusters.getSuccessful() + clusters.getSkipped()) >= clusters.getTotal()) {
+            return false;
+        }
+        return totalShards == (successfulShards + skippedShards + failedShards);
     }
 
     /**
@@ -227,7 +250,7 @@ class MutableSearchResponse {
             logger.warn("QQQ toAsyncSearchResponse NORMAL: NOT calling buildResponse, using the finalResponse");
             // We have a final response, use it.
             searchResponse = finalResponse;
-        } else if (clusters == null) {
+        } else if (clustersInfo.getClusters() == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
@@ -343,5 +366,45 @@ class MutableSearchResponse {
             }
         }
         return failures.toArray(ShardSearchFailure[]::new);
+    }
+
+    /**
+     * Wrapper class for the SearchResponse.Clusters class, which tracks total, successful and skipped clusters.
+     * For async searches of remote clusters, we need additional context not present in the Clusters object -
+     * such as whether the search includes searching the local shards (or is remote only) and whether
+     * the local cluster shards search has been completed.
+     * This information is used to update the underlying Clusters object that gets passed to the
+     * SearchResponse to be converted to XContent output for end users.
+     */
+    static class SearchClustersInfo {
+        private final boolean hasLocalShards;
+        private Clusters clusters;
+        private boolean localClusterStatusUpdated;
+
+        SearchClustersInfo(boolean hasLocalShards, Clusters clusters) {
+            this.hasLocalShards = hasLocalShards;
+            this.clusters = clusters;
+            this.localClusterStatusUpdated = false;
+        }
+
+        public Clusters getClusters() {
+            return clusters;
+        }
+
+        public void setClusters(Clusters clusters) {
+            this.clusters = clusters;
+        }
+
+        public boolean isLocalClusterStatusUpdated() {
+            return localClusterStatusUpdated;
+        }
+
+        public void setLocalClusterStatusUpdated(boolean localClusterStatusUpdated) {
+            this.localClusterStatusUpdated = localClusterStatusUpdated;
+        }
+
+        public boolean hasLocalShards() {
+            return hasLocalShards;
+        }
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
@@ -35,7 +36,10 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -49,6 +53,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -58,21 +63,20 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.FlattenedDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -102,10 +106,15 @@ import java.util.function.Supplier;
 public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
-    private static final String KEYED_FIELD_SUFFIX = "._keyed";
+    public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;
+    }
+
+    private static FlattenedFieldMapper toType(FieldMapper in) {
+        return (FlattenedFieldMapper) in;
     }
 
     private static Builder builder(Mapper in) {
@@ -144,13 +153,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Integer.MAX_VALUE
         );
 
-        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
-            "index_options",
-            false,
-            m -> builder(m).indexOptions.get(),
-            "docs",
-            "freqs"
-        );
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
@@ -159,16 +162,33 @@ public final class FlattenedFieldMapper extends FieldMapper {
             m -> builder(m).splitQueriesOnWhitespace.get(),
             false
         );
+        private final Parameter<List<String>> dimensions = dimensionsParam(m -> builder(m).dimensions.get()).addValidator(v -> {
+            if (v.isEmpty() == false && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                throw new IllegalArgumentException(
+                    "Field ["
+                        + TIME_SERIES_DIMENSIONS_ARRAY_PARAM
+                        + "] requires that ["
+                        + indexed.name
+                        + "] and ["
+                        + hasDocValues.name
+                        + "] are true"
+                );
+            }
+        }).precludesParameters(ignoreAbove);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
+            return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
+        }
 
         public Builder(String name) {
             super(name);
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 hasDocValues,
                 depthLimit,
@@ -178,8 +198,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 indexOptions,
                 similarity,
                 splitQueriesOnWhitespace,
-                meta
-            );
+                meta,
+                dimensions };
         }
 
         @Override
@@ -198,7 +218,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 hasDocValues.get(),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
-                eagerGlobalOrdinals.get()
+                eagerGlobalOrdinals.get(),
+                dimensions.get()
             );
             return new FlattenedFieldMapper(name, ft, this);
         }
@@ -213,6 +234,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
         private final String rootName;
+        private final boolean isDimension;
 
         KeyedFlattenedFieldType(
             String rootName,
@@ -220,7 +242,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasDocValues,
             String key,
             boolean splitQueriesOnWhitespace,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isDimension
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -232,10 +255,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             this.key = key;
             this.rootName = rootName;
+            this.isDimension = isDimension;
         }
 
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(rootName, ref.isIndexed(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
+            this(
+                rootName,
+                ref.isIndexed(),
+                ref.hasDocValues(),
+                key,
+                ref.splitQueriesOnWhitespace,
+                ref.meta(),
+                ref.dimensions.contains(key)
+            );
         }
 
         @Override
@@ -251,6 +283,24 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
+        }
+
+        @Override
+        public void validateMatchedRoutingPath(final String routingPath) {
+            if (false == isDimension) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
+                        + this.rootName
+                        + "."
+                        + this.key
+                        + "] was ["
+                        + typeName()
+                        + "]."
+                );
+            }
         }
 
         @Override
@@ -281,7 +331,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             throw new UnsupportedOperationException(
                 "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
@@ -320,9 +371,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
-            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+        public TermsEnum getTerms(IndexReader reader, String prefix, boolean caseInsensitive, String searchAfter) throws IOException {
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
@@ -331,9 +380,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
             Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
             if (caseInsensitive) {
-                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(prefix));
             } else {
-                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeString(prefix));
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
@@ -360,7 +409,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
@@ -373,6 +422,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 );
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, null);
+        }
+
+        @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
         }
     }
 
@@ -478,12 +536,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static class KeyedFlattenedFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate, ToScriptField<SortedSetDocValues> toScriptField) {
+        private KeyedFlattenedFieldData(
+            String key,
+            IndexOrdinalsFieldData delegate,
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+        ) {
             this.delegate = delegate;
             this.key = key;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         public String getKey() {
@@ -523,25 +585,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
@@ -561,12 +623,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ToScriptField<SortedSetDocValues> toScriptField;
+            private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-            Builder(String fieldName, String key, ToScriptField<SortedSetDocValues> toScriptField) {
+            Builder(String fieldName, String key, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
                 this.fieldName = fieldName;
                 this.key = key;
-                this.toScriptField = toScriptField;
+                this.toScriptFieldFactory = toScriptFieldFactory;
             }
 
             @Override
@@ -579,7 +641,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     // The delegate should never be accessed
                     (dv, n) -> { throw new UnsupportedOperationException(); }
                 );
-                return new KeyedFlattenedFieldData(key, delegate, toScriptField);
+                return new KeyedFlattenedFieldData(key, delegate, toScriptFieldFactory);
             }
         }
     }
@@ -591,6 +653,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
+        private final List<String> dimensions;
+        private final boolean isDimension;
 
         public RootFlattenedFieldType(
             String name,
@@ -599,6 +663,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
             boolean eagerGlobalOrdinals
+        ) {
+            this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList());
+        }
+
+        public RootFlattenedFieldType(
+            String name,
+            boolean indexed,
+            boolean hasDocValues,
+            Map<String, String> meta,
+            boolean splitQueriesOnWhitespace,
+            boolean eagerGlobalOrdinals,
+            List<String> dimensions
         ) {
             super(
                 name,
@@ -610,6 +686,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            this.dimensions = dimensions;
+            this.isDimension = dimensions.isEmpty() == false;
         }
 
         @Override
@@ -637,7 +715,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
@@ -655,13 +733,39 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
         }
+
+        @Override
+        public boolean isDimension() {
+            return isDimension;
+        }
+
+        @Override
+        public List<String> dimensions() {
+            return this.dimensions;
+        }
+
+        @Override
+        public void validateMatchedRoutingPath(final String routingPath) {
+            if (false == isDimension && this.dimensions.contains(routingPath) == false) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path "
+                        + "must be keywords with [time_series_dimension: true] "
+                        + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                        + "without the [script] parameter. ["
+                        + name()
+                        + "] was ["
+                        + typeName()
+                        + "]."
+                );
+            }
+        }
     }
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
     private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
@@ -671,6 +775,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get()
         );
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -702,8 +811,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return;
         }
 
-        XContentParser xContentParser = context.parser();
-        context.doc().addAll(fieldParser.parse(xContentParser));
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            List<IndexableField> fields = fieldParser.parse(context);
+            context.doc().addAll(fields);
+        } finally {
+            context.path().setWithinLeafObject(false);
+        }
 
         if (mappedFieldType.hasDocValues() == false) {
             context.addToFieldNames(fieldType().name());
@@ -713,5 +828,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (fieldType().hasDocValues()) {
+            return new FlattenedSortedSetDocValuesSyntheticFieldLoader(name() + "._keyed", simpleName());
+        }
+
+        throw new IllegalArgumentException(
+            "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+        );
     }
 }

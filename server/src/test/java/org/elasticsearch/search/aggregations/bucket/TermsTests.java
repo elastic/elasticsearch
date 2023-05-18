@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -91,14 +90,14 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            RegExp includeRegexp = null, excludeRegexp = null;
+            String includeRegexp = null, excludeRegexp = null;
             SortedSet<BytesRef> includeValues = null, excludeValues = null;
             boolean hasIncludeOrExclude = false;
 
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    includeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    includeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     includeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -111,7 +110,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    excludeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    excludeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     excludeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);

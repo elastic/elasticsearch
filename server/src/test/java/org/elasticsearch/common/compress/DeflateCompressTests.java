@@ -10,6 +10,9 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.tests.util.LineFileDocs;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -17,9 +20,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.zip.ZipException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test streaming compression (e.g. used for recovery)
@@ -359,6 +366,49 @@ public class DeflateCompressTests extends ESTestCase {
         for (Thread t : threads) {
             t.join();
         }
+    }
+
+    public void testCompressUncompressWithCorruptions() throws Exception {
+        final Random r = random();
+        for (int i = 0; i < 10; i++) {
+            byte[] bytes = new byte[TestUtil.nextInt(r, 1, 100000)];
+            r.nextBytes(bytes);
+            final var offset = between(0, bytes.length - 1);
+            final var length = between(0, bytes.length - offset);
+            final var original = new BytesArray(bytes, offset, length);
+            final var compressed = compressor.compress(original);
+
+            if (randomBoolean()) {
+                var corruptIndex = between(0, compressed.length() - 1);
+                BytesRef bytesRef;
+                final var iterator = compressed.iterator();
+                while ((bytesRef = iterator.next()) != null) {
+                    if (corruptIndex < bytesRef.length) {
+                        bytesRef.bytes[bytesRef.offset + corruptIndex] = randomValueOtherThan(
+                            bytesRef.bytes[bytesRef.offset + corruptIndex],
+                            () -> (byte) (r.nextInt() & 0xff)
+                        );
+                        break;
+                    } else {
+                        corruptIndex -= bytesRef.length;
+                    }
+                }
+                try {
+                    compressor.uncompress(compressed);
+                } catch (ZipException e) {
+                    // ok
+                }
+            } else {
+                var uncompressed = compressor.uncompress(compressed);
+                assertEquals(original, uncompressed);
+            }
+        }
+    }
+
+    public void testUncompressTooShort() {
+        BytesReference bytes = BytesReference.fromByteBuffer(ByteBuffer.wrap(new byte[] { 0x0, 0x0, 0x0 }));
+        var e = expectThrows(IOException.class, () -> compressor.uncompress(bytes));
+        assertThat(e.getMessage(), equalTo("Input bytes length 3 is less than DEFLATE header size 4"));
     }
 
     private void doTest(byte bytes[]) throws IOException {

@@ -15,8 +15,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
-import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
+import org.elasticsearch.xpack.eql.execution.assembler.SequenceCriterion;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
@@ -25,7 +25,9 @@ import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -34,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
@@ -72,8 +75,8 @@ public class TumblingWindow implements Executable {
     };
 
     private final QueryClient client;
-    private final List<Criterion<BoxedQueryRequest>> criteria;
-    private final Criterion<BoxedQueryRequest> until;
+    private final List<SequenceCriterion> criteria;
+    private final SequenceCriterion until;
     private final SequenceMatcher matcher;
     // shortcut
     private final int maxStages;
@@ -99,12 +102,7 @@ public class TumblingWindow implements Executable {
         }
     }
 
-    public TumblingWindow(
-        QueryClient client,
-        List<Criterion<BoxedQueryRequest>> criteria,
-        Criterion<BoxedQueryRequest> until,
-        SequenceMatcher matcher
-    ) {
+    public TumblingWindow(QueryClient client, List<SequenceCriterion> criteria, SequenceCriterion until, SequenceMatcher matcher) {
         this.client = client;
 
         this.until = until;
@@ -112,7 +110,7 @@ public class TumblingWindow implements Executable {
         this.maxStages = criteria.size();
         this.matcher = matcher;
 
-        Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
+        SequenceCriterion baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
@@ -122,7 +120,11 @@ public class TumblingWindow implements Executable {
     public void execute(ActionListener<Payload> listener) {
         log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
-        tumbleWindow(0, listener);
+        // clear the memory at the end of the algorithm
+        tumbleWindow(0, runAfter(listener, () -> {
+            matcher.clear();
+            client.close(listener.delegateFailure((l, r) -> {}));
+        }));
     }
 
     /**
@@ -172,7 +174,7 @@ public class TumblingWindow implements Executable {
 
     private void advance(int stage, ActionListener<Payload> listener) {
         // initialize
-        Criterion<BoxedQueryRequest> base = criteria.get(stage);
+        SequenceCriterion base = criteria.get(stage);
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
 
@@ -191,7 +193,7 @@ public class TumblingWindow implements Executable {
      * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        SequenceCriterion base = criteria.get(baseStage);
         List<SearchHit> hits = searchHits(r);
 
         log.trace("Found [{}] hits", hits.size());
@@ -232,7 +234,7 @@ public class TumblingWindow implements Executable {
     }
 
     private void completeBaseCriterion(int baseStage, List<SearchHit> hits, WindowInfo info, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        SequenceCriterion base = criteria.get(baseStage);
 
         // check for matches - if the limit has been reached, abort
         if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
@@ -372,7 +374,7 @@ public class TumblingWindow implements Executable {
     }
 
     private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
+        SequenceCriterion criterion = criteria.get(currentStage);
         BoxedQueryRequest request = criterion.queryRequest();
 
         boxQuery(window, criterion);
@@ -449,7 +451,7 @@ public class TumblingWindow implements Executable {
     /**
      * Trim hits outside the (upper) limit.
      */
-    private List<SearchHit> trim(List<SearchHit> searchHits, Criterion<BoxedQueryRequest> criterion, Ordinal boundary) {
+    private List<SearchHit> trim(List<SearchHit> searchHits, SequenceCriterion criterion, Ordinal boundary) {
         int offset = 0;
 
         for (int i = searchHits.size() - 1; i >= 0; i--) {
@@ -466,7 +468,7 @@ public class TumblingWindow implements Executable {
     /**
      * Box the query for the given (ASC) criterion based on the window information.
      */
-    private void boxQuery(WindowInfo window, Criterion<BoxedQueryRequest> criterion) {
+    private void boxQuery(WindowInfo window, SequenceCriterion criterion) {
         BoxedQueryRequest request = criterion.queryRequest();
         // for HEAD, it's the window upper limit that keeps changing
         // so check TO.
@@ -541,7 +543,6 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
-            close(listener);
             return;
         }
 
@@ -551,14 +552,8 @@ public class TumblingWindow implements Executable {
                 Collections.reverse(completed);
             }
             SequencePayload payload = new SequencePayload(completed, listOfHits, false, timeTook());
-            close(listener);
             return payload;
         }));
-    }
-
-    private void close(ActionListener<Payload> listener) {
-        matcher.clear();
-        client.close(listener.delegateFailure((l, r) -> {}));
     }
 
     private TimeValue timeTook() {
@@ -587,11 +582,11 @@ public class TumblingWindow implements Executable {
         return key;
     }
 
-    private static Ordinal headOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
+    private static Ordinal headOrdinal(List<SearchHit> hits, SequenceCriterion criterion) {
         return criterion.ordinal(hits.get(0));
     }
 
-    private static Ordinal tailOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
+    private static Ordinal tailOrdinal(List<SearchHit> hits, SequenceCriterion criterion) {
         return criterion.ordinal(hits.get(hits.size() - 1));
     }
 
@@ -616,23 +611,76 @@ public class TumblingWindow implements Executable {
         };
     }
 
-    Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
+    Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(SequenceCriterion criterion, List<SearchHit> hits) {
         return () -> {
             Iterator<SearchHit> delegate = criterion.descending() ? new ReversedIterator<>(hits) : hits.iterator();
 
             return new Iterator<>() {
 
+                SearchHit lastFetchedHit = delegate.hasNext() ? delegate.next() : null;
+                List<Object[]> remainingHitJoinKeys = lastFetchedHit == null ? Collections.emptyList() : extractJoinKeys(lastFetchedHit);
+
+                /**
+                 * extract the join key from a hit. If there are multivalues, the result is the cartesian product.
+                 * eg.
+                 * - if the key is ['a', 'b'], the result is a list containing ['a', 'b']
+                 * - if the key is ['a', ['b', 'c]], the result is a list containing ['a', 'b'] and ['a', 'c']
+                 */
+                private List<Object[]> extractJoinKeys(SearchHit hit) {
+                    if (hit == null) {
+                        return null;
+                    }
+                    Object[] originalKeys = criterion.key(hit);
+
+                    List<Object[]> partial = new ArrayList<>();
+                    if (originalKeys == null) {
+                        partial.add(null);
+                    } else {
+                        int keySize = originalKeys.length;
+                        partial.add(new Object[keySize]);
+                        for (int i = 0; i < keySize; i++) {
+                            if (originalKeys[i] instanceof List<?> possibleValues) {
+                                List<Object[]> newPartial = new ArrayList<>(possibleValues.size() * partial.size());
+                                for (Object possibleValue : possibleValues) {
+                                    for (Object[] partialKey : partial) {
+                                        Object[] newKey = new Object[keySize];
+                                        if (i > 0) {
+                                            System.arraycopy(partialKey, 0, newKey, 0, i);
+                                        }
+                                        newKey[i] = possibleValue;
+                                        newPartial.add(newKey);
+                                    }
+                                }
+                                partial = newPartial;
+                            } else {
+                                for (Object[] key : partial) {
+                                    key[i] = originalKeys[i];
+                                }
+                            }
+                        }
+                    }
+                    return partial;
+                }
+
                 @Override
                 public boolean hasNext() {
-                    return delegate.hasNext();
+                    return CollectionUtils.isEmpty(remainingHitJoinKeys) == false || delegate.hasNext();
                 }
 
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
-                    SearchHit hit = delegate.next();
-                    SequenceKey k = key(criterion.key(hit));
-                    Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(qualifiedIndex(hit)), hit.getId()));
+                    if (remainingHitJoinKeys.isEmpty()) {
+                        lastFetchedHit = delegate.next();
+                        remainingHitJoinKeys = extractJoinKeys(lastFetchedHit);
+                    }
+                    Object[] joinKeys = remainingHitJoinKeys.remove(0);
+
+                    SequenceKey k = key(joinKeys);
+                    Ordinal o = criterion.ordinal(lastFetchedHit);
+                    return new Tuple<>(
+                        new KeyAndOrdinal(k, o),
+                        new HitReference(cache(qualifiedIndex(lastFetchedHit)), lastFetchedHit.getId())
+                    );
                 }
             };
         };

@@ -174,7 +174,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                 } else if (INGEST_TOOK.equals(currentFieldName)) {
                     ingestTook = parser.longValue();
                 } else if (ERRORS.equals(currentFieldName) == false) {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (ITEMS.equals(currentFieldName)) {
@@ -182,10 +182,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                         items.add(BulkItemResponse.fromXContent(parser, items.size()));
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    throwUnknownField(currentFieldName, parser);
                 }
             } else {
-                throwUnknownToken(token, parser.getTokenLocation());
+                throwUnknownToken(token, parser);
             }
         }
         return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);

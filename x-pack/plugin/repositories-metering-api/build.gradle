@@ -18,4 +18,4 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -14,13 +13,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -53,9 +53,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -181,7 +182,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             enabled = randomBoolean();
             settings.put("xpack.ml.enabled", enabled);
         }
-        boolean expected = enabled || useDefault;
+        boolean expected = enabled;
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
@@ -345,7 +346,17 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             3,
                             null,
-                            new AllocationStats("model_3", null, null, null, Instant.now(), List.of()).setState(AllocationState.STOPPING)
+                            new AssignmentStats(
+                                "deployment_3",
+                                "model_3",
+                                null,
+                                null,
+                                null,
+                                null,
+                                Instant.now(),
+                                List.of(),
+                                Priority.NORMAL
+                            ).setState(AssignmentState.STOPPING)
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel4.getModelId(),
@@ -366,41 +377,56 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             4,
                             null,
-                            new AllocationStats(
+                            new AssignmentStats(
+                                "deployment_4",
                                 "model_4",
                                 2,
                                 2,
                                 1000,
+                                ByteSizeValue.ofBytes(1000),
                                 Instant.now(),
                                 List.of(
-                                    AllocationStats.NodeStats.forStartedState(
-                                        new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
-                                        5,
-                                        42.0,
-                                        0,
-                                        1,
-                                        2,
-                                        3,
-                                        Instant.now(),
-                                        Instant.now(),
-                                        randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                    AssignmentStats.NodeStats.forStartedState(
+                                            TestDiscoveryNode.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
+                                            5,
+                                            42.0,
+                                            42.0,
+                                            0,
+                                            1,
+                                            3L,
+                                            2,
+                                            3,
+                                            Instant.now(),
+                                            Instant.now(),
+                                            randomIntBetween(1, 16),
+                                            randomIntBetween(1, 16),
+                                            1L,
+                                            2L,
+                                            33.0,
+                                            1L
                                     ),
-                                    AllocationStats.NodeStats.forStartedState(
-                                        new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
-                                        4,
-                                        50.0,
-                                        0,
-                                        1,
-                                        2,
-                                        3,
-                                        Instant.now(),
-                                        Instant.now(),
-                                        randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                    AssignmentStats.NodeStats.forStartedState(
+                                            TestDiscoveryNode.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
+                                            4,
+                                            50.0,
+                                            50.0,
+                                            0,
+                                            1,
+                                            1L,
+                                            2,
+                                            3,
+                                            Instant.now(),
+                                            Instant.now(),
+                                            randomIntBetween(1, 16),
+                                            randomIntBetween(1, 16),
+                                            2L,
+                                            4L,
+                                            34.0,
+                                            1L
                                     )
-                                )
-                            ).setState(AllocationState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
+                                ),
+                                Priority.NORMAL
+                            ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
                         )
                     ),
                     0,
@@ -691,12 +717,11 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                 DiscoveryNodeRole.ML_ROLE
             );
             nodesBuilder.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "ml-feature-set-given-ml-node-" + i,
                     new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                     attrs,
-                    roles,
-                    Version.CURRENT
+                    roles
                 )
             );
         }
@@ -707,12 +732,11 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             roles.add(DiscoveryNodeRole.MASTER_ROLE);
             roles.add(DiscoveryNodeRole.INGEST_ROLE);
             nodesBuilder.add(
-                new DiscoveryNode(
+                TestDiscoveryNode.create(
                     "ml-feature-set-given-non-ml-node-" + i,
                     new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
                     attrs,
-                    roles,
-                    Version.CURRENT
+                    roles
                 )
             );
         }

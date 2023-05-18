@@ -1,0 +1,184 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              rtf:
+                type: date
+                format: yyyy-MM-dd
+                script: |
+                  if(doc['millis_since_epoch'].value < 0) throw new Exception("date before 1970");
+                  emit(doc['millis_since_epoch'].value);
+                on_script_error: continue
+              rtf_strict_error:
+                type: date
+                format: yyyy-MM-dd
+                script: |
+                  if(doc['millis_since_epoch'].value < 0) throw new Exception("date before 1970");
+                  emit(doc['millis_since_epoch'].value);
+                on_script_error: fail
+            properties:
+              millis_since_epoch:
+                type: long
+
+  - do:
+      bulk:
+        index: testindex
+        refresh: true
+        body: |
+          {"index":{}}
+          {"millis_since_epoch": 1671033474411}
+          {"index":{}}
+          {"millis_since_epoch": -1}
+
+---
+"Query rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            range:
+              rtf:
+                gte: "2022-12-14"
+          fields: [ millis_since_epoch, rtf ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.millis_since_epoch: [ 1671033474411 ] }
+  - match: { hits.hits.0.fields.rtf: [ "2022-12-14" ] }
+
+---
+"Query rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            range:
+              rtf_strict_error:
+                gte: "2022-12-14"
+          fields: [ millis_since_epoch, rtf_strict_error ]
+
+---
+"Aggregate on rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          aggs:
+            firstchar:
+              terms:
+                field: rtf
+  - length: { aggregations.firstchar.buckets: 1 }
+  - match: { aggregations.firstchar.buckets.0.key_as_string: "2022-12-14" }
+
+---
+"Aggregate on rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          aggs:
+            firstchar:
+              terms:
+                field: rtf_strict_error
+
+---
+"Fields retrieval with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ millis_since_epoch, rtf ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.millis_since_epoch: [ 1671033474411 ] }
+  - match: { hits.hits.0.fields.rtf: [ "2022-12-14" ] }
+  - match: { hits.hits.1.fields.millis_since_epoch: [ -1 ] }
+  - is_false: hits.hits.1.fields.rtf
+
+---
+"Fields retrieval with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ millis_since_epoch, rtf_strict_error ]
+
+---
+"Sorting with ignoring error":
+  - do:
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ millis_since_epoch ]
+          sort: rtf
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0.fields.millis_since_epoch: [ 1671033474411 ] }
+  - match: { hits.hits.1.fields.millis_since_epoch: [ -1 ] }
+
+---
+"Sorting with with failing on error":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query: { match_all: { } }
+          fields: [ millis_since_epoch ]
+          sort: rtf_strict_error
+
+---
+"Query search time rtf with on_script_error continue":
+  - do:
+      search:
+        index: testindex
+        body:
+          query:
+            range:
+              rtf_search:
+                gte: "2022-12-14"
+          fields: [ millis_since_epoch, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: date
+              format: yyyy-MM-dd
+              script: |
+                if(doc['millis_since_epoch'].value < 0) throw new Exception("date before 1970");
+                emit(doc['millis_since_epoch'].value);
+              on_script_error: continue
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.millis_since_epoch: [ 1671033474411 ] }
+  - match: { hits.hits.0.fields.rtf_search: [ "2022-12-14" ] }
+
+---
+"Query search time rtf with on_script_error fail":
+  - do:
+      catch: /type=script_exception, reason=runtime error/
+      search:
+        index: testindex
+        body:
+          query:
+            range:
+              rtf_search:
+                gte: "2022-12-14"
+          fields: [ millis_since_epoch, rtf_search ]
+          runtime_mappings:
+            rtf_search:
+              type: date
+              format: yyyy-MM-dd
+              script: |
+                if(doc['millis_since_epoch'].value < 0) throw new Exception("date before 1970");
+                emit(doc['millis_since_epoch'].value);
+              on_script_error: fail

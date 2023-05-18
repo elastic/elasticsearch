@@ -175,7 +175,7 @@ final class CsvParser {
         return line.charAt(currentIndex);
     }
 
-    private boolean isWhitespace(char c) {
+    private static boolean isWhitespace(char c) {
         return c == SPACE || c == TAB;
     }
 

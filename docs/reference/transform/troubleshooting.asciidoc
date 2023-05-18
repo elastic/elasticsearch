@@ -2,9 +2,6 @@
 [[transform-troubleshooting]]
 = Troubleshooting {transforms}
 [subs="attributes"]
-++++
-<titleabbrev>Troubleshooting</titleabbrev>
-++++
 
 Use the information in this section to troubleshoot common problems.
 

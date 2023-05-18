@@ -10,9 +10,9 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -119,8 +119,7 @@ public final class IndexWarmer {
                         final long start = System.nanoTime();
                         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
                             fieldType,
-                            indexFieldDataService.index().getName(),
-                            () -> { throw new UnsupportedOperationException("search lookup not available when warming an index"); }
+                            FieldDataContext.noRuntimeFields("index warming")
                         );
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {
@@ -139,7 +138,7 @@ public final class IndexWarmer {
                     } catch (Exception e) {
                         indexShard.warmerService()
                             .logger()
-                            .warn(() -> new ParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()), e);
+                            .warn(() -> "failed to warm-up global ordinals for [" + fieldType.name() + "]", e);
                     } finally {
                         latch.countDown();
                     }

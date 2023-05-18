@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -79,7 +78,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             addResultAndJoinIfEndOfBatch(rowResults);
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results ", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results ", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         }
     }
@@ -145,13 +144,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             joinCurrentResults();
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         } finally {
             try {
                 consumeDataExtractor();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to consume data extractor", analyticsId), e);
+                LOGGER.error(() -> "[" + analyticsId + "] Failed to consume data extractor", e);
             }
         }
     }

@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -48,7 +48,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
 
         ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode discoveryNode = new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = TestDiscoveryNode.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         ClusterName clusterName = new ClusterName("cluster_name");

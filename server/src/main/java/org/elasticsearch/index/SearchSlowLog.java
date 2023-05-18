@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +20,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -103,6 +102,20 @@ public final class SearchSlowLog implements SearchOperationListener {
         Property.IndexScope
     );
 
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".level",
+        SlowLogLevel.TRACE.name(),
+        SlowLogLevel::parse,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
+
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     public SearchSlowLog(IndexSettings indexSettings) {
@@ -176,8 +189,8 @@ public final class SearchSlowLog implements SearchOperationListener {
             messageFields.put("elasticsearch.slowlog.message", context.indexShard().shardId());
             messageFields.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
             messageFields.put("elasticsearch.slowlog.took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-            if (context.queryResult().getTotalHits() != null) {
-                messageFields.put("elasticsearch.slowlog.total_hits", context.queryResult().getTotalHits());
+            if (context.getTotalHits() != null) {
+                messageFields.put("elasticsearch.slowlog.total_hits", context.getTotalHits());
             } else {
                 messageFields.put("elasticsearch.slowlog.total_hits", "-1");
             }

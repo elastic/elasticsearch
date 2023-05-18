@@ -10,8 +10,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -23,6 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,9 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -149,7 +146,7 @@ public interface Repository extends LifecycleComponent {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     );
 
     /**
@@ -264,24 +261,6 @@ public interface Repository extends LifecycleComponent {
     void updateState(ClusterState state);
 
     /**
-     * Execute a cluster state update with a consistent view of the current {@link RepositoryData}. The {@link ClusterState} passed to the
-     * task generated through {@code createUpdateTask} is guaranteed to point at the same state for this repository as the did the state
-     * at the time the {@code RepositoryData} was loaded.
-     * This allows for operations on the repository that need a consistent view of both the cluster state and the repository contents at
-     * one point in time like for example, checking if a snapshot is in the repository before adding the delete operation for it to the
-     * cluster state.
-     *
-     * @param createUpdateTask function to supply cluster state update task
-     * @param source           the source of the cluster state update task
-     * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
-     */
-    void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    );
-
-    /**
      * Clones a shard snapshot.
      *
      * @param source          source snapshot
@@ -299,14 +278,6 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
-     * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * during snapshot initialization.
-     */
-    default Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
-        return userMetadata;
-    }
-
-    /**
      * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed
      * by a call to stop {@link #close()}.
      * Waiting for ongoing operations should be implemented here instead of in {@link #stop()} or {@link #close()} hooks of this interface
@@ -316,9 +287,6 @@ public interface Repository extends LifecycleComponent {
     void awaitIdle();
 
     static boolean assertSnapshotMetaThread() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT_META + ']') || threadName.startsWith("TEST-")
-            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
-        return true;
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
 }

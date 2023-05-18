@@ -10,8 +10,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,6 +37,11 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     @Override
+    protected boolean isConfigurable() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         // There aren't any parameters
     }
@@ -43,7 +49,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     private DocumentMapper createDocumentMapper(String routingPath, XContentBuilder mappings) throws IOException {
         return createMapperService(
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Increase dimension limit
+                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Allow tests that use many dimensions
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
@@ -52,10 +58,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ).documentMapper();
     }
 
-    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedFunction<XContentBuilder, XContentBuilder, IOException> f)
-        throws IOException {
+    private ParsedDocument parseDocument(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
         // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
-        return docMapper.parse(source(b -> f.apply(b).field("@timestamp", "2021-10-01")));
+        return docMapper.parse(source(null, b -> {
+            f.accept(b);
+            b.field("@timestamp", "2021-10-01");
+        }, null));
+    }
+
+    private BytesRef parseAndGetTsid(DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f) throws IOException {
+        return parseDocument(docMapper, f).rootDoc().getBinaryValue(TimeSeriesIdFieldMapper.NAME);
     }
 
     public void testEnabledInTimeSeriesMode() throws Exception {
@@ -84,17 +96,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ).documentMapper();
         assertThat(docMapper.metadataMapper(TimeSeriesIdFieldMapper.class), is(nullValue()));
 
-        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
+        ParsedDocument doc = docMapper.parse(source("id", b -> b.field("field", "value"), null));
         assertThat(doc.rootDoc().getBinaryValue("_tsid"), is(nullValue()));
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
 
     public void testIncludeInDocumentNotAllowed() throws Exception {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("_tsid", "foo")));
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("_tsid", "foo")));
 
         assertThat(e.getCause().getMessage(), containsString("Field [_tsid] is a metadata field and cannot be added inside a document"));
     }
@@ -115,12 +126,12 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 .endObject();
         }));
 
-        ParsedDocument doc = parseDocument(
+        BytesRef tsid = parseAndGetTsid(
             docMapper,
             b -> b.field("a", "foo").field("b", "bar").field("c", "baz").startObject("o").field("e", "bort").endObject()
         );
         assertMap(
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
+            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
             matchesMap().entry("a", "foo").entry("o.e", "bort")
         );
     }
@@ -128,7 +139,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     public void testUnicodeKeys() throws IOException {
         String fire = new String(new int[] { 0x1F525 }, 0, 1);
         String coffee = "\u2615";
-        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+        DocumentMapper docMapper = createDocumentMapper(fire + "," + coffee, mapping(b -> {
             b.startObject(fire).field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject(coffee).field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
@@ -143,40 +154,39 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testKeywordTooLong() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
 
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> parseDocument(docMapper, b -> b.field("a", "more_than_1024_bytes".repeat(52)).field("@timestamp", "2021-10-01"))
         );
         assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1040]."));
     }
 
     public void testKeywordTooLongUtf8() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
 
         String theWordLong = "長い";
         Exception e = expectThrows(
-            MapperParsingException.class,
+            DocumentParsingException.class,
             () -> parseDocument(docMapper, b -> b.field("a", theWordLong.repeat(200)).field("@timestamp", "2021-10-01"))
         );
         assertThat(e.getCause().getMessage(), equalTo("Dimension fields must be less than [1024] bytes but was [1200]."));
     }
 
     public void testKeywordNull() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper(
-            "a",
-            mapping(b -> { b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject(); })
-        );
+        DocumentMapper docMapper = createDocumentMapper("r", mapping(b -> {
+            b.startObject("r").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", (String) null)));
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields are missing."));
+        BytesRef withNull = parseAndGetTsid(docMapper, b -> b.field("r", "foo").field("a", (String) null));
+        BytesRef withoutField = parseAndGetTsid(docMapper, b -> b.field("r", "foo"));
+        assertThat(withNull, equalTo(withoutField));
     }
 
     /**
@@ -196,13 +206,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 .endObject();
         }));
 
-        ParsedDocument doc = parseDocument(
-            docMapper,
-            b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", 1234).endObject()
-        );
+        BytesRef tsid = parseAndGetTsid(docMapper, b -> {
+            b.field("kw", "kw");
+            b.field("a", 1L);
+            b.field("b", -1);
+            b.field("c", "baz");
+            b.startObject("o").field("e", 1234).endObject();
+        });
         assertMap(
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", 1L).entry("o.e", 1234L)
+            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
+            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", 1234L)
         );
     }
 
@@ -211,20 +224,23 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "long").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_long")));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_long")));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [long] in document with id '1'. Preview of field's value: 'not_a_long'")
+            // TODO describe the document instead of "null"
+            equalTo("[1:6] failed to parse field [a] of type [long] in a time series document. Preview of field's value: 'not_a_long'")
         );
     }
 
     public void testLongNull() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper("b", mapping(b -> {
+        DocumentMapper docMapper = createDocumentMapper("r", mapping(b -> {
+            b.startObject("r").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("a").field("type", "long").field("time_series_dimension", true).endObject();
-            b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", (Long) null)));
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields are missing."));
+
+        BytesRef withNull = parseAndGetTsid(docMapper, b -> b.field("r", "foo").field("a", (Long) null));
+        BytesRef withoutField = parseAndGetTsid(docMapper, b -> b.field("r", "foo"));
+        assertThat(withNull, equalTo(withoutField));
     }
 
     /**
@@ -244,13 +260,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 .endObject();
         }));
 
-        ParsedDocument doc = parseDocument(
-            docMapper,
-            b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", Integer.MIN_VALUE).endObject()
-        );
+        BytesRef tsid = parseAndGetTsid(docMapper, b -> {
+            b.field("kw", "kw");
+            b.field("a", 1L);
+            b.field("b", -1);
+            b.field("c", "baz");
+            b.startObject("o").field("e", Integer.MIN_VALUE).endObject();
+        });
         assertMap(
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", 1L).entry("o.e", (long) Integer.MIN_VALUE)
+            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
+            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", (long) Integer.MIN_VALUE)
         );
     }
 
@@ -259,10 +278,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "integer").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_an_int")));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_an_int")));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [integer] in document with id '1'. Preview of field's value: 'not_an_int'")
+            equalTo("[1:6] failed to parse field [a] of type [integer] in a time series document. Preview of field's value: 'not_an_int'")
         );
     }
 
@@ -271,11 +290,13 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "integer").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
         assertThat(
             e.getMessage(),
             equalTo(
-                "failed to parse field [a] of type [integer] in document with id '1'. Preview of field's value: '" + Long.MAX_VALUE + "'"
+                "[1:6] failed to parse field [a] of type [integer] in a time series document. Preview of field's value: '"
+                    + Long.MAX_VALUE
+                    + "'"
             )
         );
     }
@@ -297,13 +318,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 .endObject();
         }));
 
-        ParsedDocument doc = parseDocument(
-            docMapper,
-            b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", Short.MIN_VALUE).endObject()
-        );
+        BytesRef tsid = parseAndGetTsid(docMapper, b -> {
+            b.field("kw", "kw");
+            b.field("a", 1L);
+            b.field("b", -1);
+            b.field("c", "baz");
+            b.startObject("o").field("e", Short.MIN_VALUE).endObject();
+        });
         assertMap(
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", 1L).entry("o.e", (long) Short.MIN_VALUE)
+            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
+            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", (long) Short.MIN_VALUE)
         );
     }
 
@@ -312,10 +336,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "short").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_short")));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_short")));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [short] in document with id '1'. Preview of field's value: 'not_a_short'")
+            equalTo("[1:6] failed to parse field [a] of type [short] in a time series document. Preview of field's value: 'not_a_short'")
         );
     }
 
@@ -324,10 +348,14 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "short").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [short] in document with id '1'. Preview of field's value: '" + Long.MAX_VALUE + "'")
+            equalTo(
+                "[1:6] failed to parse field [a] of type [short] in a time series document. Preview of field's value: '"
+                    + Long.MAX_VALUE
+                    + "'"
+            )
         );
     }
 
@@ -348,13 +376,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 .endObject();
         }));
 
-        ParsedDocument doc = parseDocument(
-            docMapper,
-            b -> b.field("a", 1L).field("b", -1).field("c", "baz").startObject("o").field("e", (int) Byte.MIN_VALUE).endObject()
-        );
+        BytesRef tsid = parseAndGetTsid(docMapper, b -> {
+            b.field("kw", "kw");
+            b.field("a", 1L);
+            b.field("b", -1);
+            b.field("c", "baz");
+            b.startObject("o").field("e", (int) Byte.MIN_VALUE).endObject();
+        });
         assertMap(
-            TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", 1L).entry("o.e", (long) Byte.MIN_VALUE)
+            TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(tsid).streamInput()),
+            matchesMap().entry("kw", "kw").entry("a", 1L).entry("o.e", (long) Byte.MIN_VALUE)
         );
     }
 
@@ -363,10 +394,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "byte").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_byte")));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_a_byte")));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [byte] in document with id '1'. Preview of field's value: 'not_a_byte'")
+            equalTo("[1:6] failed to parse field [a] of type [byte] in a time series document. Preview of field's value: 'not_a_byte'")
         );
     }
 
@@ -375,10 +406,14 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "byte").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", Long.MAX_VALUE)));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [byte] in document with id '1'. Preview of field's value: '" + Long.MAX_VALUE + "'")
+            equalTo(
+                "[1:6] failed to parse field [a] of type [byte] in a time series document. Preview of field's value: '"
+                    + Long.MAX_VALUE
+                    + "'"
+            )
         );
     }
 
@@ -399,13 +434,16 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 .endObject();
         }));
 
-        ParsedDocument doc = parseDocument(
-            docMapper,
-            b -> b.field("a", "192.168.0.1").field("b", -1).field("c", "baz").startObject("o").field("e", "255.255.255.1").endObject()
-        );
+        ParsedDocument doc = parseDocument(docMapper, b -> {
+            b.field("kw", "kw");
+            b.field("a", "192.168.0.1");
+            b.field("b", -1);
+            b.field("c", "baz");
+            b.startObject("o").field("e", "255.255.255.1").endObject();
+        });
         assertMap(
             TimeSeriesIdFieldMapper.decodeTsid(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes)),
-            matchesMap().entry("a", "192.168.0.1").entry("o.e", "255.255.255.1")
+            matchesMap().entry("kw", "kw").entry("a", "192.168.0.1").entry("o.e", "255.255.255.1")
         );
     }
 
@@ -414,10 +452,10 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             b.startObject("a").field("type", "ip").field("time_series_dimension", true).endObject();
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
         }));
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_an_ip")));
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> b.field("a", "not_an_ip")));
         assertThat(
             e.getMessage(),
-            equalTo("failed to parse field [a] of type [ip] in document with id '1'. Preview of field's value: 'not_an_ip'")
+            equalTo("[1:6] failed to parse field [a] of type [ip] in a time series document. Preview of field's value: 'not_an_ip'")
         );
     }
 
@@ -425,8 +463,6 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
      * Tests when the total of the tsid is more than 32k.
      */
     public void testVeryLarge() throws IOException {
-        // By default, only 16 dimension fields are allowed. To support 100 dimension fields
-        // we must increase 'index.mapping.dimension_fields.limit'
         DocumentMapper docMapper = createDocumentMapper("b", mapping(b -> {
             b.startObject("b").field("type", "keyword").field("time_series_dimension", true).endObject();
             for (int i = 0; i < 100; i++) {
@@ -435,13 +471,13 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         }));
 
         String large = "many words ".repeat(80);
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, b -> {
+        Exception e = expectThrows(DocumentParsingException.class, () -> parseDocument(docMapper, b -> {
+            b.field("b", "foo");
             for (int i = 0; i < 100; i++) {
                 b.field("d" + i, large);
             }
-            return b;
         }));
-        assertThat(e.getCause().getMessage(), equalTo("_tsid longer than [32766] bytes [88691]."));
+        assertThat(e.getCause().getMessage(), equalTo("_tsid longer than [32766] bytes [88698]."));
     }
 
     /**
@@ -457,7 +493,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         String a = randomAlphaOfLength(10);
         int b = between(1, 100);
         int c = between(0, 2);
-        CheckedFunction<XContentBuilder, XContentBuilder, IOException> fields = d -> d.field("a", a).field("b", b).field("c", (long) c);
+        CheckedConsumer<XContentBuilder, IOException> fields = d -> d.field("a", a).field("b", b).field("c", (long) c);
         ParsedDocument doc1 = parseDocument(docMapper, fields);
         ParsedDocument doc2 = parseDocument(docMapper, fields);
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, equalTo(doc2.rootDoc().getBinaryValue("_tsid").bytes));
@@ -517,7 +553,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
         String a = randomAlphaOfLength(10);
         int b = between(1, 100);
-        CheckedFunction<XContentBuilder, XContentBuilder, IOException> fields = d -> d.field("a", a).field("b", b);
+        CheckedConsumer<XContentBuilder, IOException> fields = d -> d.field("a", a).field("b", b);
         ParsedDocument doc1 = parseDocument(docMapper, fields);
         ParsedDocument doc2 = parseDocument(docMapper, fields);
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, equalTo(doc2.rootDoc().getBinaryValue("_tsid").bytes));
@@ -557,7 +593,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         String a = randomAlphaOfLength(10);
         int b = between(1, 100);
         int c = between(5, 500);
-        CheckedFunction<XContentBuilder, XContentBuilder, IOException> fields = d -> d.field("a", a).field("b", b).field("c", c);
+        CheckedConsumer<XContentBuilder, IOException> fields = d -> d.field("a", a).field("b", b).field("c", c);
         ParsedDocument doc1 = parseDocument(docMapper1, fields);
         ParsedDocument doc2 = parseDocument(docMapper2, fields);
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, not(doc2.rootDoc().getBinaryValue("_tsid").bytes));
@@ -579,16 +615,5 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
         ParsedDocument doc1 = parseDocument(docMapper, d -> d.field("a", a).field("b", b));
         ParsedDocument doc2 = parseDocument(docMapper, d -> d.field("a", a).field("b", b).field("c", c));
         assertThat(doc1.rootDoc().getBinaryValue("_tsid").bytes, not(doc2.rootDoc().getBinaryValue("_tsid").bytes));
-    }
-
-    public void testEmpty() throws IOException {
-        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
-            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
-            b.startObject("b").field("type", "integer").field("time_series_dimension", true).endObject();
-            b.startObject("c").field("type", "integer").field("time_series_dimension", true).endObject();
-        }));
-
-        Exception e = expectThrows(MapperParsingException.class, () -> parseDocument(docMapper, d -> d));
-        assertThat(e.getCause().getMessage(), equalTo("Dimension fields are missing."));
     }
 }

@@ -31,7 +31,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
@@ -82,28 +81,26 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR
         );
         List<PostFeatureUpgradeResponse.Feature> featuresToMigrate = systemIndices.getFeatures()
-            .values()
             .stream()
             .map(feature -> getFeatureUpgradeStatus(state, feature))
             .filter(status -> upgradableStatuses.contains(status.getUpgradeStatus()))
             .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getFeatureName)
             .map(PostFeatureUpgradeResponse.Feature::new)
             .sorted(Comparator.comparing(PostFeatureUpgradeResponse.Feature::getFeatureName)) // consistent ordering to simplify testing
-            .collect(Collectors.toList());
+            .toList();
 
         if (featuresToMigrate.isEmpty() == false) {
             persistentTasksService.sendStartRequest(
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),
-                ActionListener.wrap(
-                    startedTask -> { listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null)); },
-                    ex -> {
-                        logger.error("failed to start system index upgrade task", ex);
+                ActionListener.wrap(startedTask -> {
+                    listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
+                }, ex -> {
+                    logger.error("failed to start system index upgrade task", ex);
 
-                        listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
-                    }
-                )
+                    listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
+                })
             );
         } else {
             listener.onResponse(new PostFeatureUpgradeResponse(false, null, "No system indices require migration", null));

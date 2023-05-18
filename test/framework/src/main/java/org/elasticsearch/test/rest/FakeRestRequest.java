@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
+import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -106,8 +107,9 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public HttpRequest removeHeader(String header) {
-            headers.remove(header);
-            return this;
+            final var filteredHeaders = new HashMap<>(headers);
+            filteredHeaders.remove(header);
+            return new FakeHttpRequest(method, uri, content, filteredHeaders, inboundException);
         }
 
         @Override
@@ -124,6 +126,11 @@ public class FakeRestRequest extends RestRequest {
                     return responseHeaders.containsKey(name);
                 }
             };
+        }
+
+        @Override
+        public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+            return createResponse(status, BytesArray.EMPTY);
         }
 
         @Override
@@ -151,7 +158,7 @@ public class FakeRestRequest extends RestRequest {
 
         @Override
         public void sendResponse(HttpResponse response, ActionListener<Void> listener) {
-
+            closeFuture.addListener(listener);
         }
 
         @Override

@@ -1,5 +1,0 @@
-pr: 82292
-summary: "Script: fields API for x-pack `constant_keyword`"
-area: Infra/Scripting
-type: enhancement
-issues: []

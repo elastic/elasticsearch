@@ -27,7 +27,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_UID_SUFFIX_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RealmSettingsTests extends ESTestCase {
     private static final List<String> CACHE_HASHING_ALGOS = Hasher.getAvailableAlgoCacheHash();
@@ -106,6 +108,124 @@ public class RealmSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("elasticsearch.keystore"));
         assertThat(exception.getMessage(), containsString("elasticsearch.yml"));
         assertThat(exception.getMessage(), containsString(securePasswordKey));
+    }
+
+    public void testDomainUidGenerationSuffixSetting() {
+        final String domainName = randomAlphaOfLengthBetween(5, 8);
+
+        final Setting<String> setting = DOMAIN_UID_SUFFIX_SETTING.getConcreteSettingForNamespace(domainName);
+
+        // Valid
+        final String suffix = randomFrom(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 5) + randomIntBetween(0, 10000));
+        assertThat(
+            setting.get(Settings.builder().put("xpack.security.authc.domains." + domainName + ".uid_generation.suffix", suffix).build()),
+            equalTo(suffix)
+        );
+
+        // Cannot begin with number
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(
+                Settings.builder()
+                    .put(
+                        "xpack.security.authc.domains." + domainName + ".uid_generation.suffix",
+                        randomIntBetween(0, 10000) + randomAlphaOfLengthBetween(0, 5)
+                    )
+                    .build()
+            )
+        );
+        assertThat(e1.getMessage(), containsString("Invalid value"));
+
+        // Too long or too short
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(
+                Settings.builder()
+                    .put(
+                        "xpack.security.authc.domains." + domainName + ".uid_generation.suffix",
+                        randomFrom("", randomAlphaOfLengthBetween(11, 20))
+                    )
+                    .build()
+            )
+        );
+        assertThat(e2.getMessage(), containsString("Invalid value"));
+
+        // Must be alphanumeric
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(
+                Settings.builder()
+                    .put("xpack.security.authc.domains." + domainName + ".uid_generation.suffix", randomFrom("fóóbár", " ", "a_b", "x-y"))
+                    .build()
+            )
+        );
+        assertThat(e3.getMessage(), containsString("Invalid value"));
+    }
+
+    public void testInvalidDomainForComputeRealmNameToDomainConfigAssociation() {
+        final String domainName = randomAlphaOfLengthBetween(5, 8);
+
+        final Settings.Builder builder1 = Settings.builder();
+        builder1.putList("xpack.security.authc.domains._" + domainName + ".realms", randomList(3, () -> randomAlphaOfLengthBetween(5, 8)));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> RealmSettings.computeRealmNameToDomainConfigAssociation(builder1.build())
+        );
+
+        assertThat(e1.getMessage(), containsString("Security domain name must not start with \"_\""));
+
+        final Settings.Builder builder2 = Settings.builder();
+        if (randomBoolean()) {
+            builder2.put("xpack.security.authc.domains." + domainName + ".uid_generation.literal_username", randomBoolean());
+        } else {
+            builder2.put("xpack.security.authc.domains." + domainName + ".uid_generation.suffix", randomAlphaOfLengthBetween(1, 10));
+        }
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> RealmSettings.computeRealmNameToDomainConfigAssociation(builder2.build())
+        );
+        assertThat(e2.getMessage(), containsString("[xpack.security.authc.domains." + domainName + ".realms] must exist"));
+
+        final Settings.Builder builder3 = Settings.builder();
+        builder3.putList("xpack.security.authc.domains." + domainName + ".realms", randomList(3, () -> randomAlphaOfLengthBetween(5, 8)));
+        if (randomBoolean()) {
+            builder3.put("xpack.security.authc.domains." + domainName + ".uid_generation.literal_username", false);
+        }
+        builder3.put("xpack.security.authc.domains." + domainName + ".uid_generation.suffix", randomAlphaOfLengthBetween(1, 10));
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> RealmSettings.computeRealmNameToDomainConfigAssociation(builder3.build())
+        );
+        assertThat(
+            e3.getMessage(),
+            containsString(
+                "[xpack.security.authc.domains."
+                    + domainName
+                    + ".uid_generation.suffix] must not be configured"
+                    + " when [xpack.security.authc.domains."
+                    + domainName
+                    + ".uid_generation.literal_username] is set to [false]"
+            )
+        );
+
+        final Settings.Builder builder4 = Settings.builder();
+        builder4.putList("xpack.security.authc.domains." + domainName + ".realms", randomList(3, () -> randomAlphaOfLengthBetween(5, 8)));
+        builder4.put("xpack.security.authc.domains." + domainName + ".uid_generation.literal_username", true);
+        final IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> RealmSettings.computeRealmNameToDomainConfigAssociation(builder4.build())
+        );
+        assertThat(
+            e4.getMessage(),
+            containsString(
+                "[xpack.security.authc.domains."
+                    + domainName
+                    + ".uid_generation.suffix] must be configured"
+                    + " when [xpack.security.authc.domains."
+                    + domainName
+                    + ".uid_generation.literal_username] is set to [true]"
+            )
+        );
     }
 
     private Settings.Builder nativeRealm(String name) {
@@ -210,10 +330,9 @@ public class RealmSettingsTests extends ESTestCase {
 
         if (useTrustStore) {
             builder.put("truststore.path", randomAlphaOfLengthBetween(8, 32));
-            SecuritySettingsSource.addSecureSettings(
-                builder,
-                secureSettings -> { secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8)); }
-            );
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                secureSettings.setString("truststore.secure_password", randomAlphaOfLength(8));
+            });
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
             builder.putList("certificate_authorities", generateRandomStringArray(5, 32, false, false));

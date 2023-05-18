@@ -1,24 +1,22 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
-  testImplementation project(':x-pack:qa')
-  testImplementation(project(xpackModule('ql:test-fixtures')))
-  testImplementation project(xpackModule('sql'))
-  testImplementation project(xpackModule('sql:qa:server'))
+  javaRestTestImplementation project(':x-pack:qa')
+  javaRestTestImplementation(project(xpackModule('ql:test-fixtures')))
+  javaRestTestImplementation project(xpackModule('sql'))
+  javaRestTestImplementation project(xpackModule('sql:qa:server'))
 }
 
 testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
-tasks.named("integTest").configure{ enabled = false}
+tasks.named("javaRestTest").configure{ enabled = false}
 
 // A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards
 BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
@@ -37,20 +35,23 @@ BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
   }
 
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster baseCluster
-    mustRunAfter("precommit")
-    doFirst {
-      def cluster = baseCluster.get()
-      // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
-      println "Upgrading one node to create a mixed cluster"
-      cluster.nextNodeToNextVersion()
+      useCluster baseCluster
+      mustRunAfter("precommit")
+      testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+      classpath = sourceSets.javaRestTest.runtimeClasspath
+      doFirst {
+          def cluster = baseCluster.get()
+          // Getting the endpoints causes a wait for the cluster
+          println "Endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
+          println "Upgrading one node to create a mixed cluster"
+          cluster.nextNodeToNextVersion()
 
-      println "Upgrade complete, endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
-      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.clustername', baseName)
+          println "Upgrade complete, endpoints are: ${-> cluster.allHttpSocketURI.join(",")}"
+          nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+          nonInputProperties.systemProperty('tests.clustername', baseName)
+
     }
-    onlyIf { project.bwc_tests_enabled }
+    onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {

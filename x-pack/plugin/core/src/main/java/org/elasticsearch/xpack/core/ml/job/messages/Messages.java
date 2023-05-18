@@ -96,6 +96,7 @@ public final class Messages {
         "Inconsistent {0}; ''{1}'' specified in the body differs from ''{2}'' specified as a URL argument";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or "
         + "underscores; must start and end with alphanumeric";
+    public static final String INVALID_MODEL_PACKAGE_ID = "Invalid {0}; ''{1}'' is not a valid model package id";
     public static final String ID_TOO_LONG = "Invalid {0}; ''{1}'' cannot contain more than {2} characters.";
     public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric"
         + " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";
@@ -129,6 +130,10 @@ public final class Messages {
         + "hyphens or underscores, must start and end with alphanumeric, and must be less than {1} characters.";
     public static final String INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE = "The provided tags {0} must not match existing model_ids.";
     public static final String INFERENCE_MODEL_ID_AND_TAGS_UNIQUE = "The provided model_id {0} must not match existing tags.";
+    public static final String INFERENCE_DEPLOYMENT_STARTED = "Started deployment";
+    public static final String INFERENCE_DEPLOYMENT_STOPPED = "Stopped deployment";
+    public static final String INFERENCE_DEPLOYMENT_REBALANCED = "Rebalanced trained model allocations because [{0}]";
+    public static final String INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS = "Updated number_of_allocations to [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
         + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
@@ -154,6 +159,7 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
+    public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
@@ -175,7 +181,7 @@ public final class Messages {
         + "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN = "Job requires at least [{0}] free memory "
-        + "on a machine learning capable node to run; [{1}] are available. "
+        + "on a machine learning node to run; [{1}] are available. "
         + "The current total capacity for ML [total: {2}, largest node: {3}].";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";

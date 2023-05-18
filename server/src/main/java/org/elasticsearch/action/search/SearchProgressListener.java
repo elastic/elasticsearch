@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -20,7 +19,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
@@ -102,7 +100,7 @@ public abstract class SearchProgressListener {
         try {
             onListShards(shards, skippedShards, clusters, fetchPhase);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on list shards"), e);
+            logger.warn("Failed to execute progress listener on list shards", e);
         }
     }
 
@@ -110,10 +108,7 @@ public abstract class SearchProgressListener {
         try {
             onQueryResult(shardIndex);
         } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
-                e
-            );
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on query result", e);
         }
     }
 
@@ -121,10 +116,7 @@ public abstract class SearchProgressListener {
         try {
             onQueryFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query failure", shards.get(shardIndex)),
-                e
-            );
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on query failure", e);
         }
     }
 
@@ -132,7 +124,7 @@ public abstract class SearchProgressListener {
         try {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce"), e);
+            logger.warn("Failed to execute progress listener on partial reduce", e);
         }
     }
 
@@ -140,7 +132,7 @@ public abstract class SearchProgressListener {
         try {
             onFinalReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on reduce"), e);
+            logger.warn("Failed to execute progress listener on reduce", e);
         }
     }
 
@@ -148,10 +140,7 @@ public abstract class SearchProgressListener {
         try {
             onFetchResult(shardIndex);
         } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result", shards.get(shardIndex)),
-                e
-            );
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on fetch result", e);
         }
     }
 
@@ -159,10 +148,7 @@ public abstract class SearchProgressListener {
         try {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure", shards.get(shardIndex)),
-                e
-            );
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on fetch failure", e);
         }
     }
 
@@ -171,12 +157,10 @@ public abstract class SearchProgressListener {
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     static List<SearchShard> buildSearchShards(GroupShardsIterator<SearchShardIterator> its) {
-        return StreamSupport.stream(its.spliterator(), false)
-            .map(e -> new SearchShard(e.getClusterAlias(), e.shardId()))
-            .collect(Collectors.toUnmodifiableList());
+        return StreamSupport.stream(its.spliterator(), false).map(e -> new SearchShard(e.getClusterAlias(), e.shardId())).toList();
     }
 }

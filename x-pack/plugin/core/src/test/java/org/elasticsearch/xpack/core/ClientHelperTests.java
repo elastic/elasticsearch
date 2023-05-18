@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -19,12 +20,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -283,10 +284,12 @@ public class ClientHelperTests extends ESTestCase {
             )
         );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
-            .put(AuthenticationField.AUTHENTICATION_KEY, "anything")
-            .put(AuthenticationServiceField.RUN_AS_USER_HEADER, "anything")
-            .map();
+        Map<String, String> headers = Map.of(
+            AuthenticationField.AUTHENTICATION_KEY,
+            "anything",
+            AuthenticationServiceField.RUN_AS_USER_HEADER,
+            "anything"
+        );
 
         assertRunAsExecution(headers, h -> {
             assertThat(h.keySet(), hasSize(2));
@@ -316,7 +319,7 @@ public class ClientHelperTests extends ESTestCase {
             )
         );
         when(client.search(any())).thenReturn(searchFuture);
-        Map<String, String> unrelatedHeaders = MapBuilder.<String, String>newMapBuilder().put(randomAlphaOfLength(10), "anything").map();
+        Map<String, String> unrelatedHeaders = Map.of(randomAlphaOfLength(10), "anything");
 
         assertExecutionWithOrigin(unrelatedHeaders, client);
     }
@@ -417,7 +420,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // No rewriting for current version
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.CURRENT);
         final Map<String, String> headers1;
         if (randomBoolean()) {
             headers1 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
@@ -441,8 +444,12 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // Rewritten for older version
-        final Version previousVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(previousVersion);
+        final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion()
+        );
+        when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {
             headers2 = ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
@@ -454,15 +461,15 @@ public class ClientHelperTests extends ESTestCase {
             final Authentication rewrittenAuth = AuthenticationContextSerializer.decode(
                 headers2.get(AuthenticationField.AUTHENTICATION_KEY)
             );
-            assertThat(rewrittenAuth.getVersion(), equalTo(previousVersion));
-            assertThat(rewrittenAuth.getUser(), equalTo(authentication.getUser()));
+            assertThat(rewrittenAuth.getEffectiveSubject().getTransportVersion(), equalTo(previousVersion));
+            assertThat(rewrittenAuth.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
         }
         if (hasSecondaryAuthHeader) {
             final Authentication rewrittenSecondaryAuth = AuthenticationContextSerializer.decode(
                 headers2.get(SecondaryAuthentication.THREAD_CTX_KEY)
             );
-            assertThat(rewrittenSecondaryAuth.getVersion(), equalTo(previousVersion));
-            assertThat(rewrittenSecondaryAuth.getUser(), equalTo(authentication.getUser()));
+            assertThat(rewrittenSecondaryAuth.getEffectiveSubject().getTransportVersion(), equalTo(previousVersion));
+            assertThat(rewrittenSecondaryAuth.getEffectiveSubject().getUser(), equalTo(authentication.getEffectiveSubject().getUser()));
         }
     }
 }

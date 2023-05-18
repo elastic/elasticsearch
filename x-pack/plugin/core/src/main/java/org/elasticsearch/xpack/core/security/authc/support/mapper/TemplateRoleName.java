@@ -115,7 +115,7 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
         }
     }
 
-    private List<String> convertJsonToList(String evaluation) throws IOException {
+    private static List<String> convertJsonToList(String evaluation) throws IOException {
         final XContentParser parser = XContentFactory.xContent(XContentType.JSON)
             .createParser(XContentParserConfiguration.EMPTY, evaluation);
         XContentParser.Token token = parser.currentToken();
@@ -169,11 +169,6 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
             .field(Fields.TEMPLATE.getPreferredName(), template.utf8ToString())
             .field(Fields.FORMAT.getPreferredName(), format.formatName())
             .endObject();
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,14 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- * This test uses a mixture of HLRC and server side classes.
- *
- * The server classes have builders that set the one-time fields that
- * can only be set on creation e.g. create_time. The HLRC classes must
- * be used when creating PUT trained model requests as they do not set
- * these one-time fields.
- */
 public class TrainedModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue(
@@ -249,89 +242,89 @@ public class TrainedModelIT extends ESRestTestCase {
 
     private void putRegressionModel(String modelId) throws IOException {
         String modelConfig = """
-                         {
-                        	"definition": {
-                        		"trained_model": {
-                        			"ensemble": {
-                        				"feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
-                        				"trained_models": [{
-                        					"tree": {
-                        						"feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
-                        						"tree_structure": [{
-                        							"threshold": 0.5,
-                        							"split_feature": 0,
-                        							"node_index": 0,
-                        							"left_child": 1,
-                        							"right_child": 2
-                        						}, {
-                        							"node_index": 1,
-                        							"leaf_value": [0.3]
-                        						}, {
-                        							"threshold": 0.0,
-                        							"split_feature": 3,
-                        							"node_index": 2,
-                        							"left_child": 3,
-                        							"right_child": 4
-                        						}, {
-                        							"node_index": 3,
-                        							"leaf_value": [0.1]
-                        						}, {
-                        							"node_index": 4,
-                        							"leaf_value": [0.2]
-                        						}]
-                        					}
-                        				}, {
-                        					"tree": {
-                        						"feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
-                        						"tree_structure": [{
-                        							"threshold": 1.0,
-                        							"split_feature": 2,
-                        							"node_index": 0,
-                        							"left_child": 1,
-                        							"right_child": 2
-                        						}, {
-                        							"node_index": 1,
-                        							"leaf_value": [1.5]
-                        						}, {
-                        							"node_index": 2,
-                        							"leaf_value": [0.9]
-                        						}]
-                        					}
-                        				}, {
-                        					"tree": {
-                        						"feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
-                        						"tree_structure": [{
-                        							"threshold": 0.2,
-                        							"split_feature": 1,
-                        							"node_index": 0,
-                        							"left_child": 1,
-                        							"right_child": 2
-                        						}, {
-                        							"node_index": 1,
-                        							"leaf_value": [1.5]
-                        						}, {
-                        							"node_index": 2,
-                        							"leaf_value": [0.9]
-                        						}]
-                        					}
-                        				}],
-                        				"aggregate_output": {
-                        					"weighted_sum": {
-                        						"weights": [0.5, 0.5, 0.5]
-                        					}
-                        				},
-                        				"target_type": "regression"
-                        			}
-                        		},
-                        		"preprocessors": []
-                        	},
-                        	"input": {
-                        		"field_names": ["col1", "col2", "col3"]
-                        	},
-                        	"inference_config": {
-                        		"regression": {}
-                        	}
+                     {
+                        "definition": {
+                            "trained_model": {
+                                "ensemble": {
+                                    "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                    "trained_models": [{
+                                        "tree": {
+                                            "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                            "tree_structure": [{
+                                                "threshold": 0.5,
+                                                "split_feature": 0,
+                                                "node_index": 0,
+                                                "left_child": 1,
+                                                "right_child": 2
+                                            }, {
+                                                "node_index": 1,
+                                                "leaf_value": [0.3]
+                                            }, {
+                                                "threshold": 0.0,
+                                                "split_feature": 3,
+                                                "node_index": 2,
+                                                "left_child": 3,
+                                                "right_child": 4
+                                            }, {
+                                                "node_index": 3,
+                                                "leaf_value": [0.1]
+                                            }, {
+                                                "node_index": 4,
+                                                "leaf_value": [0.2]
+                                            }]
+                                        }
+                                    }, {
+                                        "tree": {
+                                            "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                            "tree_structure": [{
+                                                "threshold": 1.0,
+                                                "split_feature": 2,
+                                                "node_index": 0,
+                                                "left_child": 1,
+                                                "right_child": 2
+                                            }, {
+                                                "node_index": 1,
+                                                "leaf_value": [1.5]
+                                            }, {
+                                                "node_index": 2,
+                                                "leaf_value": [0.9]
+                                            }]
+                                        }
+                                    }, {
+                                        "tree": {
+                                            "feature_names": ["field.foo", "field.bar", "animal_cat", "animal_dog"],
+                                            "tree_structure": [{
+                                                "threshold": 0.2,
+                                                "split_feature": 1,
+                                                "node_index": 0,
+                                                "left_child": 1,
+                                                "right_child": 2
+                                            }, {
+                                                "node_index": 1,
+                                                "leaf_value": [1.5]
+                                            }, {
+                                                "node_index": 2,
+                                                "leaf_value": [0.9]
+                                            }]
+                                        }
+                                    }],
+                                    "aggregate_output": {
+                                        "weighted_sum": {
+                                            "weights": [0.5, 0.5, 0.5]
+                                        }
+                                    },
+                                    "target_type": "regression"
+                                }
+                            },
+                            "preprocessors": []
+                        },
+                        "input": {
+                            "field_names": ["col1", "col2", "col3"]
+                        },
+                        "inference_config": {
+                            "regression": {}
                         }
+                    }
             """;
 
         Request model = new Request("PUT", "_ml/trained_models/" + modelId);
@@ -373,12 +366,12 @@ public class TrainedModelIT extends ESRestTestCase {
 
     private void putModelDefinitionPart(String modelId, int totalSize, int numParts, int partNumber) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/" + partNumber);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "total_definition_length": %s,
               "definition": "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZW==",
               "total_parts": %s
-            }""".formatted(totalSize, numParts));
+            }""", totalSize, numParts));
         client().performRequest(request);
     }
 

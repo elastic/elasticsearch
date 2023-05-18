@@ -17,7 +17,6 @@
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ErrorsException;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -28,9 +27,9 @@ class Initializables {
      * Returns an initializable for an instance that requires no initialization.
      */
     static <T> Initializable<T> of(final T instance) {
-        return new Initializable<T>() {
+        return new Initializable<>() {
             @Override
-            public T get(Errors errors) throws ErrorsException {
+            public T get(Errors errors) {
                 return instance;
             }
 

@@ -14,8 +14,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest.Storage;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -36,6 +34,22 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
+
+    public enum Storage {
+
+        FULL_COPY("full_copy"),
+        SHARED_CACHE("shared_cache");
+
+        private final String storageName;
+
+        public String storageName() {
+            return storageName;
+        }
+
+        Storage(final String storageName) {
+            this.storageName = storageName;
+        }
+    }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.FULL_COPY;
@@ -74,13 +88,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             registerRepository(repository, FsRepository.TYPE, true, repositorySettings(repository));
 
             final String originalIndex = "logs_" + suffix;
-            createIndex(
-                originalIndex,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .build()
-            );
+            createIndex(originalIndex, indexSettings(randomIntBetween(1, 3), 0).build());
             indexDocs(originalIndex, numberOfDocs);
             createSnapshot(repository, snapshot, originalIndex);
             deleteIndex(originalIndex);
@@ -144,13 +152,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             // snapshots must be created from indices on the lowest version, otherwise we won't be able
             // to mount them again in the mixed version cluster (and we'll have IndexFormatTooNewException)
             for (int i = 0; i < numberOfSnapshots; i++) {
-                createIndex(
-                    indices[i],
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build()
-                );
+                createIndex(indices[i], indexSettings(randomIntBetween(1, 3), 0).build());
                 indexDocs(indices[i], numberOfDocs * (i + 1L));
 
                 createSnapshot(repository, snapshots[i], indices[i]);
@@ -394,12 +396,12 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         } else {
             assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
         }
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "index": "%s",
               "renamed_index": "%s",
               "index_settings": %s
-            }""".formatted(indexName, renamedIndex, Strings.toString(indexSettings)));
+            }""", indexName, renamedIndex, Strings.toString(indexSettings)));
         final Response response = client().performRequest(request);
         assertThat(
             "Failed to mount snapshot [" + snapshotName + "] from repository [" + repositoryName + "]: " + response,

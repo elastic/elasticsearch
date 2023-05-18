@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.client.Response;
+import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.CustomMatcher;
@@ -85,6 +87,19 @@ public class TestMatchers extends Matchers {
 
     public static Matcher<String> matchesPattern(Pattern pattern) {
         return predicate("Matches " + pattern.pattern(), String.class, pattern.asPredicate());
+    }
+
+    public static Matcher<Response> hasStatusCode(RestStatus expected) {
+        return new CustomMatcher<>("Response with status " + expected.getStatus() + " (" + expected.name() + ")") {
+            @Override
+            public boolean matches(Object item) {
+                if (item instanceof Response response) {
+                    return response.getStatusLine().getStatusCode() == expected.getStatus();
+                } else {
+                    return false;
+                }
+            }
+        };
     }
 
     private static <T> Matcher<T> predicate(String description, Class<T> type, Predicate<T> predicate) {

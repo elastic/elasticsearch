@@ -21,10 +21,11 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -38,8 +39,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -82,6 +84,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         realms = mock(Realms.class);
         operatorPrivilegesService = mock(OperatorPrivilegesService.class);
         anonymousUser = mock(AnonymousUser.class);
+        when(anonymousUser.enabled()).thenReturn(true);
 
         authenticationContextSerializer = mock(AuthenticationContextSerializer.class);
         serviceAccountAuthenticator = mock(ServiceAccountAuthenticator.class);
@@ -95,9 +98,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(realms.getActiveRealms()).thenReturn(List.of(mock(Realm.class)));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
         final User user = new User(randomAlphaOfLength(8));
-        authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
-        fallbackUser = mock(User.class);
+        authentication = AuthenticationTestHelper.builder().user(user).build(false);
+        fallbackUser = AuthenticationTestHelper.randomInternalUser();
         authenticatorChain = new AuthenticatorChain(
             settings,
             operatorPrivilegesService,
@@ -126,11 +128,11 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     public void testAuthenticateFailsIfExistingAuthenticationFoundForRestRequest() throws IOException {
-        final AuthenticationService.AuditableRestRequest auditableRestRequest = mock(AuthenticationService.AuditableRestRequest.class);
+        final AuthenticationService.AuditableHttpRequest auditableHttpRequest = mock(AuthenticationService.AuditableHttpRequest.class);
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
-        when(auditableRestRequest.tamperedRequest()).thenReturn(e);
-        final Authenticator.Context context = createAuthenticatorContext(auditableRestRequest);
-        when(authenticationContextSerializer.readFromContext(any())).thenReturn(mock(Authentication.class));
+        when(auditableHttpRequest.tamperedRequest()).thenReturn(e);
+        final Authenticator.Context context = createAuthenticatorContext(auditableHttpRequest);
+        when(authenticationContextSerializer.readFromContext(any())).thenReturn(AuthenticationTestHelper.builder().build());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
@@ -182,9 +184,18 @@ public class AuthenticatorChainTests extends ESTestCase {
 
     public void testAuthenticateWithApiKey() throws IOException {
         final Authenticator.Context context = createAuthenticatorContext();
-        when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
-        );
+        final String apiKeyId = randomAlphaOfLength(20);
+        final SecureString apiKeySecret = new SecureString(randomAlphaOfLength(22).toCharArray());
+        final boolean shouldExtractCredentials = randomBoolean();
+        if (shouldExtractCredentials) {
+            when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
+                new ApiKeyCredentials(apiKeyId, apiKeySecret, ApiKey.Type.REST)
+            );
+        } else {
+            context.addAuthenticationToken(new ApiKeyCredentials(apiKeyId, apiKeySecret, randomFrom(ApiKey.Type.values())));
+            doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
+            doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
@@ -196,10 +207,19 @@ public class AuthenticatorChainTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verify(serviceAccountAuthenticator).extractCredentials(eq(context));
-        verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
-        verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
-        verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
+
+        if (shouldExtractCredentials) {
+            verify(serviceAccountAuthenticator).extractCredentials(eq(context));
+            verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
+            verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
+            verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
+        } else {
+            verify(serviceAccountAuthenticator, never()).extractCredentials(eq(context));
+            verify(serviceAccountAuthenticator).authenticate(eq(context), any());
+            verify(oAuth2TokenAuthenticator, never()).extractCredentials(eq(context));
+            verify(oAuth2TokenAuthenticator).authenticate(eq(context), any());
+        }
+
         verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
@@ -241,7 +261,7 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         authenticatorChain.authenticateAsync(context, future);
         final Authentication authentication = future.actionGet();
-        assertThat(authentication.getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
+        assertThat(authentication.getEffectiveSubject().getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
         verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
@@ -262,7 +282,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         threadContext.putHeader("Authorization", unsuccessfulApiKey ? "ApiKey key_id:key_secret" : "Bearer some_token_value");
         if (unsuccessfulApiKey) {
             when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()), ApiKey.Type.REST)
             );
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
@@ -287,7 +307,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(
             e.getMessage(),
-            containsString("" + "unable to authenticate with provided credentials and anonymous access is not allowed for this request")
+            containsString("unable to authenticate with provided credentials and anonymous access is not allowed for this request")
         );
         assertThat(
             e.getMetadata("es.additional_unsuccessful_credentials"),
@@ -297,12 +317,14 @@ public class AuthenticatorChainTests extends ESTestCase {
 
     public void testMaybeLookupRunAsUser() {
         final Authentication authentication = randomFrom(
-            AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomAlphaOfLength(20)),
-            AuthenticationTests.randomRealmAuthentication(false)
+            AuthenticationTestHelper.builder().realm().build(false),
+            AuthenticationTestHelper.builder().realm().build(false).token(),
+            AuthenticationTestHelper.builder().apiKey().build(false),
+            AuthenticationTestHelper.builder().apiKey().build(false).token()
         );
         final String runAsUsername = "your-run-as-username";
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, runAsUsername);
-        assertThat(authentication.getUser().principal(), not(equalTo(runAsUsername)));
+        assertThat(authentication.getEffectiveSubject().getUser().principal(), not(equalTo(runAsUsername)));
 
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
         final Authenticator.Context context = new Authenticator.Context(threadContext, auditableRequest, null, true, realms);
@@ -321,15 +343,18 @@ public class AuthenticatorChainTests extends ESTestCase {
 
     public void testRunAsIsIgnoredForUnsupportedAuthenticationTypes() throws IllegalAccessException {
         final Authentication authentication = randomFrom(
-            AuthenticationTests.randomApiKeyAuthentication(AuthenticationTests.randomUser(), randomAlphaOfLength(20)).token(),
-            AuthenticationTests.randomRealmAuthentication(false).token(),
-            AuthenticationTests.randomServiceAccountAuthentication(),
-            AuthenticationTests.randomAnonymousAuthentication(),
-            AuthenticationTests.randomInternalAuthentication()
+            AuthenticationTestHelper.builder().serviceAccount().build(),
+            AuthenticationTestHelper.builder().anonymous(anonymousUser).build(),
+            AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token(),
+            AuthenticationTestHelper.builder().internal().build(),
+            AuthenticationTestHelper.builder().realm().build(true),
+            AuthenticationTestHelper.builder().realm().build(true).token(),
+            AuthenticationTestHelper.builder().apiKey().runAs().build(),
+            AuthenticationTestHelper.builder().apiKey().runAs().build().token()
         );
         threadContext.putHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "you-shall-not-pass");
         assertThat(
-            authentication.getUser().principal(),
+            authentication.getEffectiveSubject().getUser().principal(),
             not(equalTo(threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER)))
         );
 
@@ -353,9 +378,7 @@ public class AuthenticatorChainTests extends ESTestCase {
                     "run-as",
                     AuthenticatorChain.class.getName(),
                     Level.INFO,
-                    "ignore run-as header since it is currently not supported for authentication type ["
-                        + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)
-                        + "]"
+                    "ignore run-as header since it is currently not supported for authentication [" + authentication + "]"
                 )
             );
             final PlainActionFuture<Authentication> future = new PlainActionFuture<>();

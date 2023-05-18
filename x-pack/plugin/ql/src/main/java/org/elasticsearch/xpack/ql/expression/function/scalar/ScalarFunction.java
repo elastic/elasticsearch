@@ -153,7 +153,7 @@ public abstract class ScalarFunction extends Function {
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {
-        Params params = paramsBuilder().variable(field.name()).build();
+        Params params = paramsBuilder().variable(field.exactAttribute().name()).build();
         // unsigned_long fields get returned in scripts as plain longs, so a conversion is required
         return field.dataType() != UNSIGNED_LONG
             ? new ScriptTemplate(processScript(Scripts.DOC_VALUE), params, dataType())

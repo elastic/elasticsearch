@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -158,23 +157,24 @@ final class SettingsUpdater {
         );
     }
 
-    private void logUnknownSetting(final String settingType, final Map.Entry<String, String> e, final Logger logger) {
+    private static void logUnknownSetting(final String settingType, final Map.Entry<String, String> e, final Logger logger) {
         logger.warn("ignoring existing unknown {} setting: [{}] with value [{}]; archiving", settingType, e.getKey(), e.getValue());
     }
 
-    private void logInvalidSetting(
+    private static void logInvalidSetting(
         final String settingType,
         final Map.Entry<String, String> e,
         final IllegalArgumentException ex,
         final Logger logger
     ) {
         logger.warn(
-            (Supplier<?>) () -> new ParameterizedMessage(
-                "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
-                settingType,
-                e.getKey(),
-                e.getValue()
-            ),
+            (Supplier<?>) () -> "ignoring existing invalid "
+                + settingType
+                + " setting: ["
+                + e.getKey()
+                + "] with value ["
+                + e.getValue()
+                + "]; archiving",
             ex
         );
     }

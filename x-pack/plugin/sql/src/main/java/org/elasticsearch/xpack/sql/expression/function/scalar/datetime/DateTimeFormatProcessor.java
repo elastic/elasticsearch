@@ -20,6 +20,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
@@ -27,7 +28,42 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
     public static final String NAME = "dtformat";
-    private static final String[][] JAVA_TIME_FORMAT_REPLACEMENTS = {
+
+    /**
+     * these characters have a meaning in MS date patterns.
+     * If a character is not in this set, then it's still allowed in MS FORMAT patters
+     * but not in Java, so it has to be translated or quoted
+     */
+    private static final Set<Character> MS_DATETIME_PATTERN_CHARS = Set.of(
+        'd',
+        'f',
+        'F',
+        'g',
+        'h',
+        'H',
+        'K',
+        'm',
+        'M',
+        's',
+        't',
+        'y',
+        'z',
+        ':',
+        '/',
+        ' ',
+        '-'
+    );
+
+    /**
+     * characters that start a quoting block in MS patterns
+     */
+    private static final Set<Character> MS_QUOTING_CHARS = Set.of('\\', '\'', '"');
+
+    /**
+     * list of MS datetime patterns with the corresponding translation in Java DateTimeFormat
+     * (patterns that are the same in Java and in MS are not listed here)
+     */
+    private static final String[][] MS_TO_JAVA_PATTERNS = {
         { "tt", "a" },
         { "t", "a" },
         { "dddd", "eeee" },
@@ -47,11 +83,14 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 if (pattern.isEmpty()) {
                     return null;
                 }
-                for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
-                    pattern = pattern.replace(replacement[0], replacement[1]);
-                }
-                final String javaPattern = pattern;
+                final String javaPattern = msToJavaPattern(pattern);
                 return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
+            }
+        },
+        DATE_FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return DateFormatter.ofPattern(pattern);
             }
         },
         DATE_TIME_FORMAT {
@@ -66,6 +105,95 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 return ToCharFormatter.ofPattern(pattern);
             }
         };
+
+        protected static String msToJavaPattern(String pattern) {
+            StringBuilder result = new StringBuilder(pattern.length());
+            StringBuilder partialQuotedString = new StringBuilder();
+
+            boolean originalCharacterQuoted = false;
+            boolean lastTargetCharacterQuoted = false;
+            char quotingChar = '\\';
+
+            for (int i = 0; i < pattern.length(); i++) {
+                char c = pattern.charAt(i);
+                if (originalCharacterQuoted) {
+                    if (quotingChar == '\\') {
+                        // in the original pattern, this is a single quoted character, add it to the partial string
+                        // that will be quoted in Java
+                        originalCharacterQuoted = false;
+                        lastTargetCharacterQuoted = true;
+                        partialQuotedString.append(c);
+                    } else if (c == quotingChar) {
+                        // the original pattern is closing the quoting,
+                        // do nothing for now, next character could open a new quoting block
+                        originalCharacterQuoted = false;
+                    } else {
+                        // any character that is not a quoting char is just added to the partial quoting string
+                        // because there could be more characters to quote after that
+                        partialQuotedString.append(c);
+                    }
+                } else {
+                    boolean characterProcessed = false;
+                    // the original pattern is not quoting
+                    if (MS_QUOTING_CHARS.contains(c)) {
+                        // next character(s) is quoted, start a quoted block on the target
+                        originalCharacterQuoted = true;
+                        lastTargetCharacterQuoted = true;
+                        quotingChar = c;
+                        characterProcessed = true;
+                    } else {
+                        // manage patterns that are different from MS to Java and have to be translated
+                        for (String[] item : MS_TO_JAVA_PATTERNS) {
+                            int fragmentLength = item[0].length();
+                            if (i + fragmentLength <= pattern.length() && item[0].equals(pattern.substring(i, i + fragmentLength))) {
+                                if (lastTargetCharacterQuoted) {
+                                    // now origin is not quoting for sure and the next block is a valid datetime pattern,
+                                    // that has to be translated and written as is (not quoted).
+                                    // Before doing this, let's flush the previously quoted string
+                                    // and quote it properly with Java syntax
+                                    lastTargetCharacterQuoted = false;
+                                    quoteAndAppend(result, partialQuotedString);
+                                    partialQuotedString = new StringBuilder();
+                                }
+                                // and then translate the pattern
+                                result.append(item[1]);
+                                characterProcessed = true;
+                                i += (fragmentLength - 1); // fast-forward, because the replaced pattern could be longer than one character
+                                break;
+                            }
+                        }
+                    }
+                    if (characterProcessed == false) {
+                        if (MS_DATETIME_PATTERN_CHARS.contains(c) == false) {
+                            // this character is allowed in MS, but not in Java, so it has to be quoted in the result
+                            lastTargetCharacterQuoted = true;
+                            partialQuotedString.append(c);
+                        } else {
+                            // any other character is a valid datetime pattern in both Java and MS
+                            if (lastTargetCharacterQuoted) {
+                                // flush the quoted string first, if any
+                                lastTargetCharacterQuoted = false;
+                                quoteAndAppend(result, partialQuotedString);
+                                partialQuotedString = new StringBuilder();
+                            }
+                            // and then add the character itself, as it is
+                            result.append(c);
+                        }
+                    }
+                }
+            }
+            // if the original pattern ended with a quoted block, flush it to the result and quote it in Java
+            if (lastTargetCharacterQuoted) {
+                quoteAndAppend(result, partialQuotedString);
+            }
+            return result.toString();
+        }
+
+        private static void quoteAndAppend(StringBuilder mainBuffer, StringBuilder fragmentToQuote) {
+            mainBuffer.append("'");
+            mainBuffer.append(fragmentToQuote.toString().replaceAll("'", "''"));
+            mainBuffer.append("'");
+        }
 
         protected abstract Function<TemporalAccessor, String> formatterFor(String pattern);
 

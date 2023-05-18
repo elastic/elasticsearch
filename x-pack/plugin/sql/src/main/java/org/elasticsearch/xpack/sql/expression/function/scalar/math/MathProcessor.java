@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -77,7 +76,7 @@ public class MathProcessor implements Processor {
         LOG10(Math::log10),
         PI(() -> Math.PI),
         RADIANS(Math::toRadians),
-        RANDOM((Object l) -> l != null ? new Random(((Number) l).longValue()).nextDouble() : Randomness.get().nextDouble(), true),
+        RANDOM((Object l) -> new Random(((Number) l).longValue()).nextDouble()),
         SIGN((Object l) -> {
             if (l instanceof Double) {
                 return (int) Math.signum((Double) l);
@@ -99,20 +98,7 @@ public class MathProcessor implements Processor {
         private final Function<Object, Number> apply;
 
         MathOperation(Function<Object, Number> apply) {
-            this(apply, false);
-        }
-
-        /**
-         * Wrapper for nulls around the given function.
-         * If true, nulls are passed through, otherwise the function is short-circuited
-         * and null returned.
-         */
-        MathOperation(Function<Object, Number> apply, boolean nullAware) {
-            if (nullAware) {
-                this.apply = apply;
-            } else {
-                this.apply = l -> l == null ? null : apply.apply(l);
-            }
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         MathOperation(DoubleFunction<Double> apply) {

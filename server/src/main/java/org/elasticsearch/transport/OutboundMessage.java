@@ -7,18 +7,18 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
 
@@ -28,7 +28,7 @@ abstract class OutboundMessage extends NetworkMessage {
 
     OutboundMessage(
         ThreadContext threadContext,
-        Version version,
+        TransportVersion version,
         byte status,
         long requestId,
         Compression.Scheme compressionScheme,
@@ -39,7 +39,7 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
-        bytesStream.setVersion(version);
+        bytesStream.setTransportVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
         // The compressible bytes stream will not close the underlying bytes stream
@@ -56,7 +56,7 @@ abstract class OutboundMessage extends NetworkMessage {
         final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
         final BytesReference zeroCopyBuffer;
         try {
-            stream.setVersion(version);
+            stream.setTransportVersion(version);
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
@@ -94,7 +94,9 @@ abstract class OutboundMessage extends NetworkMessage {
     // resources and write EOS marker bytes but must not yet release the bytes themselves
     private StreamOutput wrapCompressed(RecyclerBytesStreamOutput bytesStream) throws IOException {
         if (compressionScheme == Compression.Scheme.DEFLATE) {
-            return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+            return new OutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(org.elasticsearch.core.Streams.noCloseStream(bytesStream))
+            );
         } else if (compressionScheme == Compression.Scheme.LZ4) {
             return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {
@@ -113,7 +115,7 @@ abstract class OutboundMessage extends NetworkMessage {
         Request(
             ThreadContext threadContext,
             Writeable message,
-            Version version,
+            TransportVersion version,
             String action,
             long requestId,
             boolean isHandshake,
@@ -126,7 +128,7 @@ abstract class OutboundMessage extends NetworkMessage {
         @Override
         protected void writeVariableHeader(StreamOutput stream) throws IOException {
             super.writeVariableHeader(stream);
-            if (version.before(Version.V_8_0_0)) {
+            if (version.before(TransportVersion.V_8_0_0)) {
                 // empty features array
                 stream.writeStringArray(Strings.EMPTY_ARRAY);
             }
@@ -163,7 +165,7 @@ abstract class OutboundMessage extends NetworkMessage {
         Response(
             ThreadContext threadContext,
             Writeable message,
-            Version version,
+            TransportVersion version,
             long requestId,
             boolean isHandshake,
             Compression.Scheme compressionScheme

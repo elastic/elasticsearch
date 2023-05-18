@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -149,7 +148,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             final ClusterState state,
             final ActionListener<UpdateInternalOrPrivateAction.Response> listener
         ) throws Exception {
-            clusterService.submitStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
+            clusterService.submitUnbatchedStateUpdateTask("update-index-internal-or-private", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(final ClusterState currentState) throws Exception {
                     final Metadata.Builder builder = Metadata.builder(currentState.metadata());
@@ -173,7 +172,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                     listener.onFailure(e);
                 }
 
-            }, ClusterStateTaskExecutor.unbatched());
+            });
         }
 
         @Override

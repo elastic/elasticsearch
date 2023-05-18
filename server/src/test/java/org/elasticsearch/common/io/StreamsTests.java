@@ -80,7 +80,7 @@ public class StreamsTests extends ESTestCase {
         final int limit = randomIntBetween(0, bytes.length);
         final BytesArray stuffArray = new BytesArray(bytes);
         final ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length);
-        final long count = org.elasticsearch.core.internal.io.Streams.copy(Streams.limitStream(stuffArray.streamInput(), limit), out);
+        final long count = org.elasticsearch.core.Streams.copy(Streams.limitStream(stuffArray.streamInput(), limit), out);
         assertEquals(limit, count);
         assertThat(Arrays.equals(out.toByteArray(), Arrays.copyOf(bytes, limit)), equalTo(true));
     }

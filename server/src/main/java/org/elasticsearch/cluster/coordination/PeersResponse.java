@@ -32,7 +32,7 @@ public class PeersResponse extends TransportResponse {
 
     public PeersResponse(StreamInput in) throws IOException {
         masterNode = Optional.ofNullable(in.readOptionalWriteable(DiscoveryNode::new));
-        knownPeers = in.readList(DiscoveryNode::new);
+        knownPeers = in.readImmutableList(DiscoveryNode::new);
         term = in.readLong();
         assert masterNode.isPresent() == false || knownPeers.isEmpty();
     }

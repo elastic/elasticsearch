@@ -10,11 +10,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,12 +33,14 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
     DataFrameAnalyticsConfig,
     GetDataFrameAnalyticsAction.Request,
     GetDataFrameAnalyticsAction.Response> {
+    private final ClusterService clusterService;
 
     @Inject
     public TransportGetDataFrameAnalyticsAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
+        ClusterService clusterService,
         NamedXContentRegistry xContentRegistry
     ) {
         super(
@@ -47,6 +51,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
             client,
             xContentRegistry
         );
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -77,6 +82,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
     ) {
         searchResources(
             request,
+            new TaskId(clusterService.localNode().getId(), task.getId()),
             ActionListener.wrap(queryPage -> listener.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)), listener::onFailure)
         );
     }

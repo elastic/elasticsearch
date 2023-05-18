@@ -132,6 +132,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   def dateTrunc(String, Object, String)
   def dateParse(String, String, String)
   Integer datePart(String, Object, String)
+  String dateFormat(Object, String, String)
   String dateTimeFormat(Object, String, String)
   String format(Object, String, String)
   String toChar(Object, String, String)

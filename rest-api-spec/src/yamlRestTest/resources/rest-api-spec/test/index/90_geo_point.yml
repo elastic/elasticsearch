@@ -1,0 +1,69 @@
+---
+"setup":
+  - do:
+      indices.create:
+        index: null_value_configured
+        body:
+          mappings:
+            properties:
+              point:
+                type: geo_point
+                null_value:
+                  lat: 28.41951122705923
+                  lon: -81.58118930548268
+
+---
+"single null value":
+  - do:
+      bulk:
+        refresh: true
+        index: null_value_configured
+        body:
+          - '{ "index" : {} }'
+          - '{ "point": null }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: null_value_configured
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohash_grid:
+                field: point
+                precision: 8
+  - length: { aggregations.grid.buckets: 1 }
+  - match:  { aggregations.grid.buckets.0.key: djjcxtd7 }
+  - match:  { aggregations.grid.buckets.0.doc_count: 1 }
+
+---
+"null value in array":
+  - skip:
+      version: " - 8.2.99"
+      reason: fixed in 8.3.0
+
+  - do:
+      bulk:
+        refresh: true
+        index: null_value_configured
+        body:
+          - '{ "index" : {} }'
+          - '{ "point": [null, {"lat": -54.48979082798907, "lon": -37.07576688239972}] }'
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: null_value_configured
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohash_grid:
+                field: point
+                precision: 8
+  - length: { aggregations.grid.buckets: 2 }
+  - match:  { aggregations.grid.buckets.0.key: djjcxtd7 }
+  - match:  { aggregations.grid.buckets.0.doc_count: 1 }
+  - match:  { aggregations.grid.buckets.1.key: 5nmdh26m }
+  - match:  { aggregations.grid.buckets.1.doc_count: 1 }

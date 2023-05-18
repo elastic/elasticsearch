@@ -25,7 +25,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
@@ -42,7 +41,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         if ((percentiles.length == percents.length) == false) {
             throw new IllegalArgumentException(
                 "The number of provided percents and percentiles didn't match. percents: "
@@ -51,7 +50,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
                     + Arrays.toString(percentiles)
             );
         }
-        this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
         this.keyed = keyed;
@@ -69,7 +67,6 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
      */
     public InternalPercentilesBucket(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
         keyed = in.readBoolean();
@@ -121,12 +118,15 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public double value(String name) {
+        if (this.percents.length == 1 && this.name.equals(name)) {
+            return percentile(this.percents[0]);
+        }
         return percentile(Double.parseDouble(name));
     }
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).toList();
     }
 
     @Override

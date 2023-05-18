@@ -18,7 +18,8 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-      cat.indices: {}
+      cat.indices:
+        index: index1
 
   - match:
       $body: |
@@ -37,6 +38,7 @@
 
   - do:
       cat.indices:
+        index: index1
         v: false
         h: i,cd,cds,creation.date,creation.date.string
   - match:
@@ -262,6 +264,7 @@
 
   - do:
       cat.indices:
+        index: b*,foo
         h: [status, index]
         s: [status, index]
 
@@ -274,6 +277,7 @@
 
   - do:
       cat.indices:
+        index: b*,foo
         h: [status, index]
         s: [status, "index:desc"]
 

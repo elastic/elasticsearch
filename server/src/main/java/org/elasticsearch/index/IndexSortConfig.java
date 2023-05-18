@@ -59,10 +59,8 @@ public final class IndexSortConfig {
     /**
      * The list of field names
      */
-    public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.stringListSetting(
         "index.sort.field",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
@@ -99,6 +97,14 @@ public final class IndexSortConfig {
         Setting.Property.IndexScope,
         Setting.Property.Final
     );
+
+    public static final FieldSortSpec[] TIME_SERIES_SORT;
+
+    static {
+        FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        timeStampSpec.order = SortOrder.DESC;
+        TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+    }
 
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
@@ -138,9 +144,7 @@ public final class IndexSortConfig {
         this.indexMode = indexSettings.getMode();
 
         if (this.indexMode == IndexMode.TIME_SERIES) {
-            FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-            timeStampSpec.order = SortOrder.DESC;
-            this.sortSpecs = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+            this.sortSpecs = TIME_SERIES_SORT;
             return;
         }
 
@@ -241,10 +245,9 @@ public final class IndexSortConfig {
             }
             IndexFieldData<?> fieldData;
             try {
-                fieldData = fieldDataLookup.apply(
-                    ft,
-                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); }
-                );
+                fieldData = fieldDataLookup.apply(ft, () -> {
+                    throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]");
+                });
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);
             }
@@ -257,14 +260,14 @@ public final class IndexSortConfig {
         return new Sort(sortFields);
     }
 
-    private void validateIndexSortField(SortField sortField) {
+    private static void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
         if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
     }
 
-    static class FieldSortSpec {
+    public static class FieldSortSpec {
         final String field;
         SortOrder order;
         MultiValueMode mode;
@@ -272,6 +275,14 @@ public final class IndexSortConfig {
 
         FieldSortSpec(String field) {
             this.field = field;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public SortOrder getOrder() {
+            return order;
         }
     }
 

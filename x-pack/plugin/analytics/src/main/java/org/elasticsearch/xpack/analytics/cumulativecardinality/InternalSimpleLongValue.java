@@ -25,8 +25,7 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     protected final long value;
 
     public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
-        this.format = formatter;
+        super(name, formatter, metadata);
         this.value = value;
     }
 
@@ -35,7 +34,6 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
      */
     public InternalSimpleLongValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readZLong();
     }
 

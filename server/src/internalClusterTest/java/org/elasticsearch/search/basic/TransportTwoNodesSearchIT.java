@@ -9,10 +9,12 @@
 package org.elasticsearch.search.basic;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -36,8 +38,6 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-import static org.elasticsearch.client.internal.Requests.createIndexRequest;
-import static org.elasticsearch.client.internal.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -70,10 +70,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             settingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numShards);
         }
 
-        client().admin()
-            .indices()
-            .create(createIndexRequest("test").settings(settingsBuilder).simpleMapping("foo", "type=geo_point"))
-            .actionGet();
+        indicesAdmin().create(new CreateIndexRequest("test").settings(settingsBuilder).simpleMapping("foo", "type=geo_point")).actionGet();
 
         ensureGreen();
         for (int i = 0; i < 100; i++) {
@@ -85,7 +82,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
     }
 
     private void index(String id, String nameValue, int age) throws IOException {
-        client().index(Requests.indexRequest("test").id(id).source(source(id, nameValue, age))).actionGet();
+        client().index(new IndexRequest("test").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {
@@ -104,7 +101,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
     public void testDfsQueryThenFetch() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder().put(indexSettings());
-        client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder)).actionGet();
+        client().admin().indices().create(new CreateIndexRequest("test").settings(settingsBuilder)).actionGet();
         ensureGreen();
 
         // we need to have age (ie number of repeats of "test" term) high enough
@@ -232,8 +229,9 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         Set<String> collectedIds = new TreeSet<>();
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH))
-            .actionGet();
+        SearchResponse searchResponse = client().search(
+            new SearchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)
+        ).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(60));
@@ -241,7 +239,8 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             SearchHit hit = searchResponse.getHits().getHits()[i];
             collectedIds.add(hit.getId());
         }
-        searchResponse = client().search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client().search(new SearchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH))
+            .actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(40));
@@ -292,7 +291,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .aggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.filter("all", termQuery("multi", "test"))))
             .aggregation(AggregationBuilders.filter("test1", termQuery("name", "test1")));
 
-        SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
+        SearchResponse searchResponse = client().search(new SearchRequest("test").source(sourceBuilder)).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
 
@@ -311,7 +310,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Start Testing failed search with wrong query");
         try {
             SearchResponse searchResponse = client().search(
-                searchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))
+                new SearchRequest("test").source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "biz")))
             ).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
@@ -331,21 +330,21 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
 
         logger.info("Start Testing failed search with wrong from");
         SearchSourceBuilder source = searchSource().query(termQuery("multi", "test")).from(1000).size(20).explain(true);
-        SearchResponse response = client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
+        SearchResponse response = client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertThat(response.getHits().getHits().length, equalTo(0));
         assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
         assertThat(response.getSuccessfulShards(), equalTo(test.numPrimaries));
         assertThat(response.getFailedShards(), equalTo(0));
 
-        response = client().search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client().search(new SearchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
         assertNoFailures(response);
         assertThat(response.getHits().getHits().length, equalTo(0));
 
-        response = client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertNoFailures(response);
         assertThat(response.getHits().getHits().length, equalTo(0));
 
-        response = client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client().search(new SearchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertNoFailures(response);
         assertThat(response.getHits().getHits().length, equalTo(0));
 

@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -154,7 +155,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    public final double sortValue(String key) {
+    public final SortValue sortValue(String key) {
         if (key != null && false == key.equals("doc_count")) {
             throw new IllegalArgumentException(
                 "Unknown value key ["
@@ -164,11 +165,11 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
                     + "]. Either use [doc_count] as key or drop the key all together."
             );
         }
-        return docCount;
+        return SortValue.from(docCount);
     }
 
     @Override
-    public final double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public final SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         return aggregations.sortValue(head, tail);
     }
 

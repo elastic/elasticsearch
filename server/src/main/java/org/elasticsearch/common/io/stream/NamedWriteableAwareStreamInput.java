@@ -9,6 +9,10 @@
 package org.elasticsearch.common.io.stream;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Wraps a {@link StreamInput} and associates it with a {@link NamedWriteableRegistry}
@@ -29,6 +33,21 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
+    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+        int count = readArraySize();
+        if (count == 0) {
+            return Collections.emptyList();
+        }
+        final Map<String, Writeable.Reader<?>> readers = namedWriteableRegistry.getReaders(categoryClass);
+        List<T> builder = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            final String name = readString();
+            builder.add(NamedWriteableRegistry.getReader(categoryClass, name, readers).read(this));
+        }
+        return builder;
+    }
+
+    @Override
     public <C extends NamedWriteable> C readNamedWriteable(
         @SuppressWarnings("unused") Class<C> categoryClass,
         @SuppressWarnings("unused") String name
@@ -36,13 +55,16 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
         Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
         C c = reader.read(this);
         if (c == null) {
-            throw new IOException(
-                "Writeable.Reader [" + reader + "] returned null which is not allowed and probably means it screwed up the stream."
-            );
+            throwOnNullRead(reader);
         }
+        assert assertNameMatches(name, c);
+        return c;
+    }
+
+    private static <C extends NamedWriteable> boolean assertNameMatches(String name, C c) {
         assert name.equals(c.getWriteableName())
             : c + " claims to have a different name [" + c.getWriteableName() + "] than it was read from [" + name + "].";
-        return c;
+        return true;
     }
 
     @Override

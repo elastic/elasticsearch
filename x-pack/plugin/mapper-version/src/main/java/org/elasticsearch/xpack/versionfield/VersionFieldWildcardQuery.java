@@ -43,6 +43,10 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
         super(term, toAutomaton(term, caseInsensitive), Integer.MAX_VALUE, true);
     }
 
+    VersionFieldWildcardQuery(Term term, boolean caseInsensitive, RewriteMethod rewriteMethod) {
+        super(term, toAutomaton(term, caseInsensitive), Integer.MAX_VALUE, true, rewriteMethod);
+    }
+
     private static Automaton toAutomaton(Term wildcardquery, boolean caseInsensitive) {
         List<Automaton> automata = new ArrayList<>();
 

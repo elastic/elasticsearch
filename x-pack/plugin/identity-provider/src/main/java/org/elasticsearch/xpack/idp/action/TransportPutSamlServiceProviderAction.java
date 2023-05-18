@@ -34,7 +34,7 @@ public class TransportPutSamlServiceProviderAction extends HandledTransportActio
     PutSamlServiceProviderRequest,
     PutSamlServiceProviderResponse> {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(TransportPutSamlServiceProviderAction.class);
     private final SamlServiceProviderIndex index;
     private final SamlIdentityProvider identityProvider;
     private final Clock clock;

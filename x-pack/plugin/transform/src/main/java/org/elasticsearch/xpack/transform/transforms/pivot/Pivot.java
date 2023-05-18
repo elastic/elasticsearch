@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -75,11 +74,7 @@ public class Pivot extends AbstractCompositeAggFunction {
     public void validateConfig(ActionListener<Boolean> listener) {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
-                listener.onFailure(
-                    new ValidationException().addValidationError(
-                        new ParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
-                    )
-                );
+                listener.onFailure(new ValidationException().addValidationError("Unsupported aggregation type [" + agg.getType() + "]"));
                 return;
             }
         }
@@ -92,12 +87,17 @@ public class Pivot extends AbstractCompositeAggFunction {
     }
 
     @Override
-    public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
+    public void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        SourceConfig sourceConfig,
+        final ActionListener<Map<String, String>> listener
+    ) {
         if (Boolean.FALSE.equals(settings.getDeduceMappings())) {
             listener.onResponse(emptyMap());
             return;
         }
-        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
+        SchemaUtil.deduceMappings(client, headers, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
     }
 
     /**

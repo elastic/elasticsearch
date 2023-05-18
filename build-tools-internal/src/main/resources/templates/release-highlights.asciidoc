@@ -4,19 +4,18 @@
 coming::[{minor-version}]
 
 Here are the highlights of what's new and improved in {es} {minor-version}!
-ifeval::[\\{release-state}\\"!=\\"unreleased\\"]
+ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
-endif::[]
 <% if (priorVersions.size() > 0) { %>
 // Add previous release to the list
 Other versions:
 
 <%
 print priorVersions.join("\n| ")
-print "\n"
-}
-
+print "\n" }%>
+endif::[]
+<%
 /* The `notable-highlights` tag needs to exist, whether or not we actually have any notable highlights. */
 if (notableHighlights.isEmpty()) { %>
 // The notable-highlights tag marks entries that
@@ -34,6 +33,8 @@ if (notableHighlights.isEmpty()) { %>
 [[${ highlight.anchor }]]
 === ${highlight.title}
 ${highlight.body.trim()}
+
+{es-pull}${highlight.pr}[#${highlight.pr}]
 <% } %>
 // end::notable-highlights[]
 <% } %>
@@ -42,4 +43,6 @@ ${highlight.body.trim()}
 [[${ highlight.anchor }]]
 === ${highlight.title}
 ${highlight.body.trim()}
+
+{es-pull}${highlight.pr}[#${highlight.pr}]
 <% } %>

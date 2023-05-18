@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
+import java.io.IOException;
+
+public class StepKeyTests extends AbstractXContentSerializingTestCase<StepKey> {
 
     @Override
     public StepKey createTestInstance() {
@@ -24,7 +28,7 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 
     @Override
     protected Writeable.Reader<StepKey> instanceReader() {
-        return StepKey::new;
+        return StepKey::readFrom;
     }
 
     @Override
@@ -34,9 +38,9 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
 
     @Override
     public StepKey mutateInstance(StepKey instance) {
-        String phase = instance.getPhase();
-        String action = instance.getAction();
-        String step = instance.getName();
+        String phase = instance.phase();
+        String action = instance.action();
+        String step = instance.name();
 
         switch (between(0, 2)) {
             case 0 -> phase += randomAlphaOfLength(5);
@@ -46,5 +50,15 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
         }
 
         return new StepKey(phase, action, step);
+    }
+
+    public void testToString() throws IOException {
+        // toString yields parseable json
+        StepKey s = randomStepKey();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, s.toString());
+        assertEquals(s, StepKey.parse(parser));
+
+        // although we're not actually using Strings.toString for performance reasons, we expect the same result as if we had
+        assertEquals(Strings.toString(s), s.toString());
     }
 }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -149,24 +148,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             // promote the auto-configured password as the elastic user password
                             if (userInfo == autoconfigUserInfo) {
                                 assert ElasticUser.NAME.equals(token.principal());
-                                nativeUsersStore.createElasticUser(
-                                    userInfo.passwordHash,
-                                    ActionListener.wrap(
-                                        aVoid -> { hashCleanupListener.onResponse(AuthenticationResult.success(user)); },
-                                        e -> {
-                                            // exceptionally, we must propagate a 500 or a 503 error if the auto config password hash
-                                            // can't be promoted as the elastic user password, otherwise, such errors will
-                                            // implicitly translate to 401s, which is wrong because the presented password was successfully
-                                            // verified by the auto-config hash; the client must retry the request.
-                                            listener.onFailure(
-                                                Exceptions.authenticationProcessError(
-                                                    "failed to promote the auto-configured " + "elastic password hash",
-                                                    e
-                                                )
-                                            );
-                                        }
-                                    )
-                                );
+                                nativeUsersStore.createElasticUser(userInfo.passwordHash, ActionListener.wrap(aVoid -> {
+                                    hashCleanupListener.onResponse(AuthenticationResult.success(user));
+                                }, e -> {
+                                    // exceptionally, we must propagate a 500 or a 503 error if the auto config password hash
+                                    // can't be promoted as the elastic user password, otherwise, such errors will
+                                    // implicitly translate to 401s, which is wrong because the presented password was successfully
+                                    // verified by the auto-config hash; the client must retry the request.
+                                    listener.onFailure(
+                                        Exceptions.authenticationProcessError(
+                                            "failed to promote the auto-configured " + "elastic password hash",
+                                            e
+                                        )
+                                    );
+                                }));
                             } else {
                                 hashCleanupListener.onResponse(AuthenticationResult.success(user));
                             }
@@ -280,10 +275,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 consumer.accept(userInfo);
             }
         }, (e) -> {
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username),
-                e
-            );
+            logger.error((Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]", e);
             consumer.accept(null);
         }));
     }

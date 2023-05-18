@@ -6,7 +6,7 @@
  */
 
 
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.util.ports.ReservedPortRange
@@ -17,8 +17,7 @@ import java.nio.file.Paths
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.internal-available-ports'
 
@@ -27,8 +26,8 @@ final Project krbFixtureProject = project(':test:fixtures:krb5kdc-fixture')
 final Project hdfsRepoPluginProject = project(':plugins:repository-hdfs')
 
 dependencies {
-  testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  testImplementation hdfsRepoPluginProject
+  javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
+  javaRestTestImplementation hdfsRepoPluginProject
 }
 
 restResources {
@@ -72,7 +71,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
     maxWaitInSeconds 60
-    onlyIf { BuildParams.inFipsJvm == false }
+    BuildParams.withFipsEnabledOnly(it)
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
@@ -82,7 +81,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (name.equals('secureHdfsFixture')) {
-      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
+      onlyIf("Only runtime java version < 16") { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
       miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
     }
@@ -105,15 +104,15 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
 }
 
 // Disable integration test if Fips mode
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
   def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("hdfsFixture")
   systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
   nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/repository_test_kit/simple'
-  onlyIf { BuildParams.inFipsJvm == false }
+  BuildParams.withFipsEnabledOnly(it)
 }
 
-tasks.register("integTestSecure", RestIntegTestTask) {
+tasks.register("javaRestTestSecure", RestIntegTestTask) {
   description = "Runs rest tests against an elasticsearch cluster with Secured HDFS."
   def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("secureHdfsFixture")
   nonInputProperties.systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
@@ -124,9 +123,14 @@ tasks.register("integTestSecure", RestIntegTestTask) {
     "test.krb5.keytab.hdfs",
     project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
   )
-  onlyIf { BuildParams.inFipsJvm == false && BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16}
+  onlyIf("FIPS mode disabled and runtime java < 16") {
+    BuildParams.inFipsJvm == false && BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16
+  }
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath
 }
-tasks.named("check").configure { dependsOn("integTestSecure") }
+
+tasks.named("check").configure { dependsOn("javaRestTestSecure") }
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
@@ -135,7 +139,7 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
 }
 
-testClusters.matching { it.name == "integTestSecure" }.configureEach {
+testClusters.matching { it.name == "javaRestTestSecure" }.configureEach {
   systemProperty "java.security.krb5.conf", krb5conf
   extraConfigFile(
     "repository-hdfs/krb5.keytab",
@@ -145,7 +149,7 @@ testClusters.matching { it.name == "integTestSecure" }.configureEach {
 
 // Determine HDFS Fixture compatibility for the current build environment.
 boolean fixtureSupported = false
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (OS.current() == OS.WINDOWS) {
   // hdfs fixture will not start without hadoop native libraries on windows
   String nativePath = System.getenv("HADOOP_HOME")
   if (nativePath != null) {
@@ -169,15 +173,14 @@ if (legalPath == false) {
 }
 
 if (fixtureSupported) {
-  tasks.named("integTest").configure {dependsOn "hdfsFixture" }
-  tasks.named("integTestSecure").configure {dependsOn "secureHdfsFixture" }
+  tasks.named("javaRestTest").configure {dependsOn "hdfsFixture" }
+  tasks.named("javaRestTestSecure").configure {dependsOn "secureHdfsFixture" }
 } else {
-  tasks.named("integTest").configure {enabled = false }
-  tasks.named("integTestSecure").configure { enabled = false }
+  tasks.named("javaRestTest").configure {enabled = false }
+  tasks.named("javaRestTestSecure").configure { enabled = false }
   if (legalPath) {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
   } else {
     logger.warn("hdfsFixture unsupported since there are spaces in the path: '" + rootProject.rootDir.toString() + "'")
   }
 }
-

@@ -9,7 +9,6 @@ com.carrotsearch.randomizedtesting.annotations.Seed @ Don't commit hardcoded see
 com.carrotsearch.randomizedtesting.annotations.Repeat @ Don't commit hardcoded repeats
 
 org.apache.lucene.codecs.Codec#setDefault(org.apache.lucene.codecs.Codec) @ Use the SuppressCodecs("*") annotation instead
-org.apache.lucene.tests.util.LuceneTestCase$Slow @ Don't write slow tests
 org.junit.Ignore @ Use AwaitsFix instead
 org.apache.lucene.tests.util.LuceneTestCase$Nightly @ We don't run nightly tests at this point!
 com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly tests at this point!

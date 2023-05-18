@@ -34,7 +34,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     public PutPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
+        privileges = in.readImmutableList(ApplicationPrivilegeDescriptor::new);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -63,14 +63,8 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
                     validationException = addValidationError("Application privileges must have at least one action", validationException);
                 }
                 for (String action : privilege.getActions()) {
-                    if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
-                        validationException = addValidationError(
-                            "action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
-                            validationException
-                        );
-                    }
                     try {
-                        ApplicationPrivilege.validatePrivilegeOrActionName(action);
+                        ApplicationPrivilege.validateActionName(action);
                     } catch (IllegalArgumentException e) {
                         validationException = addValidationError(e.getMessage(), validationException);
                     }

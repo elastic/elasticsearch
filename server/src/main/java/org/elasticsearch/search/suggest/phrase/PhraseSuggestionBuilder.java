@@ -9,7 +9,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -161,15 +161,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
         out.writeMapWithConsistentOrder(collateParams);
         out.writeOptionalBoolean(collatePrune);
-        out.writeVInt(this.generators.size());
-        for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
-            out.writeString(entry.getKey());
-            List<CandidateGenerator> generatorsList = entry.getValue();
-            out.writeVInt(generatorsList.size());
-            for (CandidateGenerator generator : generatorsList) {
-                generator.writeTo(out);
-            }
-        }
+        out.writeMap(this.generators, StreamOutput::writeString, StreamOutput::writeList);
     }
 
     /**
@@ -706,8 +698,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     @Override

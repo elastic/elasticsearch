@@ -10,21 +10,21 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
 
-    protected final ToScriptField<SortedBinaryDocValues> toScriptField;
+    protected final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
 
-    StringBinaryDVLeafFieldData(BinaryDocValues values, ToScriptField<SortedBinaryDocValues> toScriptField) {
+    StringBinaryDVLeafFieldData(BinaryDocValues values, ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory) {
         super(values);
 
-        this.toScriptField = toScriptField;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
-    public DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getBytesValues(), name);
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getBytesValues(), name);
     }
 }

@@ -26,9 +26,8 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
     protected final TTestState state;
 
     InternalTTest(String name, TTestState state, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.state = state;
-        this.format = formatter;
     }
 
     /**
@@ -36,7 +35,6 @@ public class InternalTTest extends InternalNumericMetricsAggregation.SingleValue
      */
     public InternalTTest(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         state = in.readNamedWriteable(TTestState.class);
     }
 

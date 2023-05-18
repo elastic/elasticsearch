@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.inference.ingest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
@@ -66,11 +67,9 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", null, Collections.emptyList(), ClassificationConfig.EMPTY_PARAMS, 1.0, 1.0)
             ),
@@ -101,15 +100,13 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
         List<TopClassEntry> classes = new ArrayList<>(2);
         classes.add(new TopClassEntry("foo", 0.6, 0.6));
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", classes, Collections.emptyList(), classificationConfig, 0.6, 0.6)
             ),
@@ -140,9 +137,7 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
         List<TopClassEntry> classes = new ArrayList<>(2);
         classes.add(new TopClassEntry("foo", 0.6, 0.6));
@@ -162,7 +157,7 @@ public class InferenceProcessorTests extends ESTestCase {
             )
         );
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", classes, featureInfluence, classificationConfig, 0.6, 0.6)
             ),
@@ -196,15 +191,13 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
         List<TopClassEntry> classes = new ArrayList<>(2);
         classes.add(new TopClassEntry("foo", 0.6, 0.6));
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", classes, Collections.emptyList(), classificationConfig, 0.6, 0.6)
             ),
@@ -235,11 +228,9 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig)),
             null,
             true
@@ -264,15 +255,13 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
         List<RegressionFeatureImportance> featureInfluence = new ArrayList<>();
         featureInfluence.add(new RegressionFeatureImportance("feature_1", 1.13));
         featureInfluence.add(new RegressionFeatureImportance("feature_2", -42.0));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)),
             null,
             true
@@ -309,13 +298,12 @@ public class InferenceProcessorTests extends ESTestCase {
                 put("categorical", "foo");
             }
         };
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.ofIngestWithNullableVersion(source, new HashMap<>());
 
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(source));
 
-        ingestMetadata = Collections.singletonMap("_value", 3);
-        document = new IngestDocument(source, ingestMetadata);
+        Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
+        document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
 
         Map<String, Object> expected = new HashMap<>(source);
         expected.put("_ingest", ingestMetadata);
@@ -347,8 +335,7 @@ public class InferenceProcessorTests extends ESTestCase {
         source.put("value1", 1);
         source.put("categorical", "foo");
         source.put("un_touched", "bar");
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.withNullableVersion(source);
 
         Map<String, Object> expectedMap = Maps.newMapWithExpectedSize(5);
         expectedMap.put("new_value1", 1);
@@ -358,8 +345,8 @@ public class InferenceProcessorTests extends ESTestCase {
         expectedMap.put("un_touched", "bar");
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
 
-        ingestMetadata = Collections.singletonMap("_value", "baz");
-        document = new IngestDocument(source, ingestMetadata);
+        Map<String, Object> ingestMetadata = Collections.singletonMap("_value", "baz");
+        document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
         expectedMap = new HashMap<>(expectedMap);
         expectedMap.put("metafield", "baz");
         expectedMap.put("_ingest", ingestMetadata);
@@ -390,8 +377,7 @@ public class InferenceProcessorTests extends ESTestCase {
         source.put("value1", Collections.singletonMap("foo", 1));
         source.put("categorical.bar", "foo");
         source.put("un_touched", "bar");
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.withNullableVersion(source);
 
         Map<String, Object> expectedMap = Maps.newMapWithExpectedSize(5);
         expectedMap.put("new_value1", 1);
@@ -415,13 +401,11 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
             null,
             true
@@ -433,7 +417,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
 
-        response = new InternalInferModelAction.Response(
+        response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
             null,
             false
@@ -467,11 +451,9 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new WarningInferenceResults("something broke")),
             null,
             true
@@ -497,11 +479,9 @@ public class InferenceProcessorTests extends ESTestCase {
             Collections.emptyMap()
         );
 
-        Map<String, Object> source = new HashMap<>();
-        Map<String, Object> ingestMetadata = new HashMap<>();
-        IngestDocument document = new IngestDocument(source, ingestMetadata);
+        IngestDocument document = TestIngestDocument.emptyIngestDocument();
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, new RegressionConfig("foo"))),
             modelId,
             true

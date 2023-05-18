@@ -11,6 +11,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
@@ -29,7 +30,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -253,7 +253,7 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
-    public short getSystemCpuPercent() {
+    public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
@@ -264,7 +264,7 @@ public class OsProbe {
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
      */
-    private String readSingleLine(final Path path) throws IOException {
+    private static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
@@ -464,6 +464,13 @@ public class OsProbe {
      * nr_throttled} is the number of times tasks in the given control group have been throttled, and {@code throttled_time} is the total
      * time in nanoseconds for which tasks in the given control group have been throttled.
      *
+     * If the burst feature of the scheduler is enabled, the statistics contain an additional two fields of the form
+     * <blockquote><pre>
+     * nr_bursts \d+
+     * burst_time
+     * </pre></blockquote>
+     * These additional fields are currently ignored.
+     *
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -471,7 +478,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        assert lines != null && (lines.size() == 3 || lines.size() == 5);
         return lines;
     }
 
@@ -756,11 +763,11 @@ public class OsProbe {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+    OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
             refreshInterval,
             Runtime.getRuntime().availableProcessors(),
-            allocatedProcessors,
+            processors,
             Constants.OS_NAME,
             getPrettyName(),
             Constants.OS_ARCH,
@@ -777,9 +784,7 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines = etcOsReleaseLines.stream()
-                .filter(line -> line.startsWith("PRETTY_NAME"))
-                .collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).toList();
             assert prettyNameLines.size() <= 1 : prettyNameLines;
             final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
                 ? Optional.of(prettyNameLines.get(0))
@@ -852,7 +857,7 @@ public class OsProbe {
      */
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
-        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).toList();
         assert memTotalLines.size() <= 1 : memTotalLines;
         if (memTotalLines.size() == 1) {
             final String memTotalLine = memTotalLines.get(0);

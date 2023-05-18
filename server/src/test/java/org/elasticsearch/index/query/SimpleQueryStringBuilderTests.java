@@ -340,6 +340,25 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(builder, equalTo(otherBuilder));
     }
 
+    public void testFromSimpleJson() throws IOException {
+        String json = """
+            {
+              "simple_query_string" : {
+                "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
+                "fields" : [ "body^5.0" ]
+              }
+            }""";
+
+        SimpleQueryStringBuilder parsed = (SimpleQueryStringBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "\"fried eggs\" +(eggplant | potato) -frittata", parsed.value());
+        assertEquals(json, 1, parsed.fields().size());
+        assertEquals(json, 0, parsed.fuzzyPrefixLength());
+        assertEquals(json, 50, parsed.fuzzyMaxExpansions());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
+    }
+
     public void testFromJson() throws IOException {
         String json = """
             {
@@ -347,16 +366,16 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 "query" : "\\"fried eggs\\" +(eggplant | potato) -frittata",
                 "fields" : [ "body^5.0" ],
                 "analyzer" : "snowball",
-                "flags" : -1,
+                "flags" : 8,
                 "default_operator" : "and",
                 "lenient" : false,
-                "analyze_wildcard" : false,
+                "analyze_wildcard" : true,
                 "quote_field_suffix" : ".quote",
-                "auto_generate_synonyms_phrase_query" : true,
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_prefix_length" : 1,
                 "fuzzy_max_expansions" : 5,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
 

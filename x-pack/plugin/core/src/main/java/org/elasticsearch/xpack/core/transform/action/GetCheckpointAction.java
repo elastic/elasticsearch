@@ -31,8 +31,8 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
     public static final GetCheckpointAction INSTANCE = new GetCheckpointAction();
 
-    // note: this is an index action and requires `view_index_metadata`
-    public static final String NAME = "indices:internal/transform/checkpoint";
+    // note: this is an index action and requires `monitor` or `view_index_metadata`
+    public static final String NAME = "indices:monitor/transform/checkpoint";
 
     private GetCheckpointAction() {
         super(NAME, GetCheckpointAction.Response::new);

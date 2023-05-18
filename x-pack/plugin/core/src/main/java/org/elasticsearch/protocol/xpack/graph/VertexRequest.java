@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,6 +19,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * A request to identify terms from a choice of field as part of a {@link Hop}.
@@ -24,15 +28,16 @@ import java.util.Set;
  * inclusion list to filter which terms are considered.
  *
  */
-public class VertexRequest implements ToXContentObject {
+public class VertexRequest implements ToXContentObject, Writeable {
+    public static final int DEFAULT_SIZE = 5;
+    public static final int DEFAULT_MIN_DOC_COUNT = 3;
+    public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
+
     private String fieldName;
     private int size = DEFAULT_SIZE;
-    public static final int DEFAULT_SIZE = 5;
     private Map<String, TermBoost> includes;
     private Set<String> excludes;
-    public static final int DEFAULT_MIN_DOC_COUNT = 3;
     private int minDocCount = DEFAULT_MIN_DOC_COUNT;
-    public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
     private int shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
 
     public VertexRequest() {
@@ -65,26 +70,21 @@ public class VertexRequest implements ToXContentObject {
 
     }
 
-    void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeVInt(size);
         out.writeVInt(minDocCount);
         out.writeVInt(shardMinDocCount);
 
         if (includes != null) {
-            out.writeVInt(includes.size());
-            for (TermBoost tb : includes.values()) {
-                tb.writeTo(out);
-            }
+            out.writeCollection(includes.values());
         } else {
             out.writeVInt(0);
         }
 
         if (excludes != null) {
-            out.writeVInt(excludes.size());
-            for (String term : excludes) {
-                out.writeString(term);
-            }
+            out.writeStringCollection(excludes);
         } else {
             out.writeVInt(0);
         }
@@ -154,17 +154,20 @@ public class VertexRequest implements ToXContentObject {
         return includes.values().toArray(new TermBoost[includes.size()]);
     }
 
-    public String[] includeValuesAsStringArray() {
-        String[] result = new String[includes.size()];
-        int i = 0;
-        for (TermBoost tb : includes.values()) {
-            result[i++] = tb.term;
+    public SortedSet<BytesRef> includeValuesAsSortedSet() {
+        SortedSet<BytesRef> set = new TreeSet<>();
+        for (String include : includes.keySet()) {
+            set.add(new BytesRef(include));
         }
-        return result;
+        return set;
     }
 
-    public String[] excludesAsArray() {
-        return excludes.toArray(new String[excludes.size()]);
+    public SortedSet<BytesRef> excludesAsSortedSet() {
+        SortedSet<BytesRef> set = new TreeSet<>();
+        for (String include : excludes) {
+            set.add(new BytesRef(include));
+        }
+        return set;
     }
 
     public int minDocCount() {

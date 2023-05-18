@@ -17,6 +17,8 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
   testImplementation "com.google.jimfs:jimfs:1.2"
+  testImplementation "com.google.guava:guava:${versions.jimfs_guava}"
+  testImplementation project(":test:framework")
   testImplementation project(':distribution:tools:plugin-cli')
 }
 

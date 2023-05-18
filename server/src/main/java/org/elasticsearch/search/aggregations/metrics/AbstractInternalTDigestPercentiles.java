@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -21,9 +22,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
+
+    // NOTE: using compression = 1.0 empty histograms will track just about 5 centroids.
+    // This reduces the amount of data to serialize and deserialize.
+    private static final TDigestState EMPTY_HISTOGRAM = new EmptyTDigestState();
 
     protected final double[] keys;
     protected final TDigestState state;
@@ -37,11 +41,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = formatter;
     }
 
     /**
@@ -49,9 +52,16 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      */
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
-        state = TDigestState.read(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.readBoolean()) {
+                state = TDigestState.read(in);
+            } else {
+                state = null;
+            }
+        } else {
+            state = TDigestState.read(in);
+        }
         keyed = in.readBoolean();
     }
 
@@ -59,18 +69,31 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDoubleArray(keys);
-        TDigestState.write(state, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (this.state != null) {
+                out.writeBoolean(true);
+                TDigestState.write(state, out);
+            } else {
+                out.writeBoolean(false);
+            }
+        } else {
+            TDigestState state = this.state != null ? this.state : EMPTY_HISTOGRAM;
+            TDigestState.write(state, out);
+        }
         out.writeBoolean(keyed);
     }
 
     @Override
     public double value(String name) {
+        if (this.keys.length == 1 && this.name.equals(name)) {
+            return value(this.keys[0]);
+        }
         return value(Double.parseDouble(name));
     }
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
     }
 
     public abstract double value(double key);
@@ -109,12 +132,38 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
+            if (percentiles.state == null) {
+                continue;
+            }
             if (merged == null) {
                 merged = new TDigestState(percentiles.state.compression());
             }
-            merged.add(percentiles.state);
+            merged = merge(merged, percentiles.state);
+        }
+        if (merged == null) {
+            merged = EMPTY_HISTOGRAM;
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
+    }
+
+    /**
+     * Merges two {@link TDigestState}s such that we always merge the one with smaller
+     * compression into the one with larger compression.
+     * This prevents producing a result that has lower than expected precision.
+     *
+     * @param digest1 The first histogram to merge
+     * @param digest2 The second histogram to merge
+     * @return One of the input histograms such that the one with larger compression is used as the one for merging
+     */
+    private TDigestState merge(final TDigestState digest1, final TDigestState digest2) {
+        TDigestState largerCompression = digest1;
+        TDigestState smallerCompression = digest2;
+        if (digest2.compression() > digest1.compression()) {
+            largerCompression = digest2;
+            smallerCompression = digest1;
+        }
+        largerCompression.add(smallerCompression);
+        return largerCompression;
     }
 
     @Override
@@ -132,6 +181,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        TDigestState state = this.state != null ? this.state : EMPTY_HISTOGRAM;
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
             for (int i = 0; i < keys.length; ++i) {

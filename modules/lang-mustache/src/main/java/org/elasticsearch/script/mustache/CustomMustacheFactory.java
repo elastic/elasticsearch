@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -23,6 +22,7 @@ import com.github.mustachejava.codes.WriteCode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -260,7 +260,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
     static class CustomJoinerCode extends JoinerCode {
 
-        private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
+        private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
         CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
@@ -357,7 +357,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
         }
     }
 }

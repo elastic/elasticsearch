@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,44 +26,55 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
+
 /**
  * Node information (static, does not change over time).
  */
 public class NodeInfo extends BaseNodeResponse {
 
-    private Version version;
-    private Build build;
+    private final Version version;
+    private final TransportVersion transportVersion;
+    private final Build build;
 
     @Nullable
-    private Settings settings;
+    private final Settings settings;
 
     /**
      * Do not expose this map to other classes. For type safety, use {@link #getInfo(Class)}
      * to retrieve items from this map and {@link #addInfoIfNonNull(Class, ReportingService.Info)}
      * to retrieve items from it.
      */
-    private Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
+    private final Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
 
     @Nullable
-    private ByteSizeValue totalIndexingBuffer;
+    private final ByteSizeValue totalIndexingBuffer;
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
         version = Version.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            transportVersion = TransportVersion.readVersion(in);
+        } else {
+            transportVersion = TransportVersion.fromId(version.id);
+        }
         build = Build.readBuild(in);
         if (in.readBoolean()) {
-            totalIndexingBuffer = new ByteSizeValue(in.readLong());
+            totalIndexingBuffer = ByteSizeValue.ofBytes(in.readLong());
         } else {
             totalIndexingBuffer = null;
         }
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
+        } else {
+            settings = null;
         }
         addInfoIfNonNull(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
         addInfoIfNonNull(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
@@ -72,13 +84,17 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
+        }
+        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
         }
     }
 
     public NodeInfo(
         Version version,
+        TransportVersion transportVersion,
         Build build,
         DiscoveryNode node,
         @Nullable Settings settings,
@@ -88,6 +104,7 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable ThreadPoolInfo threadPool,
         @Nullable TransportInfo transport,
         @Nullable HttpInfo http,
+        @Nullable RemoteClusterServerInfo remoteClusterServer,
         @Nullable PluginsAndModules plugins,
         @Nullable IngestInfo ingest,
         @Nullable AggregationInfo aggsInfo,
@@ -95,6 +112,7 @@ public class NodeInfo extends BaseNodeResponse {
     ) {
         super(node);
         this.version = version;
+        this.transportVersion = transportVersion;
         this.build = build;
         this.settings = settings;
         addInfoIfNonNull(OsInfo.class, os);
@@ -103,6 +121,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(ThreadPoolInfo.class, threadPool);
         addInfoIfNonNull(TransportInfo.class, transport);
         addInfoIfNonNull(HttpInfo.class, http);
+        addInfoIfNonNull(RemoteClusterServerInfo.class, remoteClusterServer);
         addInfoIfNonNull(PluginsAndModules.class, plugins);
         addInfoIfNonNull(IngestInfo.class, ingest);
         addInfoIfNonNull(AggregationInfo.class, aggsInfo);
@@ -122,6 +141,13 @@ public class NodeInfo extends BaseNodeResponse {
      */
     public Version getVersion() {
         return version;
+    }
+
+    /**
+     * The most recent transport version that can be used by this node
+     */
+    public TransportVersion getTransportVersion() {
+        return transportVersion;
     }
 
     /**
@@ -171,7 +197,10 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(version.id);
+        Version.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            TransportVersion.writeVersion(transportVersion, out);
+        }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
@@ -183,7 +212,7 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            Settings.writeSettingsToStream(settings, out);
+            settings.writeTo(out);
         }
         out.writeOptionalWriteable(getInfo(OsInfo.class));
         out.writeOptionalWriteable(getInfo(ProcessInfo.class));
@@ -193,8 +222,11 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getInfo(AggregationInfo.class));
+        }
+        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+            out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
         }
     }
 }

@@ -1,6 +1,0 @@
-pr: 83645
-summary: Fix submit after shutdown in process worker service
-area: Machine Learning
-type: bug
-issues:
- - 83633

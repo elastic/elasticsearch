@@ -19,20 +19,24 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.ExecuteEnrichPolicyTask;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction.Request;
 import static org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction.Response;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyExecutor.TASK_ACTION;
 
@@ -56,6 +60,45 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
 
     private InternalExecutePolicyAction() {
         super(NAME, Response::new);
+    }
+
+    public static class Request extends ExecuteEnrichPolicyAction.Request {
+
+        private final String enrichIndexName;
+
+        public Request(String name, String enrichIndexName) {
+            super(name);
+            this.enrichIndexName = enrichIndexName;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.enrichIndexName = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(enrichIndexName);
+        }
+
+        public String getEnrichIndexName() {
+            return enrichIndexName;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            Request request = (Request) o;
+            return Objects.equals(enrichIndexName, request.enrichIndexName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), enrichIndexName);
+        }
     }
 
     public static class Transport extends HandledTransportAction<Request, Response> {
@@ -88,56 +131,73 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 return;
             }
 
-            // Can't use provided task, because in the case wait_for_completion=false then
-            // as soon as actionListener#onResponse is invoked then the provided task get unregistered and
-            // then there no way to see the policy execution in the list tasks or get task APIs.
-            var task = (ExecuteEnrichPolicyTask) taskManager.register("enrich", TASK_ACTION, new TaskAwareRequest() {
+            try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+                // Can't use provided task, because in the case wait_for_completion=false then
+                // as soon as actionListener#onResponse is invoked then the provided task get unregistered and
+                // then there no way to see the policy execution in the list tasks or get task APIs.
+                var task = (ExecuteEnrichPolicyTask) taskManager.register("enrich", TASK_ACTION, new TaskAwareRequest() {
 
-                @Override
-                public void setParentTask(TaskId taskId) {
-                    request.setParentTask(taskId);
-                }
+                    @Override
+                    public void setParentTask(TaskId taskId) {
+                        request.setParentTask(taskId);
+                    }
 
-                @Override
-                public TaskId getParentTask() {
-                    return request.getParentTask();
-                }
+                    @Override
+                    public void setRequestId(long requestId) {
+                        request.setRequestId(requestId);
+                    }
 
-                @Override
-                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                    String description = "executing enrich policy [" + request.getName() + "]";
-                    return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
-                }
-            });
+                    @Override
+                    public TaskId getParentTask() {
+                        return request.getParentTask();
+                    }
 
-            try {
-                ActionListener<ExecuteEnrichPolicyStatus> listener;
-                if (request.isWaitForCompletion()) {
-                    listener = ActionListener.wrap(result -> actionListener.onResponse(new Response(result)), actionListener::onFailure);
-                } else {
-                    listener = ActionListener.wrap(result -> LOGGER.debug("successfully executed policy [{}]", request.getName()), e -> {
-                        if (e instanceof TaskCancelledException) {
-                            LOGGER.info(e.getMessage());
-                        } else {
-                            LOGGER.error("failed to execute policy [" + request.getName() + "]", e);
-                        }
-                    });
-                }
-                policyExecutor.runPolicyLocally(task, request.getName(), ActionListener.wrap(result -> {
+                    @Override
+                    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                        String description = "executing enrich policy ["
+                            + request.getName()
+                            + "] creating new enrich index ["
+                            + request.getEnrichIndexName()
+                            + "]";
+                        return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
+                    }
+                });
+
+                try {
+                    ActionListener<ExecuteEnrichPolicyStatus> listener;
+                    if (request.isWaitForCompletion()) {
+                        listener = ActionListener.wrap(
+                            result -> actionListener.onResponse(new Response(result)),
+                            actionListener::onFailure
+                        );
+                    } else {
+                        listener = ActionListener.wrap(
+                            result -> LOGGER.debug("successfully executed policy [{}]", request.getName()),
+                            e -> {
+                                if (e instanceof TaskCancelledException) {
+                                    LOGGER.info(e.getMessage());
+                                } else {
+                                    LOGGER.error("failed to execute policy [" + request.getName() + "]", e);
+                                }
+                            }
+                        );
+                    }
+                    policyExecutor.runPolicyLocally(task, request.getName(), request.getEnrichIndexName(), ActionListener.wrap(result -> {
+                        taskManager.unregister(task);
+                        listener.onResponse(result);
+                    }, e -> {
+                        taskManager.unregister(task);
+                        listener.onFailure(e);
+                    }));
+
+                    if (request.isWaitForCompletion() == false) {
+                        TaskId taskId = new TaskId(clusterState.nodes().getLocalNodeId(), task.getId());
+                        actionListener.onResponse(new Response(taskId));
+                    }
+                } catch (Exception e) {
                     taskManager.unregister(task);
-                    listener.onResponse(result);
-                }, e -> {
-                    taskManager.unregister(task);
-                    listener.onFailure(e);
-                }));
-
-                if (request.isWaitForCompletion() == false) {
-                    TaskId taskId = new TaskId(clusterState.nodes().getLocalNodeId(), task.getId());
-                    actionListener.onResponse(new Response(taskId));
+                    throw e;
                 }
-            } catch (Exception e) {
-                taskManager.unregister(task);
-                throw e;
             }
         }
 

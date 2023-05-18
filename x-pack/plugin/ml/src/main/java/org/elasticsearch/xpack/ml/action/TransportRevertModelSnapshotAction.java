@@ -176,7 +176,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
         // 2. Verify the job exists
         ActionListener<Boolean> createStateIndexListener = ActionListener.wrap(
-            r -> jobManager.jobExists(jobId, jobExistsListener),
+            r -> jobManager.jobExists(jobId, null, jobExistsListener),
             listener::onFailure
         );
 
@@ -334,7 +334,6 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         ModelSnapshot modelSnapshot,
         String jobId
     ) {
-
         return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
             counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
             jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.delegateFailure((l, r) -> l.onResponse(response)));

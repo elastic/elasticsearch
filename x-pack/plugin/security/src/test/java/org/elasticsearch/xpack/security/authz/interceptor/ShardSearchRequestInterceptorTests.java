@@ -73,7 +73,7 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         interceptor.disableFeatures(
             shardSearchRequest,
-            Map.of(index, new IndicesAccessControl.IndexAccessControl(true, FieldPermissions.DEFAULT, documentPermissions)),
+            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
             listener
         );
         listener.actionGet();
@@ -90,7 +90,7 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
         interceptor.disableFeatures(
             shardSearchRequest,
-            Map.of(index, new IndicesAccessControl.IndexAccessControl(true, FieldPermissions.DEFAULT, documentPermissions)),
+            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
             listener
         );
         listener.actionGet();

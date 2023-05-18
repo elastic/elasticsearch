@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -19,8 +19,8 @@ import java.io.IOException;
  */
 public class VersionCheckingStreamOutput extends StreamOutput {
 
-    public VersionCheckingStreamOutput(Version version) {
-        setVersion(version);
+    public VersionCheckingStreamOutput(TransportVersion version) {
+        setTransportVersion(version);
     }
 
     @Override
@@ -46,11 +46,6 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void reset() throws IOException {
-        // no-op
-    }
-
-    @Override
     public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         if (namedWriteable instanceof VersionedNamedWriteable vnw) {
             checkVersionCompatibility(vnw);
@@ -67,14 +62,14 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     }
 
     private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
-        if (namedWriteable.getMinimalSupportedVersion().after(getVersion())) {
+        if (namedWriteable.getMinimalSupportedVersion().after(getTransportVersion())) {
             throw new IllegalArgumentException(
                 "["
                     + namedWriteable.getWriteableName()
                     + "] was released first in version "
                     + namedWriteable.getMinimalSupportedVersion()
                     + ", failed compatibility check trying to send it to node with version "
-                    + getVersion()
+                    + getTransportVersion()
             );
         }
     }

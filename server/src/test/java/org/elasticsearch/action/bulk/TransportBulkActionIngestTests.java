@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -57,6 +56,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -155,7 +155,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, Version minNodeVersion, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -188,41 +188,33 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(localNode.isIngestNode()).thenAnswer(stub -> localIngest);
         when(clusterService.localNode()).thenReturn(localNode);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         remoteNode1 = mock(DiscoveryNode.class);
         remoteNode2 = mock(DiscoveryNode.class);
         nodes = mock(DiscoveryNodes.class);
-        ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
-            .fPut("node1", remoteNode1)
-            .fPut("node2", remoteNode2)
-            .build();
+        Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAll(
-                        Map.of(
-                            WITH_DEFAULT_PIPELINE,
-                            IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                                .settings(
-                                    settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
-                                )
-                                .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
-                                .numberOfShards(1)
-                                .numberOfReplicas(1)
-                                .build(),
-                            ".system",
-                            IndexMetadata.builder(".system")
-                                .settings(settings(Version.CURRENT))
-                                .system(true)
-                                .numberOfShards(1)
-                                .numberOfReplicas(0)
-                                .build()
-                        )
-                    )
-                    .build()
+                Map.of(
+                    WITH_DEFAULT_PIPELINE,
+                    IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                        .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build())
+                        .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .build(),
+                    ".system",
+                    IndexMetadata.builder(".system")
+                        .settings(settings(Version.CURRENT))
+                        .system(true)
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .build()
+                )
             )
             .build();
         when(state.getMetadata()).thenReturn(metadata);
@@ -259,12 +251,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(Collections.emptyMap());
-        ActionTestUtils.execute(
-            singleItemBulkWriteAction,
-            null,
-            indexRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
+            throw new AssertionError(exception);
+        }));
         assertTrue(action.isExecuted);
         verifyNoMoreInteractions(ingestService);
     }
@@ -299,9 +288,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -341,9 +330,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -387,9 +376,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.SYSTEM_WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -544,9 +533,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
@@ -592,9 +581,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         completionHandler.getValue().accept(null, exception);
@@ -634,8 +623,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
-        templateMetadataBuilder.put(
+        Map<String, IndexTemplateMetadata> templateMetadata = new HashMap<>();
+        templateMetadata.put(
             "template1",
             IndexTemplateMetadata.builder("template1")
                 .patterns(Arrays.asList("missing_index"))
@@ -643,7 +632,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline1").build())
                 .build()
         );
-        templateMetadataBuilder.put(
+        templateMetadata.put(
             "template2",
             IndexTemplateMetadata.builder("template2")
                 .patterns(Arrays.asList("missing_*"))
@@ -651,11 +640,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build())
                 .build()
         );
-        templateMetadataBuilder.put(
-            "template3",
-            IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build()
-        );
-        templateMetadataBuilder.put(
+        templateMetadata.put("template3", IndexTemplateMetadata.builder("template3").patterns(Arrays.asList("missing*")).order(3).build());
+        templateMetadata.put(
             "template4",
             IndexTemplateMetadata.builder("template4")
                 .patterns(Arrays.asList("nope"))
@@ -667,10 +653,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        final ImmutableOpenMap<String, IndexTemplateMetadata> templateMetadata = templateMetadataBuilder.build();
         when(metadata.templates()).thenReturn(templateMetadata);
         when(metadata.getTemplates()).thenReturn(templateMetadata);
-        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());
@@ -690,9 +675,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
     }
@@ -734,9 +719,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
     }
@@ -750,12 +735,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
-        ActionTestUtils.execute(
-            action,
-            null,
-            bulkRequest,
-            ActionListener.wrap(response -> { responseCalled.set(true); }, e -> { failureCalled.set(true); })
-        );
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> { responseCalled.set(true); }, e -> {
+            failureCalled.set(true);
+        }));
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
@@ -764,12 +746,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
-        indexRequest1.process();
+        indexRequest1.autoGenerateId();
         completionHandler.getValue().accept(Thread.currentThread(), null);
 
         // check failure passed through to the listener
@@ -801,9 +783,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
-            any(),
             eq(Names.WRITE)
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");

@@ -5,20 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   testImplementation project(':modules:ingest-common')
 }
 
-testClusters.configureEach {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'false'
-}
-
-testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'node.roles', '[data,master,remote_cluster_client]'
 }

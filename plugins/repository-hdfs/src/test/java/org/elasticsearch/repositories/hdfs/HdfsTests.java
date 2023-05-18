@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
@@ -38,7 +37,6 @@ public class HdfsTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleWorkflow() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         Client client = client();
 
         AcknowledgedResponse putRepositoryResponse = client.admin()

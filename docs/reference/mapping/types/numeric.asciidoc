@@ -73,12 +73,17 @@ that is enough for the use-case among the floating-point types: `double`,
 `float` and `half_float`. Here is a table that compares these types in order
 to help make a decision.
 
-[cols="<,<,<,<",options="header",]
+[[floating_point]]
+[cols="<,<,<,<,<",options="header",]
 |=======================================================================
-|Type |Minimum value |Maximum value |Significant bits / digits
-|`double`|+2^-1074^+ |+(2-2^-52^)·2^1023^+ |+53+ / +15.95+
-|`float`|+2^-149^+ |+(2-2^-23^)·2^127^+ |+24+ / +7.22+
-|`half_float`|+2^-24^+ |+65504+ |+11+ / +3.31+
+|Type        |Minimum value |Maximum value        |Significant +
+                                                     bits / digits  |Example precision loss
+|`double`    |+2^-1074^+    |+(2-2^-52^)·2^1023^+ |  +53+ / +15.95+ | +1.2345678912345678+-> +
+                                                                      +1.234567891234568+
+|`float`     |+2^-149^+     |+(2-2^-23^)·2^127^+  |  +24+ / +7.22+  | +1.23456789+-> +
+                                                                      +1.2345679+
+|`half_float`|+2^-24^+      |+65504+              |  +11+ / +3.31+  | +1.2345+-> +
+                                                                      +1.234375+
 |=======================================================================
 
 [TIP]
@@ -106,6 +111,7 @@ the data as both a `keyword` _and_ a numeric data type.
 // end::map-ids-as-keyword[]
 ====
 
+[role="child_attributes"]
 [[number-params]]
 ==== Parameters for numeric fields
 
@@ -173,44 +179,36 @@ The following parameters are accepted by numeric types:
     (default).
 
 `time_series_dimension`::
+(Optional, Boolean)
 +
 --
-experimental:[]
-(Optional, Boolean)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 include::keyword.asciidoc[tag=dimension]
 
 Of the numeric field types, only `byte`, `short`, `integer`, `long`, and
 `unsigned_long` fields support this parameter.
 
 A numeric field can't be both a time series dimension and a time series metric.
-====
 --
 
 `time_series_metric`::
-+
---
-experimental:[]
 (Optional, string)
-
-.For internal use by Elastic only.
-[%collapsible]
-====
 // tag::time_series_metric[]
-Marks the field as a time series metric. The value is the metric type. Defaults
-to `null` (Not a time series metric).
+Marks the field as a <<time-series-metric,time series metric>>. The value is the
+metric type. You can't update this parameter for existing fields.
 // end::time_series_metric[]
++
+.Valid `time_series_metric` values for numeric fields
+[%collapsible%open]
+====
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-counter]
 
-For numeric fields, this parameter accepts `gauge` and `counter`. You can't
-update this parameter for existing fields.
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-gauge]
 
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
++
 For a numeric time series metric, the `doc_values` parameter must be `true`. A
 numeric field can't be both a time series dimension and a time series metric.
-====
---
 
 [[scaled-float-params]]
 ==== Parameters for `scaled_float`
@@ -228,3 +226,75 @@ numeric field can't be both a time series dimension and a time series metric.
     sorting) will behave as if the document had a value of +2.3+. High values
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
+
+[[numeric-synthetic-source]]
+==== Synthetic `_source`
+
+IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
+(indices that have `index.mode` set to `time_series`). For other indices
+synthetic `_source` is in technical preview. Features in technical preview may
+be changed or removed in a future release. Elastic will apply best effort to fix
+any issues, but features in technical preview are not subject to the support SLA
+of official GA features.
+
+All numeric fields except `unsigned_long` support <<synthetic-source,synthetic
+`_source`>> in their default configuration. Synthetic `_source` cannot be used
+together with <<ignore-malformed,`ignore_malformed`>>, <<copy-to,`copy_to`>>, or
+with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts numeric fields. For example:
+[source,console,id=synthetic-source-numeric-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "long": { "type": "long" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "long": [0, 0, -123466, 87612]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "long": [-123466, 0, 0, 87612]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+Scaled floats will always apply their scaling factor so:
+[source,console,id=synthetic-source-scaled-float-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "f": { "type": "scaled_float", "scaling_factor": 0.01 }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "f": 123
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "f": 100.0
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]

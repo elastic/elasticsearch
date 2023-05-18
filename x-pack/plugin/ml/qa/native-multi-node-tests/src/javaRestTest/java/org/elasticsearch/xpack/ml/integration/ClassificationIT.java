@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -15,13 +14,13 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -105,28 +104,18 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     @Before
     public void setupLogging() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
-                    .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+        );
     }
 
     @After
     public void cleanup() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(
-                Settings.builder()
-                    .putNull("logger.org.elasticsearch.xpack.ml.process")
-                    .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
-            )
-            .get();
+        updateClusterSettings(
+            Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.process").putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+        );
         cleanUp();
     }
 
@@ -643,17 +632,24 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(jobId));
         assertThat(e.status().getStatus(), equalTo(400));
-        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [30] distinct values but there were at least [31]"));
+        assertThat(e.getMessage(), equalTo("Field [keyword-field] must have at most [100] distinct values but there were at least [101]"));
     }
 
     public void testDependentVariableCardinalityTooHighButWithQueryMakesItWithinRange() throws Exception {
         initialize("cardinality_too_high_with_query");
         indexData(sourceIndex, 6, 5, KEYWORD_FIELD);
-        // Index one more document with a class different than the two already used.
-        client().execute(
-            IndexAction.INSTANCE,
-            new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+
+        // Index enough documents to have more classes than the allowed limit
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY - 1; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(KEYWORD_FIELD, "fox-" + i);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
         QueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termsQuery(KEYWORD_FIELD, KEYWORD_FIELD_VALUES));
 
         DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD), query);
@@ -796,7 +792,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(analyticsStats.getAssignmentExplanation(), is(equalTo(AWAITING_UPGRADE.getExplanation())));
                 assertThat(analyticsStats.getNode(), is(nullValue()));
             } catch (ElasticsearchException e) {
-                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                logger.error(() -> "[" + jobId + "] Encountered exception while fetching analytics stats", e);
                 fail(e.getDetailedMessage());
             }
         });
@@ -810,7 +806,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 GetDataFrameAnalyticsStatsAction.Response.Stats analyticsStats = getAnalyticsStats(jobId);
                 assertThat(analyticsStats.getAssignmentExplanation(), is(not(equalTo(AWAITING_UPGRADE.getExplanation()))));
             } catch (ElasticsearchException e) {
-                logger.error(new ParameterizedMessage("[{}] Encountered exception while fetching analytics stats", jobId), e);
+                logger.error(() -> "[" + jobId + "] Encountered exception while fetching analytics stats", e);
                 fail(e.getDetailedMessage());
             }
         });
@@ -933,7 +929,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, runtimeFields))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
             .setAnalysis(
                 new Classification(
                     dependentVariableRuntimeField,
@@ -1096,45 +1092,46 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void createIndex(String index, boolean isDatastream) {
-        String mapping = """
-            {
-              "properties": {
-                "@timestamp": {
-                  "type": "date"
-                },
-                "%s": {
-                  "type": "boolean"
-                },
-                "%s": {
-                  "type": "double"
-                },
-                "%s": {
-                  "type": "integer"
-                },
-                "%s": {
-                  "type": "text",
-                  "fields": {
-                    "keyword": {
+        String mapping = Strings.format(
+            """
+                {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    },
+                    "%s": {
+                      "type": "boolean"
+                    },
+                    "%s": {
+                      "type": "double"
+                    },
+                    "%s": {
+                      "type": "integer"
+                    },
+                    "%s": {
+                      "type": "text",
+                      "fields": {
+                        "keyword": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "%s": {
                       "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
+                    },
+                    "%s": {
+                      "type": "alias",
+                      "path": "%s"
                     }
                   }
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "keyword"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                },
-                "%s": {
-                  "type": "alias",
-                  "path": "%s"
-                }
-              }
-            }""".formatted(
+                }""",
             BOOLEAN_FIELD,
             NUMERICAL_FIELD,
             DISCRETE_NUMERICAL_FIELD,

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public class TcpHeader {
 
-    public static final Version VERSION_WITH_HEADER_SIZE = Version.V_7_6_0;
+    public static final TransportVersion VERSION_WITH_HEADER_SIZE = TransportVersion.V_7_6_0;
 
     public static final int MARKER_BYTES_SIZE = 2;
 
@@ -41,7 +41,7 @@ public class TcpHeader {
 
     private static final int HEADER_SIZE = PRE_76_HEADER_SIZE + VARIABLE_HEADER_SIZE;
 
-    public static int headerSize(Version version) {
+    public static int headerSize(TransportVersion version) {
         if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             return HEADER_SIZE;
         } else {
@@ -55,7 +55,7 @@ public class TcpHeader {
         StreamOutput output,
         long requestId,
         byte status,
-        Version version,
+        TransportVersion version,
         int contentSize,
         int variableHeaderSize
     ) throws IOException {
@@ -68,7 +68,7 @@ public class TcpHeader {
         }
         output.writeLong(requestId);
         output.writeByte(status);
-        output.writeInt(version.id);
+        output.writeInt(version.id());
         if (version.onOrAfter(VERSION_WITH_HEADER_SIZE)) {
             assert variableHeaderSize != -1 : "Variable header size not set";
             output.writeInt(variableHeaderSize);

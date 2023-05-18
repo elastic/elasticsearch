@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -18,6 +18,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,7 +40,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] fields = Strings.EMPTY_ARRAY;
     private String[] filters = Strings.EMPTY_ARRAY;
-    private String[] allowedTypes = Strings.EMPTY_ARRAY;
+    private String[] types = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
@@ -55,9 +58,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
         runtimeFields = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             filters = in.readStringArray();
-            allowedTypes = in.readStringArray();
+            types = in.readStringArray();
         }
     }
 
@@ -92,10 +95,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeBoolean(includeUnmapped);
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
-        out.writeMap(runtimeFields);
-        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+        out.writeGenericMap(runtimeFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
             out.writeStringArray(filters);
-            out.writeStringArray(allowedTypes);
+            out.writeStringArray(types);
         }
     }
 
@@ -137,13 +140,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         return filters;
     }
 
-    public FieldCapabilitiesRequest allowedTypes(String... types) {
-        this.allowedTypes = types;
+    public FieldCapabilitiesRequest types(String... types) {
+        this.types = types;
         return this;
     }
 
-    public String[] allowedTypes() {
-        return allowedTypes;
+    public String[] types() {
+        return types;
     }
 
     /**
@@ -243,7 +246,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(nowInMillis, that.nowInMillis)
             && Arrays.equals(filters, that.filters)
-            && Arrays.equals(allowedTypes, that.allowedTypes)
+            && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
@@ -253,7 +256,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);
-        result = 31 * result + Arrays.hashCode(allowedTypes);
+        result = 31 * result + Arrays.hashCode(types);
         return result;
     }
 
@@ -266,9 +269,18 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         stringBuilder.append("], filters[");
         stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(filters), ","));
         stringBuilder.append("], types[");
-        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ","));
+        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(types), ","));
         stringBuilder.append("]");
         return stringBuilder.toString();
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return FieldCapabilitiesRequest.this.getDescription();
+            }
+        };
+    }
 }

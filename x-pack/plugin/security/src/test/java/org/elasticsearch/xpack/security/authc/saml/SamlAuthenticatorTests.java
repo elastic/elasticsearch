@@ -78,6 +78,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE;
 import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE_WITH_COMMENTS;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -100,6 +102,11 @@ import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_HOLDER_OF_
 public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
 
     private static final String UID_OID = "urn:oid:0.9.2342.19200300.100.1.1";
+    public static final String SPECIAL_ATTRIBUTE_LOG_MESSAGE =
+        "SAML assertion [*] has attribute with * [*] which clashes with a special attribute name. "
+            + "Attributes with a name clash may prevent authentication or interfere will role mapping. "
+            + "Change your IdP configuration to use a different attribute *"
+            + " that will not clash with any of [*]";
 
     private SamlAuthenticator authenticator;
 
@@ -181,6 +188,121 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().value, equalTo(nameId));
     }
 
+    public void testLoggingWarnOnNameIdAttributeName() throws Exception {
+        testLoggingWarnOnSpecialAttributeName(NAMEID_SYNTHENTIC_ATTRIBUTE, null);
+    }
+
+    public void testLoggingWarnOnPersistentNameIdAttributeName() throws Exception {
+        testLoggingWarnOnSpecialAttributeName(PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE, null);
+    }
+
+    public void testLoggingWarnOnNameIdAttributeFriendlyName() throws Exception {
+        testLoggingWarnOnSpecialAttributeName(UID_OID, NAMEID_SYNTHENTIC_ATTRIBUTE);
+    }
+
+    public void testLoggingWarnOnPersistentNameIdAttributeFriendlyName() throws Exception {
+        testLoggingWarnOnSpecialAttributeName(UID_OID, PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
+    }
+
+    private void testLoggingWarnOnSpecialAttributeName(String attributeName, String attributeFriendlyName) throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionIndex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionIndex);
+        Assertion assertion = response.getAssertions().get(0);
+        assertion.getAttributeStatements()
+            .get(0)
+            .getAttributes()
+            .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
+        SamlToken token = token(signResponse(response));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "attribute name warning",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SPECIAL_ATTRIBUTE_LOG_MESSAGE
+                )
+            );
+            final SamlAttributes attributes = authenticator.authenticate(token);
+            assertThat(attributes, notNullValue());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    public void testLoggingNoLogIfNotSpecialAttributeName() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionIndex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionIndex);
+        Assertion assertion = response.getAssertions().get(0);
+        assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
+        SamlToken token = token(signResponse(response));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+            final SamlAttributes attributes = authenticator.authenticate(token);
+            assertThat(attributes, notNullValue());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
+    public void testLoggingWarnOnSpecialAttributeNameInNameAndFriendlyName() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionIndex = randomId();
+        final Response response = getSimpleResponse(now, nameId, sessionIndex);
+        Assertion assertion = response.getAssertions().get(0);
+        assertion.getAttributeStatements()
+            .get(0)
+            .getAttributes()
+            .add(getAttribute(NAMEID_SYNTHENTIC_ATTRIBUTE, NAMEID_SYNTHENTIC_ATTRIBUTE, null, List.of("daredevil")));
+        SamlToken token = token(signResponse(response));
+
+        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        try {
+            Loggers.addAppender(samlLogger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "attribute name warning",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SPECIAL_ATTRIBUTE_LOG_MESSAGE
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "attribute friendly name warning",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SPECIAL_ATTRIBUTE_LOG_MESSAGE
+                )
+            );
+            final SamlAttributes attributes = authenticator.authenticate(token);
+            assertThat(attributes, notNullValue());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(samlLogger, mockAppender);
+            mockAppender.stop();
+        }
+    }
+
     public void testSuccessfullyParseContentFromRawXmlWithASingleValidAssertion() throws Exception {
         Instant now = clock.instant();
         final String nameId = randomAlphaOfLengthBetween(12, 24);
@@ -221,6 +343,45 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().spNameQualifier, equalTo(SP_ENTITY_ID));
 
         assertThat(attributes.session(), equalTo(session));
+    }
+
+    public void testSuccessfullyParseContentFromRawXmlWithSignedAssertion() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final String xml = getSimpleResponseFromXmlTemplate(now, nameId, sessionindex);
+
+        SamlToken token = token(signAssertions(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(2));
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        assertThat(attributes.name().value, equalTo(nameId));
+    }
+
+    public void testSuccessfullyParseContentFromRawXmlWithSignedUnicodeAssertion() throws Exception {
+        Instant now = clock.instant();
+        // Picking a completely random, but valid XML, unicode char is hard. We just insert some well known chars.
+        final String nameId = randomAlphaOfLengthBetween(2, 4) + "セキュリティ" + randomAlphaOfLengthBetween(2, 4);
+        final String nameIdFormat = "urn:fake:nameid-format:soluções";
+        final String sessionindex = randomId();
+        // Randomly skip the header because the XML parser is supposed to infer UTF-8 if there is no header
+        final String xml = getSimpleResponseFromXmlTemplate(randomBoolean(), now, nameIdFormat, nameId, sessionindex);
+
+        SamlToken token = token(signAssertions(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(2));
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(nameIdFormat));
+        assertThat(attributes.name().value, equalTo(nameId));
     }
 
     public void testSuccessfullyParseContentFromEncryptedAssertion() throws Exception {
@@ -1310,6 +1471,24 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
+    private Attribute getAttribute(String name, String friendlyName, String format, List<String> values) {
+        final Attribute attribute = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
+        if (friendlyName != null) {
+            attribute.setFriendlyName(friendlyName);
+        }
+        if (format != null) {
+            attribute.setNameFormat(format);
+        }
+        attribute.setName(name);
+        values.forEach(value -> {
+            XSStringBuilder stringBuilder = new XSStringBuilder();
+            XSString stringValue = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
+            stringValue.setValue(value);
+            attribute.getAttributeValues().add(stringValue);
+        });
+        return attribute;
+    }
+
     private Response getSimpleResponse(
         Instant now,
         String nameId,
@@ -1385,22 +1564,13 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             AttributeStatement.class,
             AttributeStatement.DEFAULT_ELEMENT_NAME
         );
-        final Attribute attribute1 = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
-        attribute1.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
-        attribute1.setName(UID_OID);
-        XSStringBuilder stringBuilder = new XSStringBuilder();
-        XSString stringValue1 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue1.setValue("daredevil");
-        attribute1.getAttributeValues().add(stringValue1);
-        final Attribute attribute2 = SamlUtils.buildObject(Attribute.class, Attribute.DEFAULT_ELEMENT_NAME);
-        attribute2.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
-        attribute2.setName("urn:oid:1.3.6.1.4.1.5923.1.5.1.1");
-        XSString stringValue2_1 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue2_1.setValue("defenders");
-        XSString stringValue2_2 = stringBuilder.buildObject(AttributeValue.DEFAULT_ELEMENT_NAME, XSString.TYPE_NAME);
-        stringValue2_2.setValue("netflix");
-        attribute2.getAttributeValues().add(stringValue2_1);
-        attribute2.getAttributeValues().add(stringValue2_2);
+        final Attribute attribute1 = getAttribute(UID_OID, null, "urn:oasis:names:tc:SAML:2.0:attrname-format:uri", List.of("daredevil"));
+        final Attribute attribute2 = getAttribute(
+            "urn:oid:1.3.6.1.4.1.5923.1.5.1.1",
+            null,
+            "urn:oasis:names:tc:SAML:2.0:attrname-format:uri",
+            List.of("defenders", "netflix")
+        );
         attributeStatement.getAttributes().add(attribute1);
         attributeStatement.getAttributes().add(attribute2);
         assertion.getAttributeStatements().add(attributeStatement);
@@ -1409,9 +1579,18 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private String getSimpleResponseFromXmlTemplate(Instant now, String nameId, String sessionindex) {
+        return getSimpleResponseFromXmlTemplate(true, now, TRANSIENT, nameId, sessionindex);
+    }
+
+    private String getSimpleResponseFromXmlTemplate(
+        boolean includeXmlHeader,
+        Instant now,
+        String nameIdFormat,
+        String nameId,
+        String sessionindex
+    ) {
         Instant validUntil = now.plusSeconds(30);
-        String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
-            + "<proto:Response"
+        String xml = "<proto:Response"
             + "    Destination='%(SP_ACS_URL)'"
             + "    ID='%(randomId)'"
             + "    InResponseTo='%(requestId)'"
@@ -1427,7 +1606,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
             + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
             + "    <assert:Subject>"
-            + "      <assert:NameID  Format='%(TRANSIENT)'"
+            + "      <assert:NameID  Format='%(nameIdFormat)'"
             + "        NameQualifier='%(IDP_ENTITY_ID)'"
             + "        SPNameQualifier='%(SP_ENTITY_ID)'>%(nameId)</assert:NameID>"
             + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
@@ -1455,6 +1634,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "  </assert:Assertion>"
             + "</proto:Response>";
 
+        if (includeXmlHeader) {
+            xml = "<?xml version='1.0' encoding='UTF-8'?>\n" + xml;
+        }
+
         final Map<String, Object> replacements = new HashMap<>();
         replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
         replacements.put("METHOD_BEARER", METHOD_BEARER);
@@ -1466,7 +1649,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         replacements.put("sessionindex", sessionindex);
         replacements.put("SP_ACS_URL", SP_ACS_URL);
         replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
-        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("nameIdFormat", nameIdFormat);
         replacements.put("validUntil", validUntil);
 
         return NamedFormatter.format(xml, replacements);

@@ -37,7 +37,38 @@ backslash or surround it with double quotes. For example:
 \\                  # renders as a literal '\'
 "john@smith.com"    # renders as 'john@smith.com'
 ....
-    
+
+[NOTE]
+====
+
+The backslash is an escape character in both JSON strings and regular
+expressions. You need to escape both backslashes in a query, unless you use a
+language client, which takes care of this. For example, the string `a\b` needs
+to be indexed as `"a\\b"`:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001/_doc/1
+{
+  "my_field": "a\\b"
+}
+--------------------------------------------------
+
+This document matches the following `regexp` query:
+
+[source,console]
+--------------------------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "regexp": {
+      "my_field.keyword": "a\\\\.*"
+    }
+  }
+}
+--------------------------------------------------
+//TEST[continued]
+====
 
 [discrete]
 [[regexp-standard-operators]]

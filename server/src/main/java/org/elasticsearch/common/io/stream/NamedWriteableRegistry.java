@@ -9,7 +9,7 @@
 package org.elasticsearch.common.io.stream;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,11 +55,11 @@ public class NamedWriteableRegistry {
     @SuppressWarnings("rawtypes")
     public NamedWriteableRegistry(List<Entry> entries) {
         if (entries.isEmpty()) {
-            registry = Collections.emptyMap();
+            registry = Map.of();
             return;
         }
         entries = new ArrayList<>(entries);
-        entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
+        entries.sort(Comparator.comparing(e -> e.categoryClass.getName()));
 
         Map<Class<?>, Map<String, Writeable.Reader<?>>> registry = new HashMap<>();
         Map<String, Writeable.Reader<?>> readers = null;
@@ -68,7 +68,7 @@ public class NamedWriteableRegistry {
             if (currentCategory != entry.categoryClass) {
                 if (currentCategory != null) {
                     // we've seen the last of this category, put it into the big map
-                    registry.put(currentCategory, Collections.unmodifiableMap(readers));
+                    registry.put(currentCategory, Map.copyOf(readers));
                 }
                 readers = new HashMap<>();
                 currentCategory = entry.categoryClass;
@@ -92,9 +92,9 @@ public class NamedWriteableRegistry {
             }
         }
         // handle the last category
-        registry.put(currentCategory, Collections.unmodifiableMap(readers));
+        registry.put(currentCategory, Map.copyOf(readers));
 
-        this.registry = Collections.unmodifiableMap(registry);
+        this.registry = Map.copyOf(registry);
     }
 
     /**
@@ -102,15 +102,47 @@ public class NamedWriteableRegistry {
      * name provided as argument and its category.
      */
     public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
-        Map<String, Writeable.Reader<?>> readers = registry.get(categoryClass);
-        if (readers == null) {
-            throw new IllegalArgumentException("Unknown NamedWriteable category [" + categoryClass.getName() + "]");
-        }
+        Map<String, Writeable.Reader<?>> readers = getReaders(categoryClass);
+        return getReader(categoryClass, name, readers);
+    }
+
+    /**
+     * @param categoryClass category of the reader
+     * @param name          name of the writeable
+     * @param readers       map of readers for the category
+     * @return reader for the named writable of the given {@code name}
+     */
+    public static <T> Writeable.Reader<? extends T> getReader(
+        Class<T> categoryClass,
+        String name,
+        Map<String, Writeable.Reader<?>> readers
+    ) {
         @SuppressWarnings("unchecked")
         Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>) readers.get(name);
         if (reader == null) {
-            throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
+            throwOnUnknownWritable(categoryClass, name);
         }
         return reader;
+    }
+
+    /**
+     * Gets the readers map keyed by name for the given category
+     * @param categoryClass category to get readers map for
+     * @return map of readers for the category
+     */
+    public <T> Map<String, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
+        Map<String, Writeable.Reader<?>> readers = registry.get(categoryClass);
+        if (readers == null) {
+            throwOnUnknownCategory(categoryClass);
+        }
+        return readers;
+    }
+
+    private static <T> void throwOnUnknownWritable(Class<T> categoryClass, String name) {
+        throw new IllegalArgumentException("Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]");
+    }
+
+    private static <T> void throwOnUnknownCategory(Class<T> categoryClass) {
+        throw new IllegalArgumentException("Unknown NamedWriteable category [" + categoryClass.getName() + "]");
     }
 }

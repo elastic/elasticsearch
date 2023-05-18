@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SnapshotHistoryItemTests extends AbstractSerializingTestCase<SnapshotHistoryItem> {
+public class SnapshotHistoryItemTests extends AbstractXContentSerializingTestCase<SnapshotHistoryItem> {
 
     @Override
     protected SnapshotHistoryItem doParseInstance(XContentParser parser) throws IOException {

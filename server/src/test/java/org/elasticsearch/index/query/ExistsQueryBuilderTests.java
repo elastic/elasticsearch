@@ -11,9 +11,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.regex.Regex;
@@ -69,14 +68,10 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
                 for (BooleanClause booleanClause : booleanQuery) {
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
-            } else if (context.getFieldType(field).hasDocValues()) {
-                assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
-                DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
-                assertEquals(field, dvExistsQuery.getField());
-            } else if (context.getFieldType(field).getTextSearchInfo().hasNorms()) {
-                assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
-                NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
-                assertEquals(field, normsExistsQuery.getField());
+            } else if (context.getFieldType(field).hasDocValues() || context.getFieldType(field).getTextSearchInfo().hasNorms()) {
+                assertThat(constantScoreQuery.getQuery(), instanceOf(FieldExistsQuery.class));
+                FieldExistsQuery existsQuery = (FieldExistsQuery) constantScoreQuery.getQuery();
+                assertEquals(field, existsQuery.getField());
             } else {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(TermQuery.class));
                 TermQuery termQuery = (TermQuery) constantScoreQuery.getQuery();

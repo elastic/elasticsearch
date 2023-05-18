@@ -12,10 +12,11 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,6 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Class handling cluster allocation explanation at the REST level
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
     @Override
@@ -67,7 +69,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws IOException {
                     response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(RestStatus.OK, builder);
+                    return new RestResponse(RestStatus.OK, builder);
                 }
             });
     }

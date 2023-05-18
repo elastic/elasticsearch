@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -19,7 +20,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -74,11 +74,11 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nodeId = in.readString();
         int numShards = in.readVInt();
-        shardIds = new HashSet<>(numShards);
+        shardIds = Sets.newHashSetWithExpectedSize(numShards);
         for (int i = 0; i < numShards; i++) {
             shardIds.add(new ShardId(in));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_15_1)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_15_1)) {
             originalIndices = OriginalIndices.readOriginalIndices(in);
         } else {
             String[] indicesNames = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
@@ -106,7 +106,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         for (ShardId shardId : shardIds) {
             shardId.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_15_1)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_15_1)) {
             OriginalIndices.writeOriginalIndices(originalIndices, out);
         }
     }

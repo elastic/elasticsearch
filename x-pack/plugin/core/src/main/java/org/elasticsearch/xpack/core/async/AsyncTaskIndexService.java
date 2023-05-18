@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -58,7 +60,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -210,8 +211,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Currently for EQL we don't set limit for a stored async response
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
-    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
-        throws IOException {
+    public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener) {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
@@ -307,7 +307,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } else {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
-                    logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", docId), e);
+                    logger.error(() -> "failed to store async-search [" + docId + "]", e);
                     ActionListener<UpdateResponse> newListener = listener;
                     updateStoredResponseWithFailure(
                         docId,
@@ -315,7 +315,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         response,
                         e,
                         // at end, we should report a failure to the listener
-                        ActionListener.wrap(() -> newListener.onFailure(e))
+                        ActionListener.running(() -> newListener.onFailure(e))
                     );
                 } else {
                     listener.onFailure(e);
@@ -364,7 +364,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    public static <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass)
+        throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
@@ -428,8 +429,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             try {
                 final BytesReference source = getResponse.getSourceInternal();
                 // reserve twice memory of the source length: one for the internal XContent parser and one for the response
-                final int reservedBytes = source.length() * 2;
-                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length() * 2L, "decode async response");
+                final long reservedBytes = source.length() * 2L;
+                circuitBreaker.addEstimateBytesAndMaybeBreak(reservedBytes, "decode async response");
                 listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
                 resp = parseResponseFromIndex(asyncExecutionId, source, restoreResponseHeaders, checkAuthentication);
             } catch (Exception e) {
@@ -535,13 +536,19 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
+    private static final FetchSourceContext FETCH_HEADERS_FIELD_CONTEXT = FetchSourceContext.of(
+        true,
+        new String[] { HEADERS_FIELD },
+        Strings.EMPTY_ARRAY
+    );
+
     /**
      * Checks if the current user can access the async search result of the original user.
      **/
     void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
         GetRequest internalGet = new GetRequest(index).preference(executionId.getEncoded())
             .id(executionId.getDocId())
-            .fetchSourceContext(new FetchSourceContext(true, new String[] { HEADERS_FIELD }, new String[] {}));
+            .fetchSourceContext(FETCH_HEADERS_FIELD_CONTEXT);
 
         clientWithOrigin.get(internalGet, ActionListener.wrap(get -> {
             if (get.isExists() == false) {
@@ -560,19 +567,15 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private void writeResponse(R response, OutputStream os) throws IOException {
-        os = new FilterOutputStream(os) {
-            @Override
-            public void close() {
-                // do not close the output
-            }
-        };
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        Version.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-        if (minNodeVersion.onOrAfter(Version.V_7_15_0)) {
+        // do not close the output
+        os = Streams.noCloseStream(os);
+        TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
+        TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
+        if (minNodeVersion.onOrAfter(TransportVersion.V_7_15_0)) {
             os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
         }
         try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
-            out.setVersion(minNodeVersion);
+            out.setTransportVersion(minNodeVersion);
             response.writeTo(out);
         }
     }
@@ -591,13 +594,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 }
             }
         });
-        final Version version = Version.readVersion(new InputStreamStreamInput(encodedIn));
-        assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
-        if (version.onOrAfter(Version.V_7_15_0)) {
+        TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
+        assert version.onOrBefore(TransportVersion.CURRENT) : version + " >= " + TransportVersion.CURRENT;
+        if (version.onOrAfter(TransportVersion.V_7_15_0)) {
             encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
-            in.setVersion(version);
+            in.setTransportVersion(version);
             return reader.read(in);
         }
     }

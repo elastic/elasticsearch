@@ -94,10 +94,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(fragments.length);
-            for (Text fragment : fragments) {
-                out.writeText(fragment);
-            }
+            out.writeArray(StreamOutput::writeText, fragments);
         }
     }
 

@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -321,10 +320,13 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 writeIndex.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                final IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                 final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalMissing missing = searchAndReduce(indexSearcher, query, builder, fieldTypesArray);
+                final InternalMissing missing = searchAndReduce(
+                    indexSearcher,
+                    new AggTestConfig(builder, fieldTypesArray).withQuery(query)
+                );
                 verify.accept(missing);
             }
         }

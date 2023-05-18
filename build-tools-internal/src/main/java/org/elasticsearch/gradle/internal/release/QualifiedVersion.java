@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.release;
 import org.elasticsearch.gradle.Version;
 
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,12 +22,7 @@ import java.util.regex.Pattern;
  * with how {@link Version} is used in the build. It also retains any qualifier (prerelease) information, and uses
  * that information when comparing instances.
  */
-public record QualifiedVersion(
-    int major,
-    int minor,
-    int revision,
-    org.elasticsearch.gradle.internal.release.QualifiedVersion.Qualifier qualifier
-) implements Comparable<QualifiedVersion> {
+public record QualifiedVersion(int major, int minor, int revision, Qualifier qualifier) implements Comparable<QualifiedVersion> {
 
     private static final Pattern pattern = Pattern.compile(
         "^v? (\\d+) \\. (\\d+) \\. (\\d+) (?: - (alpha\\d+ | beta\\d+ | rc\\d+ | SNAPSHOT ) )? $",
@@ -56,7 +52,7 @@ public record QualifiedVersion(
 
     @Override
     public String toString() {
-        return "%d.%d.%d%s".formatted(major, minor, revision, qualifier == null ? "" : "-" + qualifier);
+        return String.format(Locale.ROOT, "%d.%d.%d%s", major, minor, revision, qualifier == null ? "" : "-" + qualifier);
     }
 
     public boolean hasQualifier() {

@@ -29,24 +29,33 @@ node:
   if it is not possible to use the `node.name` of the node and there are
   multiple nodes sharing a single IP address.
 
-When you start a master-eligible node, you can provide this setting on the
-command line or in the `elasticsearch.yml` file. After the cluster has formed,
-this setting is no longer required. It should not be set for master-ineligible
-nodes, master-eligible nodes joining an existing cluster, or cluster restarts.
+IMPORTANT: After the cluster has formed, remove the `cluster.initial_master_nodes`
+setting from each node's configuration. It should not be set for
+master-ineligible nodes, master-eligible nodes joining an existing cluster, or
+nodes which are restarting.
++
+If you leave `cluster.initial_master_nodes` in place once the cluster has
+formed then there is a risk that a future misconfiguration may result in
+bootstrapping a new cluster alongside your existing cluster. It may not be
+possible to recover from this situation without losing data.
 
-It is technically sufficient to set `cluster.initial_master_nodes` on a single
-master-eligible node in the cluster, and only to mention that single node in the
-setting's value, but this provides no fault tolerance before the cluster has
-fully formed. It is therefore better to bootstrap using at least three
-master-eligible nodes, each with a `cluster.initial_master_nodes` setting
-containing all three nodes.
+The simplest way to create a new cluster is for you to select one of your
+master-eligible nodes that will bootstrap itself into a single-node cluster,
+which all the other nodes will then join. This simple approach is not resilient
+to failures until the other master-eligible nodes have joined the cluster. For
+example, if you have a master-eligible node with <<node-name,node name>>
+`master-a` then configure it as follows (omitting
+`cluster.initial_master_nodes` from the configuration of all other nodes):
 
-WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
-on each node on which it is set in order to be sure that only a single cluster
-forms during bootstrapping and therefore to avoid the risk of data loss.
+[source,yaml]
+--------------------------------------------------
+cluster.initial_master_nodes: master-a
+--------------------------------------------------
 
-For a cluster with 3 master-eligible nodes (with <<node-name,node names>>
-`master-a`, `master-b` and `master-c`) the configuration will look as follows:
+For fault-tolerant cluster bootstrapping, use all the master-eligible nodes.
+For instance, if your cluster has 3 master-eligible nodes with <<node-name,node
+names>> `master-a`, `master-b` and `master-c` then configure them all as
+follows:
 
 [source,yaml]
 --------------------------------------------------
@@ -56,13 +65,11 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-Like all node settings, it is also possible to specify the initial set of master
-nodes on the command-line that is used to start Elasticsearch:
-
-[source,bash]
---------------------------------------------------
-bin/elasticsearch -E cluster.initial_master_nodes=master-a,master-b,master-c
---------------------------------------------------
+IMPORTANT: You must set `cluster.initial_master_nodes` to the same list of
+nodes on each node on which it is set in order to be sure that only a single
+cluster forms during bootstrapping. If `cluster.initial_master_nodes` varies
+across the nodes on which it is set then you may bootstrap multiple clusters.
+It is usually not possible to recover from this situation without losing data.
 
 [[modules-discovery-bootstrap-cluster-fqdns]]
 .Node name formats must match
@@ -108,41 +115,59 @@ change this to reflect the logical name of the cluster.
 [[bootstrap-auto-bootstrap]]
 ==== Auto-bootstrapping in development mode
 
-If the cluster is running with a completely default configuration then it will
-automatically bootstrap a cluster based on the nodes that could be discovered to
-be running on the same host within a short time after startup. This means that
-by default it is possible to start up several nodes on a single machine and have
-them automatically form a cluster which is very useful for development
-environments and experimentation. However, since nodes may not always
-successfully discover each other quickly enough this automatic bootstrapping
-cannot be relied upon and cannot be used in production deployments.
-
-If any of the following settings are configured then auto-bootstrapping will not
-take place, and you must configure `cluster.initial_master_nodes` as described
-in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
+By default each node will automatically bootstrap itself into a single-node
+cluster the first time it starts. If any of the following settings are
+configured then auto-bootstrapping will not take place:
 
 * `discovery.seed_providers`
 * `discovery.seed_hosts`
 * `cluster.initial_master_nodes`
 
+To add a new node into an existing cluster, configure `discovery.seed_hosts` or
+other relevant discovery settings so that the new node can discover the
+existing master-eligible nodes in the cluster. To bootstrap a new multi-node
+cluster, configure `cluster.initial_master_nodes` as described in the
+<<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>> as
+well as `discovery.seed_hosts` or other relevant discovery settings.
+
 [[modules-discovery-bootstrap-cluster-joining]]
 .Forming a single cluster
 ****
-If you start an {es} node
-without configuring these settings then it will start up in development mode and
-auto-bootstrap itself into a new cluster. If you start some {es} nodes on
-different hosts then by default they will not discover each other and will form
-a different cluster on each host. {es} will not merge separate clusters together
-after they have formed, even if you subsequently try and configure all the nodes
-into a single cluster. This is because there is no way to merge these separate
-clusters together without a risk of data loss. You can tell that you have formed
-separate clusters by checking the cluster UUID reported by `GET /` on each node.
-If you intended to form a single cluster then you should start again:
+Once an {es} node has joined an existing cluster, or bootstrapped a new
+cluster, it will not join a different cluster. {es} will not merge separate
+clusters together after they have formed, even if you subsequently try and
+configure all the nodes into a single cluster. This is because there is no way
+to merge these separate clusters together without a risk of data loss. You can
+tell that you have formed separate clusters by checking the cluster UUID
+reported by `GET /` on each node.
 
-* Shut down all the nodes.
-* Completely wipe each node by deleting the contents of their
-  <<data-path,data folders>>.
-* Configure `cluster.initial_master_nodes` as described above.
-* Restart all the nodes and verify that they have formed a single cluster.
+If you intended to add a node into an existing cluster but instead bootstrapped
+a separate single-node cluster then you must start again:
+
+. Shut down the node.
+
+. Completely wipe the node by deleting the contents of its <<data-path,data
+folder>>.
+
+. Configure `discovery.seed_hosts` or `discovery.seed_providers` and other
+relevant discovery settings.
+
+. Restart the node and verify that it joins the existing cluster rather than
+forming its own one-node cluster.
+
+If you intended to form a new multi-node cluster but instead bootstrapped a
+collection of single-node clusters then you must start again:
+
+. Shut down all the nodes.
+
+. Completely wipe each node by deleting the contents of their <<data-path,data
+folders>>.
+
+. Configure `cluster.initial_master_nodes` as described above.
+
+. Configure `discovery.seed_hosts` or `discovery.seed_providers` and other
+relevant discovery settings.
+
+. Restart all the nodes and verify that they have formed a single cluster.
 
 ****

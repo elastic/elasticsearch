@@ -100,7 +100,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         SetOnce<Boolean> secondPluginPreMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> secondPluginPostMigrationHookCalled = new SetOnce<>();
 
-        TestPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
             // None of the other hooks should have been called yet.
             assertThat(postMigrationHookCalled.get(), nullValue());
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -117,7 +117,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -133,7 +133,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             hooksCalled.countDown();
         });
 
-        SecondPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(SecondPlugin.class).preMigrationHook.set(clusterState -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(postMigrationHookCalled.get(), is(true));
@@ -155,7 +155,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        SecondPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(SecondPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(postMigrationHookCalled.get(), is(true));
@@ -263,8 +263,8 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setAliasName(".second-internal-managed-alias")
         .setPrimaryIndex(".second-int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, 0))
-        .setMappings(createSimpleMapping(true, true))
+        .setSettings(createSettings(Version.V_7_0_0, 0))
+        .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
@@ -274,12 +274,10 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     public static class SecondPlugin extends Plugin implements SystemIndexPlugin {
 
-        private static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-        private static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+        private final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+        private final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
 
-        public SecondPlugin() {
-
-        }
+        public SecondPlugin() {}
 
         @Override
         public String getFeatureName() {

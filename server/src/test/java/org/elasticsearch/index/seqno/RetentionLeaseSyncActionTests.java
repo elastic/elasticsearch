@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -108,7 +108,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
             // we should forward the request containing the current retention leases to the replica
             assertThat(result.replicaRequest(), sameInstance(request));
             // we should start with an empty replication response
-            assertNull(result.finalResponseIfSuccessful.getShardInfo());
+            assertNull(result.replicationResponse.getShardInfo());
         }));
     }
 

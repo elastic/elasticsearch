@@ -183,10 +183,7 @@ public class ScriptScoreQuery extends Query {
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("script_score (").append(subQuery.toString(field)).append(", script: ");
-        sb.append("{" + script.toString() + "}");
-        return sb.toString();
+        return "script_score (" + subQuery.toString(field) + ", script: " + "{" + script.toString() + "}";
     }
 
     @Override
@@ -275,29 +272,21 @@ public class ScriptScoreQuery extends Query {
         private final ScoreScript scoreScript;
         private final Scorable subQueryScorer;
         private final float boost;
-        private final ExplanationHolder explanation;
 
-        ScriptScorable(
-            ScoreScript scoreScript,
-            Scorable subQueryScorer,
-            ScoreMode subQueryScoreMode,
-            float boost,
-            ExplanationHolder explanation
-        ) {
+        ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer, ScoreMode subQueryScoreMode, float boost) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
             }
             this.subQueryScorer = subQueryScorer;
             this.boost = boost;
-            this.explanation = explanation;
         }
 
         @Override
         public float score() throws IOException {
             int docId = docID();
             scoreScript.setDocument(docId);
-            float score = (float) scoreScript.execute(explanation);
+            float score = (float) scoreScript.execute(null);
             if (score < 0f || Float.isNaN(score)) {
                 throw new IllegalArgumentException(
                     "script_score script returned an invalid score ["
@@ -343,7 +332,7 @@ public class ScriptScoreQuery extends Query {
             return new FilterLeafCollector(collector) {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, null));
+                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost));
                 }
             };
         }

@@ -11,12 +11,15 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -38,13 +42,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -68,20 +68,18 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test1"))
             .addAsNew(metadata.index("test2"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start 4 nodes");
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
             .build();
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("start all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -137,10 +135,8 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         logger.info("--> creating some indices");
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
-            Settings.Builder settingsBuilder = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(2, 4));
-            CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
+            CreateIndexRequest request = new CreateIndexRequest(name, indexSettings(randomIntBetween(1, 4), randomIntBetween(2, 4)).build())
+                .waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metadata().hasIndex(name));
         }
@@ -156,13 +152,14 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         while (keepGoing) {
             List<ShardRouting> primaries = shardsWithState(state.getRoutingNodes(), STARTED).stream()
                 .filter(ShardRouting::primary)
-                .collect(Collectors.toList());
+                .toList();
 
             // Pick a random subset of primaries to fail
             List<FailedShard> shardsToFail = new ArrayList<>();
             List<ShardRouting> failedPrimaries = randomSubsetOf(primaries);
-            failedPrimaries.stream()
-                .forEach(sr -> { shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean())); });
+            failedPrimaries.stream().forEach(sr -> {
+                shardsToFail.add(new FailedShard(randomFrom(sr), "failed primary", new Exception(), randomBoolean()));
+            });
 
             logger.info("--> state before failing shards: {}", state);
             state = cluster.applyFailedShards(state, shardsToFail);
@@ -196,7 +193,10 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
     }
 
     private static Version getNodeVersion(ShardRouting shardRouting, ClusterState state) {
-        return Optional.ofNullable(state.getNodes().get(shardRouting.currentNodeId())).map(DiscoveryNode::getVersion).orElse(null);
+        if (shardRouting.assignedToNode() == false) {
+            return null;
+        }
+        return state.getNodes().get(shardRouting.currentNodeId()).getVersion();
     }
 
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
@@ -218,14 +218,14 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
     protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
-        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
+        final String id = Strings.format("node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(
             id,
             id,
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             roles,
-            VersionUtils.randomIndexCompatibleVersion(random())
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
         );
     }
 

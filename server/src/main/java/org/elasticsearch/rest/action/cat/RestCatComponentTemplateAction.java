@@ -20,6 +20,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -36,6 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * cat API class for handling get componentTemplate.
  */
+@ServerlessScope(Scope.PUBLIC)
 public class RestCatComponentTemplateAction extends AbstractCatAction {
     @Override
     public String getName() {
@@ -106,7 +109,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return table;
     }
 
-    private Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
+    private static Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
         Map<String, ComposableIndexTemplate> allTemplates = metadata.templatesV2();
         Map<String, Set<String>> reverseIndex = new HashMap<>();
 
@@ -118,7 +121,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return reverseIndex;
     }
 
-    private int countMappingInTemplate(Template template) throws Exception {
+    private static int countMappingInTemplate(Template template) throws Exception {
         if (template.mappings() == null) {
             return 0;
         }
@@ -146,7 +149,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return count;
     }
 
-    private int countSubAttributes(Object mapping) {
+    private static int countSubAttributes(Object mapping) {
         int count = 0;
         if (mapping instanceof List) {
             for (Object subObject : (List) mapping) {

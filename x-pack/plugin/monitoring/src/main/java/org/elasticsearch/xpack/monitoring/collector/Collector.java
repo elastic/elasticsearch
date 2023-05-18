@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.collector;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,11 +24,9 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.common.settings.Setting.listSetting;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
@@ -40,10 +37,8 @@ public abstract class Collector {
     /**
      * List of indices names whose stats will be exported (default to all indices)
      */
-    public static final Setting<List<String>> INDICES = listSetting(
+    public static final Setting<List<String>> INDICES = stringListSetting(
         collectionSetting("indices"),
-        emptyList(),
-        Function.identity(),
         Property.Dynamic,
         Property.NodeScope,
         Setting.Property.DeprecatedWarning
@@ -97,7 +92,7 @@ public abstract class Collector {
         } catch (ElasticsearchTimeoutException e) {
             logger.error("collector [{}] timed out when collecting data: {}", name(), e.getMessage());
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
+            logger.error((Supplier<?>) () -> "collector [" + name() + "] failed to collect data", e);
         }
         return null;
     }

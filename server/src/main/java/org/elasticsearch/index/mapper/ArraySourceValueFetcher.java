@@ -10,9 +10,11 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -38,15 +40,24 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+        this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
+        this.nullValue = nullValue;
+    }
+
+    /**
+     * @param sourcePaths   The paths to pull source values from
+     * @param nullValue     An optional substitute value if the _source value is `null`
+     */
+    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();
             }
@@ -59,6 +70,11 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
             }
         }
         return values;
+    }
+
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.NEEDS_SOURCE;
     }
 
     /**

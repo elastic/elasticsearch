@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,18 +30,18 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class TransportBroadcastAction<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     ShardRequest extends BroadcastShardRequest,
     ShardResponse extends BroadcastShardResponse> extends HandledTransportAction<Request, Response> {
 
@@ -137,11 +137,7 @@ public abstract class TransportBroadcastAction<
         public void start() {
             if (shardsIts.size() == 0) {
                 // no shards
-                try {
-                    listener.onResponse(newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+                ActionListener.completeWith(listener, () -> newResponse(request, new AtomicReferenceArray<ShardResponse>(0), clusterState));
                 return;
             }
             // count the local operations, and perform the non local ones
@@ -171,32 +167,25 @@ public abstract class TransportBroadcastAction<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        transportService.sendRequest(
+                        sendShardRequest(
                             node,
-                            transportShardAction,
                             shardRequest,
-                            new TransportResponseHandler<ShardResponse>() {
-                                @Override
-                                public ShardResponse read(StreamInput in) throws IOException {
-                                    return readShardResponse(in);
-                                }
-
-                                @Override
-                                public void handleResponse(ShardResponse response) {
-                                    onOperation(shard, shardIndex, response);
-                                }
-
-                                @Override
-                                public void handleException(TransportException e) {
-                                    onOperation(shard, shardIt, shardIndex, e);
-                                }
-                            }
+                            ActionListener.wrap(r -> onOperation(shard, shardIndex, r), e -> onOperation(shard, shardIt, shardIndex, e))
                         );
                     }
                 } catch (Exception e) {
                     onOperation(shard, shardIt, shardIndex, e);
                 }
             }
+        }
+
+        protected void sendShardRequest(DiscoveryNode node, ShardRequest shardRequest, ActionListener<ShardResponse> listener) {
+            transportService.sendRequest(
+                node,
+                transportShardAction,
+                shardRequest,
+                new ActionListenerResponseHandler<>(listener, TransportBroadcastAction.this::readShardResponse)
+            );
         }
 
         protected void onOperation(ShardRouting shard, int shardIndex, ShardResponse response) {
@@ -217,8 +206,8 @@ public abstract class TransportBroadcastAction<
                     if (logger.isTraceEnabled()) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.trace(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
+                                () -> format(
+                                    "%s: failed to execute [%s]",
                                     shard != null ? shard.shortSummary() : shardIt.shardId(),
                                     request
                                 ),
@@ -233,8 +222,8 @@ public abstract class TransportBroadcastAction<
                     if (e != null) {
                         if (TransportActions.isShardNotAvailableException(e) == false) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "{}: failed to execute [{}]",
+                                () -> format(
+                                    "%s: failed to execute [%s]",
                                     shard != null ? shard.shortSummary() : shardIt.shardId(),
                                     request
                                 ),
@@ -254,19 +243,10 @@ public abstract class TransportBroadcastAction<
         }
 
         protected void finishHim() {
-            try {
-                listener.onResponse(newResponse(request, shardsResponses, clusterState));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            ActionListener.completeWith(listener, () -> newResponse(request, shardsResponses, clusterState));
         }
 
         void setFailure(ShardIterator shardIt, int shardIndex, Exception e) {
-            // we don't aggregate shard failures on non active shards (but do keep the header counts right)
-            if (TransportActions.isShardNotAvailableException(e)) {
-                return;
-            }
-
             if ((e instanceof BroadcastShardOperationFailedException) == false) {
                 e = new BroadcastShardOperationFailedException(shardIt.shardId(), e);
             }
@@ -298,14 +278,7 @@ public abstract class TransportBroadcastAction<
                 try {
                     channel.sendResponse(e);
                 } catch (Exception e1) {
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]",
-                            actionName,
-                            request
-                        ),
-                        e1
-                    );
+                    logger.warn(() -> format("Failed to send error response for action [%s] and request [%s]", actionName, request), e1);
                 }
             }));
         }

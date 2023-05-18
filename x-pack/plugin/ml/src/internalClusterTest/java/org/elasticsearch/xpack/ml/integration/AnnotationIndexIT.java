@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -23,7 +21,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -38,6 +35,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -65,18 +64,26 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     public void testCreatedWhenAfterOtherMlIndex() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        createNotification();
+        Set<Boolean> includeNodeInfoValues = Set.of(true, false);
 
-        assertBusy(() -> {
-            assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
-            assertEquals(2, numberOfAnnotationsAliases());
+        includeNodeInfoValues.forEach(includeNodeInfo -> {
+            createNotification(includeNodeInfo);
+
+            try {
+                assertBusy(() -> {
+                    assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+                    assertEquals(2, numberOfAnnotationsAliases());
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         });
     }
 
-    public void testReindexing() throws Exception {
+    public void testReindexingWithNodeInfo() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        createNotification();
+        createNotification(true);
 
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
@@ -115,10 +122,89 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         }
     }
 
-    public void testReindexingWithLostAliases() throws Exception {
+    public void testReindexingWithoutNodeInfo() throws Exception {
         // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
-        createNotification();
+        createNotification(false);
+
+        assertBusy(() -> {
+            assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+            assertEquals(2, numberOfAnnotationsAliases());
+        });
+
+        client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(true)).actionGet();
+
+        String reindexedIndexName = ".reindexed-v7-ml-annotations-6";
+        createReindexedIndex(reindexedIndexName);
+
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client().admin()
+            .indices()
+            .prepareAliases()
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true)
+            )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true)
+            )
+            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(AnnotationIndex.LATEST_INDEX_NAME))
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(AnnotationIndex.LATEST_INDEX_NAME).isHidden(true)
+            );
+
+        client().admin().indices().aliases(indicesAliasesRequestBuilder.request()).actionGet();
+
+        client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false)).actionGet();
+
+        // Ask a few times to increase the chance of failure if the .ml-annotations index is created when no other ML index exists
+        for (int i = 0; i < 10; ++i) {
+            assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+            assertTrue(annotationsIndexExists(reindexedIndexName));
+            // Aliases should be read, write and original name
+            assertEquals(3, numberOfAnnotationsAliases());
+        }
+    }
+
+    public void testReindexingWithLostAliasesWithNodeInfo() throws Exception {
+        // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
+        // to be created, as it should get created as soon as any other ML index exists
+        createNotification(true);
+
+        assertBusy(() -> {
+            assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+            assertEquals(2, numberOfAnnotationsAliases());
+        });
+
+        client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(true)).actionGet();
+
+        String reindexedIndexName = ".reindexed-v7-ml-annotations-6";
+        createReindexedIndex(reindexedIndexName);
+
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = client().admin()
+            .indices()
+            .prepareAliases()
+            // The difference compared to the standard reindexing test is that the read and write aliases are not correctly set up.
+            // The annotations index maintenance code should add them back.
+            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(AnnotationIndex.LATEST_INDEX_NAME))
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().index(reindexedIndexName).alias(AnnotationIndex.LATEST_INDEX_NAME).isHidden(true)
+            );
+
+        client().admin().indices().aliases(indicesAliasesRequestBuilder.request()).actionGet();
+
+        client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false)).actionGet();
+
+        assertBusy(() -> {
+            assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+            assertTrue(annotationsIndexExists(reindexedIndexName));
+            // Aliases should be read, write and original name
+            assertEquals(3, numberOfAnnotationsAliases());
+        });
+    }
+
+    public void testReindexingWithLostAliasesWithoutNodeInfo() throws Exception {
+        // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
+        // to be created, as it should get created as soon as any other ML index exists
+        createNotification(false);
 
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
@@ -172,7 +258,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         // switched to only point at the new index.
         assertBusy(() -> {
             assertTrue(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin()
+            Map<String, List<AliasMetadata>> aliases = client().admin()
                 .indices()
                 .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
@@ -180,12 +266,12 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
                 .getAliases();
             assertNotNull(aliases);
             List<String> indicesWithReadAlias = new ArrayList<>();
-            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
-                for (AliasMetadata aliasMetadata : entry.value) {
+            for (var entry : aliases.entrySet()) {
+                for (AliasMetadata aliasMetadata : entry.getValue()) {
                     switch (aliasMetadata.getAlias()) {
-                        case AnnotationIndex.WRITE_ALIAS_NAME -> assertThat(entry.key, is(AnnotationIndex.LATEST_INDEX_NAME));
-                        case AnnotationIndex.READ_ALIAS_NAME -> indicesWithReadAlias.add(entry.key);
-                        default -> fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.key);
+                        case AnnotationIndex.WRITE_ALIAS_NAME -> assertThat(entry.getKey(), is(AnnotationIndex.LATEST_INDEX_NAME));
+                        case AnnotationIndex.READ_ALIAS_NAME -> indicesWithReadAlias.add(entry.getKey());
+                        default -> fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.getKey());
                     }
                 }
             }
@@ -200,17 +286,25 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         try {
             // Creating a document in the .ml-notifications-000002 index would normally cause .ml-annotations
             // to be created, but in this case it shouldn't as we're doing an upgrade
-            createNotification();
+            Set<Boolean> includeNodeInfoValues = Set.of(true, false);
 
-            assertBusy(() -> {
+            includeNodeInfoValues.forEach(includeNodeInfo -> {
+                createNotification(includeNodeInfo);
+
                 try {
-                    SearchResponse response = client().search(new SearchRequest(".ml-notifications*")).actionGet();
-                    assertEquals(1, response.getHits().getHits().length);
-                } catch (SearchPhaseExecutionException e) {
-                    throw new AssertionError("Notifications index exists but shards not yet ready - continuing busy wait", e);
+                    assertBusy(() -> {
+                        try {
+                            SearchResponse response = client().search(new SearchRequest(".ml-notifications*")).actionGet();
+                            assertEquals(1, response.getHits().getHits().length);
+                        } catch (SearchPhaseExecutionException e) {
+                            throw new AssertionError("Notifications index exists but shards not yet ready - continuing busy wait", e);
+                        }
+                        assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
+                        assertEquals(0, numberOfAnnotationsAliases());
+                    });
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-                assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));
-                assertEquals(0, numberOfAnnotationsAliases());
             });
         } finally {
             client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(false)).actionGet();
@@ -255,18 +349,18 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     private int numberOfAnnotationsAliases() {
         int count = 0;
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin()
+        Map<String, List<AliasMetadata>> aliases = client().admin()
             .indices()
             .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME, AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()
             .getAliases();
         if (aliases != null) {
-            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
-                for (AliasMetadata aliasMetadata : entry.value) {
+            for (var aliasList : aliases.values()) {
+                for (AliasMetadata aliasMetadata : aliasList) {
                     assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
                 }
-                count += entry.value.size();
+                count += aliasList.size();
             }
         }
         return count;
@@ -287,8 +381,8 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         // no point in this test as there's nothing in the old index.
     }
 
-    private void createNotification() {
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
+    private void createNotification(boolean includeNodeInfo) {
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), includeNodeInfo);
         auditor.info("whatever", "blah");
     }
 }

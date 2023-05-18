@@ -15,6 +15,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardsAction;
+import org.elasticsearch.action.search.SearchShardsGroup;
+import org.elasticsearch.action.search.SearchShardsRequest;
+import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +31,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
@@ -42,6 +48,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -54,12 +61,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -113,7 +120,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .map(DiscoveryNode::getName)
                 .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
                 .filter(nodeName -> nodeName.equals(pureDataNode) == false)
-                .collect(Collectors.toList())
+                .toList()
         );
 
         final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
@@ -157,7 +164,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 for (TransportService transportService : transportServices) {
                     Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                     for (CancellableTask cancellableTask : cancellableTasks) {
-                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                        if (TransportActionProxy.isProxyAction(cancellableTask.getAction())) {
+                            assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                        }
                     }
                 }
             });
@@ -182,7 +191,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .stream()
                 .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
-                .collect(Collectors.toList());
+                .toList();
             assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
             List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
             disconnectFromRemoteClusters();
@@ -237,7 +246,9 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             for (TransportService transportService : transportServices) {
                 Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                 for (CancellableTask cancellableTask : cancellableTasks) {
-                    assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                        assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
+                    }
                 }
             }
         });
@@ -441,6 +452,66 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 }
             });
             super.onIndexModule(indexModule);
+        }
+    }
+
+    public void testSearchShardsWithIndexNameQuery() {
+        int numShards = randomIntBetween(1, 10);
+        Client remoteClient = client("cluster_a");
+        remoteClient.admin()
+            .indices()
+            .prepareCreate("my_index")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
+            .get();
+        int numDocs = randomIntBetween(100, 500);
+        for (int i = 0; i < numDocs; i++) {
+            remoteClient.prepareIndex("my_index").setSource("f", "v").get();
+        }
+        remoteClient.admin().indices().prepareRefresh("my_index").get();
+        String[] indices = new String[] { "my_index" };
+        IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        {
+            QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
+            SearchShardsRequest request = new SearchShardsRequest(indices, indicesOptions, query, null, null, randomBoolean(), "cluster_a");
+            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(numShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertFalse(group.skipped());
+            }
+        }
+        {
+            QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
+            SearchShardsRequest request = new SearchShardsRequest(
+                indices,
+                indicesOptions,
+                query,
+                null,
+                null,
+                randomBoolean(),
+                randomFrom("cluster_b", null)
+            );
+            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(numShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertTrue(group.skipped());
+            }
+        }
+        {
+            QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:not_my_index");
+            SearchShardsRequest request = new SearchShardsRequest(
+                indices,
+                indicesOptions,
+                query,
+                null,
+                null,
+                randomBoolean(),
+                randomFrom("cluster_a", "cluster_b", null)
+            );
+            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            assertThat(resp.getGroups(), hasSize(numShards));
+            for (SearchShardsGroup group : resp.getGroups()) {
+                assertTrue(group.skipped());
+            }
         }
     }
 }

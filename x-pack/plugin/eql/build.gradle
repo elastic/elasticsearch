@@ -8,11 +8,6 @@ esplugin {
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
-ext {
-  // EQL dependency versions
-  antlrVersion = "4.9.2"
-}
-
 archivesBaseName = 'x-pack-eql'
 
 dependencies {
@@ -27,7 +22,6 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
-  testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
 
   testImplementation 'io.ous:jtoml:2.0.0'
 
@@ -40,7 +34,7 @@ dependencies {
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
 if (BuildParams.isSnapshotBuild()) {
-  addQaCheckDependencies()
+  addQaCheckDependencies(project)
 }
 
 /**********************************************
@@ -52,7 +46,7 @@ configurations {
 }
 
 dependencies {
-  regenerate "org.antlr:antlr4:${antlrVersion}"
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'

@@ -1,0 +1,320 @@
+[[tsds]]
+== Time series data stream (TSDS)
+
+A time series data stream (TSDS) models timestamped metrics data as one or
+more time series.
+
+You can use a TSDS to store metrics data more efficiently. In our benchmarks,
+metrics data stored in a TSDS used 70% less disk space than a regular data
+stream.
+
+[discrete]
+[[when-to-use-tsds]]
+=== When to use a TSDS
+
+Both a <<data-streams,regular data stream>> and a TSDS can store timestamped
+metrics data. Only use a TSDS if you typically add metrics data to {es} in near
+real-time and `@timestamp` order.
+
+A TSDS is only intended for metrics data. For other timestamped data, such as
+logs or traces, use a regular data stream.
+
+[discrete]
+[[differences-from-regular-data-stream]]
+=== Differences from a regular data stream
+
+A TSDS works like a regular data stream with some key differences:
+
+* The matching index template for a TSDS requires a `data_stream` object with
+the <<time-series-mode,`index.mode: time_series`>> option. This option enables
+most TSDS-related functionality.
+
+* In addition to a `@timestamp`, each document in a TSDS must contain one or
+more <<time-series-dimension,dimension fields>>. The matching index template for
+a TSDS must contain mappings for at least one `keyword` dimension.
++
+TSDS documents also typically
+contain one or more <<time-series-metric,metric fields>>.
+
+* {es} generates a hidden <<tsid,`_tsid`>> metadata field for each document in a
+TSDS.
+
+* A TSDS uses <<time-bound-indices,time-bound backing indices>> to store data
+from the same time period in the same backing index.
+
+* The matching index template for a TSDS must contain the `index.routing_path`
+index setting. A TSDS uses this setting to perform
+<<dimension-based-routing,dimension-based routing>>.
+
+* A TSDS uses internal <<index-modules-index-sorting,index sorting>> to order
+shard segments by `_tsid` and `@timestamp`.
+
+* TSDS documents only support auto-generated document `_id` values. For TSDS
+documents, the document `_id` is a hash of the document's dimensions and
+`@timestamp`. A TSDS doesn't support custom document `_id` values.
+
+[discrete]
+[[time-series]]
+=== What is a time series?
+
+A time series is a sequence of observations for a specific entity. Together,
+these observations let you track changes to the entity over time. For example, a
+time series can track:
+
+* CPU and disk usage for a computer
+* The price of a stock
+* Temperature and humidity readings from a weather sensor.
+
+.Time series of weather sensor readings plotted as a graph
+image::images/data-streams/time-series-chart.svg[align="center"]
+
+In a TSDS, each {es} document represents an observation, or data point, in a
+specific time series. Although a TSDS can contain multiple time series, a
+document can only belong to one time series. A time series can't span multiple
+data streams.
+
+[discrete]
+[[time-series-dimension]]
+==== Dimensions
+
+Dimensions are field names and values that, in combination, identify a
+document's time series. In most cases, a dimension describes some aspect of the
+entity you're measuring. For example, documents related to the same weather
+sensor may always have the same `sensor_id` and `location` values.
+
+A TSDS document is uniquely identified by its time series and timestamp, both of
+which are used to generate the document `_id`. So, two documents with the same
+dimensions and the same timestamp are considered to be duplicates. When you use
+the `_bulk` endpoint to add documents to a TSDS, a second document with the same
+timestamp and dimensions overwrites the first. When you use the
+`PUT /<target>/_create/<_id>` format to add an individual document and a document
+with the same `_id` already exists, an error is generated.
+
+You mark a field as a dimension using the boolean `time_series_dimension`
+mapping parameter. The following field types support the `time_series_dimension`
+parameter:
+
+* <<keyword-field-type,`keyword`>>
+* <<ip,`ip`>>
+* <<number,`byte`>>
+* <<number,`short`>>
+* <<number,`integer`>>
+* <<number,`long`>>
+* <<number,`unsigned_long`>>
+
+For a flattened field, use the `time_series_dimensions` parameter to configure an array of fields as dimensions. For details refer to <<flattened-params,`flattened`>>.
+
+[[dimension-limits]]
+.Dimension limits
+****
+In a TSDS, {es} uses dimensions to
+generate the document `_id` and <<tsid,`_tsid`>> values. The resulting `_id` is
+always a short encoded hash. To prevent the `_tsid` value from being overly
+large, {es} limits the number of dimensions for an index using the
+<<index-mapping-dimension-fields-limit,`index.mapping.dimension_fields.limit`>>
+index setting. While you can increase this limit, the resulting document `_tsid`
+value can't exceed 32KB. Additionally the field name of a dimension cannot be
+longer than 512 bytes and the each dimension value can't exceed 1kb.
+****
+
+[discrete]
+[[time-series-metric]]
+==== Metrics
+
+Metrics are fields that contain numeric measurements, as well as aggregations
+and/or downsampling values based off of those measurements. While not required,
+documents in a TSDS typically contain one or more metric fields.
+
+Metrics differ from dimensions in that while dimensions generally remain
+constant, metrics are expected to change over time, even if rarely or slowly.
+
+To mark a field as a metric, you must specify a metric type using the
+`time_series_metric` mapping parameter. The following field types support the
+`time_series_metric` parameter:
+
+* <<aggregate-metric-double,`aggregate_metric_double`>>
+* <<histogram,`histogram`>>
+* All <<number,numeric field types>>
+
+Accepted metric types vary based on the field type:
+
+.Valid values for `time_series_metric`
+[%collapsible%open]
+====
+// tag::time-series-metric-counter[]
+`counter`:: A number that only increases or resets to `0` (zero). For
+example, a count of errors or completed tasks.
+// end::time-series-metric-counter[]
++
+Only numeric and `aggregate_metric_double` fields support the `counter` metric
+type.
+
+NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
+
+// tag::time-series-metric-gauge[]
+`gauge`:: A number that can increase or decrease. For example, a temperature or
+available disk space.
+// end::time-series-metric-gauge[]
++
+Only numeric and `aggregate_metric_double` fields support the `gauge` metric
+type.
+
+// tag::time-series-metric-null[]
+`null` (Default):: Not a time series metric.
+// end::time-series-metric-null[]
+====
+
+[discrete]
+[[time-series-mode]]
+=== Time series mode
+
+The matching index template for a TSDS must contain a `data_stream` object with
+the `index_mode: time_series` option. This option ensures the TSDS creates
+backing indices with an <<index-mode,`index.mode`>> setting of `time_series`.
+This setting enables most TSDS-related functionality in the backing indices.
+
+If you convert an existing data stream to a TSDS, only backing indices created
+after the conversion have an `index.mode` of `time_series`. You can't
+change the `index.mode` of an existing backing index.
+
+[discrete]
+[[tsid]]
+==== `_tsid` metadata field
+
+When you add a document to a TSDS, {es} automatically generates a `_tsid`
+metadata field for the document. The `_tsid` is an object containing the
+document's dimensions. Documents in the same TSDS with the same `_tsid` are part
+of the same time series.
+
+The `_tsid` field is not queryable or updatable. You also can't retrieve a
+document's `_tsid` using a <<docs-get,get document>> request. However, you can
+use the `_tsid` field in aggregations and retrieve the `_tsid` value in searches
+using the <<search-fields-param,`fields` parameter>>.
+
+WARNING: The format of the `_tsid` field shouldn't be relied upon. It may change
+from version to version.
+
+[discrete]
+[[time-bound-indices]]
+==== Time-bound indices
+
+In a TSDS, each backing index, including the most recent backing index, has a
+range of accepted `@timestamp` values. This range is defined by the
+<<index-time-series-start-time,`index.time_series.start_time`>> and
+<<index-time-series-end-time,`index.time_series.end_time`>> index settings.
+
+When you add a document to a TSDS, {es} adds the document to the appropriate
+backing index based on its `@timestamp` value. As a result, a TSDS can add
+documents to any TSDS backing index that can receive writes. This applies even
+if the index isn't the most recent backing index.
+
+image::images/data-streams/time-bound-indices.svg[align="center"]
+
+TIP: Some {ilm-init} actions, such as <<ilm-forcemerge,`forcemerge`>>,
+<<ilm-shrink,`shrink`>>, and <<ilm-searchable-snapshot,`searchable_snapshot`>>,
+make a backing index read-only. You cannot add documents to read-only indices.
+Keep this in mind when defining the index lifecycle policy for your TSDS.
+
+If no backing index can accept a document's `@timestamp` value, {es} rejects the
+document.
+
+
+{es} automatically configures `index.time_series.start_time` and
+`index.time_series.end_time` settings as part of the index creation and rollover
+process.
+
+[discrete]
+[[tsds-look-ahead-time]]
+==== Look-ahead time
+
+Use the <<index-look-ahead-time,`index.look_ahead_time`>> index setting to
+configure how far into the future you can add documents to an index. When you
+create a new write index for a TSDS, {es} calculates the index's
+`index.time_series.end_time` value as:
+
+`now + index.look_ahead_time`
+
+At the time series poll interval (controlled via `time_series.poll_interval` setting),
+{es} checks if the write index has met the rollover criteria in its index
+lifecycle policy. If not, {es} refreshes the `now` value and updates the write
+index's `index.time_series.end_time` to:
+
+`now + index.look_ahead_time + time_series.poll_interval`
+
+This process continues until the write index rolls over. When the index rolls
+over, {es} sets a final `index.time_series.end_time` value for the index. This
+value borders the `index.time_series.start_time` for the new write index. This
+ensures the `@timestamp` ranges for neighboring backing indices always border
+but never overlap.
+
+[discrete]
+[[tsds-accepted-time-range]]
+==== Accepted time range for adding data
+
+A TSDS is designed to ingest current metrics data. When the TSDS is first
+created the initial backing index has:
+
+* an `index.time_series.start_time` value set to `now - index.look_ahead_time`
+* an `index.time_series.end_time` value set to `now + index.look_ahead_time`
+
+Only data that falls inside that range can be indexed.
+
+In our <<tsds-create-index-settings-component-template,TSDS example>>,
+`index.look_ahead_time` is set to three hours, so only documents with a
+`@timestamp` value that is within three hours previous or subsequent to the
+present time are accepted for indexing.
+
+You can use the <<indices-get-data-stream,get data stream API>> to check the
+accepted time range for writing to any TSDS.
+
+[discrete]
+[[dimension-based-routing]]
+==== Dimension-based routing
+
+Within each TSDS backing index, {es} uses the
+<<index-routing-path,`index.routing_path`>> index setting to route documents
+with the same dimensions to the same shards.
+
+When you create the matching index template for a TSDS, you must specify one or
+more dimensions in the `index.routing_path` setting. Each document in a TSDS
+must contain one or more dimensions that match the `index.routing_path` setting.
+
+Dimensions in the `index.routing_path` setting must be plain `keyword` fields.
+The `index.routing_path` setting accepts wildcard patterns (for example `dim.*`)
+and can dynamically match new fields. However, {es} will reject any mapping
+updates that add scripted, runtime, or non-dimension, non-`keyword` fields that
+match the `index.routing_path` value.
+
+TSDS documents don't support a custom `_routing` value. Similarly, you can't
+require a `_routing` value in mappings for a TSDS.
+
+[discrete]
+[[tsds-index-sorting]]
+==== Index sorting
+
+{es} uses <<index-codec,compression algorithms>> to compress repeated values.
+This compression works best when repeated values are stored near each other — in
+the same index, on the same shard, and side-by-side in the same shard segment.
+
+Most time series data contains repeated values. Dimensions are repeated across
+documents in the same time series. The metric values of a time series may also
+change slowly over time.
+
+Internally, each TSDS backing index uses <<index-modules-index-sorting,index
+sorting>> to order its shard segments by `_tsid` and `@timestamp`. This makes it
+more likely that these repeated values are stored near each other for better
+compression. A TSDS doesn't support any
+<<index-modules-index-sorting,`index.sort.*`>> index settings.
+
+[discrete]
+[[tsds-whats-next]]
+=== What's next?
+
+Now that you know the basics, you're ready to <<set-up-tsds,create a TSDS>> or
+<<set-up-tsds,convert an existing data stream to a TSDS>>.
+
+include::set-up-tsds.asciidoc[]
+include::tsds-index-settings.asciidoc[]
+include::downsampling.asciidoc[]
+include::downsampling-manual.asciidoc[]
+include::downsampling-ilm.asciidoc[]

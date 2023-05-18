@@ -34,7 +34,7 @@ public class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    public static TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+    public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
     private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -116,21 +116,9 @@ public class TransformConfigUpdate implements Writeable {
         if (in.readBoolean()) {
             setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         }
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            settings = in.readOptionalWriteable(SettingsConfig::new);
-        } else {
-            settings = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            metadata = in.readMap();
-        } else {
-            metadata = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
-        } else {
-            retentionPolicyConfig = null;
-        }
+        settings = in.readOptionalWriteable(SettingsConfig::new);
+        metadata = in.readMap();
+        retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
     public SourceConfig getSource() {
@@ -190,15 +178,9 @@ public class TransformConfigUpdate implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalWriteable(settings);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeMap(metadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalNamedWriteable(retentionPolicyConfig);
-        }
+        out.writeOptionalWriteable(settings);
+        out.writeGenericMap(metadata);
+        out.writeOptionalNamedWriteable(retentionPolicyConfig);
     }
 
     @Override
@@ -251,6 +233,10 @@ public class TransformConfigUpdate implements Writeable {
 
     public boolean changesSettings(TransformConfig config) {
         return isNullOrEqual(settings, config.getSettings()) == false;
+    }
+
+    public boolean changesHeaders(TransformConfig config) {
+        return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
     private boolean isNullOrEqual(Object lft, Object rgt) {

@@ -10,10 +10,12 @@ package org.elasticsearch.repositories.gcs;
 
 import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
+import fixture.gcs.TestUtils;
 
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
+import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -226,6 +228,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 ) {
                     StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
+                        .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                         .setHost(options.getHost())
                         .setCredentials(options.getCredentials())
                         .setRetrySettings(

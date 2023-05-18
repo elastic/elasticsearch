@@ -13,10 +13,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -26,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -35,8 +38,8 @@ import static org.hamcrest.Matchers.hasToString;
 public class TransportServiceDeserializationFailureTests extends ESTestCase {
 
     public void testDeserializationFailureLogIdentifiesListener() {
-        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = TestDiscoveryNode.create("local");
+        final DiscoveryNode otherNode = TestDiscoveryNode.create("other");
 
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
@@ -124,8 +127,18 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 }
 
                 @Override
+                public void setRequestId(long requestId) {
+                    fail("should not be called");
+                }
+
+                @Override
                 public TaskId getParentTask() {
                     return TaskId.EMPTY_TASK_ID;
+                }
+
+                @Override
+                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    return new CancellableTask(id, type, action, "", parentTaskId, headers);
                 }
             });
 

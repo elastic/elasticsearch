@@ -1,6 +1,0 @@
-pr: 64422
-summary: Add `scripted_metric` agg context to `unsigned_long`
-area: Search
-type: enhancement
-issues:
- - 64347

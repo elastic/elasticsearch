@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.core.watcher.watch;
 
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,6 +39,7 @@ public interface Payload extends ToXContentObject {
         }
 
         public Simple(Map<String, Object> data) {
+            CollectionUtils.ensureNoSelfReferences(data, "watcher action payload");
             this.data = data;
         }
 
@@ -76,6 +79,10 @@ public interface Payload extends ToXContentObject {
     class XContent extends Simple {
         public XContent(ToXContentObject response, Params params) throws IOException {
             super(responseToData(response, params));
+        }
+
+        public XContent(ChunkedToXContentObject response, Params params) throws IOException {
+            this(ChunkedToXContentObject.wrapAsToXContentObject(response), params);
         }
     }
 }

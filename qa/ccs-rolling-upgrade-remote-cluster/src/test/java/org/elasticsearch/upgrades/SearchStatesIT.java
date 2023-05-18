@@ -4,25 +4,6 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
- *
- * =============================================================================
- *
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
  */
 
 package org.elasticsearch.upgrades;
@@ -31,8 +12,6 @@ import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -40,15 +19,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -162,7 +139,8 @@ public class SearchStatesIT extends ESRestTestCase {
         for (int i = 0; i < numDocs; i++) {
             client.index(new IndexRequest(index).id("id_" + i).source("f", i), RequestOptions.DEFAULT);
         }
-        client.indices().refresh(new RefreshRequest(index), RequestOptions.DEFAULT);
+
+        refresh(client.getLowLevelClient(), index);
         return numDocs;
     }
 
@@ -191,8 +169,7 @@ public class SearchStatesIT extends ESRestTestCase {
             Response response = localClient.performRequest(request);
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY,
                     response.getEntity().getContent()
                 )
             ) {
@@ -209,22 +186,18 @@ public class SearchStatesIT extends ESRestTestCase {
         String localIndex = "test_bwc_search_states_index";
         String remoteIndex = "test_bwc_search_states_remote_index";
         try (RestHighLevelClient localClient = newLocalClient(); RestHighLevelClient remoteClient = newRemoteClient()) {
-            localClient.indices()
-                .create(
-                    new CreateIndexRequest(localIndex).settings(
-                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    ),
-                    RequestOptions.DEFAULT
-                );
+            createIndex(
+                localClient.getLowLevelClient(),
+                localIndex,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build()
+            );
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 100));
 
-            remoteClient.indices()
-                .create(
-                    new CreateIndexRequest(remoteIndex).settings(
-                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                    ),
-                    RequestOptions.DEFAULT
-                );
+            createIndex(
+                remoteClient.getLowLevelClient(),
+                remoteIndex,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build()
+            );
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
             configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
@@ -232,8 +205,8 @@ public class SearchStatesIT extends ESRestTestCase {
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, null);
             }
-            localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
-            remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);
+            deleteIndex(localClient.getLowLevelClient(), localIndex);
+            deleteIndex(remoteClient.getLowLevelClient(), remoteIndex);
         }
     }
 
@@ -241,22 +214,18 @@ public class SearchStatesIT extends ESRestTestCase {
         String localIndex = "test_can_match_local_index";
         String remoteIndex = "test_can_match_remote_index";
         try (RestHighLevelClient localClient = newLocalClient(); RestHighLevelClient remoteClient = newRemoteClient()) {
-            localClient.indices()
-                .create(
-                    new CreateIndexRequest(localIndex).settings(
-                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20))
-                    ),
-                    RequestOptions.DEFAULT
-                );
+            createIndex(
+                localClient.getLowLevelClient(),
+                localIndex,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build()
+            );
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 100));
 
-            remoteClient.indices()
-                .create(
-                    new CreateIndexRequest(remoteIndex).settings(
-                        Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20))
-                    ),
-                    RequestOptions.DEFAULT
-                );
+            createIndex(
+                remoteClient.getLowLevelClient(),
+                remoteIndex,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build()
+            );
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
             configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
@@ -264,8 +233,8 @@ public class SearchStatesIT extends ESRestTestCase {
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, between(1, 10));
             }
-            localClient.indices().delete(new DeleteIndexRequest(localIndex), RequestOptions.DEFAULT);
-            remoteClient.indices().delete(new DeleteIndexRequest(remoteIndex), RequestOptions.DEFAULT);
+            deleteIndex(localClient.getLowLevelClient(), localIndex);
+            deleteIndex(remoteClient.getLowLevelClient(), remoteIndex);
         }
     }
 }

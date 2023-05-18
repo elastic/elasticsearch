@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -41,23 +41,18 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            lonSum = bigArrays().newDoubleArray(1, true);
-            lonCompensations = bigArrays().newDoubleArray(1, true);
-            latSum = bigArrays().newDoubleArray(1, true);
-            latCompensations = bigArrays().newDoubleArray(1, true);
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
+        lonSum = bigArrays().newDoubleArray(1, true);
+        lonCompensations = bigArrays().newDoubleArray(1, true);
+        latSum = bigArrays().newDoubleArray(1, true);
+        latCompensations = bigArrays().newDoubleArray(1, true);
+        counts = bigArrays().newLongArray(1, true);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        final MultiGeoPointValues values = valuesSource.geoPointValues(aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
 
@@ -103,7 +98,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         final long bucketCount = counts.get(bucket);
@@ -115,7 +110,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoCentroid(name, null, 0L, metadata());
+        return InternalGeoCentroid.empty(name, metadata());
     }
 
     @Override

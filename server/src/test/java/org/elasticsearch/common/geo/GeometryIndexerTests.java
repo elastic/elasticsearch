@@ -226,7 +226,7 @@ public class GeometryIndexerTests extends ESTestCase {
     public void testPolygonAllCollinearPoints() {
         Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 1, -1, 0 }, new double[] { 0, 1, -1, 0 }));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> indexer.indexShape(polygon));
-        assertEquals("Unable to Tessellate shape. Possible malformed shape detected.", e.getMessage());
+        assertEquals("at least three non-collinear points required", e.getMessage());
     }
 
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {

@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnumRequest> {
+public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<TermsEnumRequest> {
     private NamedXContentRegistry xContentRegistry;
     private NamedWriteableRegistry namedWriteableRegistry;
 
@@ -93,7 +93,7 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
     @Override
     protected TermsEnumRequest mutateInstance(TermsEnumRequest instance) throws IOException {
         List<Consumer<TermsEnumRequest>> mutators = new ArrayList<>();
-        mutators.add(request -> { request.field(randomAlphaOfLengthBetween(3, 10)); });
+        mutators.add(request -> { request.field(randomValueOtherThan(request.field(), () -> randomAlphaOfLengthBetween(3, 10))); });
         mutators.add(request -> {
             String[] indices = ArrayUtils.concat(instance.indices(), generateRandomStringArray(5, 10, false, false));
             request.indices(indices);

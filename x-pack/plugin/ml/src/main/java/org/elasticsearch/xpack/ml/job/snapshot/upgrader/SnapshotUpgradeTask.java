@@ -70,7 +70,15 @@ public class SnapshotUpgradeTask extends LicensedAllocatedPersistentTask {
         }
     }
 
-    public synchronized void setJobModelSnapshotUpgrader(JobModelSnapshotUpgrader jobModelSnapshotUpgrader) {
+    /**
+     * @param jobModelSnapshotUpgrader the snapshot upgrader
+     * @return false if the task has been canceled and upgrader not set
+     */
+    public synchronized boolean setJobModelSnapshotUpgrader(JobModelSnapshotUpgrader jobModelSnapshotUpgrader) {
+        if (this.isCancelled()) {
+            return false;
+        }
         this.jobModelSnapshotUpgrader = jobModelSnapshotUpgrader;
+        return true;
     }
 }

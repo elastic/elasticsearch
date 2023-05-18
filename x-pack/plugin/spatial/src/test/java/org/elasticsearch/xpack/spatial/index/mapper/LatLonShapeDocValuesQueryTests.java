@@ -27,11 +27,12 @@ import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.tests.search.CheckHits;
 import org.apache.lucene.tests.search.QueryUtils;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 
 import java.io.IOException;
 import java.util.List;
@@ -79,7 +80,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -121,7 +122,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);

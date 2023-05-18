@@ -289,7 +289,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
             dataStreamCheckBranchingKey,
-            getRestoredIndexPrefix(copyLifecyclePolicySettingKey),
+            (index, lifecycleState) -> getRestoredIndexPrefix(copyLifecyclePolicySettingKey) + index,
             LifecycleSettings.LIFECYCLE_NAME
         );
         BranchingStep isDataStreamBranchingStep = new BranchingStep(
@@ -344,8 +344,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
     /**
      * Resolves the prefix to be used for the mounted index depending on the provided key
      */
-    String getRestoredIndexPrefix(StepKey currentKey) {
-        if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
+    static String getRestoredIndexPrefix(StepKey currentKey) {
+        if (currentKey.phase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return PARTIAL_RESTORED_INDEX_PREFIX;
         } else {
             return FULL_RESTORED_INDEX_PREFIX;
@@ -353,8 +353,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     // Resolves the storage type depending on which phase the index is in
-    MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
-        if (currentKey.getPhase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
+    static MountSearchableSnapshotRequest.Storage getConcreteStorageType(StepKey currentKey) {
+        if (currentKey.phase().equals(TimeseriesLifecycleType.FROZEN_PHASE)) {
             return MountSearchableSnapshotRequest.Storage.SHARED_CACHE;
         } else {
             return MountSearchableSnapshotRequest.Storage.FULL_COPY;
@@ -395,11 +395,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
             return false;
         }
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return Objects.equals(snapshotRepository, that.snapshotRepository);
+        return Objects.equals(snapshotRepository, that.snapshotRepository) && Objects.equals(forceMergeIndex, that.forceMergeIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository);
+        return Objects.hash(snapshotRepository, forceMergeIndex);
     }
 }

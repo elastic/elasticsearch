@@ -14,13 +14,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.Randomness;
@@ -31,9 +31,9 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -102,8 +102,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
-            mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
-            mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
+            mdFiles.stream().map(StoreFileMetadata::name).toList(),
+            mdFiles.stream().map(StoreFileMetadata::length).toList(),
             emptyList(),
             emptyList(),
             0,
@@ -153,7 +153,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                             r.content(),
                             r.lastChunk(),
                             r.totalTranslogOps(),
-                            ActionListener.wrap(ignored -> {}, e -> { throw new AssertionError(e); })
+                            ActionListener.wrap(ignored -> {}, e -> {
+                                throw new AssertionError(e);
+                            })
                         );
                     }
                 } catch (Exception e) {
@@ -181,7 +183,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     private SeqNoStats populateRandomData(IndexShard shard) throws IOException {
-        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
+        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(
@@ -204,12 +206,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testPrepareIndexForPeerRecovery() throws Exception {
-        DiscoveryNode localNode = new DiscoveryNode(
+        DiscoveryNode localNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
 
         // empty copy
@@ -294,12 +295,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testClosedIndexSkipsLocalRecovery() throws Exception {
-        DiscoveryNode localNode = new DiscoveryNode(
+        DiscoveryNode localNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
         IndexShard shard = newStartedShard(false);
         long globalCheckpoint = populateRandomData(shard).getGlobalCheckpoint();
@@ -334,19 +334,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     public void testResetStartingSeqNoIfLastCommitCorrupted() throws Exception {
         IndexShard shard = newStartedShard(false);
         populateRandomData(shard);
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
         shard = reinitShard(shard, ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.PeerRecoverySource.INSTANCE));
         shard.markAsRecovering("peer recovery", new RecoveryState(shard.routingEntry(), pNode, rNode));
@@ -362,19 +360,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testResetStartRequestIfTranslogIsCorrupted() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
         IndexShard shard = newStartedShard(false);
         final SeqNoStats seqNoStats = populateRandomData(shard);
@@ -408,19 +404,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileWrite() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
 
         IndexShard shard = newShard(false);
@@ -507,19 +501,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileIsDeletedAfterFailure() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
 
         IndexShard shard = newShard(false);
@@ -600,19 +592,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testReceiveFileInfoDeletesRecoveredFiles() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
 
         IndexShard shard = newShard(false);
@@ -705,19 +695,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileAreDeletedAfterCancel() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
 
         IndexShard shard = newShard(false);
@@ -792,19 +780,17 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     public void testSnapshotFileDownloadPermitIsReleasedAfterClosingRecoveryTarget() throws Exception {
-        DiscoveryNode pNode = new DiscoveryNode(
+        DiscoveryNode pNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
-        DiscoveryNode rNode = new DiscoveryNode(
+        DiscoveryNode rNode = TestDiscoveryNode.create(
             "foo",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
+            Collections.emptySet()
         );
 
         IndexShard shard = newShard(false);

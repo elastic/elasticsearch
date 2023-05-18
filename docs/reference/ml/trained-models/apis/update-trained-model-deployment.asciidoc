@@ -1,0 +1,88 @@
+[role="xpack"]
+[[update-trained-model-deployment]]
+= Update trained model deployment API
+
+[subs="attributes"]
+++++
+<titleabbrev>Update trained model deployment</titleabbrev>
+++++
+
+Updates certain properties of a trained model deployment.
+
+beta::[]
+
+[[update-trained-model-deployment-request]]
+== {api-request-title}
+
+`POST _ml/trained_models/<deployment_id>/deployment/_update`
+
+
+[[update-trained-model-deployments-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+[[update-trained-model-deployment-desc]]
+== {api-description-title}
+
+You can update a trained model deployment whose `assignment_state` is `started`.
+You can either increase or decrease the number of allocations of such a deployment.
+
+[[update-trained-model-deployments-path-parms]]
+== {api-path-parms-title}
+
+`<deployment_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+
+[[update-trained-model-deployment-request-body]]
+== {api-request-body-title}
+
+`number_of_allocations`::
+(Optional, integer)
+The total number of allocations this model is assigned across {ml} nodes.
+Increasing this value generally increases the throughput.
+
+
+[[update-trained-model-deployment-example]]
+== {api-examples-title}
+
+The following example updates the deployment for a
+ `elastic__distilbert-base-uncased-finetuned-conll03-english` trained model to have 4 allocations:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/_update
+{
+  "number_of_allocations": 4
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "assignment": {
+        "task_parameters": {
+            "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
+            "model_bytes": 265632637,
+            "threads_per_allocation" : 1,
+            "number_of_allocations" : 4,
+            "queue_capacity" : 1024
+        },
+        "routing_table": {
+            "uckeG3R8TLe2MMNBQ6AGrw": {
+                "current_allocations": 1,
+                "target_allocations": 4,
+                "routing_state": "started",
+                "reason": ""
+            }
+        },
+        "assignment_state": "started",
+        "start_time": "2022-11-02T11:50:34.766591Z"
+    }
+}
+----

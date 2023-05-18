@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -55,7 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
+import static org.elasticsearch.license.LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -71,7 +72,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = """
+    private static final String ROLES = Strings.format("""
         %s:
           cluster: [ all ]
           indices:
@@ -96,7 +97,7 @@ public class LicensingTests extends SecurityIntegTestCase {
           indices:
             - names: 'b'
               privileges: [all]
-        """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
+        """, SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private static final String USERS_ROLES = """
         superuser:test_superuser
@@ -279,7 +280,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
             // apply the disabling of the license once the cluster is stable
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(OperationMode.BASIC, false, null);
+                licenseState.update(new XPackLicenseStatus(OperationMode.BASIC, false, null));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -291,7 +292,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             // first update the license so we can execute monitoring actions
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
             }
 
             ensureGreen();
@@ -301,7 +302,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             // re-apply the update in case any node received an updated cluster state that triggered the license state
             // to change
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
             }
         }, 30L, TimeUnit.SECONDS);
     }
@@ -309,7 +310,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     private void setLicensingExpirationDate(License.OperationMode operationMode, String expiryWarning) throws Exception {
         assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                licenseState.update(operationMode, true, expiryWarning);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, expiryWarning));
             }
 
             ensureGreen();

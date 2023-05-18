@@ -197,9 +197,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetWithAliasPointingToMultipleIndices() {
         client().admin().indices().prepareCreate("index1").addAlias(new Alias("alias1").indexRouting("0")).get();
         if (randomBoolean()) {
-            client().admin()
-                .indices()
-                .prepareCreate("index2")
+            indicesAdmin().prepareCreate("index2")
                 .addAlias(new Alias("alias1").indexRouting("0").writeIndex(randomFrom(false, null)))
                 .get();
         } else {
@@ -789,7 +787,7 @@ public class GetActionIT extends ESIntegTestCase {
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
 
         String storedString = stored ? "true" : "false";
-        String createIndexSource = """
+        String createIndexSource = Strings.format("""
             {
               "settings": {
                 "index.translog.flush_threshold_size": "1pb",
@@ -812,7 +810,7 @@ public class GetActionIT extends ESIntegTestCase {
                   }
                 }
               }
-            }""".formatted(sourceEnabled, storedString, storedString);
+            }""", sourceEnabled, storedString, storedString);
 
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();

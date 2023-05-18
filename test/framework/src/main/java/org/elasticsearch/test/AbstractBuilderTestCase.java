@@ -23,16 +23,17 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -53,10 +53,12 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
 import org.elasticsearch.script.ScriptCompiler;
@@ -65,6 +67,8 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.After;
@@ -111,7 +115,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
-    protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
     // we don't include the binary field in the arrays below as it is not searchable
     protected static final String BINARY_FIELD_NAME = "mapped_binary";
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
@@ -126,8 +129,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         DATE_RANGE_FIELD_NAME,
         OBJECT_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME,
-        GEO_SHAPE_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
@@ -160,10 +162,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return index;
     }
 
-    @SuppressWarnings("deprecation") // dependencies in server for geo_shape field should be decoupled
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
+        return Collections.emptyList();
     }
+
+    private TestThreadPool testThreadPool;
 
     /**
      * Allows additional plugins other than the required `TestGeoShapeFieldMapperPlugin`
@@ -260,12 +263,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
         serviceHolder.clientInvocationHandler.delegate = this;
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
+
+        testThreadPool = new TestThreadPool(getTestName());
+        serviceHolder.clientInvocationHandler.testThreadPool = testThreadPool;
+        serviceHolderWithNoType.clientInvocationHandler.testThreadPool = testThreadPool;
     }
 
     @After
     public void afterTest() {
         serviceHolder.clientInvocationHandler.delegate = null;
         serviceHolderWithNoType.clientInvocationHandler.delegate = null;
+        testThreadPool.shutdown();
     }
 
     /**
@@ -276,10 +284,31 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     /**
-     * Override this to handle {@link Client#get(GetRequest)} calls from parsers / builders
+     * Override this to handle {@link Client#multiTermVectors(MultiTermVectorsRequest, ActionListener)}
+     * calls from parsers / builders
      */
     protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
         throw new UnsupportedOperationException("this test can't handle MultiTermVector requests");
+    }
+
+    /**
+     * Can the test simulate this {@code Method}.
+     * If this function returns true {@link #simulateMethod(Method, Object[])}
+     * should be implemented provide the expected response.
+     *
+     * @param method The method being proxied. In practice method will represent a client call.
+     * @param args Method arguments
+     * @return True if simulating the method call is supported
+     */
+    protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
+        return false;
+    }
+
+    /**
+     * Override this to simulate client calls.
+     */
+    protected Object simulateMethod(Method method, Object[] args) {
+        throw new UnsupportedOperationException("this test can't simulate method [" + method.getName() + "]");
     }
 
     /**
@@ -305,6 +334,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     private static class ClientInvocationHandler implements InvocationHandler {
         AbstractBuilderTestCase delegate;
+        TestThreadPool testThreadPool;
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
@@ -327,6 +357,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 };
             } else if (method.equals(Object.class.getMethod("toString"))) {
                 return "MockClient";
+            } else if (method.equals(Client.class.getMethod("threadPool"))) {
+                return testThreadPool;
+            } else if (delegate.canSimulateMethod(method, args)) {
+                return delegate.simulateMethod(method, args);
             }
             throw new UnsupportedOperationException("this test can't handle calls to: " + method);
         }
@@ -356,14 +390,18 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             boolean registerType
         ) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(
-                nodeSettings,
-                emptyMap(),
-                null,
-                () -> { throw new AssertionError("node.name must be set"); }
-            );
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(), null, () -> {
+                throw new AssertionError("node.name must be set");
+            });
             PluginsService pluginsService;
-            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
+            pluginsService = new MockPluginsService(nodeSettings, env, plugins);
+
+            ClusterService clusterService = new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null,
+                (TaskManager) null
+            );
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),
@@ -371,11 +409,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 clientInvocationHandler
             );
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
-            List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
             SettingsModule settingsModule = new SettingsModule(
                 nodeSettings,
-                additionalSettings,
-                pluginsService.getPluginSettingsFilter(),
+                pluginsService.flatMap(Plugin::getSettings).toList(),
+                pluginsService.flatMap(Plugin::getSettingsFilter).toList(),
                 Collections.emptySet()
             );
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
@@ -391,19 +428,24 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             ).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
-            AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
+            AnalysisModule analysisModule = new AnalysisModule(
+                TestEnvironment.newEnvironment(nodeSettings),
+                emptyList(),
+                new StablePluginsRegistry()
+            );
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
+                clusterService,
                 idxSettings,
                 indexAnalyzers,
                 parserConfiguration,
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                IdFieldMapper.NO_FIELD_DATA,
+                idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
@@ -457,8 +499,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                                 "type=geo_point",
                                 GEO_POINT_ALIAS_FIELD_NAME,
                                 "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                                GEO_SHAPE_FIELD_NAME,
-                                "type=geo_shape",
                                 BINARY_FIELD_NAME,
                                 "type=binary"
                             )
@@ -467,7 +507,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     MapperService.MergeReason.MAPPING_UPDATE
                 );
                 // also add mappings for two inner field in the object field
-                mapperService.merge("_doc", new CompressedXContent("""
+                mapperService.merge("_doc", new CompressedXContent(Strings.format("""
                     {
                       "properties": {
                         "%s": {
@@ -482,7 +522,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                           }
                         }
                       }
-                    }""".formatted(OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
+                    }""", OBJECT_FIELD_NAME, DATE_FIELD_NAME, INT_FIELD_NAME)), MapperService.MergeReason.MAPPING_UPDATE);
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }

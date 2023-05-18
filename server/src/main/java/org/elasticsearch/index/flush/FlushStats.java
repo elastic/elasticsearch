@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class FlushStats implements Writeable, ToXContentFragment {
 
@@ -109,5 +110,18 @@ public class FlushStats implements Writeable, ToXContentFragment {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(periodic);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        FlushStats that = (FlushStats) o;
+        return total == that.total && totalTimeInMillis == that.totalTimeInMillis && periodic == that.periodic;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(total, totalTimeInMillis, periodic);
     }
 }

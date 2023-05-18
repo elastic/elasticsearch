@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
+import static org.elasticsearch.action.admin.indices.create.ShrinkIndexIT.assertNoResizeSourceIndexSettings;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,27 +47,19 @@ public class CloneIndexIT extends ESIntegTestCase {
         // to the require._name below.
         ensureGreen();
         // relocate all shards to one node such that we can merge it.
-        client().admin().indices().prepareUpdateSettings("source").setSettings(Settings.builder().put("index.blocks.write", true)).get();
+        updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
         ensureGreen();
 
-        final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
+        final IndicesStatsResponse sourceStats = indicesAdmin().prepareStats("source").setSegments(true).get();
 
         // disable rebalancing to be able to capture the right stats. balancing can move the target primary
         // making it hard to pin point the source shards.
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-            )
-            .get();
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         try {
 
             final boolean createWithReplicas = randomBoolean();
             assertAcked(
-                client().admin()
-                    .indices()
-                    .prepareResizeIndex("source", "target")
+                indicesAdmin().prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.CLONE)
                     .setSettings(
                         Settings.builder().put("index.number_of_replicas", createWithReplicas ? 1 : 0).putNull("index.blocks.write").build()
@@ -74,8 +67,9 @@ public class CloneIndexIT extends ESIntegTestCase {
                     .get()
             );
             ensureGreen();
+            assertNoResizeSourceIndexSettings("target");
 
-            final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
+            final IndicesStatsResponse targetStats = indicesAdmin().prepareStats("target").get();
             assertThat(targetStats.getIndex("target").getIndexShards().keySet().size(), equalTo(numPrimaryShards));
 
             for (int i = 0; i < numPrimaryShards; i++) {
@@ -90,11 +84,7 @@ public class CloneIndexIT extends ESIntegTestCase {
 
             if (createWithReplicas == false) {
                 // bump replicas
-                client().admin()
-                    .indices()
-                    .prepareUpdateSettings("target")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                    .get();
+                setReplicaCount(1, "target");
                 ensureGreen();
                 assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
             }
@@ -108,17 +98,13 @@ public class CloneIndexIT extends ESIntegTestCase {
                 2 * docs
             );
             assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
-            GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
+            GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
             assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
         } finally {
             // clean up
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
-                )
-                .get();
+            updateClusterSettings(
+                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String) null)
+            );
         }
 
     }

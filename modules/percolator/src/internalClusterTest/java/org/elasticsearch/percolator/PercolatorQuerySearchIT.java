@@ -9,15 +9,15 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,7 +39,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
-import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
@@ -63,13 +62,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(PercolatorPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class);
     }
 
     public void testPercolatorQuery() throws Exception {
@@ -290,7 +284,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("test")
-                .setMapping("id", "type=keyword", "field1", "type=geo_point", "field2", "type=geo_shape", "query", "type=percolator")
+                .setMapping("id", "type=keyword", "field1", "type=geo_point", "query", "type=percolator")
         );
 
         client().prepareIndex("test")
@@ -319,7 +313,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 jsonBuilder().startObject()
                     .field(
                         "query",
-                        geoPolygonQuery("field1", Arrays.asList(new GeoPoint(52.1, 4.4), new GeoPoint(52.3, 4.5), new GeoPoint(52.1, 4.6)))
+                        geoShapeQuery(
+                            "field1",
+                            new Polygon(new LinearRing(new double[] { 4.4, 4.5, 4.6, 4.4 }, new double[] { 52.1, 52.3, 52.1, 52.1 }))
+                        )
                     )
                     .field("id", "3")
                     .endObject()
@@ -412,10 +409,9 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get(); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get();
+        });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
 
@@ -890,7 +886,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> {
             client().prepareIndex("test2")
                 .setId("1")
                 .setSource(
@@ -1230,9 +1226,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
 
             // Set search.allow_expensive_queries to "false" => assert failure
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", false));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
@@ -1244,18 +1238,14 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             );
 
             // Set search.allow_expensive_queries setting to "true" ==> success
-            updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
 
             response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)).get();
             assertHitCount(response, 1);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             assertThat(response.getHits().getAt(0).getFields().get("_percolator_document_slot").getValue(), equalTo(0));
         } finally {
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
-            updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            updateClusterSettings(Settings.builder().putNull("search.allow_expensive_queries"));
         }
     }
 

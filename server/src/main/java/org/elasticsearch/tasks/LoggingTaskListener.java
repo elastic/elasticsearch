@@ -10,34 +10,32 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
- * A TaskListener that just logs the response at the info level. Used when we
- * need a listener but aren't returning the result to the user.
+ * An {@link ActionListener} that just logs the task and its response at the info level. Used when we need a listener but aren't returning
+ * the result to the user.
  */
-public final class LoggingTaskListener<Response> implements TaskListener<Response> {
+public final class LoggingTaskListener<Response> implements ActionListener<Response> {
+
     private static final Logger logger = LogManager.getLogger(LoggingTaskListener.class);
 
-    /**
-     * Get the instance of NoopActionListener cast appropriately.
-     */
-    @SuppressWarnings("unchecked") // Safe because we only toString the response
-    public static <Response> TaskListener<Response> instance() {
-        return (TaskListener<Response>) INSTANCE;
+    private final Task task;
+
+    public LoggingTaskListener(Task task) {
+        this.task = task;
     }
 
-    private static final LoggingTaskListener<Object> INSTANCE = new LoggingTaskListener<>();
-
-    private LoggingTaskListener() {}
-
     @Override
-    public void onResponse(Task task, Response response) {
+    public void onResponse(Response response) {
         logger.info("{} finished with response {}", task.getId(), response);
+
     }
 
     @Override
-    public void onFailure(Task task, Exception e) {
-        logger.warn(() -> new ParameterizedMessage("{} failed with exception", task.getId()), e);
+    public void onFailure(Exception e) {
+        logger.warn(() -> format("%s failed with exception", task.getId()), e);
     }
 }

@@ -15,7 +15,7 @@ its value will be replaced with the provided one.
 | `field`     | yes      | -       | The field to insert, upsert, or update. Supports <<template-snippets,template snippets>>.
 | `value`     | yes*     | -       | The value to be set for the field. Supports <<template-snippets,template snippets>>. May specify only one of `value` or `copy_from`.
 | `copy_from` | no       | -       | The origin field which will be copied to `field`, cannot set `value` simultaneously. Supported data types are `boolean`, `number`, `array`, `object`, `string`, `date`, etc.
-| `override`  | no       | `true`  | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
+| `override`  | no       | `true`  | If `true` processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 | `ignore_empty_value` | no | `false` | If `true` and `value` is a <<template-snippets,template snippet>> that evaluates to `null` or the empty string, the processor quietly exits without modifying the document
 | `media_type` | no       | `application/json` | The media type for encoding `value`. Applies only when `value` is a <<template-snippets,template snippet>>. Must be one of `application/json`, `text/plain`, or `application/x-www-form-urlencoded`.
 include::common-options.asciidoc[]
@@ -72,6 +72,7 @@ Result:
       "doc" : {
         "_index" : "_index",
         "_id" : "_id",
+        "_version" : "-3",
         "_source" : {
           "host" : {
             "os" : {
@@ -89,6 +90,68 @@ Result:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/2019-03-11T21:54:37.909224Z/$body.docs.0.doc._ingest.timestamp/]
+
+This processor can also access array fields using dot notation:
+[source,console]
+--------------------------------------------------
+POST /_ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "set": {
+          "field": "my_field",
+          "value": "{{{input_field.1}}}"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "input_field": [
+          "Ubuntu",
+          "Windows",
+          "Ventura"
+        ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+Result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "index",
+        "_id": "id",
+        "_version": "-3",
+        "_source": {
+          "input_field": [
+            "Ubuntu",
+            "Windows",
+            "Ventura"
+          ],
+          "my_field": "Windows"
+        },
+        "_ingest": {
+          "timestamp": "2023-05-05T16:04:16.456475214Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2023-05-05T16:04:16.456475214Z/$body.docs.0.doc._ingest.timestamp/]
+
+
 The contents of a field including complex values such as arrays and objects can be copied to another field using `copy_from`:
 [source,console]
 --------------------------------------------------
@@ -127,6 +190,7 @@ Result:
       "doc" : {
         "_index" : "_index",
         "_id" : "_id",
+        "_version" : "-3",
         "_source" : {
           "bar": ["foo1", "foo2"],
           "foo": ["foo1", "foo2"]

@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -36,7 +35,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -70,15 +68,8 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         Client client = internalCluster().coordOnlyNodeClient();
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        NodeStats unluckyNode = randomFrom(
-            nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData()).collect(Collectors.toList())
-        );
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index")
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1).put("index.number_of_shards", 5))
-        );
+        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData()).toList());
+        assertAcked(client().admin().indices().prepareCreate("index").setSettings(indexSettings(5, 1)));
         ensureGreen("index");
         logger.info("unlucky node: {}", unluckyNode.getNode());
         // create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.

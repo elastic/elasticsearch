@@ -8,25 +8,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -40,7 +36,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,7 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -116,7 +110,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
     public static final Setting<Long> INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.dimension_fields.limit",
-        16,
+        21,
         0,
         Property.Dynamic,
         Property.IndexScope
@@ -127,11 +121,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
-    private final Supplier<MappingParserContext> parserContextSupplier;
+    private final MappingParserContext mappingParserContext;
 
     private volatile DocumentMapper mapper;
 
     public MapperService(
+        ClusterService clusterService,
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        XContentParserConfiguration parserConfiguration,
+        SimilarityService similarityService,
+        MapperRegistry mapperRegistry,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        IdFieldMapper idFieldMapper,
+        ScriptCompiler scriptCompiler
+    ) {
+        this(
+            () -> clusterService.state().getMinTransportVersion(),
+            indexSettings,
+            indexAnalyzers,
+            parserConfiguration,
+            similarityService,
+            mapperRegistry,
+            searchExecutionContextSupplier,
+            idFieldMapper,
+            scriptCompiler
+        );
+    }
+
+    public MapperService(
+        Supplier<TransportVersion> clusterTransportVersion,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -145,30 +164,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
+        this.mappingParserContext = new MappingParserContext(
             similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get,
+            type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
+            clusterTransportVersion,
             searchExecutionContextSupplier,
-            dateFormatter,
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(
-            parserConfiguration,
-            dateFormatter -> new MappingParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
-            indexSettings,
-            indexAnalyzers
-        );
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContext);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        this.parserContextSupplier = () -> parserContextFunction.apply(null);
         this.mappingParser = new MappingParser(
-            parserContextSupplier,
+            mappingParserContext,
             metadataMapperParsers,
             this::getMetadataMappers,
             this::resolveDocumentType
@@ -184,7 +197,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public MappingParserContext parserContext() {
-        return parserContextSupplier.get();
+        return this.mappingParserContext;
     }
 
     /**
@@ -361,7 +374,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
         DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
-        newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
@@ -452,7 +464,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all mapped field types.
+     * Returns field types that have eager global ordinals.
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         DocumentMapper mapper = this.mapper;
@@ -464,7 +476,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             .stream()
             .map(mappingLookup::getFieldType)
             .filter(MappedFieldType::eagerGlobalOrdinals)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -506,27 +518,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    /**
+     * @return If this field is defined as a multifield of another field
+     */
     public boolean isMultiField(String field) {
         return mappingLookup().isMultiField(field);
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
-        // refresh indexAnalyzers and search analyzers
-        final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
-        final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
-        final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
-        final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
-        final List<String> reloadedAnalyzers = new ArrayList<>();
-        for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
-            if (namedAnalyzer.analyzer()instanceof ReloadableCustomAnalyzer analyzer) {
-                String analyzerName = namedAnalyzer.name();
-                Settings analyzerSettings = settings.get(analyzerName);
-                analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
-                reloadedAnalyzers.add(analyzerName);
-            }
-        }
         // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
-        return reloadedAnalyzers;
+        return indexAnalyzers.reload(registry, indexSettings);
     }
+
+    /**
+     * @return Returns all dynamic templates defined in this mapping.
+     */
+    public DynamicTemplate[] getAllDynamicTemplates() {
+        return documentMapper().mapping().getRoot().dynamicTemplates();
+    }
+
 }

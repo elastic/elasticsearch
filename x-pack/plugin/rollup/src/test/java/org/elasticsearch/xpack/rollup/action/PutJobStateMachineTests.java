@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -57,13 +56,12 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testCreateIndexException() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> {
-                assertThat(e.getMessage(), equalTo("Could not create index for rollup job [foo]"));
-                assertThat(e.getCause().getMessage(), equalTo("something bad"));
-            }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(e.getMessage(), equalTo("Could not create index for rollup job [foo]"));
+            assertThat(e.getCause().getMessage(), equalTo("something bad"));
+        });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -84,10 +82,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testIndexAlreadyExists() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> { assertThat(e.getCause().getMessage(), equalTo("Ending")); }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> { assertThat(e.getCause().getMessage(), equalTo("Ending")); });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -115,10 +112,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testIndexMetadata() throws InterruptedException {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> { assertThat(e.getCause().getMessage(), equalTo("Ending")); }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> { assertThat(e.getCause().getMessage(), equalTo("Ending")); });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -157,13 +153,12 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testGetMappingFails() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> {
-                assertThat(e.getMessage(), equalTo("Could not update mappings for rollup job [foo]"));
-                assertThat(e.getCause().getMessage(), equalTo("something bad"));
-            }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(e.getMessage(), equalTo("Could not update mappings for rollup job [foo]"));
+            assertThat(e.getCause().getMessage(), equalTo("something bad"));
+        });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -182,20 +177,19 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testNoMetadataInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> {
-                assertThat(
-                    e.getMessage(),
-                    equalTo(
-                        "Rollup data cannot be added to existing indices that contain "
-                            + "non-rollup data (expected to find _meta key in mapping of rollup index ["
-                            + job.getConfig().getRollupIndex()
-                            + "] but not found)."
-                    )
-                );
-            }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Rollup data cannot be added to existing indices that contain "
+                        + "non-rollup data (expected to find _meta key in mapping of rollup index ["
+                        + job.getConfig().getRollupIndex()
+                        + "] but not found)."
+                )
+            );
+        });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -205,10 +199,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.emptyMap());
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -221,20 +212,19 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testMetadataButNotRollup() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> {
-                assertThat(
-                    e.getMessage(),
-                    equalTo(
-                        "Rollup data cannot be added to existing indices that contain "
-                            + "non-rollup data (expected to find rollup meta key [_rollup] in mapping of rollup index ["
-                            + job.getConfig().getRollupIndex()
-                            + "] but not found)."
-                    )
-                );
-            }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Rollup data cannot be added to existing indices that contain "
+                        + "non-rollup data (expected to find rollup meta key [_rollup] in mapping of rollup index ["
+                        + job.getConfig().getRollupIndex()
+                        + "] but not found)."
+                )
+            );
+        });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -246,10 +236,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put("random", Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -262,15 +249,14 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testNoMappingVersion() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> {
-                assertThat(
-                    e.getMessage(),
-                    equalTo("Could not determine version of existing rollup metadata for index [" + job.getConfig().getRollupIndex() + "]")
-                );
-            }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(
+                e.getMessage(),
+                equalTo("Could not determine version of existing rollup metadata for index [" + job.getConfig().getRollupIndex() + "]")
+            );
+        });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -282,10 +268,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -298,8 +281,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testJobAlreadyInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        },
             e -> {
                 assertThat(
                     e.getMessage(),
@@ -319,10 +303,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -347,10 +328,9 @@ public class PutJobStateMachineTests extends ESTestCase {
             "rollup_index_foo"
         );
         RollupJob job = new RollupJob(config, Collections.emptyMap());
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> { assertThat(e.getMessage(), equalTo("Ending")); }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> { assertThat(e.getMessage(), equalTo("Ending")); });
 
         Logger logger = mock(Logger.class);
         Client client = mock(Client.class);
@@ -363,10 +343,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
-            ImmutableOpenMap.Builder<String, MappingMetadata> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(unrelatedJob.getRollupIndex(), meta);
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(Map.of(unrelatedJob.getRollupIndex(), meta));
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -387,10 +364,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testTaskAlreadyExists() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> { assertThat(e.getMessage(), equalTo("Cannot create job [foo] because it has already been created (task exists)")); }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> { assertThat(e.getMessage(), equalTo("Cannot create job [foo] because it has already been created (task exists)")); });
 
         PersistentTasksService tasksService = mock(PersistentTasksService.class);
 
@@ -408,10 +384,9 @@ public class PutJobStateMachineTests extends ESTestCase {
     public void testStartTask() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
 
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(
-            response -> { fail("Listener success should not have been triggered."); },
-            e -> { assertThat(e.getMessage(), equalTo("Ending")); }
-        );
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> { assertThat(e.getMessage(), equalTo("Ending")); });
 
         PersistentTasksService tasksService = mock(PersistentTasksService.class);
 

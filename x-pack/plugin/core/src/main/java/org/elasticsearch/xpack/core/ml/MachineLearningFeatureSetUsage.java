@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,17 +64,17 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.V_7_0_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(jobsUsage);
-        out.writeMap(datafeedsUsage);
-        out.writeMap(analyticsUsage);
-        out.writeMap(inferenceUsage);
+        out.writeGenericMap(jobsUsage);
+        out.writeGenericMap(datafeedsUsage);
+        out.writeGenericMap(analyticsUsage);
+        out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
     }
 

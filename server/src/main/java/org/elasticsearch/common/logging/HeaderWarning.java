@@ -311,11 +311,13 @@ public class HeaderWarning {
     }
 
     private static String getSingleValue(String headerName) {
-        return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(headerName) != null)
-            .findFirst()
-            .map(t -> t.getHeader(headerName))
-            .orElse("");
+        for (ThreadContext threadContext : THREAD_CONTEXT) {
+            final String header = threadContext.getHeader(headerName);
+            if (header != null) {
+                return header;
+            }
+        }
+        return "";
     }
 
     public static void addWarning(String message, Object... params) {
@@ -328,8 +330,9 @@ public class HeaderWarning {
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
-            assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
+            // TODO #95972: Temporarily commented out to avoid StackOverflowError, see https://github.com/elastic/elasticsearch/issues/95972
+            // assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
+            // assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -106,7 +107,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(new User("kibana"), new Authentication.RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
+        AuthenticationTestHelper.builder()
+            .user(new User("kibana"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false)
+            .writeToContext(threadContext);
         indexRequests = new ArrayList<>();
         bulkRequests = new ArrayList<>();
         client = mock(Client.class);
@@ -219,21 +224,14 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", signedIdToken.serialize());
         tokenMetadata.put("oidc_realm", REALM_NAME);
-        final Authentication authentication = new Authentication(
-            user,
-            realmRef,
-            null,
-            null,
-            Authentication.AuthenticationType.REALM,
-            tokenMetadata
-        );
+        final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 
         final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
         final String accessToken = future.actionGet().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
+        mockGetTokenFromId(tokenService, userTokenId, authentication, tokenMetadata, false, client);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
         request.setToken(accessToken);

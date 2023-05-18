@@ -210,7 +210,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }
         if (this.runtimeMappings != null) {
             out.writeBoolean(true);
-            out.writeMap(this.runtimeMappings);
+            out.writeGenericMap(this.runtimeMappings);
         } else {
             out.writeBoolean(false);
         }

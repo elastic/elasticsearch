@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -80,13 +80,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
     public void testRandomActivities() throws InterruptedException {
-        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState().clear().setNodes(true).get().getState().nodes();
         new TrackedCluster(internalCluster(), nodeNames(discoveryNodes.getMasterNodes()), nodeNames(discoveryNodes.getDataNodes())).run();
         disableRepoConsistencyCheck("have not necessarily written to all repositories");
     }
 
-    private static Set<String> nodeNames(ImmutableOpenMap<String, DiscoveryNode> nodesMap) {
-        return nodesMap.stream().map(c -> c.getValue().getName()).collect(Collectors.toSet());
+    private static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
+        return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }
 
     /**
@@ -338,20 +338,14 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
             if (failedPermitAcquisitions.isEmpty() == false) {
                 logger.warn("--> failed to acquire all permits: {}", failedPermitAcquisitions);
-                logger.info(
-                    "--> current cluster state:\n{}",
-                    Strings.toString(client().admin().cluster().prepareState().get().getState(), true, true)
-                );
+                logger.info("--> current cluster state:\n{}", Strings.toString(clusterAdmin().prepareState().get().getState(), true, true));
                 fail("failed to acquire all permits: " + failedPermitAcquisitions);
             }
             logger.info("--> acquired all permits");
 
             if (ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS) == false) {
                 logger.warn("--> threadpool termination timed out");
-                logger.info(
-                    "--> current cluster state:\n{}",
-                    Strings.toString(client().admin().cluster().prepareState().get().getState(), true, true)
-                );
+                logger.info("--> current cluster state:\n{}", Strings.toString(clusterAdmin().prepareState().get().getState(), true, true));
             }
         }
 
@@ -371,7 +365,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         logger.warn("--> failed to acquire permit [{}]", label);
                         logger.info(
                             "--> current cluster state:\n{}",
-                            Strings.toString(client().admin().cluster().prepareState().get().getState(), true, true)
+                            Strings.toString(clusterAdmin().prepareState().get().getState(), true, true)
                         );
                         logger.info(
                             "--> hot threads:\n{}",
@@ -550,9 +544,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                 closeIndicesStep.addListener(mustSucceed(ignored1 -> deleteIndicesStep.addListener(mustSucceed(ignored2 -> {
 
-                    final RestoreSnapshotRequestBuilder restoreSnapshotRequestBuilder = client().admin()
-                        .cluster()
-                        .prepareRestoreSnapshot(snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
+                    final RestoreSnapshotRequestBuilder restoreSnapshotRequestBuilder = clusterAdmin().prepareRestoreSnapshot(
+                        snapshotInfo.repository(),
+                        snapshotInfo.snapshotId().getName()
+                    );
 
                     if (restoreSpecificIndices) {
                         restoreSnapshotRequestBuilder.setIndices(indicesToRestore);
@@ -574,13 +569,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             snapshotInfo.snapshotId().getName()
                         );
 
-                        client().admin()
-                            .cluster()
-                            .prepareHealth(indicesToRestore)
-                            .setWaitForEvents(Priority.LANGUID)
-                            .setWaitForGreenStatus()
+                        prepareClusterHealthRequest(indicesToRestore).setWaitForGreenStatus()
                             .setWaitForNoInitializingShards(true)
-                            .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
                             .execute(mustSucceed(clusterHealthResponse -> {
 
                                 logger.info(
@@ -807,12 +797,28 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         .cluster()
                         .prepareCleanupRepository(trackedRepository.repositoryName)
                         .execute(mustSucceed(cleanupRepositoryResponse -> {
-                            Releasables.close(releaseAll);
-                            logger.info("--> completed cleanup of [{}]", trackedRepository.repositoryName);
                             final RepositoryCleanupResult result = cleanupRepositoryResponse.result();
-                            assertThat(Strings.toString(result), result.blobs(), equalTo(0L));
-                            assertThat(Strings.toString(result), result.bytes(), equalTo(0L));
-                            startCleaner();
+                            if (result.bytes() > 0L || result.blobs() > 0L) {
+                                // we could legitimately run into dangling blobs as the result of a shard snapshot failing half-way
+                                // through the snapshot because of a concurrent index-close or -delete. The second round of cleanup on
+                                // the same repository however must always fully remove any dangling blobs since we block all concurrent
+                                // operations on the repository here
+                                client.admin()
+                                    .cluster()
+                                    .prepareCleanupRepository(trackedRepository.repositoryName)
+                                    .execute(mustSucceed(secondCleanupRepositoryResponse -> {
+                                        final RepositoryCleanupResult secondCleanupResult = secondCleanupRepositoryResponse.result();
+                                        assertThat(Strings.toString(secondCleanupResult), secondCleanupResult.blobs(), equalTo(0L));
+                                        assertThat(Strings.toString(secondCleanupResult), secondCleanupResult.bytes(), equalTo(0L));
+                                        Releasables.close(releaseAll);
+                                        logger.info("--> completed second cleanup of [{}]", trackedRepository.repositoryName);
+                                        startCleaner();
+                                    }));
+                            } else {
+                                Releasables.close(releaseAll);
+                                logger.info("--> completed cleanup of [{}]", trackedRepository.repositoryName);
+                                startCleaner();
+                            }
                         }));
 
                     startedCleanup = true;
@@ -874,13 +880,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         snapshotName
                     );
 
-                    client().admin()
-                        .cluster()
-                        .prepareHealth(targetIndexNames.toArray(new String[0]))
-                        .setWaitForEvents(Priority.LANGUID)
-                        .setWaitForYellowStatus()
-                        .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
-                        .execute(ensureYellowStep);
+                    prepareClusterHealthRequest(targetIndexNames.toArray(String[]::new)).setWaitForYellowStatus().execute(ensureYellowStep);
 
                     ensureYellowStep.addListener(mustSucceed(clusterHealthResponse -> {
                         assertFalse("timed out waiting for yellow state of " + targetIndexNames, clusterHealthResponse.isTimedOut());
@@ -893,9 +893,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             targetIndexNames
                         );
 
-                        final CreateSnapshotRequestBuilder createSnapshotRequestBuilder = client().admin()
-                            .cluster()
-                            .prepareCreateSnapshot(trackedRepository.repositoryName, snapshotName);
+                        final CreateSnapshotRequestBuilder createSnapshotRequestBuilder = clusterAdmin().prepareCreateSnapshot(
+                            trackedRepository.repositoryName,
+                            snapshotName
+                        );
 
                         if (snapshotSpecificIndices) {
                             createSnapshotRequestBuilder.setIndices(targetIndexNames.toArray(new String[0]));
@@ -983,10 +984,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         targetIndexNames
                     );
 
-                    final CreateSnapshotRequestBuilder createSnapshotRequestBuilder = client().admin()
-                        .cluster()
-                        .prepareCreateSnapshot(trackedRepository.repositoryName, snapshotName)
-                        .setPartial(true);
+                    final CreateSnapshotRequestBuilder createSnapshotRequestBuilder = clusterAdmin().prepareCreateSnapshot(
+                        trackedRepository.repositoryName,
+                        snapshotName
+                    ).setPartial(true);
 
                     if (snapshotSpecificIndices) {
                         createSnapshotRequestBuilder.setIndices(targetIndexNames.toArray(new String[0]));
@@ -1153,7 +1154,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             // the snapshot already exists).
 
             // TODO generalise this so that it succeeds as soon as it's acquired a permit on >1/2 of the master-eligible nodes
-            final List<TrackedNode> masterNodes = shuffledNodes.stream().filter(TrackedNode::isMasterNode).collect(Collectors.toList());
+            final List<TrackedNode> masterNodes = shuffledNodes.stream().filter(TrackedNode::isMasterNode).toList();
             try (TransferableReleasables localReleasables = new TransferableReleasables()) {
                 for (TrackedNode trackedNode : masterNodes) {
                     if (localReleasables.add(tryAcquirePermit(trackedNode.getPermits())) == null) {
@@ -1247,7 +1248,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         final Releasable releaseAll = localReleasables.transfer();
 
                         logger.info("--> delete repo [{}]", repositoryName);
-                        client().admin().cluster().prepareDeleteRepository(repositoryName).execute(mustSucceed(acknowledgedResponse -> {
+                        clusterAdmin().prepareDeleteRepository(repositoryName).execute(mustSucceed(acknowledgedResponse -> {
                             assertTrue(acknowledgedResponse.isAcknowledged());
                             logger.info("--> finished delete repo [{}]", repositoryName);
                             putRepositoryAndContinue(client, releaseAll);
@@ -1294,9 +1295,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 shardCount = between(1, 5);
                 docPermits = new Semaphore(between(1000, 3000));
                 logger.info("--> create index [{}] with max [{}] docs", indexName, docPermits.availablePermits());
-                client().admin()
-                    .indices()
-                    .prepareCreate(indexName)
+                indicesAdmin().prepareCreate(indexName)
                     .setSettings(
                         Settings.builder()
                             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shardCount)
@@ -1341,13 +1340,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                             logger.info("--> waiting for yellow health of [{}] prior to indexing [{}] docs", indexName, docCount);
 
-                            client().admin()
-                                .cluster()
-                                .prepareHealth(indexName)
-                                .setWaitForEvents(Priority.LANGUID)
-                                .setWaitForYellowStatus()
-                                .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
-                                .execute(ensureYellowStep);
+                            prepareClusterHealthRequest(indexName).setWaitForYellowStatus().execute(ensureYellowStep);
 
                             final StepListener<BulkResponse> bulkStep = new StepListener<>();
 
@@ -1412,6 +1405,15 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
         }
 
+    }
+
+    // Prepares a health request with twice the default (30s) timeout that waits for all cluster tasks to finish as well as all cluster
+    // nodes before returning
+    private static ClusterHealthRequestBuilder prepareClusterHealthRequest(String... targetIndexNames) {
+        return clusterAdmin().prepareHealth(targetIndexNames)
+            .setTimeout(TimeValue.timeValueSeconds(60))
+            .setWaitForNodes(Integer.toString(internalCluster().getNodeNames().length))
+            .setWaitForEvents(Priority.LANGUID);
     }
 
     private static String stringFromSnapshotInfo(SnapshotInfo snapshotInfo) {

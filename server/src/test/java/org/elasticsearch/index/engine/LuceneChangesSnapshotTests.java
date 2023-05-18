@@ -9,9 +9,10 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.store.Store;
@@ -27,7 +28,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,7 +89,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     toSeqNo,
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    Version.CURRENT
                 )
             ) {
                 searcher = null;
@@ -107,7 +108,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     toSeqNo,
                     true,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    Version.CURRENT
                 )
             ) {
                 searcher = null;
@@ -131,7 +133,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     toSeqNo,
                     false,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    Version.CURRENT
                 )
             ) {
                 searcher = null;
@@ -148,7 +151,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     toSeqNo,
                     true,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    Version.CURRENT
                 )
             ) {
                 searcher = null;
@@ -170,7 +174,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                     toSeqNo,
                     true,
                     randomBoolean(),
-                    randomBoolean()
+                    randomBoolean(),
+                    Version.CURRENT
                 )
             ) {
                 searcher = null;
@@ -231,7 +236,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 maxSeqNo,
                 false,
                 randomBoolean(),
-                accessStats
+                accessStats,
+                Version.CURRENT
             )
         ) {
             if (accessStats) {
@@ -424,10 +430,10 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 // have to verify without source since we are randomly testing without _source
                 List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
-                    .collect(Collectors.toList());
+                    .toList();
                 List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
                     .map(d -> new DocIdSeqNoAndSource(d.id(), null, d.seqNo(), d.primaryTerm(), d.version()))
-                    .collect(Collectors.toList());
+                    .toList();
                 assertThat(docsWithoutSourceOnFollower, equalTo(docsWithoutSourceOnLeader));
             } catch (Exception ex) {
                 throw new AssertionError(ex);

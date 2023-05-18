@@ -18,9 +18,7 @@ package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
-import org.elasticsearch.common.inject.internal.InternalContext;
 import org.elasticsearch.common.inject.internal.InternalFactory;
-import org.elasticsearch.common.inject.spi.Dependency;
 
 /**
  * @author crazybob@google.com (Bob Lee)
@@ -39,13 +37,7 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
     public T get() {
         final Errors errors = new Errors();
         try {
-            T t = injector.callInContext(new ContextualCallable<T>() {
-                @Override
-                public T call(InternalContext context) throws ErrorsException {
-                    Dependency<?> dependency = context.getDependency();
-                    return internalFactory.get(errors, context, dependency);
-                }
-            });
+            T t = injector.callInContext((ContextualCallable<T>) context -> internalFactory.get(errors, context, context.getDependency()));
             errors.throwIfNewErrors(0);
             return t;
         } catch (ErrorsException e) {

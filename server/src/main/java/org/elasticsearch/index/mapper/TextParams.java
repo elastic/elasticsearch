@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -38,9 +39,17 @@ public final class TextParams {
         public Analyzers(
             IndexAnalyzers indexAnalyzers,
             Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
-            Function<FieldMapper, Integer> positionGapInitFunction
+            Function<FieldMapper, Integer> positionGapInitFunction,
+            Version indexCreatedVersion
         ) {
-            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false, analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
+
+            this.indexAnalyzer = Parameter.analyzerParam(
+                "analyzer",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                analyzerInitFunction,
+                indexAnalyzers::getDefaultIndexAnalyzer,
+                indexCreatedVersion
+            )
                 .setSerializerCheck(
                     (id, ic, a) -> id
                         || ic
@@ -51,7 +60,7 @@ public final class TextParams {
             this.searchAnalyzer = Parameter.analyzerParam(
                 "search_analyzer",
                 true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(),
+                m -> m.fieldType().getTextSearchInfo().searchAnalyzer(),
                 () -> {
                     if (indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
@@ -60,14 +69,15 @@ public final class TextParams {
                         }
                     }
                     return indexAnalyzer.get();
-                }
+                },
+                indexCreatedVersion
             )
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.searchQuoteAnalyzer = Parameter.analyzerParam(
                 "search_quote_analyzer",
                 true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(),
+                m -> m.fieldType().getTextSearchInfo().searchQuoteAnalyzer(),
                 () -> {
                     if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
@@ -76,7 +86,8 @@ public final class TextParams {
                         }
                     }
                     return searchAnalyzer.get();
-                }
+                },
+                indexCreatedVersion
             ).addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam(
                 "position_increment_gap",
@@ -128,8 +139,34 @@ public final class TextParams {
         ).acceptsNull();
     }
 
-    public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("index_options", false, initializer, "positions", "docs", "freqs", "offsets");
+    public static Parameter<String> keywordIndexOptions(Function<FieldMapper, String> initializer) {
+        return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
+            switch (v) {
+                case "docs":
+                case "freqs":
+                    return;
+                default:
+                    throw new MapperParsingException(
+                        "Unknown value [" + v + "] for field [index_options] - accepted values are [docs, freqs]"
+                    );
+            }
+        });
+    }
+
+    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer) {
+        return Parameter.stringParam("index_options", false, initializer, "positions").addValidator(v -> {
+            switch (v) {
+                case "positions":
+                case "docs":
+                case "freqs":
+                case "offsets":
+                    return;
+                default:
+                    throw new MapperParsingException(
+                        "Unknown value [" + v + "] for field [index_options] - accepted values are [positions, docs, freqs, offsets]"
+                    );
+            }
+        });
     }
 
     public static FieldType buildFieldType(
@@ -166,18 +203,25 @@ public final class TextParams {
     }
 
     public static Parameter<String> termVectors(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam(
-            "term_vector",
-            false,
-            initializer,
-            "no",
-            "yes",
-            "with_positions",
-            "with_offsets",
-            "with_positions_offsets",
-            "with_positions_payloads",
-            "with_positions_offsets_payloads"
-        );
+        return Parameter.stringParam("term_vector", false, initializer, "no").addValidator(v -> {
+            switch (v) {
+                case "no":
+                case "yes":
+                case "with_positions":
+                case "with_offsets":
+                case "with_positions_offsets":
+                case "with_positions_payloads":
+                case "with_positions_offsets_payloads":
+                    return;
+                default:
+                    throw new MapperParsingException(
+                        "Unknown value ["
+                            + v
+                            + "] for field [term_vector] - accepted values are [no, yes, with_positions, with_offsets, "
+                            + "with_positions_offsets, with_positions_payloads, with_positions_offsets_payloads]"
+                    );
+            }
+        });
     }
 
     public static void setTermVectorParams(String configuration, FieldType fieldType) {

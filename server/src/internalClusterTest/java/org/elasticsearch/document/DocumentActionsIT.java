@@ -8,13 +8,17 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -29,10 +33,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType;
-import static org.elasticsearch.client.internal.Requests.clearIndicesCacheRequest;
-import static org.elasticsearch.client.internal.Requests.getRequest;
-import static org.elasticsearch.client.internal.Requests.indexRequest;
-import static org.elasticsearch.client.internal.Requests.refreshRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,10 +74,9 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
-            .indices()
-            .clearCache(clearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true))
-            .actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = indicesAdmin().clearCache(
+            new ClearIndicesCacheRequest("test").fieldDataCache(true).queryCache(true)
+        ).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
@@ -94,7 +93,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat("cycle(map) #" + i, (String) getResult.getSourceAsMap().get("name"), equalTo("test"));
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
@@ -110,7 +109,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat(getResult.isExists(), equalTo(false));
         }
 
@@ -119,32 +118,32 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         logger.info("Refreshing");
-        client().admin().indices().refresh(refreshRequest("test")).actionGet();
+        client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Index [type1/1]");
-        client().index(indexRequest("test").id("1").source(source("1", "test"))).actionGet();
+        client().index(new IndexRequest("test").id("1").source(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client().index(indexRequest("test").id("2").source(source("2", "test2"))).actionGet();
+        client().index(new IndexRequest("test").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
         FlushResponse flushResult = client().admin().indices().prepareFlush("test").execute().actionGet();
         assertThat(flushResult.getSuccessfulShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
-        client().admin().indices().refresh(refreshRequest("test")).actionGet();
+        client().admin().indices().refresh(new RefreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
-            getResult = client().get(getRequest("test").id("1")).actionGet();
+            getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("1", "test"))));
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             String ste1 = getResult.getSourceAsString();
             String ste2 = Strings.toString(source("2", "test2"));
             assertThat("cycle #" + i, ste1, equalTo(ste2));
@@ -228,19 +227,19 @@ public class DocumentActionsIT extends ESIntegTestCase {
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResult = client().get(getRequest("test").id("1")).actionGet();
+            GetResponse getResult = client().get(new GetRequest("test").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
-            getResult = client().get(getRequest("test").id("2")).actionGet();
+            getResult = client().get(new GetRequest("test").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("2", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client().get(getRequest("test").id(generatedId3)).actionGet();
+            getResult = client().get(new GetRequest("test").id(generatedId3)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("3", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client().get(getRequest("test").id(generatedId4)).actionGet();
+            getResult = client().get(new GetRequest("test").id(generatedId4)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("4", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }

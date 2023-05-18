@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -30,8 +31,8 @@ public class MappingParserContext {
     private final Function<String, Mapper.TypeParser> typeParsers;
     private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Version indexVersionCreated;
+    private final Supplier<TransportVersion> clusterTransportVersion;
     private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
-    private final DateFormatter dateFormatter;
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
@@ -42,8 +43,8 @@ public class MappingParserContext {
         Function<String, Mapper.TypeParser> typeParsers,
         Function<String, RuntimeField.Parser> runtimeFieldParsers,
         Version indexVersionCreated,
+        Supplier<TransportVersion> clusterTransportVersion,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        DateFormatter dateFormatter,
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
@@ -53,8 +54,8 @@ public class MappingParserContext {
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.indexVersionCreated = indexVersionCreated;
+        this.clusterTransportVersion = clusterTransportVersion;
         this.searchExecutionContextSupplier = searchExecutionContextSupplier;
-        this.dateFormatter = dateFormatter;
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
@@ -93,6 +94,10 @@ public class MappingParserContext {
         return indexVersionCreated;
     }
 
+    public Supplier<TransportVersion> clusterTransportVersion() {
+        return clusterTransportVersion;
+    }
+
     public Supplier<SearchExecutionContext> searchExecutionContext() {
         return searchExecutionContextSupplier;
     }
@@ -103,7 +108,7 @@ public class MappingParserContext {
      * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
      */
     public DateFormatter getDateFormatter() {
-        return dateFormatter;
+        return null;
     }
 
     public boolean isWithinMultiField() {
@@ -124,8 +129,8 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
-    MappingParserContext createMultiFieldContext(MappingParserContext in) {
-        return new MultiFieldParserContext(in);
+    public MappingParserContext createMultiFieldContext() {
+        return new MultiFieldParserContext(this);
     }
 
     private static class MultiFieldParserContext extends MappingParserContext {
@@ -135,8 +140,8 @@ public class MappingParserContext {
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
+                in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
-                in.dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
@@ -150,20 +155,33 @@ public class MappingParserContext {
         }
     }
 
-    static class DynamicTemplateParserContext extends MappingParserContext {
-        DynamicTemplateParserContext(MappingParserContext in) {
+    public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter) {
+        return new DynamicTemplateParserContext(this, dateFormatter);
+    }
+
+    private static class DynamicTemplateParserContext extends MappingParserContext {
+
+        private final DateFormatter dateFormatter;
+
+        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
             super(
                 in.similarityLookupService,
                 in.typeParsers,
                 in.runtimeFieldParsers,
                 in.indexVersionCreated,
+                in.clusterTransportVersion,
                 in.searchExecutionContextSupplier,
-                in.dateFormatter,
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper
             );
+            this.dateFormatter = dateFormatter;
+        }
+
+        @Override
+        public DateFormatter getDateFormatter() {
+            return dateFormatter;
         }
 
         @Override

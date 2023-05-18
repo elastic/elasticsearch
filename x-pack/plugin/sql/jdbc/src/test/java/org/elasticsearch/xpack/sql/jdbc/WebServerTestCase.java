@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.rest.root.MainResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockWebServer;
 import org.junit.After;
@@ -48,14 +48,7 @@ public abstract class WebServerTestCase extends ESTestCase {
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
-        Build build = new Build(
-            Build.Flavor.UNKNOWN,
-            Build.Type.UNKNOWN,
-            randomAlphaOfLength(8),
-            date,
-            randomBoolean(),
-            version.toString()
-        );
+        Build build = new Build(Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean(), version.toString());
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 

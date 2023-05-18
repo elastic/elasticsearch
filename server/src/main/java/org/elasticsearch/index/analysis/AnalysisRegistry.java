@@ -15,7 +15,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -32,10 +32,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -46,6 +46,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
+    public static final String INDEX_ANALYSIS_ANALYZER = "index.analysis.analyzer";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
 
     public static final String DEFAULT_ANALYZER_NAME = "default";
@@ -393,7 +394,7 @@ public final class AnalysisRegistry implements Closeable {
         );
     }
 
-    private <T> AnalysisProvider<T> getProvider(
+    private static <T> AnalysisProvider<T> getProvider(
         Component componentType,
         String componentName,
         IndexSettings indexSettings,
@@ -581,13 +582,11 @@ public final class AnalysisRegistry implements Closeable {
 
         @Override
         public void close() throws IOException {
-            IOUtils.close(
-                analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory) a)).collect(Collectors.toList())
-            );
+            IOUtils.close(analyzerProviderFactories.values().stream().map((a) -> ((PreBuiltAnalyzerProviderFactory) a)).toList());
         }
     }
 
-    public IndexAnalyzers build(
+    public static IndexAnalyzers build(
         IndexSettings indexSettings,
         Map<String, AnalyzerProvider<?>> analyzerProviders,
         Map<String, AnalyzerProvider<?>> normalizerProviders,
@@ -608,7 +607,9 @@ public final class AnalysisRegistry implements Closeable {
                     charFilterFactoryFactories,
                     tokenizerFactoryFactories
                 ),
-                (k, v) -> { throw new IllegalStateException("already registered analyzer with name: " + entry.getKey()); }
+                (k, v) -> {
+                    throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                }
             );
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
@@ -651,6 +652,10 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+        assert Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME);
+        if (Objects.equals(defaultAnalyzer.name(), DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultAnalyzer.name() + "]");
+        }
 
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException(
@@ -666,7 +671,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
+        return IndexAnalyzers.of(analyzers, normalizers, whitespaceNormalizers);
     }
 
     private static NamedAnalyzer produceAnalyzer(
@@ -713,7 +718,7 @@ public final class AnalysisRegistry implements Closeable {
         return analyzer;
     }
 
-    private void processNormalizerFactory(
+    private static void processNormalizerFactory(
         String name,
         AnalyzerProvider<?> normalizerFactory,
         Map<String, NamedAnalyzer> normalizers,

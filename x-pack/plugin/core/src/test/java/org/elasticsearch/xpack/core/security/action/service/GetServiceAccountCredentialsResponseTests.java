@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,7 +52,7 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
         final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
         final List<TokenInfo> indexTokenInfos = IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> TokenInfo.indexToken(randomAlphaOfLengthBetween(3, 8)))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         final GetServiceAccountCredentialsNodesResponse fileTokensResponse = randomGetServiceAccountFileTokensResponse();
         return new GetServiceAccountCredentialsResponse(principal, indexTokenInfos, fileTokensResponse);
     }
@@ -118,10 +117,9 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
     }
 
     private GetServiceAccountCredentialsNodesResponse.Node randomNodeResponse(String[] tokenNames, int i) {
-        final DiscoveryNode discoveryNode = new DiscoveryNode(
+        final DiscoveryNode discoveryNode = TestDiscoveryNode.create(
             randomAlphaOfLength(8) + i,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            Version.CURRENT
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300)
         );
         return new GetServiceAccountCredentialsNodesResponse.Node(
             discoveryNode,
@@ -130,7 +128,6 @@ public class GetServiceAccountCredentialsResponseTests extends ESTestCase {
     }
 
     private List<TokenInfo> getAllTokenInfos(GetServiceAccountCredentialsResponse response) {
-        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream())
-            .collect(toUnmodifiableList());
+        return Stream.concat(response.getNodesResponse().getFileTokenInfos().stream(), response.getIndexTokenInfos().stream()).toList();
     }
 }

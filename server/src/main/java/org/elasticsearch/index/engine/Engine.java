@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -27,9 +26,10 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -61,11 +61,13 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -81,9 +83,10 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -187,7 +190,7 @@ public abstract class Engine implements Closeable {
             try {
                 sizeInBytes += info.sizeInBytes();
             } catch (IOException e) {
-                logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
             }
         }
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
@@ -211,6 +214,33 @@ public abstract class Engine implements Closeable {
                     + shardId
             );
         }
+    }
+
+    public interface IndexCommitListener {
+
+        /**
+         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
+         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
+         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
+         * reference as soon as it is done with it.
+         *
+         * @param shardId         the {@link ShardId} of shard
+         * @param store           the index shard store
+         * @param primaryTerm     the shard's primary term value
+         * @param indexCommitRef  a reference on the newly created index commit
+         * @param additionalFiles the set of filenames that are added by the new commit
+         */
+        void onNewCommit(ShardId shardId, Store store, long primaryTerm, IndexCommitRef indexCommitRef, Set<String> additionalFiles);
+
+        /**
+         * This method is invoked after the policy deleted the given {@link IndexCommit}. A listener is never notified of a deleted commit
+         * until the corresponding {@link Engine.IndexCommitRef} received through {@link #onNewCommit} has been closed; closing which in
+         * turn can call this method directly.
+         *
+         * @param shardId the {@link ShardId} of shard
+         * @param deletedCommit the deleted {@link IndexCommit}
+         */
+        void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit);
     }
 
     /**
@@ -357,10 +387,11 @@ public abstract class Engine implements Closeable {
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
         private final Mapping requiredMappingUpdate;
+        private final String id;
         private Translog.Location translogLocation;
         private long took;
 
-        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo) {
+        protected Result(Operation.TYPE operationType, Exception failure, long version, long term, long seqNo, String id) {
             this.operationType = operationType;
             this.failure = Objects.requireNonNull(failure);
             this.version = version;
@@ -368,9 +399,10 @@ public abstract class Engine implements Closeable {
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
+            this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, long version, long term, long seqNo) {
+        protected Result(Operation.TYPE operationType, long version, long term, long seqNo, String id) {
             this.operationType = operationType;
             this.version = version;
             this.seqNo = seqNo;
@@ -378,9 +410,10 @@ public abstract class Engine implements Closeable {
             this.failure = null;
             this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
+            this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate) {
+        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
@@ -388,6 +421,7 @@ public abstract class Engine implements Closeable {
             this.failure = null;
             this.requiredMappingUpdate = requiredMappingUpdate;
             this.resultType = Type.MAPPING_UPDATE_REQUIRED;
+            this.id = id;
         }
 
         /** whether the operation was successful, has failed or was aborted due to a mapping update */
@@ -440,6 +474,10 @@ public abstract class Engine implements Closeable {
             return operationType;
         }
 
+        public String getId() {
+            return id;
+        }
+
         void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
                 this.translogLocation = translogLocation;
@@ -471,57 +509,56 @@ public abstract class Engine implements Closeable {
 
         private final boolean created;
 
-        public IndexResult(long version, long term, long seqNo, boolean created) {
-            super(Operation.TYPE.INDEX, version, term, seqNo);
+        public IndexResult(long version, long term, long seqNo, boolean created, String id) {
+            super(Operation.TYPE.INDEX, version, term, seqNo, id);
             this.created = created;
         }
 
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version) {
-            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version, String id) {
+            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO, id);
         }
 
-        public IndexResult(Exception failure, long version, long term, long seqNo) {
-            super(Operation.TYPE.INDEX, failure, version, term, seqNo);
+        public IndexResult(Exception failure, long version, long term, long seqNo, String id) {
+            super(Operation.TYPE.INDEX, failure, version, term, seqNo, id);
             this.created = false;
         }
 
-        public IndexResult(Mapping requiredMappingUpdate) {
-            super(Operation.TYPE.INDEX, requiredMappingUpdate);
+        public IndexResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
         }
 
         public boolean isCreated() {
             return created;
         }
-
     }
 
     public static class DeleteResult extends Result {
 
         private final boolean found;
 
-        public DeleteResult(long version, long term, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, version, term, seqNo);
+        public DeleteResult(long version, long term, long seqNo, boolean found, String id) {
+            super(Operation.TYPE.DELETE, version, term, seqNo, id);
             this.found = found;
         }
 
         /**
          * use in case of the delete operation failed before getting to internal engine
          **/
-        public DeleteResult(Exception failure, long version, long term) {
-            this(failure, version, term, UNASSIGNED_SEQ_NO, false);
+        public DeleteResult(Exception failure, long version, long term, String id) {
+            this(failure, version, term, UNASSIGNED_SEQ_NO, false, id);
         }
 
-        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found) {
-            super(Operation.TYPE.DELETE, failure, version, term, seqNo);
+        public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found, String id) {
+            super(Operation.TYPE.DELETE, failure, version, term, seqNo, id);
             this.found = found;
         }
 
-        public DeleteResult(Mapping requiredMappingUpdate) {
-            super(Operation.TYPE.DELETE, requiredMappingUpdate);
+        public DeleteResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
             this.found = false;
         }
 
@@ -533,12 +570,12 @@ public abstract class Engine implements Closeable {
 
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
-            super(Operation.TYPE.NO_OP, 0, term, seqNo);
+        public NoOpResult(long term, long seqNo) {
+            super(Operation.TYPE.NO_OP, 0, term, seqNo, null);
         }
 
         NoOpResult(long term, long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
+            super(Operation.TYPE.NO_OP, failure, 0, term, seqNo, null);
         }
 
     }
@@ -549,7 +586,7 @@ public abstract class Engine implements Closeable {
             if (uncachedLookup) {
                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
             } else {
-                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+                docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
             }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
@@ -562,7 +599,7 @@ public abstract class Engine implements Closeable {
                 Releasables.close(searcher);
                 throw new VersionConflictEngineException(
                     shardId,
-                    get.id(),
+                    "[" + get.id() + "]",
                     get.versionType().explainConflictForReads(docIdAndVersion.version, get.version())
                 );
             }
@@ -596,6 +633,19 @@ public abstract class Engine implements Closeable {
         DocumentParser documentParser,
         Function<Engine.Searcher, Engine.Searcher> searcherWrapper
     );
+
+    /**
+     * Similar to {@link Engine#get}, but it only attempts to serve the get from the translog.
+     * If not found in translog, it returns null, as {@link GetResult#NOT_EXISTS} could mean deletion.
+     */
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Engine.Searcher, Engine.Searcher> searcherWrapper
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
@@ -653,7 +703,7 @@ public abstract class Engine implements Closeable {
         } catch (Exception ex) {
             maybeFailEngine("acquire_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error(() -> new ParameterizedMessage("failed to acquire reader"), ex);
+            logger.error("failed to acquire reader", ex);
             throw new EngineException(shardId, "failed to acquire reader", ex);
         } finally {
             Releasables.close(releasable);
@@ -704,9 +754,9 @@ public abstract class Engine implements Closeable {
     public abstract boolean isTranslogSyncNeeded();
 
     /**
-     * Ensures that all locations in the given stream have been written to the underlying storage.
+     * Ensures that the location has been written to the underlying storage.
      */
-    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
+    public abstract void asyncEnsureTranslogSynced(Translog.Location location, Consumer<Exception> listener);
 
     public abstract void syncTranslog() throws IOException;
 
@@ -835,9 +885,9 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    private ImmutableOpenMap<String, SegmentsStats.FileStats> getSegmentFileSizes(SegmentReader segmentReader) {
+    private Map<String, SegmentsStats.FileStats> getSegmentFileSizes(SegmentReader segmentReader) {
         try {
-            final ImmutableOpenMap.Builder<String, SegmentsStats.FileStats> files = ImmutableOpenMap.builder();
+            Map<String, SegmentsStats.FileStats> files = new HashMap<>();
             final SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
             for (String fileName : segmentCommitInfo.files()) {
                 String fileExtension = IndexFileNames.getExtension(fileName);
@@ -846,27 +896,24 @@ public abstract class Engine implements Closeable {
                         long fileLength = segmentReader.directory().fileLength(fileName);
                         files.put(fileExtension, new SegmentsStats.FileStats(fileExtension, fileLength, 1L, fileLength, fileLength));
                     } catch (IOException ioe) {
-                        logger.warn(() -> new ParameterizedMessage("Error when retrieving file length for [{}]", fileName), ioe);
+                        logger.warn(() -> "Error when retrieving file length for [" + fileName + "]", ioe);
                     } catch (AlreadyClosedException ace) {
-                        logger.warn(
-                            () -> new ParameterizedMessage("Error when retrieving file length for [{}], directory is closed", fileName),
-                            ace
-                        );
-                        return ImmutableOpenMap.of();
+                        logger.warn(() -> "Error when retrieving file length for [" + fileName + "], directory is closed", ace);
+                        return Map.of();
                     }
                 }
             }
-            return files.build();
+            return Collections.unmodifiableMap(files);
         } catch (IOException e) {
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Error when listing files for segment reader [{}] and segment info [{}]",
+                () -> format(
+                    "Error when listing files for segment reader [%s] and segment info [%s]",
                     segmentReader,
                     segmentReader.getSegmentInfo()
                 ),
                 e
             );
-            return ImmutableOpenMap.of();
+            return Map.of();
         }
     }
 
@@ -913,7 +960,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                        logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
                     }
                     segment.segmentSort = info.info.getIndexSort();
                     segment.attributes = info.info.getAttributes();
@@ -941,7 +988,7 @@ public abstract class Engine implements Closeable {
         try {
             segment.sizeInBytes = info.sizeInBytes();
         } catch (IOException e) {
-            logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }
         segment.segmentSort = info.info.getIndexSort();
         segment.attributes = info.info.getAttributes();
@@ -981,16 +1028,24 @@ public abstract class Engine implements Closeable {
      * changes.
      */
     @Nullable
-    public abstract void refresh(String source) throws EngineException;
+    public abstract RefreshResult refresh(String source) throws EngineException;
+
+    /**
+     * An async variant of {@link Engine#refresh(String)} that may apply some rate-limiting.
+     */
+    public void externalRefresh(String source, ActionListener<Engine.RefreshResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            logger.trace("external refresh with source [{}]", source);
+            return refresh(source);
+        });
+    }
 
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes unless another thread is already refreshing the engine concurrently.
-     *
-     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
      */
     @Nullable
-    public abstract boolean maybeRefresh(String source) throws EngineException;
+    public abstract RefreshResult maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1005,13 +1060,29 @@ public abstract class Engine implements Closeable {
     public abstract boolean shouldPeriodicallyFlush();
 
     /**
-     * Flushes the state of the engine including the transaction log, clearing memory.
+     * A Blocking helper method for calling the async flush method.
+     */
+    // TODO: Remove or rename for increased clarity
+    public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(force, waitIfOngoing, future);
+        future.actionGet();
+    }
+
+    /**
+     * Flushes the state of the engine including the transaction log, clearing memory, and writing the
+     * documents in the Lucene index to disk. This method will synchronously flush on the calling thread.
+     * However, depending on engine implementation, full durability will not be guaranteed until the listener
+     * is triggered.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.
      * @param waitIfOngoing if <code>true</code> this call will block until all currently running flushes have finished.
      *                      Otherwise this call will return without blocking.
+     * @param listener      to notify after fully durability has been achieved. if <code>waitIfOngoing==false</code> and ongoing
+     *                      request is detected, no flush will have occurred and the listener will be completed with a marker
+     *                      indicating no flush and unknown generation.
      */
-    public abstract void flush(boolean force, boolean waitIfOngoing) throws EngineException;
+    public abstract void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1020,7 +1091,9 @@ public abstract class Engine implements Closeable {
      * a lucene commit if nothing needs to be committed.
      */
     public final void flush() throws EngineException {
-        flush(false, false);
+        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        flush(false, false, future);
+        future.actionGet();
     }
 
     /**
@@ -1099,16 +1172,14 @@ public abstract class Engine implements Closeable {
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
+        assert Transports.assertNotTransportThread("failEngine can block on IO");
         if (failure != null) {
             maybeDie(reason, failure);
         }
         if (failEngineLock.tryLock()) {
             try {
                 if (failedEngine.get() != null) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason),
-                        failure
-                    );
+                    logger.warn(() -> "tried to fail engine but engine is already failed. ignoring. [" + reason + "]", failure);
                     return;
                 }
                 // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
@@ -1118,7 +1189,7 @@ public abstract class Engine implements Closeable {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
-                    logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    logger.warn(() -> "failed engine [" + reason + "]", failure);
                     // we must set a failure exception, generate one if not supplied
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
@@ -1137,10 +1208,7 @@ public abstract class Engine implements Closeable {
                             }
                         } else {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "tried to mark store as corrupted but store is already closed. [{}]",
-                                    reason
-                                ),
+                                () -> format("tried to mark store as corrupted but store is already closed. [%s]", reason),
                                 failure
                             );
                         }
@@ -1154,10 +1222,7 @@ public abstract class Engine implements Closeable {
             }
         } else {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "tried to fail engine but could not acquire lock - engine should " + "be failed by now [{}]",
-                    reason
-                ),
+                () -> format("tried to fail engine but could not acquire lock - engine should be failed by now [%s]", reason),
                 failure
             );
         }
@@ -1730,7 +1795,8 @@ public abstract class Engine implements Closeable {
                     try {
                         // TODO we might force a flush in the future since we have the write lock already even though recoveries
                         // are running.
-                        flush();
+                        // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                        flush(false, false, ActionListener.noop());
                     } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
@@ -1929,5 +1995,38 @@ public abstract class Engine implements Closeable {
 
     public final EngineConfig getEngineConfig() {
         return engineConfig;
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     */
+    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        throw new UnsupportedOperationException();
+    }
+
+    public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
+        listener.onFailure(new UnsupportedOperationException("Engine type " + this.getClass() + " does not support flush listeners."));
+    }
+
+    /**
+     * Captures the result of a refresh operation on the index shard.
+     * <p>
+     * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
+     * contains the generation of the index commit that the reader has opened upon refresh.
+     */
+    public record RefreshResult(boolean refreshed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final RefreshResult NO_REFRESH = new RefreshResult(false);
+
+        public RefreshResult(boolean refreshed) {
+            this(refreshed, UNKNOWN_GENERATION);
+        }
+    }
+
+    public record FlushResult(boolean flushPerformed, long generation) {
+
+        public static final long UNKNOWN_GENERATION = -1L;
+        public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
     }
 }

@@ -32,6 +32,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         assumeTrue("test is disabled, probably because this is windows", enabled);
 
         int oldEsPort = Integer.parseInt(System.getProperty(portPropertyName));
+        boolean success = false;
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {
                 Request createIndex = new Request("PUT", "/test");
@@ -48,7 +49,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 Request reindex = new Request("POST", "/_reindex");
                 if (randomBoolean()) {
                     // Reindex using the external version_type
-                    reindex.setJsonEntity("""
+                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
                         {
                           "source":{
                             "index": "test",
@@ -61,10 +62,10 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                             "index": "test",
                             "version_type": "external"
                           }
-                        }""".formatted(oldEsPort));
+                        }""", oldEsPort));
                 } else {
                     // Reindex using the default internal version_type
-                    reindex.setJsonEntity("""
+                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
                         {
                           "source":{
                             "index": "test",
@@ -76,7 +77,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                           "dest": {
                             "index": "test"
                           }
-                        }""".formatted(oldEsPort));
+                        }""", oldEsPort));
                 }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");
@@ -92,8 +93,18 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 for (int i = 0; i < DOCS; i++) {
                     assertThat(result, containsString("\"_id\" : \"testdoc" + i + "\""));
                 }
+                success = true;
             } finally {
-                oldEs.performRequest(new Request("DELETE", "/test"));
+                try {
+                    oldEs.performRequest(new Request("DELETE", "/test"));
+                } catch (Exception deleteException) {
+                    logger.warn("Exception deleting index", deleteException);
+                    if (success) {
+                        // When the test succeeds the delete should not fail. So if it unexpectandly fails
+                        // here, we propogate it.
+                        throw deleteException;
+                    }
+                }
             }
         }
     }

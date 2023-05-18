@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -24,9 +27,16 @@ import java.util.function.IntConsumer;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.search.RestSearchAction.parseSearchRequest;
 
+@ServerlessScope(Scope.PUBLIC)
 public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     static final String TYPED_KEYS_PARAM = "typed_keys";
     static final Set<String> RESPONSE_PARAMS = Collections.singleton(TYPED_KEYS_PARAM);
+
+    private final SearchUsageHolder searchUsageHolder;
+
+    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder) {
+        this.searchUsageHolder = searchUsageHolder;
+    }
 
     @Override
     public List<Route> routes() {
@@ -46,7 +56,14 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, client.getNamedWriteableRegistry(), setSize)
+            parser -> parseSearchRequest(
+                submit.getSearchRequest(),
+                request,
+                parser,
+                client.getNamedWriteableRegistry(),
+                setSize,
+                searchUsageHolder
+            )
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {

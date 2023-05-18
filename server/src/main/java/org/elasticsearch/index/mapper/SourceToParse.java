@@ -29,13 +29,13 @@ public class SourceToParse {
     private final Map<String, String> dynamicTemplates;
 
     public SourceToParse(
-        String id,
+        @Nullable String id,
         BytesReference source,
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates
     ) {
-        this.id = Objects.requireNonNull(id);
+        this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
@@ -52,6 +52,17 @@ public class SourceToParse {
         return this.source;
     }
 
+    /**
+     * The {@code _id} provided on the request or calculated on the
+     * coordinating node. If the index is in {@code time_series} mode then
+     * the coordinating node will not calculate the {@code _id}. In that
+     * case this will be {@code null} if one isn't sent on the request.
+     * <p>
+     * Use {@link DocumentParserContext#documentDescription()} to generate
+     * a description of the document for errors instead of calling this
+     * method.
+     */
+    @Nullable
     public String id() {
         return this.id;
     }

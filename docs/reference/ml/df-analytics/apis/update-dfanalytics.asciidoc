@@ -72,6 +72,10 @@ necessary to complete the analysis at the cost of using more CPU.
 Note that the process may use additional threads for operational
 functionality other than the analysis itself.
 
+`_meta`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=meta]
+
 `model_memory_limit`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
@@ -86,9 +90,49 @@ The following example shows how to update the model memory limit for the existin
 
 [source,console]
 --------------------------------------------------
-POST _ml/data_frame/analytics/model-flight-delays/_update
+POST _ml/data_frame/analytics/loganalytics/_update
 {
   "model_memory_limit": "200mb"
 }
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
+
+When the job is updated, the response contains its configuration with
+the updated values. For example:
+
+[source,console-result]
+----
+{
+  "id" : "loganalytics",
+  "create_time" : 1656364565517,
+  "version" : "8.4.0",
+  "authorization" : {
+    "roles" : [
+      "superuser"
+    ]
+  },
+  "description" : "Outlier detection on log data",
+  "source" : {
+    "index" : [
+      "logdata"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "logdata_out",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "outlier_detection" : {
+      "compute_feature_influence" : true,
+      "outlier_fraction" : 0.05,
+      "standardization_enabled" : true
+    }
+  },
+  "model_memory_limit" : "200mb",
+  "allow_lazy_start" : false,
+  "max_num_threads" : 1
+}
+----

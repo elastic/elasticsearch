@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -27,6 +29,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
@@ -41,7 +45,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected GeoGridAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource.Numeric valuesSource,
+        Function<LongConsumer, ValuesSource.Numeric> valuesSource,
         int requiredSize,
         int shardSize,
         AggregationContext aggregationContext,
@@ -50,7 +54,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
-        this.valuesSource = valuesSource;
+        this.valuesSource = valuesSource.apply(this::addRequestCircuitBreakerBytes);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
@@ -65,8 +69,32 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        SortedNumericDocValues values = valuesSource.longValues(ctx);
+    public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
+        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(final NumericDocValues values, final LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    final long val = values.longValue();
+                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                    if (bucketOrdinal < 0) { // already seen
+                        bucketOrdinal = -1 - bucketOrdinal;
+                        collectExistingBucket(sub, doc, bucketOrdinal);
+                    } else {
+                        collectBucket(sub, doc, bucketOrdinal);
+                    }
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(final SortedNumericDocValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {

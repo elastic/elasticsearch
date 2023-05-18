@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -25,11 +24,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -110,7 +110,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // we do this by default in core, but for watcher this isn't needed and only adds noise.
             .put("index.store.mock.check_index_on_close", false)
             // watcher settings that should work despite randomization
@@ -223,12 +223,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             String triggeredWatchIndexName;
             if (randomBoolean()) {
                 // Create an index to get the template
-                String tempIndex = ".watches" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
                 CreateIndexResponse response = client().admin()
                     .indices()
-                    .prepareCreate(tempIndex)
+                    .prepareCreate(Watch.INDEX)
                     .setCause("Index to test aliases with .watches index")
-                    .addAlias(new Alias(Watch.INDEX))
                     .get();
                 assertAcked(response);
 
@@ -248,12 +246,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (randomBoolean()) {
-                String tempIndex = ".triggered_watches-alias-index";
                 CreateIndexResponse response = client().admin()
                     .indices()
-                    .prepareCreate(tempIndex)
+                    .prepareCreate(TriggeredWatchStoreField.INDEX_NAME)
                     .setCause("Index to test aliases with .triggered-watches index")
-                    .addAlias(new Alias(TriggeredWatchStoreField.INDEX_NAME))
                     .get();
                 assertAcked(response);
 
@@ -296,9 +292,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         if (watchesIsAlias) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
-            aliasesResponse.getAliases().forEach((aliasRecord) -> {
-                assertEquals(1, aliasRecord.value.size());
-                originalIndex.set(aliasRecord.key);
+            aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
+                assertEquals(1, aliasRecord.getValue().size());
+                originalIndex.set(aliasRecord.getKey());
             });
         }
         client().admin().indices().prepareDelete(originalIndex.get()).get();
@@ -638,7 +634,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public void trigger(String watchId, int times, TimeValue timeValue) throws Exception {
             assertBusy(() -> {
                 long triggeredCount = schedulers.stream().filter(scheduler -> scheduler.trigger(watchId, times, timeValue)).count();
-                String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+                String msg = Strings.format("watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
                 if (triggeredCount > 1) {
                     logger.warn(msg);
                 }

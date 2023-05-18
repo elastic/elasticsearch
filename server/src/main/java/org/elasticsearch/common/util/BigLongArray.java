@@ -10,7 +10,9 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -125,5 +127,25 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     @Override
     public void set(long index, byte[] buf, int offset, int len) {
         set(index, buf, offset, len, pages, 3);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writePages(out, Math.toIntExact(size), pages, Long.BYTES, LONG_PAGE_SIZE);
+    }
+
+    static void writePages(StreamOutput out, int size, byte[][] pages, int bytesPerValue, int pageSize) throws IOException {
+        out.writeVInt(size * bytesPerValue);
+        int lastPageEnd = size % pageSize;
+        if (lastPageEnd == 0) {
+            for (byte[] page : pages) {
+                out.write(page);
+            }
+            return;
+        }
+        for (int i = 0; i < pages.length - 1; i++) {
+            out.write(pages[i]);
+        }
+        out.write(pages[pages.length - 1], 0, lastPageEnd * bytesPerValue);
     }
 }

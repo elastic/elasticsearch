@@ -10,8 +10,6 @@ package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -45,7 +43,6 @@ import java.util.Map;
 public class TransportRecoveryAction extends TransportBroadcastByNodeAction<RecoveryRequest, RecoveryResponse, RecoveryState> {
 
     private final IndicesService indicesService;
-    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportRecoveryAction(
@@ -53,8 +50,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        StatsRequestLimiter statsRequestLimiter
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             RecoveryAction.NAME,
@@ -66,7 +62,6 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
             ThreadPool.Names.MANAGEMENT
         );
         this.indicesService = indicesService;
-        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     @Override
@@ -75,33 +70,27 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     }
 
     @Override
-    protected RecoveryResponse newResponse(
-        RecoveryRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<RecoveryState> responses,
-        List<DefaultShardOperationFailedException> shardFailures,
-        ClusterState clusterState
-    ) {
-        Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
-        for (RecoveryState recoveryState : responses) {
-            if (recoveryState == null) {
-                continue;
-            }
-            String indexName = recoveryState.getShardId().getIndexName();
-            if (shardResponses.containsKey(indexName) == false) {
-                shardResponses.put(indexName, new ArrayList<>());
-            }
-            if (request.activeOnly()) {
-                if (recoveryState.getStage() != RecoveryState.Stage.DONE) {
+    protected ResponseFactory<RecoveryResponse, RecoveryState> getResponseFactory(RecoveryRequest request, ClusterState clusterState) {
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> {
+            Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
+            for (RecoveryState recoveryState : responses) {
+                if (recoveryState == null) {
+                    continue;
+                }
+                String indexName = recoveryState.getShardId().getIndexName();
+                if (shardResponses.containsKey(indexName) == false) {
+                    shardResponses.put(indexName, new ArrayList<>());
+                }
+                if (request.activeOnly()) {
+                    if (recoveryState.getStage() != RecoveryState.Stage.DONE) {
+                        shardResponses.get(indexName).add(recoveryState);
+                    }
+                } else {
                     shardResponses.get(indexName).add(recoveryState);
                 }
-            } else {
-                shardResponses.get(indexName).add(recoveryState);
             }
-        }
-        return new RecoveryResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
+            return new RecoveryResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
+        };
     }
 
     @Override
@@ -133,11 +122,6 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, RecoveryRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
-    }
-
-    @Override
-    protected void doExecute(Task task, RecoveryRequest request, ActionListener<RecoveryResponse> listener) {
-        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 
     @Nullable // unless running tests that inject extra behaviour

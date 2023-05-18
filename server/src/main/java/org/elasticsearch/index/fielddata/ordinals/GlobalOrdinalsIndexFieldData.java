@@ -16,11 +16,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -30,7 +31,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * Concrete implementation of {@link IndexOrdinalsFieldData} for global ordinals.
@@ -41,7 +41,7 @@ import java.util.Collections;
  * this is done to avoid creating all segment's {@link TermsEnum} each time we want to access the values of a single
  * segment.
  */
-public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable {
+public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldData, Accountable, GlobalOrdinalsAccounting {
 
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;
@@ -49,22 +49,25 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
 
     private final OrdinalMap ordinalMap;
     private final LeafOrdinalsFieldData[] segmentAfd;
-    private final ToScriptField<SortedSetDocValues> toScriptField;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
+    private final TimeValue took;
 
-    protected GlobalOrdinalsIndexFieldData(
+    GlobalOrdinalsIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         LeafOrdinalsFieldData[] segmentAfd,
         OrdinalMap ordinalMap,
         long memorySizeInBytes,
-        ToScriptField<SortedSetDocValues> toScriptField
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory,
+        TimeValue took
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
         this.memorySizeInBytes = memorySizeInBytes;
         this.ordinalMap = ordinalMap;
         this.segmentAfd = segmentAfd;
-        this.toScriptField = toScriptField;
+        this.toScriptFieldFactory = toScriptFieldFactory;
+        this.took = took;
     }
 
     public IndexOrdinalsFieldData newConsumer(DirectoryReader source) {
@@ -121,12 +124,6 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     }
 
     @Override
-    public Collection<Accountable> getChildResources() {
-        // TODO: break down ram usage?
-        return Collections.emptyList();
-    }
-
-    @Override
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
         throw new IllegalStateException("load(LeafReaderContext) should not be called in this context");
     }
@@ -139,6 +136,16 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
     @Override
     public boolean supportsGlobalOrdinalsMapping() {
         return true;
+    }
+
+    @Override
+    public long getValueCount() {
+        return ordinalMap.getValueCount();
+    }
+
+    @Override
+    public TimeValue getBuildingTime() {
+        return took;
     }
 
     /**
@@ -220,14 +227,9 @@ public final class GlobalOrdinalsIndexFieldData implements IndexOrdinalsFieldDat
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             assert source.getReaderCacheHelper().getKey() == context.parent.reader().getReaderCacheHelper().getKey();
-            return new AbstractLeafOrdinalsFieldData(toScriptField) {
+            return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
                     final SortedSetDocValues values = segmentAfd[context.ord].getOrdinalsValues();

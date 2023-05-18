@@ -59,7 +59,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
@@ -393,8 +392,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     translogOperations++;
                     assertThat("unexpected op: " + next, (int) next.seqNo(), lessThan(initialDocs + extraDocs));
                     assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(), is(oldPrimary.getPendingPrimaryTerm()));
-                    final Translog.Source source = next.getSource();
-                    assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
+                    assertThat(((Translog.Index) next).source().utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }
             }
             assertThat(translogOperations, either(equalTo(initialDocs + extraDocs)).or(equalTo(task.getResyncedOperations())));
@@ -611,7 +609,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             List<IndexRequest> replicationRequests = new ArrayList<>();
             for (int numDocs = between(1, 10), i = 0; i < numDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-                indexRequest.process();
+                indexRequest.autoGenerateId();
                 final IndexRequest copyRequest;
                 if (randomBoolean()) {
                     copyRequest = copyIndexRequest(indexRequest);
@@ -730,7 +728,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             List<DocIdSeqNoAndSource> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
                 .stream()
                 .filter(doc -> doc.seqNo() <= newPrimary.getLastKnownGlobalCheckpoint())
-                .collect(Collectors.toList());
+                .toList();
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean done = new AtomicBoolean();
             Thread thread = new Thread(() -> {

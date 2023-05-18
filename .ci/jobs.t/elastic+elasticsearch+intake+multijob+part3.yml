@@ -1,0 +1,7 @@
+---
+jjbb-template: generic-gradle-unix.yml
+vars:
+  - job-name: elastic+elasticsearch+%BRANCH%+intake+multijob+part3
+  - job-display-name: "elastic / elasticsearch # %BRANCH% - intake part 3"
+  - job-description: Elasticsearch %BRANCH% branch intake check part 3.
+  - gradle-args: "-Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files checkPart3"

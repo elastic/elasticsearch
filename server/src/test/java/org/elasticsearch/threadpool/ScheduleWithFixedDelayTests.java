@@ -9,8 +9,8 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
@@ -178,9 +178,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     }
 
     public void testBlockingCallOnSchedulerThreadFails() throws Exception {
-        final BaseFuture<Object> future = new BaseFuture<Object>() {
-        };
-        final TestFuture resultsFuture = new TestFuture();
+        final PlainActionFuture<Object> future = new PlainActionFuture<>();
+        final PlainActionFuture<Object> resultsFuture = new PlainActionFuture<>();
         final boolean getWithTimeout = randomBoolean();
 
         final Runnable runnable = () -> {
@@ -191,9 +190,9 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 } else {
                     obj = future.get();
                 }
-                resultsFuture.futureDone(obj);
+                resultsFuture.onResponse(obj);
             } catch (Throwable t) {
-                resultsFuture.futureDone(t);
+                resultsFuture.onResponse(t);
             }
         };
 
@@ -208,8 +207,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     }
 
     public void testBlockingCallOnNonSchedulerThreadAllowed() throws Exception {
-        final TestFuture future = new TestFuture();
-        final TestFuture resultsFuture = new TestFuture();
+        final PlainActionFuture<Object> future = new PlainActionFuture<>();
+        final PlainActionFuture<Object> resultsFuture = new PlainActionFuture<>();
         final boolean rethrow = randomBoolean();
         final boolean getWithTimeout = randomBoolean();
 
@@ -221,9 +220,9 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
                 } else {
                     obj = future.get();
                 }
-                resultsFuture.futureDone(obj);
+                resultsFuture.onResponse(obj);
             } catch (Throwable t) {
-                resultsFuture.futureDone(t);
+                resultsFuture.onResponse(t);
                 if (rethrow) {
                     throw new RuntimeException(t);
                 }
@@ -234,7 +233,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         assertFalse(resultsFuture.isDone());
 
         final Object o = new Object();
-        future.futureDone(o);
+        future.onResponse(o);
 
         final Object resultingObject = resultsFuture.get();
         assertThat(resultingObject, sameInstance(o));
@@ -286,12 +285,6 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
         if (rarely()) {
             assertBusy(() -> assertThat(counter.get(), equalTo(iterations)), 5 * interval.millis(), TimeUnit.MILLISECONDS);
-        }
-    }
-
-    static final class TestFuture extends BaseFuture<Object> {
-        boolean futureDone(Object value) {
-            return set(value);
         }
     }
 }

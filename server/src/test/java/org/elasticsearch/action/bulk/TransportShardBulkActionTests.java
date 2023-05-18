@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -79,11 +80,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     private static final ActionListener<Void> ASSERTING_DONE_LISTENER = ActionTestUtils.assertNoFailureListener(r -> {});
 
     private final ShardId shardId = new ShardId("index", "_na_", 0);
-    private final Settings idxSettings = Settings.builder()
-        .put("index.number_of_shards", 1)
-        .put("index.number_of_replicas", 0)
-        .put("index.version.created", Version.CURRENT.id)
-        .build();
+    private final Settings idxSettings = indexSettings(Version.CURRENT, 1, 0).build();
 
     private IndexMetadata indexMetadata() throws IOException {
         return IndexMetadata.builder("index").putMapping("""
@@ -212,12 +209,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 // since at least 1 item passed, the tran log location should exist,
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
                 // and the response should exist and match the item count
-                assertThat(result.finalResponseIfSuccessful, notNullValue());
-                assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
+                assertThat(result.replicationResponse, notNullValue());
+                assertThat(result.replicationResponse.getResponses(), arrayWithSize(items.length));
 
                 // check each response matches the input item, including the rejection
                 for (int i = 0; i < items.length; i++) {
-                    BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
+                    BulkItemResponse response = result.replicationResponse.getResponses()[i];
                     assertThat(response.getItemId(), equalTo(i));
                     assertThat(response.getIndex(), equalTo("index"));
                     assertThat(response.getId(), equalTo("id_" + i));
@@ -254,10 +251,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+            "id"
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation, "id");
 
         IndexShard shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
@@ -523,7 +521,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             indexResult
@@ -580,7 +578,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
-        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
+        Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             indexResult
@@ -636,7 +634,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, created, resultLocation);
+        Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, created, resultLocation, "id");
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
             indexResult
@@ -694,7 +692,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         boolean found = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         final long resultSeqNo = 13;
-        Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation);
+        Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation, "id");
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
@@ -848,12 +846,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
-        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
+        Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, "id");
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+            "id"
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
-        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
+        Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation, "id");
 
         IndexShard shard = mock(IndexShard.class);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(ir -> {
@@ -941,12 +940,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
             Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-                new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
+                new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+                "id"
             );
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
             Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);
-            Engine.IndexResult success1 = new FakeIndexResult(1, 1, 10, true, resultLocation1);
-            Engine.IndexResult success2 = new FakeIndexResult(1, 1, 13, true, resultLocation2);
+            Engine.IndexResult success1 = new FakeIndexResult(1, 1, 10, true, resultLocation1, "id");
+            Engine.IndexResult success2 = new FakeIndexResult(1, 1, 13, true, resultLocation2, "id");
 
             IndexShard shard = mock(IndexShard.class);
             when(shard.shardId()).thenReturn(shardId);
@@ -955,7 +955,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 mappingUpdate,
                 success2
             );
-            when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong())).thenCallRealMethod();
+            when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong(), anyString())).thenCallRealMethod();
             when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
             randomlySetIgnoredPrimaryResponse(items[0]);
@@ -1084,8 +1084,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeIndexResult(long version, long term, long seqNo, boolean created, Translog.Location location) {
-            super(version, term, seqNo, created);
+        protected FakeIndexResult(long version, long term, long seqNo, boolean created, Translog.Location location, String id) {
+            super(version, term, seqNo, created, id);
             this.location = location;
         }
 
@@ -1102,8 +1102,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         private final Translog.Location location;
 
-        protected FakeDeleteResult(long version, long term, long seqNo, boolean found, Translog.Location location) {
-            super(version, term, seqNo, found);
+        protected FakeDeleteResult(long version, long term, long seqNo, boolean found, Translog.Location location, String id) {
+            super(version, term, seqNo, found, id);
             this.location = location;
         }
 

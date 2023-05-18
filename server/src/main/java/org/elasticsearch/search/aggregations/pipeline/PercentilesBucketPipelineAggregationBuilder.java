@@ -8,9 +8,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import com.carrotsearch.hppc.DoubleArrayList;
-
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -18,7 +16,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -118,8 +118,8 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
@@ -152,11 +152,11 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
             throws IOException {
             if (PERCENTS_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.START_ARRAY) {
-                DoubleArrayList percents = new DoubleArrayList(10);
+                List<Double> percents = new ArrayList<>(10);
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     percents.add(parser.doubleValue());
                 }
-                params.put(PERCENTS_FIELD.getPreferredName(), percents.toArray());
+                params.put(PERCENTS_FIELD.getPreferredName(), percents.stream().mapToDouble(Double::doubleValue).toArray());
                 return true;
             } else if (KEYED_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_BOOLEAN) {
                 params.put(KEYED_FIELD.getPreferredName(), parser.booleanValue());

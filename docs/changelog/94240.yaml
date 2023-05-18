@@ -1,0 +1,5 @@
+pr: 94240
+summary: "[DLM] Introduce default rollover cluster setting & expose it via APIs"
+area: DLM
+type: feature
+issues: []

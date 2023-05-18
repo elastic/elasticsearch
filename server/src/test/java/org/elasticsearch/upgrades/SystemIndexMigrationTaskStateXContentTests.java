@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class SystemIndexMigrationTaskStateXContentTests extends AbstractXContentTestCase<SystemIndexMigrationTaskState> {
 
@@ -28,7 +29,13 @@ public class SystemIndexMigrationTaskStateXContentTests extends AbstractXContent
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // featureCallbackMetadata is a Map<String,Object> so adding random fields there make no sense
+        return p -> p.startsWith(SystemIndexMigrationTaskState.FEATURE_METADATA_MAP_FIELD.getPreferredName());
     }
 
     @Override

@@ -116,8 +116,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch rollup = new Batch(
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var rollup = new Batch<>(
             "Fold queries",
             new FoldPivot(),
             new FoldAggregate(),
@@ -127,9 +127,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             new FoldLimit()
         );
 
-        Batch local = new Batch("Local queries", new LocalLimit(), new PropagateEmptyLocal());
-
-        Batch finish = new Batch("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
+        var local = new Batch<>("Local queries", new LocalLimit(), new PropagateEmptyLocal());
+        var finish = new Batch<>("Finish query", Limiter.ONCE, new PlanOutputToQueryRef());
 
         return Arrays.asList(rollup, local, finish);
     }
@@ -138,9 +137,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(ProjectExec project) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (project.child() instanceof EsQueryExec exec) {
-                // end::noformat
                 QueryContainer queryC = exec.queryContainer();
 
                 AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
@@ -194,7 +191,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     queryC.limit(),
                     queryC.shouldTrackHits(),
                     queryC.shouldIncludeFrozen(),
-                    queryC.minPageSize()
+                    queryC.minPageSize(),
+                    queryC.allowPartialSearchResults()
                 );
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
@@ -205,9 +203,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldFilter extends FoldingRule<FilterExec> {
         @Override
         protected PhysicalPlan rule(FilterExec plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
-                // end::noformat
                 QueryContainer qContainer = exec.queryContainer();
 
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
@@ -229,7 +225,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     qContainer.limit(),
                     qContainer.shouldTrackHits(),
                     qContainer.shouldIncludeFrozen(),
-                    qContainer.minPageSize()
+                    qContainer.minPageSize(),
+                    qContainer.allowPartialSearchResults()
                 );
 
                 return exec.with(qContainer);
@@ -436,11 +433,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(AggregateExec a) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (a.child() instanceof EsQueryExec exec) {
                 return fold(a, exec);
             }
-            // end::noformat
             return a;
         }
 
@@ -736,9 +731,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldOrderBy extends FoldingRule<OrderExec> {
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
-                // end::noformat
                 QueryContainer qContainer = exec.queryContainer();
 
                 // Reverse traversal together with the upwards fold direction ensures that sort clauses are added in reverse order of
@@ -809,14 +802,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(LimitExec plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
                 int limit = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(plan.limit()), DataTypes.INTEGER);
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));
             }
-            // end::noformat
             return plan;
         }
     }
@@ -844,9 +835,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(PivotExec plan) {
-            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
-                // end::noformat
                 Pivot p = plan.pivot();
                 EsQueryExec fold = FoldAggregate.fold(
                     new AggregateExec(plan.source(), exec, new ArrayList<>(p.groupingSet()), combine(p.groupingSet(), p.aggregates())),
@@ -890,7 +879,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         query.limit(),
                         query.shouldTrackHits(),
                         query.shouldIncludeFrozen(),
-                        values.size()
+                        values.size(),
+                        query.allowPartialSearchResults()
                     )
                 );
             }
@@ -940,7 +930,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return plan.transformUp(typeToken(), this::rule);
         }
 
-        @Override
         protected abstract PhysicalPlan rule(SubPlan plan);
     }
 }

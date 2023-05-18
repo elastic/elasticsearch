@@ -8,19 +8,19 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,17 +39,16 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     MedianAbsoluteDeviationAggregator(
         String name,
-        @Nullable ValuesSource valuesSource,
+        ValuesSourceConfig config,
         DocValueFormat format,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
         double compression
     ) throws IOException {
-
         super(name, context, parent, metadata);
-
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        assert config.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
         this.format = Objects.requireNonNull(format);
         this.compression = compression;
         this.valueSketches = context.bigArrays().newObjectArray(1);
@@ -70,7 +69,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (valuesSource.needsScores()) {
             return ScoreMode.COMPLETE;
         } else {
             return ScoreMode.COMPLETE_NO_SCORES;
@@ -78,12 +77,8 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -120,7 +115,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMedianAbsoluteDeviation(name, metadata(), format, new TDigestState(compression));
+        return InternalMedianAbsoluteDeviation.empty(name, metadata(), format, compression);
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
@@ -32,7 +33,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         final Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -63,7 +64,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -110,6 +111,27 @@ public class TransformRobustnessIT extends TransformRestTestCase {
 
         // delete the transform because the task might have written a state doc, cleanup fails if the index isn't empty
         deleteTransform(transformId);
+    }
+
+    public void testCreateAndDeleteTransformInALoop() throws IOException {
+        createReviewsIndex();
+
+        String transformId = "test_create_and_delete_in_a_loop";
+        String destIndex = transformId + "-dest";
+        for (int i = 0; i < 100; ++i) {
+            try {
+                // Create the batch transform
+                createPivotReviewsTransform(transformId, destIndex, null);
+                // Wait until the transform finishes
+                startAndWaitForTransform(transformId, destIndex);
+                // After the transform finishes, there should be no transform task left
+                assertEquals(0, getNumberOfTransformTasks());
+                // Delete the transform
+                deleteTransform(transformId);
+            } catch (AssertionError | Exception e) {
+                fail("Failure at iteration " + i + ": " + e.getMessage());
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,8 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
 
-import static org.elasticsearch.xcontent.NamedXContentRegistry.EMPTY;
-
 /**
  * {@link FilteredMonitoringDoc} are a kind of {@link MonitoringDoc} whose XContent
  * is filtered when the document is printed out.
@@ -31,7 +30,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
     /**
      * List of common XContent fields that exist in all monitoring documents
      */
-    static final Set<String> COMMON_XCONTENT_FILTERS = Sets.newHashSet("cluster_uuid", "timestamp", "interval_ms", "type", "source_node");
+    static final Set<String> COMMON_XCONTENT_FILTERS = Set.of("cluster_uuid", "timestamp", "interval_ms", "type", "source_node");
 
     private final Set<String> filters;
 
@@ -66,7 +65,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
             }
             try (
                 InputStream stream = out.bytes().streamInput();
-                XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
                 return builder.copyCurrentStructure(parser);
             }

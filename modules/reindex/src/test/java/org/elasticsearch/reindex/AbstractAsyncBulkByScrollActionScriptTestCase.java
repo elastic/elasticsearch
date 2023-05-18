@@ -15,9 +15,10 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
-import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.OpType;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
+import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.script.UpdateScript;
 import org.junit.Before;
 
@@ -47,13 +48,30 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
-        UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
-            @Override
-            public void execute() {
-                scriptBody.accept(getCtx());
+        when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
+            (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
+                @Override
+                public void execute() {
+                    scriptBody.accept(ctx);
+                }
             }
-        };
-        when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(factory);
+        );
+        when(scriptService.compile(any(), eq(UpdateByQueryScript.CONTEXT))).thenReturn(
+            (params, ctx) -> new UpdateByQueryScript(Collections.emptyMap(), ctx) {
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
+            }
+        );
+        when(scriptService.compile(any(), eq(ReindexScript.CONTEXT))).thenReturn(
+            (params, ctx) -> new ReindexScript(Collections.emptyMap(), ctx) {
+                @Override
+                public void execute() {
+                    scriptBody.accept(getCtx());
+                }
+            }
+        );
         AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
@@ -64,7 +82,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             applyScript((Map<String, Object> ctx) -> ctx.put("junk", "junk"));
             fail("Expected error");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Invalid fields added to context [junk]"));
+            assertThat(e.getMessage(), equalTo("Cannot put key [junk] with value [junk] into ctx"));
         }
     }
 
@@ -78,7 +96,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     }
 
     public void testSetOpTypeDelete() throws Exception {
-        DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", OpType.DELETE.toString()));
+        DeleteRequest delete = applyScript((Map<String, Object> ctx) -> ctx.put("op", "delete"));
         assertThat(delete.index(), equalTo("index"));
         assertThat(delete.id(), equalTo("1"));
     }
@@ -88,7 +106,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             IllegalArgumentException.class,
             () -> applyScript((Map<String, Object> ctx) -> ctx.put("op", "unknown"))
         );
-        assertThat(e.getMessage(), equalTo("Operation type [unknown] not allowed, only [noop, index, delete] are allowed"));
+        assertThat(e.getMessage(), equalTo("[op] must be one of delete, index, noop, not [unknown]"));
     }
 
     protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action(ScriptService scriptService, Request request);

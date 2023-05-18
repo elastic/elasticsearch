@@ -33,7 +33,6 @@
           name: os
           values:
             - centos-7-packaging
-            - debian-9-packaging
             - debian-10-packaging
             - debian-11-packaging
             - opensuse-15-1-packaging
@@ -43,7 +42,12 @@
             - sles-15-packaging
             - ubuntu-18.04-packaging
             - ubuntu-20.04-packaging
+            - ubuntu-22.04-packaging
             - rocky-linux-8-packaging
+            - rhel-7-packaging
+            - rhel-8-packaging
+            - rhel-9-packaging
+            - almalinux-8-packaging
       - axis:
           type: user-defined
           name: PACKAGING_TASK
@@ -56,7 +60,6 @@
           properties-file: '.ci/java-versions.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
-            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/os.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK
+          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK

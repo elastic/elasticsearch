@@ -142,7 +142,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
             threadPool = new ThreadPool(nodeSettings);
-            assertEquals(info(threadPool, threadPoolName).getQueueSize().getSingles(), 1000L);
+            assertEquals(info(threadPool, threadPoolName).getQueueSize().singles(), 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
             final CountDownLatch latch = new CountDownLatch(1);

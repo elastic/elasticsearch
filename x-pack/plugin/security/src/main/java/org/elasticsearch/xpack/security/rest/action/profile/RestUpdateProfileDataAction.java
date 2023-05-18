@@ -11,6 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,8 +26,10 @@ import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
 
     @SuppressWarnings("unchecked")
@@ -35,7 +39,7 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
     );
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("access"));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("labels"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("data"));
     }
 
@@ -45,7 +49,7 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/profile/_data/{uid}"));
+        return List.of(new Route(PUT, "/_security/profile/{uid}/_data"), new Route(POST, "/_security/profile/{uid}/_data"));
     }
 
     @Override
@@ -63,7 +67,7 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
 
         final UpdateProfileDataRequest updateProfileDataRequest = new UpdateProfileDataRequest(
             uid,
-            payload.access,
+            payload.labels,
             payload.data,
             ifPrimaryTerm,
             ifSeqNo,
@@ -73,5 +77,5 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
         return channel -> client.execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest, new RestToXContentListener<>(channel));
     }
 
-    record Payload(Map<String, Object> access, Map<String, Object> data) {}
+    record Payload(Map<String, Object> labels, Map<String, Object> data) {}
 }

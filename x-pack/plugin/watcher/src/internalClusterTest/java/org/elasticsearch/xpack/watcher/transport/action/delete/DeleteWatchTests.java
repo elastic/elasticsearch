@@ -76,19 +76,23 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client(), "_name").get();
             assertThat(getWatchResponse.isFound(), is(false));
 
-            // the watch history shows a successful execution, even though the watch was deleted
-            // during execution
-            refresh(HistoryStoreField.INDEX_PREFIX + "*");
+            assertBusy(() -> {
+                // the watch history shows a successful execution, even though the watch was deleted
+                // during execution
+                refresh(HistoryStoreField.INDEX_PREFIX + "*");
 
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(matchAllQuery()).get();
-            assertHitCount(searchResponse, 1);
+                SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*")
+                    .setQuery(matchAllQuery())
+                    .get();
+                assertHitCount(searchResponse, 1);
 
-            Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
-            // watch has been executed successfully
-            String state = ObjectPath.eval("state", source);
-            assertThat(state, is("executed"));
-            // no exception occurred
-            assertThat(source, not(hasKey("exception")));
+                Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
+                // watch has been executed successfully
+                String state = ObjectPath.eval("state", source);
+                assertThat(state, is("executed"));
+                // no exception occurred
+                assertThat(source, not(hasKey("exception")));
+            });
         }
     }
 }

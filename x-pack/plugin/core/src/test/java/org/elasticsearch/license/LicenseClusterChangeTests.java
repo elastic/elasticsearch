@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.junit.After;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
+public class LicenseClusterChangeTests extends AbstractClusterStateLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
 
@@ -64,7 +64,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     }
 
     public void testSelfGeneratedLicenseGeneration() throws Exception {
-        DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode master = TestDiscoveryNode.create("b", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
             .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
             .build();
@@ -73,7 +73,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture(), any());
+        verify(clusterService, times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);
@@ -81,9 +81,9 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         assertEquals(licenseType, licenseMetadata.getLicense().type());
         long expiration;
         if (licenseType.equals("basic")) {
-            expiration = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+            expiration = LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
         } else {
-            expiration = LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
+            expiration = LicenseSettings.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
         }
         assertEquals(expiration, licenseMetadata.getLicense().expiryDate());
     }

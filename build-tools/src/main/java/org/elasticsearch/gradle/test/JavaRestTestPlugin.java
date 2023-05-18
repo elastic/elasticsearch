@@ -22,7 +22,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 
 public class JavaRestTestPlugin implements Plugin<Project> {
 
@@ -62,6 +62,7 @@ public class JavaRestTestPlugin implements Plugin<Project> {
                 nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
                 nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));
                 nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
+                nonInputProperties.systemProperty("tests.cluster.readiness", () -> String.join(",", cluster.getAllReadinessPortURI()));
                 task.getJvmArgumentProviders().add(nonInputProperties);
             });
 

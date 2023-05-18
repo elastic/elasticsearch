@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -80,6 +79,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
@@ -348,8 +348,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             @Override
                             public void onFailure(Exception e) {
                                 logger.debug(
-                                    () -> new ParameterizedMessage(
-                                        "exception when executing blob cache maintenance task after deletion of {} (snapshot:{}, index:{})",
+                                    () -> format(
+                                        "exception when executing blob cache maintenance task after deletion of %s (snapshot:%s, index:%s)",
                                         deletedIndex,
                                         snapshotId,
                                         indexId
@@ -368,7 +368,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
 
         void executeNextCleanUp(final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             final Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>> next = queue.poll();
             if (next != null) {
                 cleanUp(next.v1(), next.v2(), queue);
@@ -380,7 +380,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             final ActionListener<BulkByScrollResponse> listener,
             final Queue<Tuple<DeleteByQueryRequest, ActionListener<BulkByScrollResponse>>> queue
         ) {
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, request, ActionListener.runAfter(listener, () -> {
                 if (queue.isEmpty() == false) {
                     threadPool.generic().execute(() -> executeNextCleanUp(queue));
@@ -390,10 +390,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("snapshot blob cache maintenance task failed for cluster state update [{}]", event.source()),
-                e
-            );
+            logger.warn(() -> "snapshot blob cache maintenance task failed for cluster state update [" + event.source() + "]", e);
         }
     }
 
@@ -432,7 +429,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
         @Override
         public void run() {
-            assert assertGenericThread();
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
             try {
                 ensureOpen();
                 if (pointIntTimeId == null) {
@@ -561,10 +558,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             }
                         } catch (Exception e) {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "exception when parsing blob store cache entry with id [{}], skipping",
-                                    searchHit.getId()
-                                ),
+                                () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
                                 e
                             );
                         }
@@ -624,8 +618,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final Exception e = error.get();
                 if (e != null) {
                     logger.warn(
-                        () -> new ParameterizedMessage(
-                            "periodic maintenance task completed with failure ({} deleted documents out of a total of {})",
+                        () -> format(
+                            "periodic maintenance task completed with failure (%s deleted documents out of a total of %s)",
                             deletes.get(),
                             total.get()
                         ),
@@ -633,8 +627,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     );
                 } else {
                     logger.info(
-                        () -> new ParameterizedMessage(
-                            "periodic maintenance task completed ({} deleted documents out of a total of {})",
+                        () -> format(
+                            "periodic maintenance task completed (%s deleted documents out of a total of %s)",
                             deletes.get(),
                             total.get()
                         )
@@ -671,7 +665,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to close point-in-time id [{}]", pitId), e);
+                            logger.warn(() -> "failed to close point-in-time id [" + pitId + "]", e);
                         }
                     }, () -> Releasables.close(releasable)));
                     waitForRelease = true;
@@ -686,12 +680,6 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private void executeNext(PeriodicMaintenanceTask maintenanceTask) {
         threadPool.generic().execute(maintenanceTask);
-    }
-
-    private static boolean assertGenericThread() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains(ThreadPool.Names.GENERIC) : threadName;
-        return true;
     }
 
     private static Instant getCreationTime(SearchHit searchHit) {

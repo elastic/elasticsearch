@@ -37,11 +37,11 @@ SELECT 9223372036854775807::unsigned_long * 2 AS x;
 ;
 
 arithmeticDivide
-SELECT 18446744073709551614 / 2 AS x;
+SELECT 18446744073709551614 / 2 AS x, 18446744073709551614 / 7306.0 AS y,  18446744073709551614 / 7306 AS z  ;
 
-       x:ul
----------------
-9223372036854775807
+       x:ul         |          y:d            |        z:ul
+--------------------+-------------------------+-------------------------
+9223372036854775807 |  2.5248760024239735E15  |   2524876002423973
 ;
 
 arithmeticModulo
@@ -487,10 +487,10 @@ null
 medianAbsoluteDeviationLargeInput
 SELECT status, MAD(bytes_in) AS mad FROM logs_unsigned_long GROUP BY status ORDER BY status;
 
-    status     |         mad
----------------+---------------------
-Error          |3.0183732936229658E18
-OK             |4.5240953206634045E18
+    status:s     |         mad:d
+-----------------+---------------------
+Error            |3.0183732936229658E18
+OK               |4.5240953206634045E18
 ;
 
 
@@ -565,10 +565,10 @@ FROM logs_unsigned_long
 GROUP BY status
 ORDER BY status;
 
-     percentile      | percentile_rank  |    status
----------------------+------------------+---------------
-1.8836190713044468E19|1.970336796004502 |Error
-1.7957483822449326E19|26.644793296251386|OK
+     percentile:d    | percentile_rank:d |    status:s
+---------------------+-------------------+---------------
+1.8836190713044468E19|1.970336796004502  |Error
+1.7957483822449326E19|26.644793296251386 |OK
 ;
 
 extendedStatsAggregateFunctionsWithScalarsLargeInput
@@ -582,7 +582,7 @@ FROM logs_unsigned_long
 GROUP BY status
 ORDER BY status;
 
-     stddev_pop      |     stddev_samp     |   sum_of_squares    |       var_pop       |      var_samp      |    status
+     stddev_pop:d    |     stddev_samp:d   |   sum_of_squares:d  |       var_pop:d     |      var_samp:d    |    status:s
 ---------------------+---------------------+---------------------+---------------------+--------------------+---------------
 5.1879845114777528E18|5.6831522898475694E18|1.1113551085273773E39|2.9979868907159907E37|3.597584268859189E37|Error
 6.7116742512203459E18|6.7484508237837148E18|1.4906887301541836E40|4.304729535850427E37 |4.352034256024607E37|OK
@@ -662,7 +662,7 @@ SELECT POWER(bytes_in, -1) m, id FROM logs_unsigned_long WHERE id < 10 ORDER BY 
 averageWithOneValueAndOrderLargeInput
 SELECT * FROM (SELECT id, status, bytes_out FROM logs_unsigned_long) PIVOT (AVG(bytes_out + 1) FOR status IN ('OK', 'Error')) ORDER BY id DESC LIMIT 4;
 
-      id:i       |        'OK':d       |    'Error':d
+      id:i     |        'OK':d       |    'Error':d
 ---------------+---------------------+---------------
 101            |null                 |null
 100            |1.5616395223975498E19|null
@@ -674,10 +674,10 @@ sumWithInnerAggregateSumOfSquaresRoundLargeInput
 SELECT * FROM logs_unsigned_long PIVOT (ROUND(SUM_OF_SQUARES(bytes_out + 1)/1E6, 2) FOR status IN ('Error', 'OK')) LIMIT 3;
 
        @timestamp:ts    |   bytes_in:ul     |      id:i     |    'Error':d  |        'OK':d
-------------------------+-------------------+---------------+---------------+--------------------
-2017-11-10T00:00:22.000Z|0                  |80             |null           |9.223372036854776E16
-2017-11-10T00:01:04.000Z|9636626466125797351|83             |null           |9.223372036854776E16
-2017-11-10T00:01:20.000Z|74330435873664882  |82             |null           |9.223372036854776E16
+------------------------+-------------------+---------------+---------------+---------------------
+2017-11-10T00:00:22.000Z|0                  |80             |null           |1.2233739701097022E32
+2017-11-10T00:01:04.000Z|9636626466125797351|83             |null           |2.018903806214386E32
+2017-11-10T00:01:20.000Z|74330435873664882  |82             |null           |2.376773699133386E31
 ;
 
 castWithGroupByLargeInput

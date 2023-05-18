@@ -72,8 +72,15 @@ token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`.
 
-The following command starts a single-node {es} cluster for development or
+The following commands start a single-node {es} cluster for development or
 testing.
+
+. Create a new docker network for {es} and {kib}
++
+[source,sh]
+----
+docker network create elastic
+----
 
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.
@@ -89,7 +96,7 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -it {docker-image}
 ----
 
 endif::[]
@@ -191,7 +198,7 @@ minimum and maximum JVM heap size to 1 GB:
 
 [source,sh,subs="attributes"]
 ----
-docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it {docker-image}
 ----
 
 ===== Next steps
@@ -201,25 +208,7 @@ serious development or go into production with {es}, review the
 <<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[elasticsearch-security-certificates]]
-===== Security certificates and keys
-
-When you start {es} for the first time, the following certificates and keys are
-generated in the
-`/usr/share/elasticsearch/config/certs`
-directory in the Docker container, and allow you to connect a {kib} instance
-to your secured {es} cluster and encrypt internode communication. The files are
-listed here for reference.
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.
+include::security-files-reference.asciidoc[]
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
@@ -273,6 +262,10 @@ The `.env` file sets environment variables that are used when you run the
 password for the `elastic` and `kibana_system` users with the
 `ELASTIC_PASSWORD` and `KIBANA_PASSWORD` variables. These variable are
 referenced by the `docker-compose.yml` file.
+
+IMPORTANT: Your passwords must be alphanumeric, and cannot contain special
+characters such as `!` or `@`. The `bash` script included in the
+`docker-compose.yml` file only operates on alphanumeric characters.
 
 ["source","txt",subs="attributes"]
 ----
@@ -410,14 +403,52 @@ sudo sysctl -w vm.max_map_count=262144
 
 ====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
 
-The `vm.max_map_count` setting must be set in the docker-desktop container:
+The `vm.max_map_count` setting must be set in the "docker-desktop" WSL instance before the
+ElasticSearch container will properly start. There are several ways to do this, depending
+on your version of Windows and your version of WSL.
+
+If you are on Windows 10 before version 22H2, or if you are on Windows 10 version 22H2 using the
+built-in version of WSL, you must either manually set it every time you restart Docker before starting
+your ElasticSearch container, or (if you do not wish to do so on every restart) you must globally set
+every WSL2 instance to have the `vm.max_map_count` changed. This is because these versions of WSL
+do not properly process the /etc/sysctl.conf file.
+
+To manually set it every time you reboot, you must run the following commands in a command prompt
+or PowerShell window every time you restart Docker:
 
 [source,sh]
 --------------------------------------------
-wsl -d docker-desktop
+wsl -d docker-desktop -u root
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
+If you are on these versions of WSL and you do not want to have to run those commands every
+time you restart Docker, you can globally change every WSL distribution with this setting
+by modifying your %USERPROFILE%\.wslconfig as follows:
+
+[source,text]
+--------------------------------------------
+[wsl2]
+kernelCommandLine = "sysctl.vm.max_map_count=262144"
+--------------------------------------------
+
+This will cause all WSL2 VMs to have that setting assigned when they start.
+
+If you are on Windows 11, or Windows 10 version 22H2 and have installed the Microsoft Store
+version of WSL, you can modify the /etc/sysctl.conf within the "docker-desktop" WSL
+distribution, perhaps with commands like this:
+
+[source,sh]
+--------------------------------------------
+wsl -d docker-desktop -u root
+vi /etc/sysctl.conf
+--------------------------------------------
+
+and appending a line which reads:
+[source,text]
+--------------------------------------------
+vm.max_map_count = 262144
+--------------------------------------------
 
 ===== Configuration files must be readable by the `elasticsearch` user
 
@@ -514,7 +545,7 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in 
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 

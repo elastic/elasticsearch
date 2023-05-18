@@ -11,12 +11,14 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -25,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * Tests for the {@link ActiveShardCount} class
@@ -102,6 +103,73 @@ public class ActiveShardCountTests extends ESTestCase {
         runTestForOneActiveShard(ActiveShardCount.DEFAULT);
     }
 
+    public void testEnoughShardsActiveLevelDefaultWithSearchOnlyRole() {
+        final String indexName = "test-idx";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(4, 7);
+        final ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+        ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas, createCustomRoleStrategy(1));
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startPrimaries(clusterState, indexName);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startLessThanWaitOnShards(clusterState, indexName, 1);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startAllShards(clusterState, indexName);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+    }
+
+    public void testEnoughShardsActiveCustomLevelWithSearchOnlyRole() {
+        final String indexName = "test-idx";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(4, 7);
+        final int activeShardCount = randomIntBetween(2, numberOfReplicas);
+        final ActiveShardCount waitForActiveShards = ActiveShardCount.from(activeShardCount);
+        ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas, createCustomRoleStrategy(1));
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startPrimaries(clusterState, indexName);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startLessThanWaitOnShards(clusterState, indexName, activeShardCount - 2);
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startWaitOnShards(clusterState, indexName, activeShardCount);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startAllShards(clusterState, indexName);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+    }
+
+    public void testEnoughShardsActiveWithNoSearchOnlyRoles() {
+        final String indexName = "test-idx";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(4, 7);
+        final ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+        ClusterState clusterState = initializeWithNewIndex(
+            indexName,
+            numberOfShards,
+            numberOfReplicas,
+            createCustomRoleStrategy(numberOfReplicas + 1)
+        );
+        assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startPrimaries(clusterState, indexName);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startLessThanWaitOnShards(clusterState, indexName, 1);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        clusterState = startAllShards(clusterState, indexName);
+        assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+    }
+
+    private static ShardRoutingRoleStrategy createCustomRoleStrategy(int indexShardCount) {
+        return new ShardRoutingRoleStrategy() {
+            @Override
+            public ShardRouting.Role newEmptyRole(int copyIndex) {
+                return copyIndex < indexShardCount ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.SEARCH_ONLY;
+            }
+
+            @Override
+            public ShardRouting.Role newReplicaRole() {
+                return ShardRouting.Role.SEARCH_ONLY;
+            }
+        };
+    }
+
     public void testEnoughShardsActiveRandom() {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
@@ -166,12 +234,11 @@ public class ActiveShardCountTests extends ESTestCase {
         }
     }
 
-    private void runTestForOneActiveShard(final ActiveShardCount activeShardCount) {
+    private void runTestForOneActiveShard(final ActiveShardCount waitForActiveShards) {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(4, 7);
-        assert activeShardCount == ActiveShardCount.ONE || activeShardCount == ActiveShardCount.DEFAULT;
-        final ActiveShardCount waitForActiveShards = activeShardCount;
+        assert waitForActiveShards == ActiveShardCount.ONE || waitForActiveShards == ActiveShardCount.DEFAULT;
         ClusterState clusterState = initializeWithNewIndex(indexName, numberOfShards, numberOfReplicas);
         assertFalse(waitForActiveShards.enoughShardsActive(clusterState, indexName));
         clusterState = startPrimaries(clusterState, indexName);
@@ -180,7 +247,11 @@ public class ActiveShardCountTests extends ESTestCase {
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
     }
 
-    private ClusterState initializeWithNewIndex(final String indexName, final int numShards, final int numReplicas) {
+    private ClusterState initializeWithNewIndex(String indexName, int numShards, int numReplicas) {
+        return initializeWithNewIndex(indexName, numShards, numReplicas, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+    }
+
+    private ClusterState initializeWithNewIndex(String indexName, int numShards, int numReplicas, ShardRoutingRoleStrategy strategy) {
         // initial index creation and new routing table info
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
@@ -188,7 +259,7 @@ public class ActiveShardCountTests extends ESTestCase {
             .numberOfReplicas(numReplicas)
             .build();
         final Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-        final RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetadata).build();
+        final RoutingTable routingTable = RoutingTable.builder(strategy).addAsNew(indexMetadata).build();
         return ClusterState.builder(new ClusterName("test_cluster")).metadata(metadata).routingTable(routingTable).build();
     }
 
@@ -207,12 +278,13 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                        .moveToStarted();
+                        .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                 }
                 newIndexRoutingTable.addShard(shardRouting);
             }
@@ -225,18 +297,19 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            assert shardRoutingTable.getSize() > 2;
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            assert shardRoutingTable.size() > 2;
             int numToStart = numShardsToStart;
             // want less than half, and primary is already started
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
                     if (numToStart > 0) {
                         shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                            .moveToStarted();
+                            .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                         numToStart--;
                     }
                 }
@@ -251,18 +324,19 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            assert shardRoutingTable.getSize() > 2;
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            assert shardRoutingTable.size() > 2;
             int numToStart = numShardsToStart;
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
                     if (shardRouting.active() == false) {
                         if (numToStart > 0) {
                             shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                                .moveToStarted();
+                                .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                             numToStart--;
                         }
                     } else {
@@ -280,15 +354,16 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
                     if (shardRouting.active() == false) {
                         shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
-                            .moveToStarted();
+                            .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                     }
                 }
                 newIndexRoutingTable.addShard(shardRouting);

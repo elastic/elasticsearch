@@ -58,7 +58,7 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
         );
     }
 
-    void handleResponse(FollowStatsAction.StatsResponses responses, Listener listener) {
+    static void handleResponse(FollowStatsAction.StatsResponses responses, Listener listener) {
         List<ShardFollowNodeTaskStatus> unSyncedShardFollowStatuses = responses.getStatsResponses()
             .stream()
             .map(FollowStatsAction.StatsResponse::status)

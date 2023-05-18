@@ -157,7 +157,15 @@ public class CancellationTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    public void testCancellationDuringSearch() throws InterruptedException {
+    public void testCancellationDuringSearchWithSearchHitCursor() throws InterruptedException {
+        testCancellationDuringSearch("SELECT foo FROM endgame");
+    }
+
+    public void testCancellationDuringSearchWithCompositeAggCursor() throws InterruptedException {
+        testCancellationDuringSearch("SELECT foo FROM endgame GROUP BY foo");
+    }
+
+    public void testCancellationDuringSearch(String query) throws InterruptedException {
         Client client = mock(Client.class);
 
         SqlQueryTask task = randomTask();
@@ -216,8 +224,7 @@ public class CancellationTests extends ESTestCase {
 
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM " + indices[0])
-            .request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query(query).request();
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override

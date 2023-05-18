@@ -11,6 +11,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetJobModelSnapshotsUpgradeStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -22,6 +25,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetJobModelSnapshotsUpgradeStatsAction extends BaseRestHandler {
 
     @Override
@@ -44,6 +48,10 @@ public class RestGetJobModelSnapshotsUpgradeStatsAction extends BaseRestHandler 
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(GetJobModelSnapshotsUpgradeStatsAction.Request.ALLOW_NO_MATCH, request.allowNoMatch())
         );
-        return channel -> client.execute(GetJobModelSnapshotsUpgradeStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetJobModelSnapshotsUpgradeStatsAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

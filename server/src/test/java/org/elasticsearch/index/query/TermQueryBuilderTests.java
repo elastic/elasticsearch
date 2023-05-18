@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -19,6 +17,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 
@@ -128,8 +127,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
               "term" : {
                 "exact_value" : {
                   "value" : "Quick Foxes!",
-                  "case_insensitive" : true,
-                  "boost" : 1.0
+                  "case_insensitive" : true
                 }
               }
             }""";
@@ -144,7 +142,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals(
-            "Geometry fields do not support exact searching, " + "use dedicated geometry queries instead: [mapped_geo_point]",
+            "Geometry fields do not support exact searching, use dedicated geometry queries instead: [mapped_geo_point]",
             e.getMessage()
         );
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.threadpool.Scheduler;
 import org.joni.Matcher;
 import org.junit.After;
@@ -81,7 +82,12 @@ public class TimeoutCheckerTests extends TextStructureTestCase {
     }
 
     public void testGrokCaptures() throws Exception {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(false), "{%DATA:data}{%GREEDYDATA:greedydata}", TimeoutChecker.watchdog, logger::warn);
+        Grok grok = new Grok(
+            GrokBuiltinPatterns.legacyPatterns(),
+            "{%DATA:data}{%GREEDYDATA:greedydata}",
+            TimeoutChecker.watchdog,
+            logger::warn
+        );
         TimeValue timeout = TimeValue.timeValueMillis(1);
         try (TimeoutChecker timeoutChecker = new TimeoutChecker("grok captures test", timeout, scheduler)) {
 

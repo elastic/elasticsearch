@@ -13,8 +13,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,7 +50,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
                 aggs.add(new Max("max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             }
             if (hasInternalMin) {
-                aggs.add(new InternalMin("min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+                aggs.add(new Min("min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
             }
             return InternalAggregations.from(aggs);
         };
@@ -79,7 +79,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
             case 2 -> {
                 List<InternalAggregation> aggs = new ArrayList<>();
                 aggs.add(new Max("new_max", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
-                aggs.add(new InternalMin("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
+                aggs.add(new Min("new_min", randomDouble(), randomNumericDocValueFormat(), emptyMap()));
                 aggregations = InternalAggregations.from(aggs);
             }
             default -> {
@@ -107,11 +107,11 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         }
         if (hasInternalMin) {
             double expected = inputs.stream().mapToDouble(i -> {
-                InternalMin min = i.getAggregations().get("min");
-                return min.getValue();
+                Min min = i.getAggregations().get("min");
+                return min.value();
             }).min().getAsDouble();
-            InternalMin reducedMin = reduced.getAggregations().get("min");
-            assertEquals(expected, reducedMin.getValue(), 0);
+            Min reducedMin = reduced.getAggregations().get("min");
+            assertEquals(expected, reducedMin.value(), 0);
         }
         extraAssertReduced(reduced, inputs);
     }

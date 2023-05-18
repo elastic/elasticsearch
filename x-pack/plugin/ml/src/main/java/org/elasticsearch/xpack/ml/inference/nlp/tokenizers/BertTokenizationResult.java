@@ -53,6 +53,7 @@ public class BertTokenizationResult extends TokenizationResult {
         protected final boolean withSpecialTokens;
         protected final int clsTokenId;
         protected final int sepTokenId;
+        protected int seqPairOffset = 0;
 
         BertTokensBuilder(boolean withSpecialTokens, int clsTokenId, int sepTokenId) {
             this.withSpecialTokens = withSpecialTokens;
@@ -95,6 +96,7 @@ public class BertTokenizationResult extends TokenizationResult {
                 tokenIds.add(IntStream.of(sepTokenId));
                 tokenMap.add(IntStream.of(SPECIAL_TOKEN_POSITION));
             }
+            seqPairOffset = withSpecialTokens ? tokenId1s.size() + 2 : tokenId1s.size();
             tokenIds.add(tokenId2s.stream().mapToInt(Integer::valueOf));
             tokenMap.add(tokenMap2.stream().mapToInt(i -> i + previouslyFinalMap));
             if (withSpecialTokens) {
@@ -105,7 +107,13 @@ public class BertTokenizationResult extends TokenizationResult {
         }
 
         @Override
-        public Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens, int spanPrev, int seqId) {
+        public Tokens build(
+            List<String> input,
+            boolean truncated,
+            List<List<? extends DelimitedToken>> allTokens,
+            int spanPrev,
+            int seqId
+        ) {
             return new Tokens(
                 input,
                 allTokens,
@@ -113,7 +121,8 @@ public class BertTokenizationResult extends TokenizationResult {
                 tokenIds.build().flatMapToInt(Function.identity()).toArray(),
                 tokenMap.build().flatMapToInt(Function.identity()).toArray(),
                 spanPrev,
-                seqId
+                seqId,
+                seqPairOffset
             );
         }
     }

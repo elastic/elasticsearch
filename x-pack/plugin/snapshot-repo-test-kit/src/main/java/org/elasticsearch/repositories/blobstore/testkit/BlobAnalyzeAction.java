@@ -9,8 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -40,7 +40,6 @@ import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -60,6 +59,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
 /**
@@ -216,6 +216,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         private final GroupedActionListener<NodeResponse> readNodesListener;
         private final StepListener<WriteDetails> write1Step = new StepListener<>();
         private final StepListener<WriteDetails> write2Step = new StepListener<>();
+        private final CancellableThreads cancellableThreads = new CancellableThreads();
 
         BlobAnalysis(
             TransportService transportService,
@@ -254,8 +255,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             final StepListener<Collection<NodeResponse>> readsCompleteStep = new StepListener<>();
             readNodesListener = new GroupedActionListener<>(
-                new ThreadedActionListener<>(logger, transportService.getThreadPool(), ThreadPool.Names.SNAPSHOT, readsCompleteStep, false),
-                earlyReadNodes.size() + readNodes.size()
+                earlyReadNodes.size() + readNodes.size(),
+                new ThreadedActionListener<>(transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT), readsCompleteStep)
             );
 
             // The order is important in this chain: if writing fails then we may never even start all the reads, and we want to cancel
@@ -271,6 +272,8 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 ),
                 this::cancelReadsCleanUpAndReturnFailure
             );
+
+            task.addListener(() -> { cancellableThreads.cancel(task.getReasonCancelled()); });
         }
 
         void run() {
@@ -332,15 +335,21 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                         blobContainer.writeBlob(request.blobName, bytesReference, failIfExists);
                     }
                 } else {
-                    blobContainer.writeBlob(
-                        request.blobName,
-                        repository.maybeRateLimitSnapshots(
-                            new RandomBlobContentStream(content, request.getTargetLength()),
-                            throttledNanos::addAndGet
-                        ),
-                        request.targetLength,
-                        failIfExists
-                    );
+                    cancellableThreads.execute(() -> {
+                        try {
+                            blobContainer.writeBlob(
+                                request.blobName,
+                                repository.maybeRateLimitSnapshots(
+                                    new RandomBlobContentStream(content, request.getTargetLength()),
+                                    throttledNanos::addAndGet
+                                ),
+                                request.targetLength,
+                                failIfExists
+                            );
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
                 }
                 final long elapsedNanos = System.nanoTime() - startNanos;
                 final long checksum = content.getChecksum(checksumStart, checksumEnd);
@@ -438,21 +447,21 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
 
         private void cancelReadsCleanUpAndReturnFailure(Exception exception) {
-            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.wrap(() -> {}));
+            transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
             cleanUpAndReturnFailure(exception);
         }
 
         private void cleanUpAndReturnFailure(Exception exception) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
+                logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
                 blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(request.blobName));
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(
-                    new ParameterizedMessage(
-                        "failure during post-failure cleanup while analysing repository [{}], you may need to manually remove [{}/{}]",
+                    () -> format(
+                        "failure during post-failure cleanup while analysing repository [%s], you may need to manually remove [%s/%s]",
                         request.getRepositoryName(),
                         request.getBlobPath(),
                         request.getBlobName()
@@ -621,7 +630,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
         }
     }
 
-    public static class Request extends ActionRequest implements TaskAwareRequest {
+    public static class Request extends ActionRequest {
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;
@@ -676,7 +685,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 abortWrite = in.readBoolean();
             } else {
                 abortWrite = false;
@@ -696,10 +705,10 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_14_0)) {
                 out.writeBoolean(abortWrite);
             } else if (abortWrite) {
-                throw new IllegalStateException("cannot send abortWrite request to node of version [" + out.getVersion() + "]");
+                throw new IllegalStateException("cannot send abortWrite request on transport version [" + out.getTransportVersion() + "]");
             }
         }
 
@@ -848,7 +857,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
 
             builder.startObject("blob");
             builder.field("name", blobName);
-            builder.humanReadableField("size_bytes", "size", new ByteSizeValue(blobLength));
+            builder.humanReadableField("size_bytes", "size", ByteSizeValue.ofBytes(blobLength));
             builder.field("read_start", checksumStart);
             builder.field("read_end", checksumEnd);
             builder.field("read_early", readEarly);

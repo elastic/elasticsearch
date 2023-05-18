@@ -9,8 +9,6 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -18,7 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
@@ -68,7 +66,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
     @Before
     public void startServices() {
-        localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        localNode = TestDiscoveryNode.create("local-node");
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(CLUSTER_NAME_SETTING.getKey(), "local-cluster")
@@ -127,7 +125,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         final CountDownLatch completionLatch = new CountDownLatch(1);
         final SetOnce<DiscoveryNode> receivedNode = new SetOnce<>();
 
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        remoteNode = TestDiscoveryNode.create("remote-node");
         remoteClusterName = "local-cluster";
         discoveryAddress = getDiscoveryAddress();
 
@@ -151,7 +149,8 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     @TestLogging(reason = "ensure logging happens", value = "org.elasticsearch.discovery.HandshakingTransportAddressConnector:INFO")
     public void testLogsFullConnectionFailureAfterSuccessfulHandshake() throws Exception {
 
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var remoteNodeAddress = buildNewFakeTransportAddress();
+        remoteNode = TestDiscoveryNode.create("remote-node", remoteNodeAddress);
         remoteClusterName = "local-cluster";
         discoveryAddress = buildNewFakeTransportAddress();
 
@@ -160,30 +159,29 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         FailureListener failureListener = new FailureListener();
 
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
                 Level.WARN,
-                "*completed handshake with [*] but followup connection failed*"
+                "completed handshake with ["
+                    + remoteNode.descriptionWithoutAttributes()
+                    + "] at ["
+                    + discoveryAddress
+                    + "] but followup connection to ["
+                    + remoteNodeAddress
+                    + "] failed"
             )
         );
-        Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
-        Loggers.addAppender(targetLogger, mockAppender);
-
-        try {
+        try (var ignored = mockAppender.capturing(HandshakingTransportAddressConnector.class)) {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(targetLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
     public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        remoteNode = TestDiscoveryNode.create("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";
 
@@ -212,7 +210,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     }
 
     public void testDoesNotConnectToDifferentCluster() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        remoteNode = TestDiscoveryNode.create("remote-node");
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "another-cluster";
 
@@ -230,7 +228,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     }
 
     public void testHandshakeTimesOut() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        remoteNode = TestDiscoveryNode.create("remote-node");
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";
         dropHandshake = true;

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,11 +29,12 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision
-        MoveDecision stay1 = MoveDecision.stay(null);
-        MoveDecision stay2 = MoveDecision.stay(null);
+        MoveDecision stay1 = MoveDecision.stay(Decision.YES);
+        MoveDecision stay2 = MoveDecision.stay(Decision.YES);
         assertSame(stay1, stay2); // not in explain mode, so should use cached decision
-        stay1 = MoveDecision.stay(Decision.YES);
-        stay2 = MoveDecision.stay(Decision.YES);
+
+        stay1 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
+        stay2 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision
@@ -41,7 +42,7 @@ public class MoveDecisionTests extends ESTestCase {
         stay2 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.NO, null, null);
         assertSame(stay1, stay2);
         // final decision is YES, so shouldn't use cached decision
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         stay1 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.YES, node1, null);
         stay2 = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.YES, node1, null);
         assertNotSame(stay1, stay2);
@@ -72,8 +73,8 @@ public class MoveDecisionTests extends ESTestCase {
     }
 
     public void testDecisionWithNodeExplanations() {
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         Decision nodeDecision = randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES);
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
@@ -92,8 +93,8 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
-        DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        DiscoveryNode node2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet());
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));

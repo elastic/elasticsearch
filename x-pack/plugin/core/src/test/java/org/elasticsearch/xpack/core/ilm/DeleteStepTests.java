@@ -21,7 +21,6 @@ import org.mockito.Mockito;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.is;
 
 public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
@@ -40,8 +39,8 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -144,7 +143,6 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
-            createTimestampField("@timestamp"),
             List.of(index1.getIndex(), sourceIndexMetadata.getIndex())
         );
         ClusterState clusterState = ClusterState.builder(emptyClusterState())

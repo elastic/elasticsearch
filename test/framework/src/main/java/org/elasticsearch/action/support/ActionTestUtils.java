@@ -42,14 +42,7 @@ public class ActionTestUtils {
         Request request
     ) {
         PlainActionFuture<Response> future = newFuture();
-        taskManager.registerAndExecute(
-            "transport",
-            action,
-            request,
-            localConnection,
-            (t, r) -> future.onResponse(r),
-            (t, e) -> future.onFailure(e)
-        );
+        taskManager.registerAndExecute("transport", action, request, localConnection, future);
         return future.actionGet();
     }
 

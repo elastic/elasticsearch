@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -66,9 +67,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -116,8 +114,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final ClusterState.Builder state = ClusterState.builder(clusterService.state());
         Set<DiscoveryNodeRole> roles = new HashSet<>(DiscoveryNodeRole.roles());
-        DiscoveryNode node1 = new DiscoveryNode("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+        DiscoveryNode node1 = TestDiscoveryNode.create("_name1", "_node1", buildNewFakeTransportAddress(), emptyMap(), roles);
+        DiscoveryNode node2 = TestDiscoveryNode.create("_name2", "_node2", buildNewFakeTransportAddress(), emptyMap(), roles);
         state.nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()));
 
         shardId = new ShardId("index", UUID.randomUUID().toString(), 0);
@@ -129,11 +127,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             RecoverySource.EmptyStoreRecoverySource.INSTANCE
         );
 
-        Settings indexSettings = Settings.builder()
-            .put(SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+        Settings indexSettings = indexSettings(Version.CURRENT, 1, 1).put(SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .put(SETTING_CREATION_DATE, System.currentTimeMillis())
             .build();
 
@@ -155,7 +149,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         recoverReplica(replica, primary, true);
 
         IndexRoutingTable.Builder routing = IndexRoutingTable.builder(indexMetadata.getIndex());
-        routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry()).build());
+        routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry()));
         state.routingTable(RoutingTable.builder().add(routing.build()).build());
 
         setState(clusterService, state.build());

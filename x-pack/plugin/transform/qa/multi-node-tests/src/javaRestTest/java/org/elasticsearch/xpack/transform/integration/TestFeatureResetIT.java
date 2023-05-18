@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TestFeatureResetIT extends TransformIntegTestCase {
+public class TestFeatureResetIT extends TransformRestTestCase {
 
     @Before
     public void setLogging() throws IOException {

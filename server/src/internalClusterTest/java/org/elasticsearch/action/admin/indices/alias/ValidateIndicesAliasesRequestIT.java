@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -36,10 +35,8 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
 
     public static class IndicesAliasesPlugin extends Plugin implements ActionPlugin {
 
-        static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.listSetting(
+        static final Setting<List<String>> ALLOWED_ORIGINS_SETTING = Setting.stringListSetting(
             "index.aliases.allowed_origins",
-            Collections.emptyList(),
-            Function.identity(),
             Setting.Property.IndexScope,
             Setting.Property.Dynamic
         );
@@ -84,8 +81,8 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index").alias("alias"));
         assertAcked(client().admin().indices().aliases(request).actionGet());
         final GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet();
-        assertThat(response.getAliases().keys().size(), equalTo(1));
-        assertThat(response.getAliases().keys().iterator().next().value, equalTo("index"));
+        assertThat(response.getAliases().keySet().size(), equalTo(1));
+        assertThat(response.getAliases().keySet().iterator().next(), equalTo("index"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("index");
         assertThat(aliasMetadata, hasSize(1));
         assertThat(aliasMetadata.get(0).alias(), equalTo("alias"));

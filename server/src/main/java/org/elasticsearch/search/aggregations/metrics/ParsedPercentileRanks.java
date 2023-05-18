@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.util.stream.Collectors;
-
 abstract class ParsedPercentileRanks extends ParsedPercentiles implements PercentileRanks {
 
     @Override
@@ -29,6 +27,6 @@ abstract class ParsedPercentileRanks extends ParsedPercentiles implements Percen
 
     @Override
     public Iterable<String> valueNames() {
-        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
+        return percentiles.keySet().stream().map(d -> d.toString()).toList();
     }
 }

@@ -20,11 +20,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankCoordinatorContext;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -36,8 +38,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
@@ -55,9 +57,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final Executor executor;
     private final CircuitBreaker circuitBreaker;
-    private final SearchPhaseController controller;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
+    private final RankCoordinatorContext rankCoordinatorContext;
 
     private final int topNSize;
     private final boolean hasTopDocs;
@@ -84,7 +86,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
-        this.controller = controller;
         this.progressListener = progressListener;
         this.aggReduceContextBuilder = controller.getReduceContext(isCanceled, request);
         this.topNSize = getTopDocsSize(request);
@@ -92,7 +93,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.onPartialMergeFailure = onPartialMergeFailure;
 
         SearchSourceBuilder source = request.source();
-        this.hasTopDocs = source == null || source.size() != 0;
+        int size = source == null || source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size();
+        int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
+        this.rankCoordinatorContext = source == null || source.rankBuilder() == null
+            ? null
+            : source.rankBuilder().buildRankCoordinatorContext(size, from);
+        this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
@@ -127,9 +133,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         long breakerSize = pendingMerges.circuitBreakerBytes;
         if (hasAggs) {
             // Add an estimate of the final reduce size
-            breakerSize = pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+            breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
         }
-        SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(
+        SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
             results.asList(),
             aggsList,
             topDocsList,
@@ -137,6 +143,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.numReducePhases,
             false,
             aggReduceContextBuilder,
+            rankCoordinatorContext,
             performFinalReduce
         );
         if (hasAggs
@@ -148,14 +155,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
-        progressListener.notifyFinalReduce(
-            SearchProgressListener.buildSearchShards(results.asList()),
-            reducePhase.totalHits(),
-            reducePhase.aggregations(),
-            reducePhase.numReducePhases()
-        );
+        if (progressListener != SearchProgressListener.NOOP) {
+            progressListener.notifyFinalReduce(
+                SearchProgressListener.buildSearchShards(results.asList()),
+                reducePhase.totalHits(),
+                reducePhase.aggregations(),
+                reducePhase.numReducePhases()
+            );
+        }
         return reducePhase;
     }
+
+    private static final Comparator<QuerySearchResult> RESULT_COMPARATOR = Comparator.comparingInt(QuerySearchResult::getShardIndex);
 
     private MergeResult partialReduce(
         QuerySearchResult[] toConsume,
@@ -165,7 +176,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int numReducePhases
     ) {
         // ensure consistent ordering
-        Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+        Arrays.sort(toConsume, RESULT_COMPARATOR);
 
         for (QuerySearchResult result : toConsume) {
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
@@ -213,7 +224,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchShardTarget target = result.getSearchShardTarget();
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
-        progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        if (progressListener != SearchProgressListener.NOOP) {
+            progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
+        }
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
         long serializedSize = hasAggs ? DelayableWriteable.getSerializedSize(newAggs) : 0;
@@ -256,12 +269,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            List<Releasable> toRelease = new ArrayList<>(buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(Collectors.toList()));
+            List<Releasable> toRelease = buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(toCollection(ArrayList::new));
             toRelease.add(() -> {
                 circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
                 circuitBreakerBytes = 0;
             });
-
             Releasables.close(toRelease);
 
             if (hasPendingMerges()) {
@@ -284,7 +296,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         void sortBuffer() {
             if (buffer.size() > 0) {
-                Collections.sort(buffer, Comparator.comparingInt(QuerySearchResult::getShardIndex));
+                buffer.sort(RESULT_COMPARATOR);
             }
         }
 
@@ -318,7 +330,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * off for some aggregations but it is corrected with the real size after
          * the reduce completes.
          */
-        long estimateRamBytesUsedForReduce(long size) {
+        static long estimateRamBytesUsedForReduce(long size) {
             return Math.round(1.5d * size - size);
         }
 

@@ -64,14 +64,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SearchScrollIT extends ESIntegTestCase {
     @After
     public void cleanup() throws Exception {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("*")));
+        updateClusterSettings(Settings.builder().putNull("*"));
     }
 
     public void testSimpleScrollQueryThenFetch() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test")
@@ -119,9 +119,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             String routing = "0";
@@ -186,7 +186,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testScrollAndUpdateIndex() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 500; i++) {
             client().prepareIndex("test")
@@ -262,9 +262,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test")
@@ -382,9 +382,9 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testSimpleScrollQueryThenFetchClearAllScrollIds() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test")
@@ -467,11 +467,7 @@ public class SearchScrollIT extends ESIntegTestCase {
          * Disable the max result window setting for this test because it'll reject the search's unreasonable batch size. We want
          * unreasonable batch sizes to just OOM.
          */
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("index")
-            .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE), "index");
 
         for (SearchType searchType : SearchType.values()) {
             SearchRequestBuilder builder = client().prepareSearch("index")
@@ -507,9 +503,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(
-            prepareCreate("test").setSettings(
-                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("no_field", "type=keyword", "some_field", "type=keyword")
+            prepareCreate("test").setSettings(indexSettings(1, 0)).setMapping("no_field", "type=keyword", "some_field", "type=keyword")
         );
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
@@ -570,63 +564,29 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollInvalidDefaultKeepAlive() throws IOException {
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
+            () -> clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
                 .get()
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"))
-                .get()
-        );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "2m"))
-                .get()
-        );
-
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "2m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "2m"));
+        updateClusterSettings(Settings.builder().put("search.max_keep_alive", "2m"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
+            () -> clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
                 .get()
         );
         assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "1m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "1m"));
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s"))
-                .get()
+            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s")).get()
         );
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
@@ -640,13 +600,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .get();
         }
         refresh();
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"))
-                .get()
-        );
+        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m"));
 
         Exception exc = expectThrows(
             Exception.class,
@@ -684,9 +638,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollRewrittenToMatchNoDocs() {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards))
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}
@@ -719,24 +671,11 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95759")
     public void testRestartDataNodesDuringScrollSearch() throws Exception {
         final String dataNode = internalCluster().startDataOnlyNode();
-        createIndex(
-            "demo",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", dataNode)
-                .build()
-        );
-        createIndex(
-            "prod",
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("index.routing.allocation.include._name", dataNode)
-                .build()
-        );
+        createIndex("demo", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
+        createIndex("prod", indexSettings(1, 0).put("index.routing.allocation.include._name", dataNode).build());
         int numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             index("demo", "demo-" + i, Map.of());

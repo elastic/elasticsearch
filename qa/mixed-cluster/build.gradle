@@ -17,6 +17,10 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+dependencies {
+  restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
+}
+
 restResources {
   restTests {
     includeCore '*'
@@ -34,7 +38,6 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-      requiresFeature 'es.random_sampler_feature_flag_registered', Version.fromString("8.1.0")
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
@@ -54,7 +57,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         nonInputProperties.systemProperty('tests.clustername', baseName)
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      onlyIf { project.bwc_tests_enabled }
+      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

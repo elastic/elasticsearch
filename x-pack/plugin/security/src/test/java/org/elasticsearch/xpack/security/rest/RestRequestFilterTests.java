@@ -22,6 +22,8 @@ import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RestRequestFilterTests extends ESTestCase {
 
     public void testFilteringItemsInSubLevels() throws IOException {
@@ -100,5 +102,26 @@ public class RestRequestFilterTests extends ESTestCase {
             .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertEquals(address, filtered.getHttpChannel().getRemoteAddress());
+    }
+
+    public void testFilterUnknownContentTypeThrows() throws IOException {
+        RestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("""
+            {"simple": "test"}"""), null)
+            .withPath("/whatever")
+            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("foo/bar")))
+            .build();
+        if (randomBoolean()) {
+            restRequest = new TestRestRequest(restRequest);
+        }
+        RestRequestFilter filter = () -> Collections.singleton("root.second.third");
+        RestRequest filtered = filter.getFilteredRequest(restRequest);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> filtered.content());
+        assertThat(e.getMessage(), containsString("unknown content type"));
+    }
+
+    private static class TestRestRequest extends RestRequest {
+        TestRestRequest(RestRequest other) {
+            super(other);
+        }
     }
 }

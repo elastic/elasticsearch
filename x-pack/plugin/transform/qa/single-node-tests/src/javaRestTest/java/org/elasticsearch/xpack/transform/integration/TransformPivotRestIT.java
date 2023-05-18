@@ -31,6 +31,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,12 +43,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransformPivotRestIT extends TransformRestTestCase {
 
+    private static final String TEST_USER_NAME_NO_ACCESS = "no_authorization";
     private static final String TEST_USER_NAME = "transform_admin_plus_data";
     private static final String DATA_ACCESS_ROLE = "test_data_access";
     private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS = basicAuthHeaderValue(
         TEST_USER_NAME,
         TEST_PASSWORD_SECURE_STRING
     );
+    private static final String BASIC_AUTH_VALUE_NO_ACCESS = basicAuthHeaderValue(TEST_USER_NAME_NO_ACCESS, TEST_PASSWORD_SECURE_STRING);
 
     private static boolean indicesCreated = false;
 
@@ -96,6 +99,36 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOneCount(transformIndex + "/_search?q=reviewer:user_26", "hits.hits._source.affiliate_missing", 0);
     }
 
+    public void testSimplePivotWithSecondaryHeaders() throws Exception {
+        setupUser(TEST_USER_NAME_NO_ACCESS, List.of("transform_admin"));
+        String transformId = "simple-pivot";
+        String transformIndex = "pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        createPivotReviewsTransform(
+            transformId,
+            transformIndex,
+            null,
+            null,
+            null,
+            null,
+            BASIC_AUTH_VALUE_NO_ACCESS,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
+            REVIEWS_INDEX_NAME
+        );
+        startAndWaitForTransform(
+            transformId,
+            transformIndex,
+            BASIC_AUTH_VALUE_NO_ACCESS,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
+            new String[0]
+        );
+
+        // we expect 27 documents as there shall be 27 user_id's
+        // Just need to validate that things ran with secondary headers
+        Map<String, Object> indexStats = getAsMap(transformIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+    }
+
     public void testSimpleDataStreamPivot() throws Exception {
         String indexName = "reviews_data_stream";
         createReviewsIndex(indexName, 1000, 27, "date", true, -1, null);
@@ -105,6 +138,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createPivotReviewsTransform(
             transformId,
             transformIndex,
+            null,
+            null,
+            null,
             null,
             null,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS,
@@ -215,7 +251,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         );
 
         // same pivot as testSimplePivot, but we retrieve the grouping key using a script and add prefix
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -242,7 +278,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 }
               },
               "frequency": "1s"
-            }""".formatted(transformIndex, REVIEWS_INDEX_NAME);
+            }""", transformIndex, REVIEWS_INDEX_NAME);
         createTransformRequest.setJsonEntity(config);
 
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -268,7 +304,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String pipelineId = "my-pivot-pipeline";
         int pipelineValue = 42;
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity("""
+        pipelineRequest.setJsonEntity(Strings.format("""
             {
                "description" : "my pivot pipeline",
                "processors" : [
@@ -279,7 +315,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                    }
                  }
                ]
-            }""".formatted(pipelineValue));
+            }""", pipelineValue));
         client().performRequest(pipelineRequest);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
@@ -312,7 +348,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -345,7 +381,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -372,7 +408,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -404,7 +440,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -432,20 +468,20 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             int stars = (i * 32) % 5;
             long business = (stars * user) % 13;
             String location = (user + 10) + "," + (user + 15);
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
-                """.formatted(indexName, user, business, stars, location, dateStamp));
+                """, indexName, user, business, stars, location, dateStamp));
             stars = 5;
             business = 11;
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
-                """.formatted(indexName, user26, business, stars, location, dateStamp));
-            bulk.append("""
+                """, indexName, user26, business, stars, location, dateStamp));
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
-                """.formatted(indexName, business, stars, location, dateStamp));
+                """, indexName, business, stars, location, dateStamp));
         }
         bulk.append("\r\n");
 
@@ -469,6 +505,82 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_42", 2.0);
     }
 
+    public void testContinuousPivotFrom() throws Exception {
+        String indexName = "continuous_reviews_from";
+        createReviewsIndex(indexName);
+        String transformId = "continuous_pivot_from";
+        String transformIndex = "pivot_reviews_continuous_from";
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id",
+                      "missing_bucket": true
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", indexName, transformIndex);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        final StringBuilder bulk = new StringBuilder();
+        bulk.append(Strings.format("""
+            {"index":{"_index":"%s"}}
+            {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
+            """, indexName, 666, 777, 7, 888, "\"2017-01-20\""));
+        bulk.append("\r\n");
+
+        final Request bulkRequest = new Request("POST", "/_bulk");
+        bulkRequest.addParameter("refresh", "true");
+        bulkRequest.setJsonEntity(bulk.toString());
+        Map<String, Object> bulkResponse = entityAsMap(client().performRequest(bulkRequest));
+        assertThat(bulkResponse.get("errors"), equalTo(Boolean.FALSE));
+
+        startAndWaitForContinuousTransform(transformId, transformIndex, null, "2017-01-23", 1L);
+        assertTrue(indexExists(transformIndex));
+
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", getAsMap(transformIndex + "/_stats")));
+
+        // get and check some users
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_0", 3.776978417);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_11", 3.846153846);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_20", 3.769230769);
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_26", 3.918918918);
+
+        stopTransform(transformId, false);
+        deleteIndex(indexName);
+    }
+
     public void testHistogramPivot() throws Exception {
         String transformId = "simple_histogram_pivot";
         String transformIndex = "pivot_reviews_via_histogram";
@@ -480,7 +592,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -505,7 +617,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -531,7 +643,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -563,7 +675,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -594,10 +706,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         // add 5 data points with 3 new users: 27, 28, 29
         for (int i = 25; i < 30; i++) {
             String location = (i + 10) + "," + (i + 15);
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"location":"%s","timestamp":%s}
-                """.formatted(indexName, i, i, 3, location, dateStamp));
+                """, indexName, i, i, 3, location, dateStamp));
         }
         bulk.append("\r\n");
 
@@ -643,7 +755,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -697,7 +809,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -750,7 +862,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -789,7 +901,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -850,7 +962,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -875,7 +987,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
 
@@ -899,7 +1011,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -926,7 +1038,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME);
+            }""", REVIEWS_INDEX_NAME);
 
         createPreviewRequest.setJsonEntity(config);
 
@@ -950,7 +1062,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String pipelineId = "my-preview-pivot-pipeline";
         int pipelineValue = 42;
         Request pipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
-        pipelineRequest.setJsonEntity("""
+        pipelineRequest.setJsonEntity(Strings.format("""
             {
               "description": "my pivot preview pipeline",
               "processors": [
@@ -962,13 +1074,13 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 }
               ]
             }
-            """.formatted(pipelineValue));
+            """, pipelineValue));
         client().performRequest(pipelineRequest);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -998,7 +1110,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, pipelineId);
+            }""", REVIEWS_INDEX_NAME, pipelineId);
         createPreviewRequest.setJsonEntity(config);
 
         Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
@@ -1040,7 +1152,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
         createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1070,7 +1182,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, pipelineId);
+            }""", REVIEWS_INDEX_NAME, pipelineId);
         createPreviewRequest.setJsonEntity(config);
 
         Response createPreviewResponse = client().performRequest(createPreviewRequest);
@@ -1085,6 +1197,63 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         );
     }
 
+    public void testPreviewTransformWithDateHistogramOffset() throws Exception {
+        assertThat(
+            previewWithOffset("+2d"),
+            contains("2017-01-04T00:00:00.000Z", "2017-01-11T00:00:00.000Z", "2017-01-18T00:00:00.000Z", "2017-01-25T00:00:00.000Z")
+        );
+        assertThat(previewWithOffset("+1d"), contains("2017-01-10T00:00:00.000Z", "2017-01-17T00:00:00.000Z", "2017-01-24T00:00:00.000Z"));
+        assertThat(
+            previewWithOffset("0"),
+            contains("2017-01-09T00:00:00.000Z", "2017-01-16T00:00:00.000Z", "2017-01-23T00:00:00.000Z", "2017-01-30T00:00:00.000Z")
+        );
+        assertThat(
+            previewWithOffset("-1d"),
+            contains("2017-01-08T00:00:00.000Z", "2017-01-15T00:00:00.000Z", "2017-01-22T00:00:00.000Z", "2017-01-29T00:00:00.000Z")
+        );
+        assertThat(
+            previewWithOffset("-2d"),
+            contains("2017-01-07T00:00:00.000Z", "2017-01-14T00:00:00.000Z", "2017-01-21T00:00:00.000Z", "2017-01-28T00:00:00.000Z")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> previewWithOffset(String offset) throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "by_week": {
+                    "date_histogram": {
+                      "calendar_interval": "1w",
+                      "field": "timestamp",
+                      "offset": "%s"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "user.avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, offset);
+        createPreviewRequest.setJsonEntity(config);
+
+        Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        List<Map<String, Object>> preview = (List<Map<String, Object>>) previewTransformResponse.get("preview");
+        return preview.stream().map(p -> (String) p.get("by_week")).toList();
+    }
+
     public void testPivotWithMaxOnDateField() throws Exception {
         String transformId = "simple_date_histogram_pivot_with_max_time";
         String transformIndex = "pivot_reviews_via_date_histogram_with_max_time";
@@ -1096,7 +1265,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1126,7 +1295,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
 
@@ -1157,7 +1326,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1189,7 +1358,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1222,7 +1391,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1254,7 +1423,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1293,7 +1462,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1323,7 +1492,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                 }
               }
             }
-            """.formatted(indexName, transformIndex);
+            """, indexName, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1362,7 +1531,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1391,7 +1560,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1427,7 +1596,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1461,7 +1630,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1498,7 +1667,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1528,7 +1697,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1571,7 +1740,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1600,7 +1769,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1626,7 +1795,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1655,7 +1824,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -1677,6 +1846,85 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals("business_3", actual);
     }
 
+    public void testPivotWithAggregateMetricDouble() throws Exception {
+        String transformId = "aggregate_metric_double_transform";
+        String transformIndex = "aggregate_metric_double_pivot_reviews";
+        String statsField = "stars_stats";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stats_min": {
+                    "min": {
+                      "field": "%s"
+                    }
+                  },
+                  "stats_max": {
+                    "max": {
+                      "field": "%s"
+                    }
+                  },
+                  "stats_sum": {
+                    "sum": {
+                      "field": "%s"
+                    }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex, statsField, statsField, statsField);
+
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        createPreviewRequest.setJsonEntity(config);
+        Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(createPreviewRequest));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappingsProperties = (Map<String, Object>) XContentMapValues.extractValue(
+            "generated_dest_index.mappings.properties",
+            previewTransformResponse
+        );
+        assertThat(XContentMapValues.extractValue("stats_min.type", mappingsProperties), is(equalTo("double")));
+        assertThat(XContentMapValues.extractValue("stats_max.type", mappingsProperties), is(equalTo("double")));
+        assertThat(XContentMapValues.extractValue("stats_sum.type", mappingsProperties), is(equalTo("double")));
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_min", searchResult)).get(0), is(equalTo(0.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_max", searchResult)).get(0), is(equalTo(6.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_sum", searchResult)).get(0), is(equalTo(1590.0)));
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_min", searchResult)).get(0), is(equalTo(0.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_max", searchResult)).get(0), is(equalTo(6.0)));
+        assertThat(((List<?>) XContentMapValues.extractValue("hits.hits._source.stats_sum", searchResult)).get(0), is(equalTo(2020.0)));
+    }
+
     public void testManyBucketsWithSmallPageSize() throws Exception {
         String transformId = "test_with_many_buckets";
         String transformIndex = transformId + "-idx";
@@ -1687,7 +1935,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1749,7 +1997,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
               "settings": {
                 "max_page_search_size": 10
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -1781,7 +2029,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1812,7 +2060,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -1848,7 +2096,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1879,7 +2127,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexName, transformIndex);
+            }""", indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -1896,10 +2144,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"id":"id_%s","rating":%s,"timestamp":"%s"}
-                """.formatted(indexName, i % 5, 7, nanoResolutionTimeStamp));
+                """, indexName, i % 5, 7, nanoResolutionTimeStamp));
         }
         bulk.append("\r\n");
 
@@ -1933,7 +2181,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -1964,7 +2212,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -1994,6 +2242,104 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(5, actual.longValue());
     }
 
+    public void testPivotWithRanges() throws Exception {
+        String transformId = "range_pivot";
+        String transformIndex = "range_pivot_reviews";
+        boolean keyed = randomBoolean();
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  },
+                  "ranges": {
+                    "range": {
+                      "field": "stars",
+                      "keyed": %s,
+                      "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
+                    }
+                  },
+                  "ranges-avg": {
+                    "range": {
+                      "field": "stars",
+                      "keyed": %s,
+                      "ranges": [ { "to": 2 }, { "from": 2, "to": 3.99 }, { "from": 4 } ]
+                    },
+                    "aggs": { "avg_stars": { "avg": { "field": "stars" } } }
+                  }
+                }
+              }
+            }""", REVIEWS_INDEX_NAME, transformIndex, keyed, keyed);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+
+        // check destination index mappings
+        Map<String, Object> mappingsResult = getAsMap(transformIndex + "/_mapping");
+        assertThat(
+            XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges.properties", mappingsResult),
+            is(equalTo(Map.of("4-*", Map.of("type", "long"), "2-3_99", Map.of("type", "long"), "*-2", Map.of("type", "long"))))
+        );
+        assertThat(
+            XContentMapValues.extractValue("range_pivot_reviews.mappings.properties.ranges-avg.properties", mappingsResult),
+            is(
+                equalTo(
+                    Map.of(
+                        "4-*",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                        "2-3_99",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double"))),
+                        "*-2",
+                        Map.of("properties", Map.of("avg_stars", Map.of("type", "double")))
+                    )
+                )
+            )
+        );
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_11");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.*-2", searchResult)).get(0);
+        assertEquals(5, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.2-3_99", searchResult)).get(0);
+        assertEquals(2, actual.longValue());
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges.4-*", searchResult)).get(0);
+        assertEquals(19, actual.longValue());
+
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.*-2.avg_stars", searchResult)).get(0);
+        assertEquals(1.0, actual.doubleValue(), 1E-6);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.2-3_99.avg_stars", searchResult)).get(0);
+        assertEquals(3.0, actual.doubleValue(), 1E-6);
+        actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.ranges-avg.4-*.avg_stars", searchResult)).get(0);
+        assertEquals(4.6842105, actual.doubleValue(), 1E-6);
+    }
+
     public void testPivotWithFilter() throws Exception {
         String transformId = "filter_pivot";
         String transformIndex = "filter_pivot_reviews";
@@ -2003,7 +2349,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
-        String config = """
+        String config = Strings.format("""
             {
               "source": {
                 "index": "%s"
@@ -2058,7 +2404,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex);
+            }""", REVIEWS_INDEX_NAME, transformIndex);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -2156,10 +2502,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String randomNanos = "," + randomIntBetween(100000000, 999999999);
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"id":"id_%s","rating":%s,"timestamp":"2020-01-27T01:59:00%sZ"}
-                """.formatted(indexName, i % 10, i % 7, randomNanos));
+                """, indexName, i % 10, i % 7, randomNanos));
 
             if (i % 50 == 0) {
                 bulk.append("\r\n");

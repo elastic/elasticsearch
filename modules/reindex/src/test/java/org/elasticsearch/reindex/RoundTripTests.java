@@ -8,13 +8,15 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -50,7 +52,7 @@ public class RoundTripTests extends ESTestCase {
             int port = between(1, Integer.MAX_VALUE);
             BytesReference query = new BytesArray("{\"match_all\":{}}");
             String username = randomBoolean() ? randomAlphaOfLength(5) : null;
-            String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
+            SecureString password = username != null && randomBoolean() ? new SecureString(randomAlphaOfLength(5).toCharArray()) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
             Map<String, String> headers = Maps.newMapWithExpectedSize(headersCount);
             while (headers.size() < headersCount) {
@@ -183,16 +185,16 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private StreamInput toInputByteStream(Writeable example) throws IOException {
-        return toInputByteStream(Version.CURRENT, example);
+        return toInputByteStream(TransportVersion.CURRENT, example);
     }
 
-    private StreamInput toInputByteStream(Version version, Writeable example) throws IOException {
+    private StreamInput toInputByteStream(TransportVersion version, Writeable example) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(version);
+        out.setTransportVersion(version);
         example.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(version);
-        return in;
+        in.setTransportVersion(version);
+        return new NamedWriteableAwareStreamInput(in, writableRegistry());
     }
 
     private Script randomScript() {

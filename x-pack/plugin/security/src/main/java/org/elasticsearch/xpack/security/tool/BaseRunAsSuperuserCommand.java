@@ -13,6 +13,7 @@ import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
@@ -78,7 +79,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         validate(terminal, options, env);
         ensureFileRealmEnabled(env.settings());
         KeyStoreWrapper keyStoreWrapper = keyStoreFunction.apply(env);
@@ -141,7 +142,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     /**
      * Removes temporary file realm user from users and roles file
      */
-    private void cleanup(Terminal terminal, Environment env, String username) throws Exception {
+    private static void cleanup(Terminal terminal, Environment env, String username) throws Exception {
         final Path passwordFile = FileUserPasswdStore.resolveFile(env);
         final Path rolesFile = FileUserRolesStore.resolveFile(env);
         final List<String> errorMessages = new ArrayList<>();
@@ -176,7 +177,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         attributesChecker.check(terminal);
     }
 
-    private void ensureFileRealmEnabled(Settings settings) throws Exception {
+    private static void ensureFileRealmEnabled(Settings settings) throws Exception {
         final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
         Map<RealmConfig.RealmIdentifier, Settings> fileRealmSettings = realms.entrySet()
             .stream()

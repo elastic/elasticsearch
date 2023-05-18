@@ -29,7 +29,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocValues.Supplier<String> {
+public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
+    implements
+        Field<IPAddress>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<String> {
     protected final String name;
     protected final ScriptDocValues.Supplier<InetAddress> raw;
 
@@ -58,7 +62,7 @@ public class IpDocValuesField implements DocValuesField<IPAddress>, ScriptDocVal
     }
 
     @Override
-    public ScriptDocValues<String> getScriptDocValues() {
+    public ScriptDocValues<String> toScriptDocValues() {
         if (strings == null) {
             strings = new ScriptDocValues.Strings(this);
         }

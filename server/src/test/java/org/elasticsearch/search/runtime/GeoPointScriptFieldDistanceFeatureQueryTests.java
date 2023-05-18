@@ -20,10 +20,13 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,24 +84,25 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null);
-                Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
+                SearchLookup searchLookup = new SearchLookup(null, null, SourceProvider.fromStoredFields());
+                Function<LeafReaderContext, GeoPointFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),
                     searchLookup,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
-                    final GeoPoint point = new GeoPoint();
-
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        GeoUtils.parseGeoPoint(searchLookup.source().get("location"), point, true);
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        GeoPoint point = GeoUtils.parseGeoPoint(source.get("location"), true);
                         emit(point.lat(), point.lon());
                     }
                 };
                 GeoPointScriptFieldDistanceFeatureQuery query = new GeoPointScriptFieldDistanceFeatureQuery(
                     randomScript(),
-                    leafFactory,
+                    GeoPointScriptFieldType.valuesEncodedAsLong(searchLookup, "test", leafFactory),
                     "test",
                     0,
                     0,

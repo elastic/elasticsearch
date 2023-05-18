@@ -10,15 +10,16 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -43,7 +44,9 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
@@ -158,7 +161,8 @@ public class LeaderChecker {
      * publication targets, and also called if a leader becomes a non-leader.
      */
     void setCurrentNodes(DiscoveryNodes discoveryNodes) {
-        logger.trace("setCurrentNodes: {}", discoveryNodes);
+        // Sorting the nodes for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+        logger.trace(() -> Strings.format("setCurrentNodes: {}", discoveryNodes.mastersFirstStream().toList()));
         this.discoveryNodes = discoveryNodes;
     }
 
@@ -253,10 +257,10 @@ public class LeaderChecker {
                         }
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] disconnected during check", leader), exp);
+                            logger.debug(() -> "leader [" + leader + "] disconnected during check", exp);
                             leaderFailed(
-                                () -> new ParameterizedMessage(
-                                    "master node [{}] disconnected, restarting discovery [{}]",
+                                () -> format(
+                                    "master node [%s] disconnected, restarting discovery [%s]",
                                     leader.descriptionWithoutAttributes(),
                                     ExceptionsHelper.unwrapCause(exp).getMessage()
                                 ),
@@ -264,10 +268,10 @@ public class LeaderChecker {
                             );
                             return;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] health check failed", leader), exp);
+                            logger.debug(() -> "leader [" + leader + "] health check failed", exp);
                             leaderFailed(
-                                () -> new ParameterizedMessage(
-                                    "master node [{}] reported itself as unhealthy [{}], {}",
+                                () -> format(
+                                    "master node [%s] reported itself as unhealthy [%s], %s",
                                     leader.descriptionWithoutAttributes(),
                                     exp.getCause().getMessage(),
                                     RESTARTING_DISCOVERY_TEXT
@@ -286,8 +290,8 @@ public class LeaderChecker {
                         long failureCount = rejectedCountSinceLastSuccess + timeoutCountSinceLastSuccess;
                         if (failureCount >= leaderCheckRetryCount) {
                             logger.debug(
-                                new ParameterizedMessage(
-                                    "leader [{}] failed {} consecutive checks (rejected [{}], timed out [{}], limit [{}] is {})",
+                                () -> format(
+                                    "leader [%s] failed %s consecutive checks (rejected [%s], timed out [%s], limit [%s] is %s)",
                                     leader,
                                     failureCount,
                                     rejectedCountSinceLastSuccess,
@@ -298,9 +302,9 @@ public class LeaderChecker {
                                 exp
                             );
                             leaderFailed(
-                                () -> new ParameterizedMessage(
-                                    "[{}] consecutive checks of the master node [{}] were unsuccessful ([{}] rejected, [{}] timed out), "
-                                        + "{} [last unsuccessful check: {}]",
+                                () -> format(
+                                    "[%s] consecutive checks of the master node [%s] were unsuccessful ([%s] rejected, [%s] timed out), "
+                                        + "%s [last unsuccessful check: %s]",
                                     failureCount,
                                     leader.descriptionWithoutAttributes(),
                                     rejectedCountSinceLastSuccess,
@@ -314,8 +318,8 @@ public class LeaderChecker {
                         }
 
                         logger.debug(
-                            new ParameterizedMessage(
-                                "{} consecutive failures (limit [{}] is {}) with leader [{}]",
+                            () -> format(
+                                "%s consecutive failures (limit [%s] is %s) with leader [%s]",
                                 failureCount,
                                 LEADER_CHECK_RETRY_COUNT_SETTING.getKey(),
                                 leaderCheckRetryCount,
@@ -329,12 +333,26 @@ public class LeaderChecker {
             );
         }
 
-        void leaderFailed(MessageSupplier messageSupplier, Exception e) {
+        void leaderFailed(Supplier<String> messageSupplier, Exception e) {
             if (isClosed.compareAndSet(false, true)) {
-                transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new Runnable() {
+                transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
                     @Override
-                    public void run() {
+                    protected void doRun() {
                         leaderFailureListener.onLeaderFailure(messageSupplier, e);
+                    }
+
+                    @Override
+                    public void onRejection(Exception e2) {
+                        e.addSuppressed(e2);
+                        logger.debug("rejected execution of onLeaderFailure", e);
+                        assert e2 instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                    }
+
+                    @Override
+                    public void onFailure(Exception e2) {
+                        e2.addSuppressed(e);
+                        logger.error("failed execution of onLeaderFailure", e2);
+                        assert false : e2;
                     }
 
                     @Override
@@ -351,10 +369,7 @@ public class LeaderChecker {
             if (discoveryNode.equals(leader)) {
                 logger.debug("leader [{}] disconnected", leader);
                 leaderFailed(
-                    () -> new ParameterizedMessage(
-                        "master node [{}] disconnected, restarting discovery",
-                        leader.descriptionWithoutAttributes()
-                    ),
+                    () -> format("master node [%s] disconnected, restarting discovery", leader.descriptionWithoutAttributes()),
                     new NodeDisconnectedException(discoveryNode, "disconnected")
                 );
             }
@@ -428,6 +443,6 @@ public class LeaderChecker {
          * @param messageSupplier The message to log if prior to this failure there was a known master in the cluster.
          * @param exception       An exception that gives more detail of the leader failure.
          */
-        void onLeaderFailure(MessageSupplier messageSupplier, Exception exception);
+        void onLeaderFailure(Supplier<String> messageSupplier, Exception exception);
     }
 }

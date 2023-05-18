@@ -12,7 +12,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.internal.Client;
@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -50,7 +49,7 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-    private static final Version VERSION_STORE_VALUES_AS_BYTES_REFERENCE = Version.V_7_12_0;
+    private static final TransportVersion VERSION_STORE_VALUES_AS_BYTES_REFERENCE = TransportVersion.V_7_12_0;
 
     private final String fieldName;
     private final Values values;
@@ -98,7 +97,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, int... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -108,7 +107,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, long... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -118,10 +117,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, float... values) {
-        this(
-            fieldName,
-            values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).collect(Collectors.toList()) : (Iterable<?>) null
-        );
+        this(fieldName, values != null ? IntStream.range(0, values.length).mapToObj(i -> values[i]).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -131,7 +127,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * @param values The terms
      */
     public TermsQueryBuilder(String fieldName, double... values) {
-        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).collect(Collectors.toList()) : (Iterable<?>) null);
+        this(fieldName, values != null ? Arrays.stream(values).mapToObj(s -> s).toList() : (Iterable<?>) null);
     }
 
     /**
@@ -349,7 +345,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
-    private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
+    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, actionListener.map(getResponse -> {
@@ -419,7 +415,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     private abstract static class Values extends AbstractCollection implements Writeable {
 
         private static Values readFrom(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (in.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 return in.readOptionalWriteable(BinaryValues::new);
             } else {
                 List<?> list = (List<?>) in.readGenericValue();
@@ -428,7 +424,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
 
         private static void writeTo(StreamOutput out, Values values) throws IOException {
-            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 out.writeOptionalWriteable(values);
             } else {
                 if (values == null) {
@@ -452,7 +448,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 if (convert) {
-                    list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+                    list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).toList();
                 }
                 output.writeGenericValue(list);
                 return output.bytes();
@@ -565,7 +561,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 out.writeBytesReference(valueRef);
             } else {
                 valueRef.writeTo(out);
@@ -585,7 +581,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             return Objects.hash(valueRef);
         }
 
-        private int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
+        private static int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
             byte genericSign = in.readByte();
             assert genericSign == 7;
             return in.readVInt();
@@ -646,7 +642,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+            if (out.getTransportVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 BytesReference bytesRef = serialize(values, false);
                 out.writeBytesReference(bytesRef);
             } else {
@@ -669,7 +665,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.ZERO;
     }
 }

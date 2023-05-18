@@ -140,7 +140,7 @@ public class StoreTrustConfigTests extends ESTestCase {
         final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
         final X509Certificate[] issuers = trustManager.getAcceptedIssuers();
         final Set<String> issuerNames = Stream.of(issuers)
-            .map(X509Certificate::getSubjectDN)
+            .map(X509Certificate::getSubjectX500Principal)
             .map(Principal::getName)
             .collect(Collectors.toSet());
 

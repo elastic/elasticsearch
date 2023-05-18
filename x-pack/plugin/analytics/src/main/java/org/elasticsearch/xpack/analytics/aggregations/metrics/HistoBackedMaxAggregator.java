@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -40,26 +40,21 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = config.hasValues() ? (HistogramValuesSource.Histogram) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            maxes = bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
+        assert config.hasValues();
+        this.valuesSource = (HistogramValuesSource.Histogram) config.getValuesSource();
+        maxes = bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.formatter = config.format();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
-        final HistogramValues values = valuesSource.getHistogramValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final HistogramValues values = valuesSource.getHistogramValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -84,7 +79,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= maxes.size()) {
+        if (owningBucketOrd >= maxes.size()) {
             return Double.NEGATIVE_INFINITY;
         }
         return maxes.get(owningBucketOrd);
@@ -92,7 +87,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= maxes.size()) {
+        if (bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
         return new Max(name, maxes.get(bucket), formatter, metadata());
@@ -100,7 +95,7 @@ public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleVal
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new Max(name, Double.NEGATIVE_INFINITY, formatter, metadata());
+        return Max.createEmptyMax(name, formatter, metadata());
     }
 
     @Override

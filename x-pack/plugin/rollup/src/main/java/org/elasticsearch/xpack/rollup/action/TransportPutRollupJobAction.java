@@ -103,7 +103,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.getConfig().getIndexPattern())
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.indices())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 

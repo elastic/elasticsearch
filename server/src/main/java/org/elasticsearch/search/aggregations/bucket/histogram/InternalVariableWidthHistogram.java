@@ -30,7 +30,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class InternalVariableWidthHistogram extends InternalMultiBucketAggregation<
     InternalVariableWidthHistogram,
@@ -316,19 +315,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     }
 
     @Override
-    public Number nextKey(Number key) {
-        return nextKey(key.doubleValue());
-    }
-
-    /**
-     * This method should not be called for this specific subclass of InternalHistogram, since there should not be
-     * empty buckets when clustering.
-    =    */
-    private double nextKey(double key) {
-        return key + 1;
-    }
-
-    @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
@@ -402,7 +388,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         return reducedBuckets;
     }
 
-    class BucketRange {
+    static class BucketRange {
         int startIdx;
         int endIdx;
 
@@ -539,7 +525,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
      *
      * After this adjustment, A will contain more values than indicated and B will have less.
      */
-    private void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
+    private static void adjustBoundsForOverlappingBuckets(List<Bucket> buckets, AggregationReduceContext reduceContext) {
         for (int i = 1; i < buckets.size(); i++) {
             Bucket curBucket = buckets.get(i);
             Bucket prevBucket = buckets.get(i - 1);
@@ -568,7 +554,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalVariableWidthHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             emptyBucketInfo,
             targetNumBuckets,
             format,

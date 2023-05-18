@@ -28,8 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GatewayServiceIT extends ESIntegTestCase {
 
@@ -125,10 +123,7 @@ public class GatewayServiceIT extends ESIntegTestCase {
     }
 
     public void testSettingsAppliedBeforeReroute() throws Exception {
-
-        assertAcked(
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put(TEST_SETTING.getKey(), true))
-        );
+        updateClusterSettings(Settings.builder().put(TEST_SETTING.getKey(), true));
 
         createIndex("test-index");
 

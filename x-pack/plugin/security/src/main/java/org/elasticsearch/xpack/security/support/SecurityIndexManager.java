@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -324,7 +323,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
         } catch (ElasticsearchParseException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
         }
     }

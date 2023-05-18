@@ -17,10 +17,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DataStreamRestIT extends ESRestTestCase {
 
@@ -31,23 +33,28 @@ public class DataStreamRestIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
-    @SuppressWarnings("unchecked")
     public void testDSXpackInfo() {
-        Map<String, Object> features = (Map<String, Object>) getLocation("/_xpack").get("features");
+        Map<?, ?> features = (Map<?, ?>) getLocation("/_xpack").get("features");
         assertNotNull(features);
-        Map<String, Object> dataStreams = (Map<String, Object>) features.get("data_streams");
+        Map<?, ?> dataStreams = (Map<?, ?>) features.get("data_streams");
         assertNotNull(dataStreams);
         assertTrue((boolean) dataStreams.get("available"));
         assertTrue((boolean) dataStreams.get("enabled"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testDSXpackUsage() throws Exception {
-        Map<String, Object> dataStreams = (Map<String, Object>) getLocation("/_xpack/usage").get("data_streams");
+        Map<?, ?> dataStreams = (Map<?, ?>) getLocation("/_xpack/usage").get("data_streams");
         assertNotNull(dataStreams);
         assertTrue((boolean) dataStreams.get("available"));
         assertTrue((boolean) dataStreams.get("enabled"));
         assertThat(dataStreams.get("data_streams"), anyOf(equalTo(null), equalTo(0)));
+
+        assertBusy(() -> {
+            Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
+            assertThat(logsTemplate, notNullValue());
+            assertThat(logsTemplate.get("name"), equalTo("logs"));
+            assertThat(((Map<?, ?>) logsTemplate.get("index_template")).get("data_stream"), notNullValue());
+        });
 
         // Create a data stream
         Request indexRequest = new Request("POST", "/logs-mysql-default/_doc");
@@ -58,7 +65,7 @@ public class DataStreamRestIT extends ESRestTestCase {
         Request rollover = new Request("POST", "/logs-mysql-default/_rollover");
         client().performRequest(rollover);
 
-        dataStreams = (Map<String, Object>) getLocation("/_xpack/usage").get("data_streams");
+        dataStreams = (Map<?, ?>) getLocation("/_xpack/usage").get("data_streams");
         assertNotNull(dataStreams);
         assertTrue((boolean) dataStreams.get("available"));
         assertTrue((boolean) dataStreams.get("enabled"));
@@ -66,7 +73,7 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat("got: " + dataStreams, dataStreams.get("indices_count"), equalTo(2));
     }
 
-    public Map<String, Object> getLocation(String path) {
+    Map<String, Object> getLocation(String path) {
         try {
             Response executeRepsonse = client().performRequest(new Request("GET", path));
             try (

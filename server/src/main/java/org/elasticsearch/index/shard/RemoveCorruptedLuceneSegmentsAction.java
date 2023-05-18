@@ -22,7 +22,7 @@ import java.io.PrintStream;
  */
 public class RemoveCorruptedLuceneSegmentsAction {
 
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
+    public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
         Directory indexDirectory,
         Lock writeLock,
         PrintStream printStream,
@@ -58,7 +58,7 @@ public class RemoveCorruptedLuceneSegmentsAction {
         }
     }
 
-    public void execute(Terminal terminal, Directory indexDirectory, Lock writeLock, PrintStream printStream, boolean verbose)
+    public static void execute(Terminal terminal, Directory indexDirectory, Lock writeLock, PrintStream printStream, boolean verbose)
         throws IOException {
         final CheckIndex.Status status;
         try (CheckIndex checker = new CheckIndex(indexDirectory, writeLock)) {

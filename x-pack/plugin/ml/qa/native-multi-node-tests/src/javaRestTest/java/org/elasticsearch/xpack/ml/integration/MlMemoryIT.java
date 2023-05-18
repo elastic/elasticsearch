@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -117,7 +117,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             assertThat(stats.getJvmInference().getBytes(), greaterThanOrEqualTo(0L));
         }
         assertThat(mlNodes, is(2));
-        assertThat(nodesWithPytorchModel, equalTo(mlNodes));
+        assertThat(nodesWithPytorchModel, equalTo(1));
         assertThat(nodesWithAnomalyJob, is(1));
         // It's possible that the DFA job could have finished before the stats call was made
         assumeFalse(
@@ -157,6 +157,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private void deployTrainedModel() {
         String modelId = "pytorch";
+        String deploymentId = "deployment-foo";
         client().execute(
             PutTrainedModelAction.INSTANCE,
             new PutTrainedModelAction.Request(
@@ -184,12 +185,13 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(
                 modelId,
-                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN)
+                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                List.of()
             )
         ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(modelId).setWaitForState(AllocationStatus.State.STARTED)
+            new StartTrainedModelDeploymentAction.Request(modelId, deploymentId).setWaitForState(AllocationStatus.State.STARTED)
         ).actionGet();
     }
 

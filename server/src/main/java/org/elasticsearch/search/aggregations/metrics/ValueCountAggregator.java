@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -46,21 +46,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = valuesSourceConfig.getValuesSource();
+        counts = bigArrays().newLongArray(1, true);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource instanceof ValuesSource.Numeric) {
-            final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
+            final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, values) {
 
                 @Override
@@ -73,7 +67,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             };
         }
         if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
-            MultiGeoPointValues values = ((ValuesSource.GeoPoint) valuesSource).geoPointValues(ctx);
+            MultiGeoPointValues values = ((ValuesSource.GeoPoint) valuesSource).geoPointValues(aggCtx.getLeafReaderContext());
             return new LeafBucketCollectorBase(sub, null) {
 
                 @Override
@@ -86,7 +80,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
             };
         }
         // The following is default collector. Including the keyword FieldType
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
 
             @Override
@@ -102,12 +96,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return (valuesSource == null || owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
+        return owningBucketOrd >= counts.size() ? 0 : counts.get(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         return new InternalValueCount(name, counts.get(bucket), metadata());
@@ -115,12 +109,12 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, metadata());
+        return InternalValueCount.empty(name, metadata());
     }
 
     @Override

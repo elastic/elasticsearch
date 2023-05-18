@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -57,12 +57,14 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
@@ -105,6 +107,7 @@ import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_FAILED_TO_DESERIALIZE;
@@ -336,7 +339,11 @@ public class TrainedModelProvider {
         );
     }
 
-    public void getTrainedModelMetadata(Collection<String> modelIds, ActionListener<Map<String, TrainedModelMetadata>> listener) {
+    public void getTrainedModelMetadata(
+        Collection<String> modelIds,
+        @Nullable TaskId parentTaskId,
+        ActionListener<Map<String, TrainedModelMetadata>> listener
+    ) {
         SearchRequest searchRequest = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
             .setQuery(
                 QueryBuilders.constantScoreQuery(
@@ -349,6 +356,9 @@ public class TrainedModelProvider {
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)));
@@ -449,7 +459,7 @@ public class TrainedModelProvider {
             assert r.getItems().length == trainedModelDefinitionDocs.size() + 1;
             if (r.getItems()[0].isFailed()) {
                 logger.error(
-                    new ParameterizedMessage("[{}] failed to store trained model config for inference", trainedModelConfig.getModelId()),
+                    () -> "[" + trainedModelConfig.getModelId() + "] failed to store trained model config for inference",
                     r.getItems()[0].getFailure().getCause()
                 );
 
@@ -464,10 +474,7 @@ public class TrainedModelProvider {
                     .findFirst()
                     .orElse(new Exception("unknown failure"));
                 logger.error(
-                    new ParameterizedMessage(
-                        "[{}] failed to store trained model definition for inference",
-                        trainedModelConfig.getModelId()
-                    ),
+                    () -> format("[%s] failed to store trained model definition for inference", trainedModelConfig.getModelId()),
                     firstFailure
                 );
                 wrappedListener.onFailure(firstFailure);
@@ -544,15 +551,17 @@ public class TrainedModelProvider {
     public void getTrainedModel(
         final String modelId,
         final GetTrainedModelsAction.Includes includes,
+        @Nullable TaskId parentTaskId,
         final ActionListener<TrainedModelConfig> finalListener
     ) {
-        getTrainedModel(modelId, Collections.emptySet(), includes, finalListener);
+        getTrainedModel(modelId, Collections.emptySet(), includes, parentTaskId, finalListener);
     }
 
     public void getTrainedModel(
         final String modelId,
         final Set<String> modelAliases,
         final GetTrainedModelsAction.Includes includes,
+        @Nullable TaskId parentTaskId,
         final ActionListener<TrainedModelConfig> finalListener
     ) {
 
@@ -574,7 +583,7 @@ public class TrainedModelProvider {
                 finalListener.onResponse(modelBuilder.build());
                 return;
             }
-            this.getTrainedModelMetadata(Collections.singletonList(modelId), ActionListener.wrap(metadata -> {
+            this.getTrainedModelMetadata(Collections.singletonList(modelId), parentTaskId, ActionListener.wrap(metadata -> {
                 TrainedModelMetadata modelMetadata = metadata.get(modelId);
                 if (modelMetadata != null) {
                     if (includes.isIncludeTotalFeatureImportance()) {
@@ -607,6 +616,9 @@ public class TrainedModelProvider {
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
             .request();
+        if (parentTaskId != null) {
+            trainedModelConfigSearch.setParentTask(parentTaskId);
+        }
 
         ActionListener<SearchResponse> trainedModelSearchHandler = ActionListener.wrap(modelSearchResponse -> {
             TrainedModelConfig.Builder builder;
@@ -639,7 +651,13 @@ public class TrainedModelProvider {
                 client,
                 ML_ORIGIN,
                 SearchAction.INSTANCE,
-                ChunkedTrainedModelRestorer.buildSearch(client, modelId, InferenceIndexConstants.INDEX_PATTERN, MAX_NUM_DEFINITION_DOCS),
+                ChunkedTrainedModelRestorer.buildSearch(
+                    client,
+                    modelId,
+                    InferenceIndexConstants.INDEX_PATTERN,
+                    MAX_NUM_DEFINITION_DOCS,
+                    parentTaskId
+                ),
                 ActionListener.wrap(definitionSearchResponse -> {
                     try {
                         List<TrainedModelDefinitionDoc> docs = handleHits(
@@ -679,12 +697,14 @@ public class TrainedModelProvider {
         Set<String> modelIds,
         GetTrainedModelsAction.Includes includes,
         boolean allowNoResources,
+        @Nullable TaskId parentTaskId,
         final ActionListener<List<TrainedModelConfig>> finalListener
     ) {
         getTrainedModels(
             modelIds.stream().collect(Collectors.toMap(Function.identity(), _k -> Collections.emptySet())),
             includes,
             allowNoResources,
+            parentTaskId,
             finalListener
         );
     }
@@ -700,6 +720,7 @@ public class TrainedModelProvider {
         Map<String, Set<String>> modelIds,
         GetTrainedModelsAction.Includes includes,
         boolean allowNoResources,
+        @Nullable TaskId parentTaskId,
         final ActionListener<List<TrainedModelConfig>> finalListener
     ) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(
@@ -712,6 +733,9 @@ public class TrainedModelProvider {
             .setQuery(queryBuilder)
             .setSize(modelIds.size())
             .request();
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
         List<TrainedModelConfig.Builder> configs = new ArrayList<>(modelIds.size());
         Set<String> modelsInIndex = Sets.difference(modelIds.keySet(), MODELS_STORED_AS_RESOURCE);
         Set<String> modelsAsResource = Sets.intersection(MODELS_STORED_AS_RESOURCE, modelIds.keySet());
@@ -747,6 +771,7 @@ public class TrainedModelProvider {
             }
             this.getTrainedModelMetadata(
                 modelIds.keySet(),
+                parentTaskId,
                 ActionListener.wrap(metadata -> finalListener.onResponse(modelBuilders.stream().map(builder -> {
                     TrainedModelMetadata modelMetadata = metadata.get(builder.getModelId());
                     if (modelMetadata != null) {
@@ -838,12 +863,31 @@ public class TrainedModelProvider {
         }));
     }
 
+    /**
+     * Returns a Tuple of
+     *  - hit count: the number of matching model Ids
+     *  - Map model id -> aliases: All matched model Ids and
+     *    the list of aliases that reference the model Id
+     *
+     * @param idExpression The expression to expand
+     * @param allowNoResources When wildcard expressions are used allow
+     *                         no matches (don't error)
+     * @param pageParams paging
+     * @param tags Tags the model must contain
+     * @param modelAliasMetadata Aliases
+     * @param parentTaskId Optional parent task Id
+     * @param previouslyMatchedIds Ids that have already been matched (e.g. deployment Id).
+     *                             It is not an error if these Ids are not matched in the query
+     * @param idsListener The listener
+     */
     public void expandIds(
         String idExpression,
         boolean allowNoResources,
         PageParams pageParams,
         Set<String> tags,
         ModelAliasMetadata modelAliasMetadata,
+        @Nullable TaskId parentTaskId,
+        Set<String> previouslyMatchedIds,
         ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener
     ) {
         String[] tokens = Strings.tokenizeToStringArray(idExpression, ",");
@@ -905,6 +949,9 @@ public class TrainedModelProvider {
                 indicesOptions
             )
         ).source(sourceBuilder);
+        if (parentTaskId != null) {
+            searchRequest.setParentTask(parentTaskId);
+        }
 
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -944,6 +991,7 @@ public class TrainedModelProvider {
                 // Reverse lookup to see what model aliases were matched by their found trained model IDs
                 ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                 requiredMatches.filterMatchedIds(matchedTokens);
+                requiredMatches.filterMatchedIds(previouslyMatchedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     idsListener.onFailure(ExceptionsHelper.missingTrainedModel(requiredMatches.unmatchedIdsString()));
                 } else {
@@ -954,12 +1002,15 @@ public class TrainedModelProvider {
         );
     }
 
-    public void getInferenceStats(String[] modelIds, ActionListener<List<InferenceStats>> listener) {
+    public void getInferenceStats(String[] modelIds, @Nullable TaskId parentTaskId, ActionListener<List<InferenceStats>> listener) {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         Arrays.stream(modelIds).map(this::buildStatsSearchRequest).forEach(multiSearchRequest::add);
         if (multiSearchRequest.requests().isEmpty()) {
             listener.onResponse(Collections.emptyList());
             return;
+        }
+        if (parentTaskId != null) {
+            multiSearchRequest.setParentTask(parentTaskId);
         }
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -976,7 +1027,7 @@ public class TrainedModelProvider {
                             continue;
                         }
                         logger.error(
-                            new ParameterizedMessage("[{}] search failed for models", Strings.arrayToCommaDelimitedString(modelIds)),
+                            () -> "[" + Strings.arrayToCommaDelimitedString(modelIds) + "] search failed for models",
                             response.getFailure()
                         );
                         listener.onFailure(
@@ -1046,7 +1097,7 @@ public class TrainedModelProvider {
 
     private InferenceStats handleMultiNodeStatsResponse(SearchResponse response, String modelId) {
         if (response.getAggregations() == null) {
-            logger.trace(() -> new ParameterizedMessage("[{}] no previously stored stats found", modelId));
+            logger.trace(() -> "[" + modelId + "] no previously stored stats found");
             return null;
         }
         Sum failures = response.getAggregations().get(InferenceStats.FAILURE_COUNT.getPreferredName());
@@ -1110,8 +1161,7 @@ public class TrainedModelProvider {
         }
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
                 getClass().getResourceAsStream(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT)
             )
         ) {
@@ -1121,7 +1171,7 @@ public class TrainedModelProvider {
             }
             return builder;
         } catch (IOException ioEx) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), ioEx);
+            logger.error(() -> "[" + modelId + "] failed to parse model definition", ioEx);
             throw ExceptionsHelper.serverError(INFERENCE_FAILED_TO_DESERIALIZE, ioEx, modelId);
         }
     }
@@ -1175,30 +1225,6 @@ public class TrainedModelProvider {
             }
         }
         return Collections.unmodifiableSet(matchedModels);
-    }
-
-    private static <T> T handleSearchItem(
-        MultiSearchResponse.Item item,
-        String resourceId,
-        CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
-    ) throws Exception {
-        return handleSearchItems(item, resourceId, parseLeniently).get(0);
-    }
-
-    // NOTE: This ignores any results that are in a different index than the first one seen in the search response.
-    private static <T> List<T> handleSearchItems(
-        MultiSearchResponse.Item item,
-        String resourceId,
-        CheckedBiFunction<BytesReference, String, T, Exception> parseLeniently
-    ) throws Exception {
-        if (item.isFailure()) {
-            throw item.getFailure();
-        }
-        if (item.getResponse().getHits().getHits().length == 0) {
-            throw new ResourceNotFoundException(resourceId);
-        }
-        return handleHits(item.getResponse().getHits().getHits(), resourceId, parseLeniently);
-
     }
 
     private static <T> List<T> handleHits(
@@ -1258,7 +1284,11 @@ public class TrainedModelProvider {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    stream
+                )
         ) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
 
@@ -1271,7 +1301,7 @@ public class TrainedModelProvider {
             }
             return builder;
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model", e);
             throw e;
         }
     }
@@ -1280,11 +1310,15 @@ public class TrainedModelProvider {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    stream
+                )
         ) {
             return TrainedModelMetadata.fromXContent(parser, true);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model metadata", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model metadata", e);
             throw e;
         }
     }
@@ -1304,10 +1338,7 @@ public class TrainedModelProvider {
         } catch (IOException ex) {
             // This should never happen. If we were able to deserialize the object (from Native or REST) and then fail to serialize it again
             // that is not the users fault. We did something wrong and should throw.
-            throw ExceptionsHelper.serverError(
-                new ParameterizedMessage("Unexpected serialization exception for [{}]", docId).getFormattedMessage(),
-                ex
-            );
+            throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
     }
 }

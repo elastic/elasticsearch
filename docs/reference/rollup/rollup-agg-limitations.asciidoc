@@ -4,6 +4,9 @@
 
 experimental[]
 
+NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
+rollups as a way to reduce your storage costs for time series data.
+
 There are some limitations to how fields can be rolled up / aggregated. This page highlights the major limitations so that
 you are aware of them.
 

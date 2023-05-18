@@ -41,7 +41,7 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
     private static final String UNSIGNED_LONG_FIELD = "test_" + UNSIGNED_LONG_TYPE_NAME.toLowerCase(Locale.ROOT);
 
     private static void createMappedIndex(List<String> fieldsNames) throws IOException {
-        ResultSetTestCase.createIndex("test");
+        ResultSetTestCase.createIndexWithMapping("test");
         ResultSetTestCase.updateMapping("test", builder -> {
             for (String field : fieldsNames) {
                 builder.startObject(field).field("type", field.substring(5)).endObject();

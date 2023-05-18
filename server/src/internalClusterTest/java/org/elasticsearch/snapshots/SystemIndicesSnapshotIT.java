@@ -566,14 +566,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareAliases()
-                .addAlias(systemIndexName, systemIndexAlias)
-                .addAlias(regularIndex, regularAlias)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareAliases().addAlias(systemIndexName, systemIndexAlias).addAlias(regularIndex, regularAlias).get());
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
@@ -708,11 +701,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Stop a random data node so we lose a shard from the partial index
         internalCluster().stopRandomDataNode();
-        assertBusy(
-            () -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertEquals(ClusterHealthStatus.RED, clusterAdmin().prepareHealth().get().getStatus()), 30, TimeUnit.SECONDS);
 
         // Get ready to block
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO_NAME);
@@ -738,10 +727,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertNotNull(snapshotInfo);
             assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
-            List<String> statesInSnapshot = snapshotInfo.featureStates()
-                .stream()
-                .map(SnapshotFeatureInfo::getPluginName)
-                .collect(Collectors.toList());
+            List<String> statesInSnapshot = snapshotInfo.featureStates().stream().map(SnapshotFeatureInfo::getPluginName).toList();
             assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
             assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
         });
@@ -805,10 +791,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertNotNull(snapshotInfo);
         assertThat(snapshotInfo.indices(), not(hasItem(indexToBeDeleted)));
-        List<String> statesInSnapshot = snapshotInfo.featureStates()
-            .stream()
-            .map(SnapshotFeatureInfo::getPluginName)
-            .collect(Collectors.toList());
+        List<String> statesInSnapshot = snapshotInfo.featureStates().stream().map(SnapshotFeatureInfo::getPluginName).toList();
         assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
         assertThat(statesInSnapshot, hasItem((new AnotherSystemIndexTestPlugin()).getFeatureName()));
     }

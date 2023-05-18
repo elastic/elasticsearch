@@ -1,6 +1,0 @@
-pr: 83421
-summary: Reenable `BooleanTermsIT`
-area: Aggregations
-type: bug
-issues:
- - 83351

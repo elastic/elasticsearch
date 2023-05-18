@@ -86,13 +86,13 @@ template>>. <<dynamic-index-settings,Auto-expand replicas>> can also achieve
 the same thing, but it's not necessary to use this feature in such a small
 cluster.
 
-We recommend you set `node.master: false` on one of your two nodes so that it is
-not <<master-node,master-eligible>>. This means you can be certain which of your
+We recommend you set only one of your two nodes to be
+<<master-node,master-eligible>>. This means you can be certain which of your
 nodes is the elected master of the cluster. The cluster can tolerate the loss of
-the other master-ineligible node. If you don't set `node.master: false` on one
-node, both nodes are master-eligible. This means both nodes are required for a
-master election. Since the election will fail if either node is unavailable,
-your cluster cannot reliably tolerate the loss of either node.
+the other master-ineligible node. If you set both nodes to master-eligible, two
+nodes are required for a master election. Since the election will fail if either
+node is unavailable, your cluster cannot reliably tolerate the loss of either
+node.
 
 By default, each node is assigned every role. We recommend you assign both nodes
 all other roles except master eligibility. If one node fails, the other node can
@@ -338,12 +338,16 @@ You should use <<allocation-awareness,shard allocation awareness>> to ensure
 that there is a copy of each shard in each zone. This means either zone remains
 fully available if the other zone fails.
 
-All master-eligible nodes, including voting-only nodes, are on the critical path
-for publishing cluster state updates. Because of this, these nodes require
-reasonably fast persistent storage and a reliable, low-latency network
-connection to the rest of the cluster. If you add a tiebreaker node in a third
-independent zone then you must make sure it has adequate resources and good
-connectivity to the rest of the cluster.
+All master-eligible nodes, including voting-only nodes, are on the critical
+path for <<cluster-state-publishing,publishing cluster state updates>>. Cluster
+state updates are usually independent of performance-critical workloads such as
+indexing or searches, but they are involved in management activities such as
+index creation and rollover, mapping updates, and recovery after a failure. The
+performance characteristics of these activities are a function of the speed of
+the storage on each master-eligible node, as well as the reliability and
+latency of the network interconnections between all nodes in the cluster. You
+must therefore ensure that the storage and networking available to the
+nodes in your cluster are good enough to meet your performance goals.
 
 [[high-availability-cluster-design-three-zones]]
 ==== Clusters with three or more zones

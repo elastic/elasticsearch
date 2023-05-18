@@ -42,11 +42,6 @@ class SingleFieldInjector implements SingleMemberInjector {
     }
 
     @Override
-    public InjectionPoint getInjectionPoint() {
-        return injectionPoint;
-    }
-
-    @Override
     public void inject(Errors errors, InternalContext context, Object o) {
         errors = errors.withSource(dependency);
 

@@ -38,6 +38,7 @@ setup:
   - do:
       ml.delete_job:
         force: true
+        delete_user_annotations: true
         job_id: force-delete-job
   - match: { acknowledged: true }
 

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -33,10 +32,20 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         final long interval,
         final MonitoringDoc.Node node,
         final ShardRouting shardRouting,
-        final String clusterStateUUID
+        final String clusterStateUUID,
+        final int shardIndex
     ) {
 
-        super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
+        super(
+            cluster,
+            timestamp,
+            interval,
+            node,
+            MonitoredSystem.ES,
+            TYPE,
+            id(clusterStateUUID, shardRouting, shardIndex),
+            XCONTENT_FILTERS
+        );
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.clusterStateUUID = Objects.requireNonNull(clusterStateUUID);
     }
@@ -62,9 +71,9 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
     /**
      * Compute an id that has the format:
      *
-     * {state_uuid}:{node_id || '_na'}:{index}:{shard}:{'p' || 'r'}
+     * {state_uuid}:{node_id || '_na'}:{index}:s{shard}:{'p' || 'rX'}
      */
-    public static String id(String stateUUID, ShardRouting shardRouting) {
+    public static String id(String stateUUID, ShardRouting shardRouting, int shardIndex) {
         StringBuilder builder = new StringBuilder();
         builder.append(stateUUID);
         builder.append(':');
@@ -75,18 +84,19 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         }
         builder.append(':');
         builder.append(shardRouting.getIndexName());
-        builder.append(':');
+        builder.append(":s");
         builder.append(Integer.valueOf(shardRouting.id()));
         builder.append(':');
         if (shardRouting.primary()) {
             builder.append("p");
         } else {
             builder.append("r");
+            builder.append(Integer.valueOf(shardIndex));
         }
         return builder.toString();
     }
 
-    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+    public static final Set<String> XCONTENT_FILTERS = Set.of(
         "state_uuid",
         "shard.state",
         "shard.primary",

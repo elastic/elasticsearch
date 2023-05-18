@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -22,13 +21,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 public class FilterRepository implements Repository {
 
@@ -77,7 +75,7 @@ public class FilterRepository implements Repository {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
         in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
@@ -145,15 +143,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void executeConsistentStateUpdate(
-        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
-        String source,
-        Consumer<Exception> onFailure
-    ) {
-        in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
-    }
-
-    @Override
     public void cloneShardSnapshot(
         SnapshotId source,
         SnapshotId target,
@@ -177,11 +166,6 @@ public class FilterRepository implements Repository {
     @Override
     public void addLifecycleListener(LifecycleListener listener) {
         in.addLifecycleListener(listener);
-    }
-
-    @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        in.removeLifecycleListener(listener);
     }
 
     @Override

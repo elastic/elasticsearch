@@ -187,7 +187,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return Float.parseFloat(fuzziness);
     }
 
-    private int termLen(String text) {
+    private static int termLen(String text) {
         return text == null ? 5 : text.codePointCount(0, text.length()); // 5 avg term length in english
     }
 

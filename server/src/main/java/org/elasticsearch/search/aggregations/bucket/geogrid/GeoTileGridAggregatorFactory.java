@@ -98,20 +98,17 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 aggregationContext,
                 parent,
                 cardinality,
-                metadata) -> {
-                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox);
-                return new GeoTileGridAggregator(
+                metadata) -> new GeoTileGridAggregator(
                     name,
                     factories,
-                    cellIdSource,
+                    cb -> new GeoTileCellIdSource((ValuesSource.GeoPoint) valuesSource, precision, geoBoundingBox, cb),
                     requiredSize,
                     shardSize,
                     aggregationContext,
                     parent,
                     cardinality,
                     metadata
-                );
-            },
+                ),
             true
         );
     }

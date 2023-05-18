@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -57,21 +56,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged() == false) {
-                        String policyName = indexMetadata.getLifecyclePolicyName();
-                        throw new ElasticsearchException(
-                            "cleanup snapshot step request for repository ["
-                                + repositoryName
-                                + "] and snapshot "
-                                + "["
-                                + snapshotName
-                                + "] policy ["
-                                + policyName
-                                + "] and index ["
-                                + indexName
-                                + "] failed to be acknowledged"
-                        );
-                    }
+                    assert acknowledgedResponse.isAcknowledged();
                     listener.onResponse(null);
                 }
 

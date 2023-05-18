@@ -134,11 +134,62 @@ final class DfsQueryPhase extends SearchPhase {
     // package private for testing
     ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
         SearchSourceBuilder source = request.source();
-        if (source == null || source.knnSearch().isEmpty()) {
+        if (source == null) {
+            return request;
+        }
+        boolean usesRank = source.rankBuilder() != null;
+        boolean hasQueries = source.queries().isEmpty() == false;
+        if (source.knnSearch().isEmpty()) {
+            if (hasQueries && usesRank == false) {
+                source.queries(List.of());
+            }
             return request;
         }
 
-        if (source.rankBuilder() == null) {
+        BoolQueryBuilder boolQueryBuilder;
+        List<SearchQueryBuilder> searchQueryBuilders;
+
+        if (hasQueries) {
+            boolQueryBuilder = (BoolQueryBuilder) source.query();
+            searchQueryBuilders = source.queries();
+        } else {
+            boolQueryBuilder = new BoolQueryBuilder();
+            searchQueryBuilders = new ArrayList<>();
+
+            if (source.query() != null) {
+                boolQueryBuilder.should(source.query());
+
+                if (usesRank) {
+                    searchQueryBuilders.add(new SearchQueryBuilder(source.query()));
+                }
+            }
+
+            source = source.shallowCopy();
+            source.query(boolQueryBuilder);
+            source.queries(searchQueryBuilders);
+            request.source(source);
+        }
+
+        for (DfsKnnResults dfsKnnResults : knnResults) {
+            List<ScoreDoc> scoreDocs = new ArrayList<>();
+            for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
+                if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                    scoreDocs.add(scoreDoc);
+                }
+            }
+            scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+            KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+
+            if (usesRank) {
+                searchQueryBuilders.add(new SearchQueryBuilder(knnQuery));
+            }
+
+            boolQueryBuilder.should(knnQuery);
+        }
+
+        source.knnSearch(List.of());
+
+        /*if (source.rankBuilder() == null) {
             // this path will use linear combination if there are
             // multiple knn queries to combine all knn queries into
             // a single query per shard
@@ -206,7 +257,7 @@ final class DfsQueryPhase extends SearchPhase {
 
             SearchSourceBuilder newSource = source.shallowCopy().query(searchQuery).queries(searchQueryBuilders).knnSearch(List.of());
             request.source(newSource);
-        }
+        }*/
 
         return request;
     }

@@ -13,14 +13,18 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -126,6 +130,22 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+        if (request.source().queries().isEmpty() == false) {
+            BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+            for (SearchQueryBuilder searchQueryBuilder : request.source().queries()) {
+                boolQueryBuilder.should(searchQueryBuilder.getQueryBuilder());
+            }
+
+            SearchSourceBuilder searchSourceBuilder = request.source().shallowCopy();
+            searchSourceBuilder.query(boolQueryBuilder);
+
+            if (request.source().rankBuilder() == null) {
+                searchSourceBuilder.queries(List.of());
+            }
+
+            request.source(searchSourceBuilder);
+        }
+
         if (bottomSortCollector == null) {
             return request;
         }

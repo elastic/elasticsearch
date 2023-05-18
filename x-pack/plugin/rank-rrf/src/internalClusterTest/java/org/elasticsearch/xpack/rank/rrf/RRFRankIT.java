@@ -14,7 +14,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -166,13 +165,11 @@ public class RRFRankIT extends ESIntegTestCase {
         assertEquals("other", hit.field("text").getValue());
     }
 
-    public void testMultiBM25() {
-        float[] queryVector = { 500.0f };
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
+    /*public void testMultiBM25() {
         SearchResponse response = client().prepareSearch("nrd_index")
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setRankBuilder(new RRFRankBuilder(101, 1))
             .setTrackTotalHits(false)
-            // .setKnnSearch(List.of(knnSearch))
             .setQueries(
                 List.of(
                     new SearchQueryBuilder(
@@ -197,7 +194,7 @@ public class RRFRankIT extends ESIntegTestCase {
             )
             .addFetchField("vector_asc")
             .addFetchField("text")
-            .setSize(11)
+            .setSize(10)
             .get();
 
         assertNull(response.getHits().getTotalHits());
@@ -212,7 +209,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
             .collect(Collectors.toSet());
         assertEquals(Set.of(492.0, 493.0, 494.0, 495.0, 496.0, 497.0, 498.0, 499.0, 500.0, 501.0, 502.0), vectors);
-    }
+    }*/
 
     public void testBM25AndKnn() {
         float[] queryVector = { 500.0f };

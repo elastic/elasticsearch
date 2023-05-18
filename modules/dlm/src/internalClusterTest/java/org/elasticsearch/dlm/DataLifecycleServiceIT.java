@@ -541,7 +541,16 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 // error stores don't contain anything for the first generation index anymore
                 Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
                 for (DataLifecycleService lifecycleService : lifecycleServices) {
-                    assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
+                    if (internalCluster().numDataNodes() > 1) {
+                        assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
+                    } else {
+                        if (lifecycleService.getErrorStore().getError(firstGenerationIndex) != null) {
+                            assertThat(
+                                lifecycleService.getErrorStore().getError(firstGenerationIndex),
+                                containsString("Force merge request only had 1 successful shards out of a total of 2")
+                            );
+                        }
+                    }
                 }
             });
         } finally {

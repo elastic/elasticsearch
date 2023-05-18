@@ -201,7 +201,8 @@ public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory 
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), null, context, parent, metadata);
+        final InternalCardinality empty = InternalCardinality.empty(name, metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

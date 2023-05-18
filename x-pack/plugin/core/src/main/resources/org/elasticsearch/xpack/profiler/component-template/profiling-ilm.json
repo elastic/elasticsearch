@@ -1,0 +1,12 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "lifecycle": {
+          "name": "profiling"
+        }
+      }
+    }
+  },
+  "version": ${xpack.profiling.template.version}
+}

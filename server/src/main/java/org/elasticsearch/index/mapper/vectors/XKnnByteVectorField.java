@@ -8,17 +8,16 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-/**
- * This class extends {@link org.apache.lucene.document.KnnByteVectorField}
- * with a single goal to override the Lucene's limit of max vector dimensions,
- * and set it to {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMENSIONS}
- */
-
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 
+/**
+ * This class extends {@link org.apache.lucene.document.KnnByteVectorField}
+ * with a single goal to override the Lucene's limit of max vector dimensions,
+ * and set it to {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper#MAX_DIMS_COUNT}
+ */
 public class XKnnByteVectorField extends KnnByteVectorField {
 
     private static FieldType createType(byte[] v, VectorSimilarityFunction similarityFunction) {

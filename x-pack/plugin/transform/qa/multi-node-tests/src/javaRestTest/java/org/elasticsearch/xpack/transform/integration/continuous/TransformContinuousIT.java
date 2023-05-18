@@ -436,7 +436,7 @@ public class TransformContinuousIT extends TransformRestTestCase {
 
     private void stopTransforms() throws IOException {
         for (ContinuousTestCase testCase : transformTestCases) {
-            stopTransform(testCase.getName(), true, null, false);
+            stopTransform(testCase.getName());
         }
     }
 

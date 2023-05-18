@@ -104,9 +104,9 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                 log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
-                // Apart from profiling-events-all, indices are created lazily. In a relatively empty cluster it can happen
-                // that there are so few data that we need to resort to the full index. As this is an edge case we'd rather
-                // fail instead of prematurely checking for existence in all cases.
+                // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
+                // data that we need to resort to the "full" events stream. As this is an edge case we'd rather fail instead of prematurely
+                // checking for existence in all cases.
                 if (e instanceof IndexNotFoundException) {
                     String missingIndex = ((IndexNotFoundException) e).getIndex().getName();
                     EventsIndex fullIndex = EventsIndex.FULL_INDEX;
@@ -163,7 +163,15 @@ public class TransportGetProfilingAction extends HandledTransportAction<GetProfi
                 } else {
                     submitListener.onResponse(responseBuilder.build());
                 }
-            }, submitListener::onFailure));
+            }, e -> {
+                // Data streams are created lazily; if even the "full" index does not exist no data have been indexed yet.
+                if (e instanceof IndexNotFoundException) {
+                    log.debug("Index [{}] does not exist. Returning empty response.", ((IndexNotFoundException) e).getIndex());
+                    submitListener.onResponse(responseBuilder.build());
+                } else {
+                    submitListener.onFailure(e);
+                }
+            }));
     }
 
     private void retrieveStackTraces(

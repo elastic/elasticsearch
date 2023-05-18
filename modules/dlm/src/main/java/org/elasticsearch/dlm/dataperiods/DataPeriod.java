@@ -19,34 +19,36 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * This class contains the data period configuration for one data stream name pattern. A data period is defined as the minimum time
  * period during which the data (practically a backing index) will have the respective property. Currently, either the least amount of time
  * it's going to be interactive or retained.
- * @param namePattern The name pattern has to be a suffix regex of a data stream name.
+ * @param namePatterns The name patterns have to be a preffix of a data stream name.
  * @param interactivity The minimum amount of time that a backing index is going to be interactive.
  * @param retention The minimum amount of time that a backing index is going to be retained.
  * @param priority The priority of this data period. If there are multiple patterns matching the same data stream name
  *                 the one with the higher priority will be applied.
  */
-public record DataPeriod(String namePattern, @Nullable TimeValue interactivity, @Nullable TimeValue retention, int priority)
+public record DataPeriod(List<String> namePatterns, @Nullable TimeValue interactivity, @Nullable TimeValue retention, int priority)
     implements
         ToXContentObject {
 
-    public static final ParseField NAME_PATTERN_FIELD = new ParseField("name_pattern");
-    public static final ParseField INTERACTIVE_FIELD = new ParseField("interactive");
-    public static final ParseField RETENTION_FIELD = new ParseField("retention");
+    public static final ParseField NAME_PATTERNS_FIELD = new ParseField("name_patterns");
+    public static final ParseField INTERACTIVE_FIELD = new ParseField("interactive_for");
+    public static final ParseField RETENTION_FIELD = new ParseField("retained_for");
     private static final ParseField PRIORITY_FIELD = new ParseField("priority");
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataPeriod, Void> PARSER = new ConstructingObjectParser<>(
         "data_period",
         false,
-        (args, unused) -> new DataPeriod((String) args[0], (TimeValue) args[1], (TimeValue) args[2], (int) args[3])
+        (args, unused) -> new DataPeriod((List<String>) args[0], (TimeValue) args[1], (TimeValue) args[2], (int) args[3])
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_PATTERN_FIELD);
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), NAME_PATTERNS_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), INTERACTIVE_FIELD.getPreferredName()),
@@ -62,12 +64,13 @@ public record DataPeriod(String namePattern, @Nullable TimeValue interactivity, 
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), PRIORITY_FIELD);
     }
 
-    public DataPeriod(String namePattern, TimeValue interactivity, TimeValue retention, int priority) {
-        if (isSupportedPattern(namePattern) == false) {
+    public DataPeriod(List<String> namePatterns, TimeValue interactivity, TimeValue retention, int priority) {
+        List<String> unsupported = namePatterns.stream().filter(namePattern -> isSupportedPattern(namePattern) == false).toList();
+        if (unsupported.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "Name pattern '"
-                    + namePattern
-                    + "' does not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
+                "Name patterns '"
+                    + unsupported
+                    + "' do not match the allowed pattern styles: \"xxx*\", \"*\" or a concrete data stream name"
             );
         }
         if (interactivity != null && retention != null) {
@@ -84,7 +87,7 @@ public record DataPeriod(String namePattern, @Nullable TimeValue interactivity, 
         if (priority < 0) {
             throw new IllegalArgumentException("Data period cannot have negative priority.");
         }
-        this.namePattern = namePattern;
+        this.namePatterns = namePatterns.stream().sorted().toList();
         this.interactivity = interactivity;
         this.retention = retention;
         this.priority = priority;
@@ -97,7 +100,7 @@ public record DataPeriod(String namePattern, @Nullable TimeValue interactivity, 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(NAME_PATTERN_FIELD.getPreferredName(), namePattern);
+        builder.array(NAME_PATTERNS_FIELD.getPreferredName(), namePatterns);
         if (interactivity != null) {
             builder.field(INTERACTIVE_FIELD.getPreferredName(), interactivity.getStringRep());
         }
@@ -115,13 +118,17 @@ public record DataPeriod(String namePattern, @Nullable TimeValue interactivity, 
     }
 
     public boolean match(String name) {
-        if (namePattern.equals("*")) {
+        return namePatterns.stream().anyMatch(this::match);
+    }
+
+    public boolean match(String pattern, String name) {
+        if (pattern.equals("*")) {
             return true;
         }
-        if (namePattern.contains("*")) {
-            return name.startsWith(namePattern.substring(0, namePattern.length() - 1));
+        if (pattern.contains("*")) {
+            return name.startsWith(pattern.substring(0, pattern.length() - 1));
         }
-        return name.equals(namePattern);
+        return name.equals(pattern);
     }
 
     private boolean isSupportedPattern(String namePattern) {

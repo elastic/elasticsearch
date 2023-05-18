@@ -65,11 +65,11 @@ public class DefaultDataPeriodsTests extends AbstractXContentTestCase<DefaultDat
             defaultDataPeriods.getDataPeriods(),
             equalTo(
                 List.of(
-                    new DataPeriod(".logs-short-*", TimeValue.timeValueDays(7), TimeValue.timeValueDays(7), 500),
-                    new DataPeriod("my-short-lived-data-stream-*", TimeValue.timeValueDays(7), TimeValue.timeValueDays(14), 500),
-                    new DataPeriod("not-interactive", null, TimeValue.timeValueDays(365), 500),
-                    new DataPeriod(".logs-*", TimeValue.timeValueDays(7), TimeValue.timeValueDays(90), 200),
-                    new DataPeriod("*", TimeValue.timeValueDays(7), null, 0)
+                    new DataPeriod(List.of(".logs-short-*"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(7), 500),
+                    new DataPeriod(List.of("my-short-lived-data-stream-*"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(14), 500),
+                    new DataPeriod(List.of("not-interactive"), null, TimeValue.timeValueDays(365), 500),
+                    new DataPeriod(List.of(".logs-*"), TimeValue.timeValueDays(7), TimeValue.timeValueDays(90), 200),
+                    new DataPeriod(List.of("*"), TimeValue.timeValueDays(7), null, 0)
                 )
             )
         );
@@ -77,9 +77,9 @@ public class DefaultDataPeriodsTests extends AbstractXContentTestCase<DefaultDat
 
     public void testInvalidOrder() {
         List<DataPeriod> dataPeriods = List.of(
-            new DataPeriod("*", null, null, 10),
-            new DataPeriod("unreachable*", null, null, 20),
-            new DataPeriod("unreachable", null, null, 1)
+            new DataPeriod(List.of("*"), null, null, 10),
+            new DataPeriod(List.of("unreachable*"), null, null, 20),
+            new DataPeriod(List.of("unreachable"), null, null, 1)
         );
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> new DefaultDataPeriods(dataPeriods));
         assertThat(

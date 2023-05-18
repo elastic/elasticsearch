@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -25,7 +26,7 @@ public class DataPeriodTests extends AbstractXContentTestCase<DataPeriod> {
 
     static DataPeriod randomDataPeriod() {
         return new DataPeriod(
-            randomAlphaOfLength(10) + "*",
+            List.of(randomAlphaOfLength(10) + "*"),
             randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(1, 10)) : null,
             randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(30, 365)) : null,
             randomNonNegativeInt()
@@ -44,7 +45,10 @@ public class DataPeriodTests extends AbstractXContentTestCase<DataPeriod> {
 
     public void testInvalidDataPeriods() {
         {
-            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> new DataPeriod("*-logs", null, null, 0));
+            IllegalArgumentException error = expectThrows(
+                IllegalArgumentException.class,
+                () -> new DataPeriod(List.of("*-logs"), null, null, 0)
+            );
             assertThat(
                 error.getMessage(),
                 containsString(
@@ -55,7 +59,7 @@ public class DataPeriodTests extends AbstractXContentTestCase<DataPeriod> {
         {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataPeriod("logs-*-suffix", null, null, 0)
+                () -> new DataPeriod(List.of("logs-*-suffix"), null, null, 0)
             );
             assertThat(
                 error.getMessage(),
@@ -67,14 +71,14 @@ public class DataPeriodTests extends AbstractXContentTestCase<DataPeriod> {
         {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataPeriod("logs-*", TimeValue.timeValueDays(10), TimeValue.timeValueDays(1), 0)
+                () -> new DataPeriod(List.of("logs-*"), TimeValue.timeValueDays(10), TimeValue.timeValueDays(1), 0)
             );
             assertThat(error.getMessage(), containsString("The interactivity period of your data "));
         }
         {
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
-                () -> new DataPeriod("logs-*", TimeValue.timeValueDays(10), null, -1)
+                () -> new DataPeriod(List.of("logs-*"), TimeValue.timeValueDays(10), null, -1)
             );
             assertThat(error.getMessage(), containsString("Data period cannot have negative priority."));
         }

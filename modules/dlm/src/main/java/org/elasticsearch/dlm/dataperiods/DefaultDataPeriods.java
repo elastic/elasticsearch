@@ -67,7 +67,7 @@ public class DefaultDataPeriods implements ToXContentObject {
 
     public DefaultDataPeriods(List<DataPeriod> input) {
         this.dataPeriods = input.stream()
-            .sorted(Comparator.comparing(DataPeriod::namePattern))
+            .sorted(Comparator.comparing(patterns -> patterns.namePatterns().get(0)))
             .sorted(Comparator.comparingInt(DataPeriod::priority).reversed())
             .toList();
         validateNamePatterns(dataPeriods);
@@ -75,15 +75,16 @@ public class DefaultDataPeriods implements ToXContentObject {
 
     private void validateNamePatterns(List<DataPeriod> dataPeriods) {
         Map<String, List<String>> unreachableNamePatterns = new HashMap<>();
-        for (int periodToValidateIndex = 1; periodToValidateIndex < dataPeriods.size(); periodToValidateIndex++) {
-            DataPeriod periodToValidate = dataPeriods.get(periodToValidateIndex);
-            String patternPrefixToValidate = periodToValidate.namePattern().contains("*")
-                ? periodToValidate.namePattern().substring(0, periodToValidate.namePattern().length() - 1)
-                : periodToValidate.namePattern();
-            for (int precedingRegexIndex = periodToValidateIndex - 1; precedingRegexIndex >= 0; precedingRegexIndex--) {
-                if (dataPeriods.get(precedingRegexIndex).match(patternPrefixToValidate)) {
-                    unreachableNamePatterns.computeIfAbsent(periodToValidate.namePattern(), ignored -> new ArrayList<>())
-                        .add(dataPeriods.get(precedingRegexIndex).namePattern());
+        for (int patternsToValidateIndex = 1; patternsToValidateIndex < dataPeriods.size(); patternsToValidateIndex++) {
+            DataPeriod patternsToValidate = dataPeriods.get(patternsToValidateIndex);
+            for (String pattern : patternsToValidate.namePatterns()) {
+                String patternPrefixToValidate = pattern.contains("*") ? pattern.substring(0, pattern.length() - 1) : pattern;
+                for (int precedingRegexIndex = patternsToValidateIndex - 1; precedingRegexIndex >= 0; precedingRegexIndex--) {
+                    for (String regex : dataPeriods.get(precedingRegexIndex).namePatterns()) {
+                        if (dataPeriods.get(precedingRegexIndex).match(regex, patternPrefixToValidate)) {
+                            unreachableNamePatterns.computeIfAbsent(pattern, ignored -> new ArrayList<>()).add(regex);
+                        }
+                    }
                 }
             }
         }

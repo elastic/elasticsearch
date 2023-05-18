@@ -130,7 +130,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
-        if (request.source().queries().isEmpty() == false) {
+        if (request.source() != null && request.source().queries().isEmpty() == false) {
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
             for (SearchQueryBuilder searchQueryBuilder : request.source().queries()) {
                 boolQueryBuilder.should(searchQueryBuilder.getQueryBuilder());

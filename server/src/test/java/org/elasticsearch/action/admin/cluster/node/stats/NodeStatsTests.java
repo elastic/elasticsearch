@@ -294,12 +294,9 @@ public class NodeStatsTests extends ESTestCase {
                         deserializedNodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies()
                     );
                 }
-                if (nodeStats.getHttp() == null) {
-                    assertNull(deserializedNodeStats.getHttp());
-                } else {
-                    assertEquals(nodeStats.getHttp().getServerOpen(), deserializedNodeStats.getHttp().getServerOpen());
-                    assertEquals(nodeStats.getHttp().getTotalOpen(), deserializedNodeStats.getHttp().getTotalOpen());
-                }
+
+                assertEquals(nodeStats.getHttp(), deserializedNodeStats.getHttp());
+
                 if (nodeStats.getBreaker() == null) {
                     assertNull(deserializedNodeStats.getBreaker());
                 } else {
@@ -706,7 +703,7 @@ public class NodeStatsTests extends ESTestCase {
             .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         ShardPath shardPath = new ShardPath(false, path, path, shardRouting.shardId());
-        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null, false, 0);
+        return new ShardStats(shardRouting, shardPath, createShardLevelCommonStats(), null, null, null);
     }
 
     public static NodeStats createNodeStats() {
@@ -924,7 +921,7 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(clientStats, randomNonNegativeLong(), randomNonNegativeLong());
+            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats);
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

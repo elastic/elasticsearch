@@ -117,9 +117,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
             CommonStats.getShardLevelStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
             null,
             null,
-            null,
-            false,
-            0
+            null
         );
         ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse(
             TestDiscoveryNode.create("id"),

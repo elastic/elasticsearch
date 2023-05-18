@@ -70,7 +70,9 @@ public class SearchShardIteratorTests extends ESTestCase {
             List.of(nodeId),
             originalIndices,
             null,
-            null
+            null,
+            false,
+            false
         );
         final SearchShardTarget searchShardTarget = searchShardIterator.nextOrNull();
         assertNotNull(searchShardTarget);
@@ -89,7 +91,9 @@ public class SearchShardIteratorTests extends ESTestCase {
                 s.getTargetNodeIds(),
                 s.getOriginalIndices(),
                 s.getSearchContextId(),
-                s.getSearchContextKeepAlive()
+                s.getSearchContextKeepAlive(),
+                s.prefiltered(),
+                s.skip()
             ),
             s -> {
                 if (randomBoolean()) {
@@ -105,7 +109,9 @@ public class SearchShardIteratorTests extends ESTestCase {
                         s.getTargetNodeIds(),
                         s.getOriginalIndices(),
                         s.getSearchContextId(),
-                        s.getSearchContextKeepAlive()
+                        s.getSearchContextKeepAlive(),
+                        s.prefiltered(),
+                        s.skip()
                     );
                 } else {
                     ShardId shardId = new ShardId(
@@ -119,7 +125,9 @@ public class SearchShardIteratorTests extends ESTestCase {
                         s.getTargetNodeIds(),
                         s.getOriginalIndices(),
                         s.getSearchContextId(),
-                        s.getSearchContextKeepAlive()
+                        s.getSearchContextKeepAlive(),
+                        s.prefiltered(),
+                        s.skip()
                     );
                 }
             }
@@ -186,7 +194,9 @@ public class SearchShardIteratorTests extends ESTestCase {
             shardIterator1.getTargetNodeIds(),
             shardIterator1.getOriginalIndices(),
             shardIterator1.getSearchContextId(),
-            shardIterator1.getSearchContextKeepAlive()
+            shardIterator1.getSearchContextKeepAlive(),
+            shardIterator1.prefiltered(),
+            shardIterator1.skip()
         );
         assertEquals(shardIterator1, shardIterator2);
         assertEquals(0, shardIterator1.compareTo(shardIterator2));

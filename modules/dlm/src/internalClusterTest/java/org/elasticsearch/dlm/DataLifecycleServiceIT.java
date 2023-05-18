@@ -381,7 +381,6 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             .count();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96070")
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
         DataLifecycle lifecycle = new DataLifecycle();
@@ -452,7 +451,16 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
             Iterable<DataLifecycleService> lifecycleServices = internalCluster().getInstances(DataLifecycleService.class);
 
             for (DataLifecycleService lifecycleService : lifecycleServices) {
-                assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
+                if (internalCluster().numDataNodes() > 1) {
+                    assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
+                } else {
+                    if (lifecycleService.getErrorStore().getError(previousWriteInddex) != null) {
+                        assertThat(
+                            lifecycleService.getErrorStore().getError(previousWriteInddex),
+                            containsString("Force merge request only had 1 successful shards out of a total of 2")
+                        );
+                    }
+                }
             }
         });
     }

@@ -1,5 +1,5 @@
 pr: 96213
 summary: Search idle info transport version bump
-area: "TSDB, Search"
+area: "Search"
 type: enhancement
 issues: []

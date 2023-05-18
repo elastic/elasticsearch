@@ -134,14 +134,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         // try to determine if this cluster has completed its search in order to update the 'successful' counter in the Clusters object
         // used for async CCS minimizeRoundtrips scenario to update a user on search status while it is still running
-        if (clusterHasLikelyFinished(totalShards, successfulShards, skippedShards, shardFailures.length, clusters)) {
-            this.clusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
-            logger.warn("QQQ SearchResponse ctor. Updating clusters to {}", this.clusters);
-        } else {
-            this.clusters = clusters;
-            logger.warn("QQQ SearchResponse ctor. NOT Updating clusters: {}", this.clusters);
-        }
+        // if (clusterHasLikelyFinished(totalShards, successfulShards, skippedShards, shardFailures.length, clusters)) {
+        // this.clusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
+        // logger.warn("QQQ SearchResponse ctor. Updating clusters to {}", this.clusters);
+        // } else {
+        // this.clusters = clusters;
+        // logger.warn("QQQ SearchResponse ctor. NOT Updating clusters: {}", this.clusters);
+        // }
         /// MP DEBUG
+        this.clusters = clusters;
+        logger.warn("QQQ SearchResponse ctor. NOT Updating clusters: {}", this.clusters);
         try {
             throw new RuntimeException("QQQ SearchResponse ctor");
         } catch (RuntimeException e) {
@@ -149,24 +151,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
         /// MP END DEBUG
 
-
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
-    }
-
-    private static boolean clusterHasLikelyFinished(
-        int totalShards,
-        int successfulShards,
-        int skippedShards,
-        int failedShards,
-        Clusters clusters
-    ) {
-        return clusters != null  // should never be null for CCS minimizeRoundtrips scenario
-            && clusters.equals(Clusters.EMPTY) == false  // EMPTY is often used as a placeholder (not used for CCS minimizeRoundtrips)
-            && totalShards == (successfulShards + skippedShards + failedShards) // if all shards are now accounted for (none pending)
-            // ensure that incrementing the 'successful' count will not cause successful+skipped to be larger than total
-            && clusters.getTotal() - (clusters.getSuccessful() + clusters.getSkipped()) > 0;
     }
 
     public RestStatus status() {

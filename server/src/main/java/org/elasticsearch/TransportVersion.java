@@ -123,12 +123,13 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_000 = registerTransportVersion(8_500_000, "dc3cbf06-3ed5-4e1b-9978-ee1d04d235bc");
     public static final TransportVersion V_8_500_001 = registerTransportVersion(8_500_001, "c943cfe5-c89d-4eae-989f-f5f4537e84e0");
     public static final TransportVersion V_8_500_002 = registerTransportVersion(8_500_002, "055dd314-ff40-4313-b4c6-9fccddfa42a8");
+    public static final TransportVersion V_8_500_003 = registerTransportVersion(8_500_003, "30adbe0c-8614-40dd-81b5-44e9c657bb77");
 
     /**
      * Reference to the most recent transport version.
      * This should be the transport version with the highest id.
      */
-    public static final TransportVersion CURRENT = V_8_500_002;
+    public static final TransportVersion CURRENT = V_8_500_003;
 
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.

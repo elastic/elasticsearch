@@ -636,6 +636,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(type)
                 .setTargetNodeName(targetNodeName)
+                .setGracePeriod(
+                    type == SingleNodeShutdownMetadata.Type.SIGTERM ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()) : null
+                )
                 .build();
             shutdowns.put(shutdown.getNodeId(), shutdown);
         }
@@ -657,6 +660,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .setType(type)
+                .setGracePeriod(
+                    type == SingleNodeShutdownMetadata.Type.SIGTERM ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()) : null
+                )
                 .build();
             shutdowns.put(shutdown.getNodeId(), shutdown);
 

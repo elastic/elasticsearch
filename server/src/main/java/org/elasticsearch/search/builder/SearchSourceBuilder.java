@@ -218,7 +218,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         minScore = in.readOptionalFloat();
         postQueryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_002)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
             searchQueryBuilders = in.readList(SearchQueryBuilder::new);
         }
         if (in.readBoolean()) {
@@ -288,7 +288,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
         out.writeOptionalNamedWriteable(queryBuilder);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_002)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_500_004)) {
             out.writeList(searchQueryBuilders);
         } else if (searchQueryBuilders.isEmpty() == false) {
             throw new IllegalArgumentException("cannot serialize [queries] to version [" + out.getTransportVersion() + "]");

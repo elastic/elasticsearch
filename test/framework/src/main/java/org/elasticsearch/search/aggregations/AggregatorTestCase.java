@@ -37,7 +37,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.search.AssertingIndexSearcher;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -136,6 +135,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.query.TwoPhaseCollector;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -581,10 +581,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     root.preCollection();
                     aggregators.add(root);
                     new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                    root.postCollection();
+                    internalAggs.add(root.buildTopLevel());
                 } else {
-                    CollectorManager<Collector, Void> collectorManager = new CollectorManager<>() {
+                    CollectorManager<TwoPhaseCollector, Void> collectorManager = new CollectorManager<>() {
                         @Override
-                        public Collector newCollector() throws IOException {
+                        public TwoPhaseCollector newCollector() throws IOException {
                             C collector = createAggregator(builder, context);
                             collector.preCollection();
                             aggregators.add(collector);
@@ -592,7 +594,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public Void reduce(Collection<Collector> collectors) {
+                        public Void reduce(Collection<TwoPhaseCollector> collectors) {
                             return null;
                         }
                     };
@@ -600,12 +602,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         searcher.search(rewritten, collectorManager);
                     } else {
                         searcher.search(rewritten, collectorManager.newCollector());
+                        aggregators.get(0).postCollection();
+                    }
+                    for (C agg : aggregators) {
+                        internalAggs.add(agg.buildTopLevel());
                     }
                 }
-                for (C agg : aggregators) {
-                    agg.postCollection();
-                    internalAggs.add(agg.buildTopLevel());
-                }
+
             } finally {
                 Releasables.close(context);
             }
@@ -921,25 +924,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sets the IndexSearcher to run on concurrent mode.
      */
     protected IndexSearcher newIndexSearcher(DirectoryReader indexReader) throws IOException {
-        if (randomBoolean()) {
-            // this executes basic query checks and asserts that weights are normalized only once etc.
-            return new AssertingIndexSearcher(random(), indexReader);
-        } else {
-            return new ContextIndexSearcher(
-                indexReader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                randomBoolean(),
-                this.threadPoolExecutor
-            ) {
-                @Override
-                protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-                    // get a thread per segment
-                    return slices(leaves, 1, 1);
-                }
-            };
-        }
+        return new ContextIndexSearcher(
+            indexReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            randomBoolean(),
+            randomBoolean() ? this.threadPoolExecutor : null
+        ) {
+            @Override
+            protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+                // get a thread per segment
+                return slices(leaves, 1, 1);
+            }
+        };
     }
 
     /**

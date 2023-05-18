@@ -1,30 +1,30 @@
-[[cluster-https-stats]]
-=== HTTP stats API
+[[cluster-info-http]]
+=== Cluster Info HTTP API
 ++++
-<titleabbrev>HTTP stats</titleabbrev>
+<titleabbrev>Cluster HTTP Info</titleabbrev>
 ++++
 
-Returns cluster HTTP statistics.
+Returns cluster HTTP information.
 
-[[cluster-http-stats-api-request]]
+[[cluster-info-http-api-request]]
 ==== {api-request-title}
 
 `GET /_info/http` +
 
-[[cluster-http-stats-api-prereqs]]
+[[cluster-info-http-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 
-[[cluster-http-stats-api-desc]]
+[[cluster-info-http-api-desc]]
 ==== {api-description-title}
 
-You can use the cluster HTTP stats API to retrieve https statistics in a cluster.
+You can use the Cluster Info HTTP API to retrieve http information in a cluster.
 
 [role="child_attributes"]
-[[cluster-http-stats-api-response-body]]
+[[cluster-info-http-api-response-body]]
 ==== {api-response-body-title}
 
 `cluster_name`::
@@ -32,7 +32,7 @@ You can use the cluster HTTP stats API to retrieve https statistics in a cluster
 Name of the cluster. Based on the <<cluster-name>> setting.
 
 
-[[cluster-http-stats-api-response-body-http]]
+[[cluster-info-http-api-response-body-http]]
 `http`::
 (object)
 Contains http statistics for the cluster.
@@ -111,11 +111,11 @@ Cumulative size in bytes of all requests from this client.
 ======
 
 
-[[cluster-http-stats-api-example]]
+[[cluster-info-http-api-example]]
 ==== {api-examples-title}
 
 [source,console]
 ----
-# returns the http stats of the cluster
+# returns the http info of the cluster
 GET /_info/http
 ----

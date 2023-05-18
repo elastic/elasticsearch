@@ -475,10 +475,7 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(ingestStats.pipelineStats().size(), deserializedIngestStats.pipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.pipelineStats()) {
                         String pipelineId = pipelineStat.pipelineId();
-                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(
-                            deserializedIngestStats.pipelineStats(),
-                            pipelineId
-                        );
+                        IngestStats.Stats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.pipelineStats(), pipelineId);
                         assertEquals(pipelineStat.stats().ingestFailedCount(), deserializedPipelineStats.ingestFailedCount());
                         assertEquals(pipelineStat.stats().ingestTimeInMillis(), deserializedPipelineStats.ingestTimeInMillis());
                         assertEquals(pipelineStat.stats().ingestCurrent(), deserializedPipelineStats.ingestCurrent());
@@ -488,18 +485,12 @@ public class NodeStatsTests extends ESTestCase {
                         Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.processorStats().get(pipelineId).iterator();
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
-                            assertEquals(
-                                processorStat.stats().ingestFailedCount(),
-                                deserializedProcessorStat.stats().ingestFailedCount()
-                            );
+                            assertEquals(processorStat.stats().ingestFailedCount(), deserializedProcessorStat.stats().ingestFailedCount());
                             assertEquals(
                                 processorStat.stats().ingestTimeInMillis(),
                                 deserializedProcessorStat.stats().ingestTimeInMillis()
                             );
-                            assertEquals(
-                                processorStat.stats().ingestCurrent(),
-                                deserializedProcessorStat.stats().ingestCurrent()
-                            );
+                            assertEquals(processorStat.stats().ingestCurrent(), deserializedProcessorStat.stats().ingestCurrent());
                             assertEquals(processorStat.stats().ingestCount(), deserializedProcessorStat.stats().ingestCount());
                         }
                         assertFalse(it.hasNext());
@@ -582,9 +573,7 @@ public class NodeStatsTests extends ESTestCase {
             ? 0
             : 2 + ingestStats.pipelineStats()
                 .stream()
-                .mapToInt(
-                    pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size()
-                )
+                .mapToInt(pipelineStats -> 2 + ingestStats.processorStats().getOrDefault(pipelineStats.pipelineId(), List.of()).size())
                 .sum();
     }
 

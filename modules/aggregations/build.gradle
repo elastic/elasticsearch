@@ -43,7 +43,15 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
   task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
-
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Basic test", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Non-keyed test", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Only aggs test", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Explicit Percents test", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Metadata test", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/180_percentiles_tdigest_metric/Filtered test", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/420_percentile_ranks_tdigest_metric/basic", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/420_percentile_ranks_tdigest_metric/filtered", "Uses t-digest library which is not backwards compatible")
+  task.skipTest("search.aggregation/420_percentile_ranks_tdigest_metric/non-keyed test", "Uses t-digest library which is not backwards compatible")
   task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 

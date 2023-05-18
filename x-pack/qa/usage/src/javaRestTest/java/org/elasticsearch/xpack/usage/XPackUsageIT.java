@@ -20,7 +20,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /*
  * This class is meant to test the _xpack/usage API. That API pulls in code from various plugins so it cannot be integration tested

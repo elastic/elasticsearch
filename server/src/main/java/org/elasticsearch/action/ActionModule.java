@@ -436,6 +436,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -579,7 +580,9 @@ public class ActionModule extends AbstractModule {
                 }
             }
         }
-        threadContext.putTransient(Task.TRACE_START_TIME, threadPool.absoluteTimeInMillis());
+        // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
+        // we use this opportunity to record the request processing start time
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
@@ -39,10 +40,9 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
 
     @Override
     protected DataLifecycle createTestInstance() {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomInt(2)) {
             case 0 -> new DataLifecycle();
-            case 1 -> new DataLifecycle.Builder().nullified(true).build();
-            case 2 -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(null)).build();
+            case 1 -> new DataLifecycle.Builder().dataRetention(new DataLifecycle.Retention(null)).build();
             default -> new DataLifecycle(randomMillisUpToYear9999());
         };
     }
@@ -77,6 +77,18 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
         }
     }
 
+    // We test the wire serialization of a nullified data lifecycle separately because
+    // we cannot properly test the XContent conversion on this level. We test it on the template
+    // level where it matters.
+    public void testWireSerializationOfNullifiedDataLifecycle() throws IOException {
+        copyWriteable(
+            new DataLifecycle.Builder().nullified(true).build(),
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersion.V_8_9_0
+        );
+    }
+
     public void testLifecycleComposition() {
         // No lifecycles result to null
         {
@@ -105,7 +117,6 @@ public class DataLifecycleTests extends AbstractXContentSerializingTestCase<Data
             List<DataLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             assertThat(DataLifecycle.compose(lifecycles), equalTo(lifecycle2));
         }
-
     }
 
     public void testDefaultClusterSetting() {

@@ -87,6 +87,10 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
         this(new Retention(dataRetention), false);
     }
 
+    public DataLifecycle(Retention dataRetention) {
+        this(dataRetention, false);
+    }
+
     private DataLifecycle(@Nullable Retention dataRetention, boolean nullified) {
         this.dataRetention = dataRetention;
         this.nullified = nullified;
@@ -268,11 +272,12 @@ public class DataLifecycle implements SimpleDiffable<DataLifecycle>, ToXContentO
     }
 
     /**
-     * Retention is the least amount of time that the data will be kept by elasticsearch.
+     * Retention is the least amount of time that the data will be kept by elasticsearch. Public for testing.
      * @param value is a time period or null. Null represents an explicitly set infinite retention period
      */
-    record Retention(@Nullable TimeValue value) implements Writeable {
+    public record Retention(@Nullable TimeValue value) implements Writeable {
 
+        // For testing
         public static final Retention NULL = new Retention(null);
 
         public static Retention read(StreamInput in) throws IOException {

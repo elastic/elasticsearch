@@ -959,7 +959,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote").indices("abc-*", "xyz-*").privileges("read").build(),
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), },
+            null
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -986,7 +987,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("remote-idx-2-*").privileges("read").build(),
-                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() }
+                RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() },
+            null
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -2100,6 +2102,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                             null,
                             null,
                             null,
+                            null,
                             null
                         )
                     )
@@ -2796,7 +2799,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor.RemoteIndicesPrivileges[] rips,
         final IndicesPrivileges[] ips
     ) {
-        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips);
+        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips, null);
     }
 
     private Role buildRole(final RoleDescriptor... roleDescriptors) {

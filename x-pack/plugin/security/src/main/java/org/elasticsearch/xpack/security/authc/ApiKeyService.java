@@ -560,7 +560,8 @@ public class ApiKeyService {
                         roleDescriptor.getRunAs(),
                         roleDescriptor.getMetadata(),
                         roleDescriptor.getTransientMetadata(),
-                        null
+                        null,
+                        roleDescriptor.getRestriction()
                     );
                 }
                 return roleDescriptor;

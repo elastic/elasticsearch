@@ -260,7 +260,6 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96084")
     public void testAutomaticForceMerge() throws Exception {
         /*
          * This test makes sure that (1) DLM does _not_ call forcemerge on an index in the same DLM pass when it rolls over the index and
@@ -295,6 +294,20 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 FlushResponse flushResponse = client().admin().indices().flush(new FlushRequest(toBeRolledOverIndex)).actionGet();
                 assertThat(flushResponse.getStatus(), equalTo(RestStatus.OK));
             }
+
+            final String toBeForceMergedIndex;
+            final int preDlmSegmentsForceMergedIndex;
+
+            if (currentGeneration == 1) {
+                toBeForceMergedIndex = null; // Not going to be used
+                preDlmSegmentsForceMergedIndex = -1; // Not going to be used
+            } else {
+                toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
+                preDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
+                logger.info("preDlmSegmentsForceMergedIndex: {}", preDlmSegmentsForceMergedIndex);
+            }
+            final int preDlmSegmentsAboutToBeRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
+            logger.info("preDlmSegmentsAboutToBeRolledOverIndex: {}", preDlmSegmentsAboutToBeRolledOverIndex);
             /*
              * Without the following, calls to forcemerge are essentially a no-op since it has already done automatic merging. Setting
              * merge_factor on its own does not do anything, but it results in calls to forcemerge making observable changes to the
@@ -304,17 +317,6 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), 5),
                 toBeRolledOverIndex
             );
-
-            final String toBeForceMergedIndex;
-            final int preDlmSegmentsForceMergedIndex;
-            if (currentGeneration == 1) {
-                toBeForceMergedIndex = null; // Not going to be used
-                preDlmSegmentsForceMergedIndex = -1; // Not going to be used
-            } else {
-                toBeForceMergedIndex = DataStream.getDefaultBackingIndexName(dataStreamName, currentGeneration - 1);
-                preDlmSegmentsForceMergedIndex = getSegmentCount(toBeForceMergedIndex);
-            }
-            final int preDlmSegmentsAboutToBeRolledOverIndex = getSegmentCount(toBeRolledOverIndex);
             int currentBackingIndexCount = currentGeneration;
             DataLifecycleService dataLifecycleService = internalCluster().getInstance(
                 DataLifecycleService.class,
@@ -346,6 +348,7 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                         postDlmSegmentsForceMergedIndex,
                         lessThan(preDlmSegmentsForceMergedIndex)
                     );
+                    logger.info("postDlmSegmentsForceMergedIndex: {}", postDlmSegmentsForceMergedIndex);
                 }
                 // We want to assert that when DLM rolls over the write index it, it doesn't forcemerge it on that iteration:
                 assertThat(
@@ -355,10 +358,6 @@ public class DataLifecycleServiceIT extends ESIntegTestCase {
                 );
             });
         }
-    }
-
-    private static void enableDLM(TimeValue pollInterval) {
-        updateClusterSettings(Settings.builder().put(DataLifecycleService.DLM_POLL_INTERVAL, pollInterval));
     }
 
     private static void disableDLM() {

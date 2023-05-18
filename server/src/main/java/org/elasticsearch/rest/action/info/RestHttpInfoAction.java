@@ -39,6 +39,6 @@ public class RestHttpInfoAction extends AbstractInfoAction {
 
     @Override
     public ChunkedToXContent xContentChunks(NodesStatsResponse nodesStatsResponse) {
-        return nodesStatsResponse.getNodes().stream().map(NodeStats::getHttp).reduce(new HttpStats(List.of(), 0, 0), HttpStats::merge);
+        return nodesStatsResponse.getNodes().stream().map(NodeStats::getHttp).reduce(HttpStats.IDENTITY, HttpStats::merge);
     }
 }

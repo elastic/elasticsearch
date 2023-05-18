@@ -757,9 +757,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
             HttpStats httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
-            assertThat(httpStats.getClientStats().get(0).lastUri, equalTo("/internal/stats_test"));
+            assertThat(httpStats.getClientStats().get(0).remoteAddress(), equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(httpStats.getClientStats().get(0).opaqueId(), equalTo(opaqueId));
+            assertThat(httpStats.getClientStats().get(0).lastUri(), equalTo("/internal/stats_test"));
 
             remoteAddress = new InetSocketAddress(randomIp(randomBoolean()), randomIntBetween(1, 65535));
             opaqueId = UUIDs.randomBase64UUID(random());
@@ -774,13 +774,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             assertThat(httpStats.getClientStats().size(), equalTo(2));
 
             // due to non-deterministic ordering in map iteration, the second client may not be the second entry in the list
-            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId.equals(opaqueId)
+            HttpStats.ClientStats secondClientStats = httpStats.getClientStats().get(0).opaqueId().equals(opaqueId)
                 ? httpStats.getClientStats().get(0)
                 : httpStats.getClientStats().get(1);
 
-            assertThat(secondClientStats.remoteAddress, equalTo(NetworkAddress.format(remoteAddress)));
-            assertThat(secondClientStats.opaqueId, equalTo(opaqueId));
-            assertThat(secondClientStats.lastUri, equalTo("/internal/stats_test2"));
+            assertThat(secondClientStats.remoteAddress(), equalTo(NetworkAddress.format(remoteAddress)));
+            assertThat(secondClientStats.opaqueId(), equalTo(opaqueId));
+            assertThat(secondClientStats.lastUri(), equalTo("/internal/stats_test2"));
         }
     }
 
@@ -834,7 +834,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             // HTTP client stats should default to enabled
             HttpStats httpStats = transport.stats();
             assertThat(httpStats.getClientStats().size(), equalTo(1));
-            assertThat(httpStats.getClientStats().get(0).opaqueId, equalTo(opaqueId));
+            assertThat(httpStats.getClientStats().get(0).opaqueId(), equalTo(opaqueId));
 
             clusterSettings.applySettings(
                 Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.getKey(), false).build()

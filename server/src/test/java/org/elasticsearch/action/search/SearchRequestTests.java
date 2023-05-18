@@ -305,8 +305,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires a minimum of [2] result sets which "
-                    + "either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                "[rank] requires a minimum of [2] result sets using a combination of queries and/or knn searches",
                 validationErrors.validationErrors().get(0)
             );
         }

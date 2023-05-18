@@ -35,7 +35,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         ChunkedToXContent {
 
     /**
-     * @param totalStats - The total stats for Ingest. This is the logically the sum of all pipeline stats,
+     * @param totalStats - The total stats for Ingest. This is logically the sum of all pipeline stats,
      *                   and pipeline stats are logically the sum of the processor stats.
      * @param pipelineStats - The stats for a given ingest pipeline.
      * @param processorStats - The per-processor stats for a given pipeline. A map keyed by the pipeline identifier.

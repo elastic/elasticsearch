@@ -1244,6 +1244,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
             if (writtenBytes + length > checksumPosition) {
+                int directWriteLength = (int)(checksumPosition - writtenBytes);
+                directWriteLength = directWriteLength > 0 ? directWriteLength : 0;
+                if (directWriteLength > 0) {
+                    out.writeBytes(b, offset, directWriteLength);
+                    writtenBytes += directWriteLength;
+                }
                 for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
                     writeByte(b[offset + i]);
                 }

@@ -237,29 +237,11 @@ public class TransformsCheckpointServiceTests extends ESTestCase {
                             globalCheckpoint - randomLongBetween(10L, 100L)
                         );
                         shardStats.add(
-                            new ShardStats(
-                                shardRouting,
-                                new ShardPath(false, path, path, shardId),
-                                stats,
-                                null,
-                                invalidSeqNoStats,
-                                null,
-                                false,
-                                0
-                            )
+                            new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null)
                         );
                     } else {
                         shardStats.add(
-                            new ShardStats(
-                                shardRouting,
-                                new ShardPath(false, path, path, shardId),
-                                stats,
-                                null,
-                                validSeqNoStats,
-                                null,
-                                false,
-                                0
-                            )
+                            new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null)
                         );
                     }
                 }

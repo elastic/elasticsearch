@@ -135,9 +135,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 commonStats,
                 commitStats,
                 seqNoStats,
-                retentionLeaseStats,
-                indexShard.isSearchIdle(),
-                indexShard.searchIdleTime()
+                retentionLeaseStats
             );
         });
     }

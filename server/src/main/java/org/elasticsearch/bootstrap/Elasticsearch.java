@@ -444,6 +444,7 @@ class Elasticsearch {
             return; // never got far enough
         }
         var es = INSTANCE;
+        es.node.prepareForClose();
         try {
             IOUtils.close(es.node, es.spawner);
             if (es.node != null && es.node.awaitClose(10, TimeUnit.SECONDS) == false) {

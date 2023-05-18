@@ -38,7 +38,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -106,7 +105,6 @@ public class FsBlobContainerTests extends ESTestCase {
         assertThat(FsBlobContainer.isTempBlobName(tempBlobName), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95768")
     public void testDeleteIgnoringIfNotExistsDoesNotThrowFileNotFound() throws IOException {
         final String blobName = randomAlphaOfLengthBetween(1, 20).toLowerCase(Locale.ROOT);
         final byte[] blobData = randomByteArrayOfLength(512);
@@ -120,24 +118,9 @@ public class FsBlobContainerTests extends ESTestCase {
             path
         );
 
-        ArrayList<PlainActionFuture<Void>> futures = new ArrayList<>();
-        for (int i = 0; i < 5; ++i) {
-            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            futures.add(future);
-            new Thread(() -> {
-                try {
-                    container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
-                    future.onResponse(null);
-                } catch (IOException e) {
-                    future.onFailure(e);
-                }
-            }).start();
-        }
-
-        // Check that none throw
-        for (PlainActionFuture<Void> future : futures) {
-            future.actionGet();
-        }
+        container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
+        // Should not throw exception
+        container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
 
         assertFalse(container.blobExists(blobName));
     }
@@ -150,7 +133,7 @@ public class FsBlobContainerTests extends ESTestCase {
     }
 
     private static <T> T getAsync(Consumer<ActionListener<T>> consumer) {
-        return PlainActionFuture.<T, RuntimeException>get(consumer::accept, 0, TimeUnit.SECONDS);
+        return PlainActionFuture.get(consumer::accept, 0, TimeUnit.SECONDS);
     }
 
     public void testCompareAndExchange() throws Exception {

@@ -46,9 +46,9 @@ public class IngestStatsTests extends ESTestCase {
         );
         // pipeline1 -> processor1,processor2; pipeline2 -> processor3
         return Map.of(
-            pipelineStats.get(0).getPipelineId(),
+            pipelineStats.get(0).pipelineId(),
             List.of(processor1Stat, processor2Stat),
-            pipelineStats.get(1).getPipelineId(),
+            pipelineStats.get(1).pipelineId(),
             List.of(processor3Stat)
         );
     }
@@ -71,30 +71,30 @@ public class IngestStatsTests extends ESTestCase {
         assertNotSame(ingestStats.getPipelineStats(), serializedStats.getPipelineStats());
         assertNotSame(ingestStats.getProcessorStats(), serializedStats.getProcessorStats());
 
-        assertStats(ingestStats.getTotalStats(), serializedStats.getTotalStats());
+        assertEquals(ingestStats.getTotalStats(), serializedStats.getTotalStats());
         assertEquals(ingestStats.getPipelineStats().size(), serializedStats.getPipelineStats().size());
 
         for (IngestStats.PipelineStat serializedPipelineStat : serializedStats.getPipelineStats()) {
-            assertStats(
-                getPipelineStats(ingestStats.getPipelineStats(), serializedPipelineStat.getPipelineId()),
-                serializedPipelineStat.getStats()
+            assertEquals(
+                getPipelineStats(ingestStats.getPipelineStats(), serializedPipelineStat.pipelineId()),
+                serializedPipelineStat.stats()
             );
             List<IngestStats.ProcessorStat> serializedProcessorStats = serializedStats.getProcessorStats()
-                .get(serializedPipelineStat.getPipelineId());
-            List<IngestStats.ProcessorStat> processorStat = ingestStats.getProcessorStats().get(serializedPipelineStat.getPipelineId());
+                .get(serializedPipelineStat.pipelineId());
+            List<IngestStats.ProcessorStat> processorStat = ingestStats.getProcessorStats().get(serializedPipelineStat.pipelineId());
             if (expectProcessors) {
                 if (processorStat != null) {
                     Iterator<IngestStats.ProcessorStat> it = processorStat.iterator();
                     // intentionally enforcing the identical ordering
                     for (IngestStats.ProcessorStat serializedProcessorStat : serializedProcessorStats) {
                         IngestStats.ProcessorStat ps = it.next();
-                        assertEquals(ps.getName(), serializedProcessorStat.getName());
+                        assertEquals(ps.name(), serializedProcessorStat.name());
                         if (expectProcessorTypes) {
-                            assertEquals(ps.getType(), serializedProcessorStat.getType());
+                            assertEquals(ps.type(), serializedProcessorStat.type());
                         } else {
-                            assertEquals("_NOT_AVAILABLE", serializedProcessorStat.getType());
+                            assertEquals("_NOT_AVAILABLE", serializedProcessorStat.type());
                         }
-                        assertStats(ps.getStats(), serializedProcessorStat.getStats());
+                        assertEquals(ps.stats(), serializedProcessorStat.stats());
                     }
                     assertFalse(it.hasNext());
                 }
@@ -106,14 +106,11 @@ public class IngestStatsTests extends ESTestCase {
 
     }
 
-    private void assertStats(IngestStats.Stats fromObject, IngestStats.Stats fromStream) {
-        assertEquals(fromObject.getIngestCount(), fromStream.getIngestCount());
-        assertEquals(fromObject.getIngestFailedCount(), fromStream.getIngestFailedCount());
-        assertEquals(fromObject.getIngestTimeInMillis(), fromStream.getIngestTimeInMillis());
-        assertEquals(fromObject.getIngestCurrent(), fromStream.getIngestCurrent());
-    }
-
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+        return pipelineStats.stream()
+            .filter(p1 -> p1.pipelineId().equals(id))
+            .findFirst()
+            .map(IngestStats.PipelineStat::stats)
+            .orElse(null);
     }
 }

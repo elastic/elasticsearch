@@ -85,16 +85,16 @@ public class IngestStats implements Writeable, ChunkedToXContent {
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
-            out.writeString(pipelineStat.getPipelineId());
-            pipelineStat.getStats().writeTo(out);
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
+            out.writeString(pipelineStat.pipelineId());
+            pipelineStat.stats().writeTo(out);
+            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
                 out.writeCollection(processorStatsForPipeline, (o, processorStat) -> {
-                    o.writeString(processorStat.getName());
-                    o.writeString(processorStat.getType());
-                    processorStat.getStats().writeTo(o);
+                    o.writeString(processorStat.name());
+                    o.writeString(processorStat.type());
+                    processorStat.stats().writeTo(o);
                 });
             }
         }
@@ -118,20 +118,20 @@ public class IngestStats implements Writeable, ChunkedToXContent {
                 pipelineStat -> Iterators.concat(
 
                     Iterators.single((builder, params) -> {
-                        builder.startObject(pipelineStat.getPipelineId());
-                        pipelineStat.getStats().toXContent(builder, params);
+                        builder.startObject(pipelineStat.pipelineId());
+                        pipelineStat.stats().toXContent(builder, params);
                         builder.startArray("processors");
                         return builder;
                     }),
 
                     Iterators.flatMap(
-                        processorStats.getOrDefault(pipelineStat.getPipelineId(), List.of()).iterator(),
+                        processorStats.getOrDefault(pipelineStat.pipelineId(), List.of()).iterator(),
                         processorStat -> Iterators.<ToXContent>single((builder, params) -> {
                             builder.startObject();
-                            builder.startObject(processorStat.getName());
-                            builder.field("type", processorStat.getType());
+                            builder.startObject(processorStat.name());
+                            builder.field("type", processorStat.type());
                             builder.startObject("stats");
-                            processorStat.getStats().toXContent(builder, params);
+                            processorStat.stats().toXContent(builder, params);
                             builder.endObject();
                             builder.endObject();
                             builder.endObject();
@@ -174,28 +174,16 @@ public class IngestStats implements Writeable, ChunkedToXContent {
         return Objects.hash(totalStats, pipelineStats, processorStats);
     }
 
-    public static class Stats implements Writeable, ToXContentFragment {
-
-        private final long ingestCount;
-        private final long ingestTimeInMillis;
-        private final long ingestCurrent;
-        private final long ingestFailedCount;
-
-        public Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount) {
-            this.ingestCount = ingestCount;
-            this.ingestTimeInMillis = ingestTimeInMillis;
-            this.ingestCurrent = ingestCurrent;
-            this.ingestFailedCount = ingestFailedCount;
-        }
+    public record Stats(long ingestCount, long ingestTimeInMillis, long ingestCurrent, long ingestFailedCount)
+        implements
+            Writeable,
+            ToXContentFragment {
 
         /**
          * Read from a stream.
          */
         public Stats(StreamInput in) throws IOException {
-            ingestCount = in.readVLong();
-            ingestTimeInMillis = in.readVLong();
-            ingestCurrent = in.readVLong();
-            ingestFailedCount = in.readVLong();
+            this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
 
         @Override
@@ -242,22 +230,6 @@ public class IngestStats implements Writeable, ChunkedToXContent {
             builder.field("failed", ingestFailedCount);
             return builder;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.Stats that = (IngestStats.Stats) o;
-            return Objects.equals(ingestCount, that.ingestCount)
-                && Objects.equals(ingestTimeInMillis, that.ingestTimeInMillis)
-                && Objects.equals(ingestFailedCount, that.ingestFailedCount)
-                && Objects.equals(ingestCurrent, that.ingestCurrent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(ingestCount, ingestTimeInMillis, ingestFailedCount, ingestCurrent);
-        }
     }
 
     /**
@@ -265,8 +237,8 @@ public class IngestStats implements Writeable, ChunkedToXContent {
      */
     static class Builder {
         private Stats totalStats;
-        private List<PipelineStat> pipelineStats = new ArrayList<>();
-        private Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
+        private final List<PipelineStat> pipelineStats = new ArrayList<>();
+        private final Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
 
         Builder addTotalMetrics(IngestMetric totalMetric) {
             this.totalStats = totalMetric.createStats();
@@ -292,74 +264,10 @@ public class IngestStats implements Writeable, ChunkedToXContent {
     /**
      * Container for pipeline stats.
      */
-    public static class PipelineStat {
-        private final String pipelineId;
-        private final Stats stats;
-
-        public PipelineStat(String pipelineId, Stats stats) {
-            this.pipelineId = pipelineId;
-            this.stats = stats;
-        }
-
-        public String getPipelineId() {
-            return pipelineId;
-        }
-
-        public Stats getStats() {
-            return stats;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.PipelineStat that = (IngestStats.PipelineStat) o;
-            return Objects.equals(pipelineId, that.pipelineId) && Objects.equals(stats, that.stats);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pipelineId, stats);
-        }
-    }
+    public record PipelineStat(String pipelineId, Stats stats) {}
 
     /**
      * Container for processor stats.
      */
-    public static class ProcessorStat {
-        private final String name;
-        private final String type;
-        private final Stats stats;
-
-        public ProcessorStat(String name, String type, Stats stats) {
-            this.name = name;
-            this.type = type;
-            this.stats = stats;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public Stats getStats() {
-            return stats;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.ProcessorStat that = (IngestStats.ProcessorStat) o;
-            return Objects.equals(name, that.name) && Objects.equals(type, that.type) && Objects.equals(stats, that.stats);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, type, stats);
-        }
-    }
+    public record ProcessorStat(String name, String type, Stats stats) {}
 }

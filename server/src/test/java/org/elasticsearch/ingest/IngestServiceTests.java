@@ -1590,8 +1590,8 @@ public class IngestServiceTests extends ESTestCase {
         final IngestStats afterFirstRequestStats = ingestService.stats();
         assertThat(afterFirstRequestStats.getPipelineStats().size(), equalTo(2));
 
-        afterFirstRequestStats.getProcessorStats().get("_id1").forEach(p -> assertEquals(p.getName(), "mock:mockTag"));
-        afterFirstRequestStats.getProcessorStats().get("_id2").forEach(p -> assertEquals(p.getName(), "mock:mockTag"));
+        afterFirstRequestStats.getProcessorStats().get("_id1").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
+        afterFirstRequestStats.getProcessorStats().get("_id2").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
 
         // total
         assertStats(afterFirstRequestStats.getTotalStats(), 1, 0, 0);
@@ -2422,7 +2422,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private void assertProcessorStats(int processor, IngestStats stats, String pipelineId, long count, long failed, long time) {
-        assertStats(stats.getProcessorStats().get(pipelineId).get(processor).getStats(), count, failed, time);
+        assertStats(stats.getProcessorStats().get(pipelineId).get(processor).stats(), count, failed, time);
     }
 
     private void assertPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String pipelineId, long count, long failed, long time) {
@@ -2437,7 +2437,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {

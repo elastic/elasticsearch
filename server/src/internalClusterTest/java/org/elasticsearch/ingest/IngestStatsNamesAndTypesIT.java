@@ -113,31 +113,31 @@ public class IngestStatsNamesAndTypesIT extends ESIntegTestCase {
             assertThat(stats.getIngestStats().getPipelineStats().size(), equalTo(1));
 
             IngestStats.PipelineStat pipelineStat = stats.getIngestStats().getPipelineStats().get(0);
-            assertThat(pipelineStat.getPipelineId(), equalTo("pipeline1"));
-            assertThat(pipelineStat.getStats().getIngestCount(), equalTo(1L));
+            assertThat(pipelineStat.pipelineId(), equalTo("pipeline1"));
+            assertThat(pipelineStat.stats().getIngestCount(), equalTo(1L));
 
             List<IngestStats.ProcessorStat> processorStats = stats.getIngestStats().getProcessorStats().get("pipeline1");
             assertThat(processorStats.size(), equalTo(4));
 
             IngestStats.ProcessorStat setA = processorStats.get(0);
-            assertThat(setA.getName(), equalTo("set:set-a"));
-            assertThat(setA.getType(), equalTo("set"));
-            assertThat(setA.getStats().getIngestCount(), equalTo(1L));
+            assertThat(setA.name(), equalTo("set:set-a"));
+            assertThat(setA.type(), equalTo("set"));
+            assertThat(setA.stats().getIngestCount(), equalTo(1L));
 
             IngestStats.ProcessorStat setB = processorStats.get(1);
-            assertThat(setB.getName(), equalTo("set:set-b"));
-            assertThat(setB.getType(), equalTo("set"));
-            assertThat(setB.getStats().getIngestCount(), equalTo(0L)); // see false_script above
+            assertThat(setB.name(), equalTo("set:set-b"));
+            assertThat(setB.type(), equalTo("set"));
+            assertThat(setB.stats().getIngestCount(), equalTo(0L)); // see false_script above
 
             IngestStats.ProcessorStat setC = processorStats.get(2);
-            assertThat(setC.getName(), equalTo("set:set-c"));
-            assertThat(setC.getType(), equalTo("set"));
-            assertThat(setC.getStats().getIngestCount(), equalTo(1L));
+            assertThat(setC.name(), equalTo("set:set-c"));
+            assertThat(setC.type(), equalTo("set"));
+            assertThat(setC.stats().getIngestCount(), equalTo(1L));
 
             IngestStats.ProcessorStat setD = processorStats.get(3);
-            assertThat(setD.getName(), equalTo("set:set-d"));
-            assertThat(setD.getType(), equalTo("set"));
-            assertThat(setD.getStats().getIngestCount(), equalTo(1L));
+            assertThat(setD.name(), equalTo("set:set-d"));
+            assertThat(setD.type(), equalTo("set"));
+            assertThat(setD.stats().getIngestCount(), equalTo(1L));
         }
 
         {

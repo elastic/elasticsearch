@@ -719,8 +719,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
                         .entrySet()) {
                         pipelineIds.add(processorStats.getKey());
                         for (org.elasticsearch.ingest.IngestStats.ProcessorStat stat : processorStats.getValue()) {
-                            stats.compute(stat.getType(), (k, v) -> {
-                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.getStats();
+                            stats.compute(stat.type(), (k, v) -> {
+                                org.elasticsearch.ingest.IngestStats.Stats nodeIngestStats = stat.stats();
                                 if (v == null) {
                                     return new long[] {
                                         nodeIngestStats.getIngestCount(),

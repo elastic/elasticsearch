@@ -37,7 +37,7 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
-    private final long mappingObjectDepthLimit; // used only in parsing mapping
+    private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
 
     public MappingParserContext(

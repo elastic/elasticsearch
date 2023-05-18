@@ -58,9 +58,7 @@ public class RestShardsActionTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null,
-                false,
-                0
+                null
             );
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);

@@ -187,11 +187,12 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * Easy conversion from scoped {@link IngestMetric} objects to a serializable Stats objects
      */
     static class Builder {
-        private Stats totalStats;
+        private Stats totalStats = null;
         private final List<PipelineStat> pipelineStats = new ArrayList<>();
         private final Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
 
         Builder addTotalMetrics(IngestMetric totalMetric) {
+            assert totalStats == null;
             this.totalStats = totalMetric.createStats();
             return this;
         }

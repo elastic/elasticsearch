@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -36,6 +38,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
+    private static final Logger logger = LogManager.getLogger(MutableSearchResponse.class);
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
@@ -80,6 +83,8 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.threadContext = threadContext;
         this.totalHits = EMPTY_TOTAL_HITS;
+
+        logger.warn("QQQ MutSearchResp ctor: Clusters = {}", clusters);
     }
 
     /**
@@ -172,6 +177,9 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
+        logger.warn("QQQ buildResponse called. Creating new SearchResponse with Clusters: {}", clusters);
+        logger.warn("QQQ buildResponse called. clusterHasLikelyFinished?: {}", clusterHasLikelyFinished());
+
         InternalSearchResponse internal = new InternalSearchResponse(
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN),
             reducedAggs,
@@ -194,6 +202,16 @@ class MutableSearchResponse {
         );
     }
 
+    private boolean clusterHasLikelyFinished(
+    ) {
+        int failedShards = buildQueryFailures().length;
+        return clusters != null  // should never be null for CCS minimizeRoundtrips scenario
+            && clusters.equals(Clusters.EMPTY) == false  // EMPTY is often used as a placeholder (not used for CCS minimizeRoundtrips)
+            && totalShards == (successfulShards + skippedShards + failedShards) // if all shards are now accounted for (none pending)
+            // ensure that incrementing the 'successful' count will not cause successful+skipped to be larger than total
+            && clusters.getTotal() - (clusters.getSuccessful() + clusters.getSkipped()) > 0;
+    }
+
     /**
      * Creates an {@link AsyncSearchResponse} based on the current state of the mutable response.
      * The final reduce of the aggregations is executed if needed (partial response).
@@ -206,12 +224,14 @@ class MutableSearchResponse {
         }
         SearchResponse searchResponse;
         if (finalResponse != null) {
+            logger.warn("QQQ toAsyncSearchResponse NORMAL: NOT calling buildResponse, using the finalResponse");
             // We have a final response, use it.
             searchResponse = finalResponse;
         } else if (clusters == null) {
             // An error occurred before we got the shard list
             searchResponse = null;
         } else {
+            logger.warn("QQQ toAsyncSearchResponse NORMAL: calling buildResponse");
             /*
              * Build the response, reducing aggs if we haven't already and
              * storing the result of the reduction so we won't have to reduce
@@ -290,6 +310,7 @@ class MutableSearchResponse {
         long expirationTime,
         ElasticsearchException reduceException
     ) {
+        logger.warn("QQQ toAsyncSearchResponse EXCEPTION: {} - calling buildResponse", reduceException.getMessage());
         if (this.failure != null) {
             reduceException.addSuppressed(this.failure);
         }

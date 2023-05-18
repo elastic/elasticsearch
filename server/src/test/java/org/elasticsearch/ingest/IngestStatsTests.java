@@ -28,14 +28,14 @@ public class IngestStatsTests extends ESTestCase {
         assertIngestStats(ingestStats, serializedStats);
     }
 
-    private List<IngestStats.PipelineStat> createPipelineStats() {
+    private static List<IngestStats.PipelineStat> createPipelineStats() {
         IngestStats.PipelineStat pipeline1Stats = new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(3, 3, 3, 3));
         IngestStats.PipelineStat pipeline2Stats = new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(47, 97, 197, 297));
         IngestStats.PipelineStat pipeline3Stats = new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(0, 0, 0, 0));
         return List.of(pipeline1Stats, pipeline2Stats, pipeline3Stats);
     }
 
-    private Map<String, List<IngestStats.ProcessorStat>> createProcessorStats(List<IngestStats.PipelineStat> pipelineStats) {
+    private static Map<String, List<IngestStats.ProcessorStat>> createProcessorStats(List<IngestStats.PipelineStat> pipelineStats) {
         assert (pipelineStats.size() >= 2);
         IngestStats.ProcessorStat processor1Stat = new IngestStats.ProcessorStat("processor1", "type", new IngestStats.Stats(1, 1, 1, 1));
         IngestStats.ProcessorStat processor2Stat = new IngestStats.ProcessorStat("processor2", "type", new IngestStats.Stats(2, 2, 2, 2));
@@ -53,14 +53,14 @@ public class IngestStatsTests extends ESTestCase {
         );
     }
 
-    private IngestStats serialize(IngestStats stats) throws IOException {
+    private static IngestStats serialize(IngestStats stats) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         return new IngestStats(in);
     }
 
-    private void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats) {
+    private static void assertIngestStats(IngestStats ingestStats, IngestStats serializedStats) {
         assertNotSame(ingestStats, serializedStats);
         assertNotSame(ingestStats.totalStats(), serializedStats.totalStats());
         assertNotSame(ingestStats.pipelineStats(), serializedStats.pipelineStats());
@@ -91,7 +91,7 @@ public class IngestStatsTests extends ESTestCase {
         }
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
+    private static IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream()
             .filter(p1 -> p1.pipelineId().equals(id))
             .findFirst()

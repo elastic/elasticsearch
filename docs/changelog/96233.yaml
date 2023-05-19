@@ -1,0 +1,5 @@
+pr: 96233
+summary: Add new dynamic `until_limit` option
+area: Mapping
+type: enhancement
+issues: []

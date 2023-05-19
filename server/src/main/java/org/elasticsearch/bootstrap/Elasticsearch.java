@@ -44,6 +44,7 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -423,8 +424,8 @@ class Elasticsearch {
     private final Thread keepAliveThread;
 
     private Elasticsearch(Spawner spawner, Node node) {
-        this.spawner = spawner;
-        this.node = node;
+        this.spawner = Objects.requireNonNull(spawner);
+        this.node = Objects.requireNonNull(node);
         this.keepAliveThread = new Thread(() -> {
             try {
                 keepAliveLatch.await();

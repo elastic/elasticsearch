@@ -477,9 +477,43 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         static final ParseField TOTAL_FIELD = new ParseField("total");
 
         private final int total;
-        private final int successful;
-        private final int skipped;
+        private int successful;
+        private int skipped;
 
+        private final int remoteClusters;
+        private final boolean ccsMinimizeRoundtrips;
+
+        private boolean frozen;
+
+        /**
+         * An unfrozen Clusters object meant to represent the initial or current state
+         * not final state (for async search).
+         * @param total
+         * @param successful
+         * @param skipped
+         * @param remoteClusters
+         * @param ccsMinimizeRoundtrips
+         */
+        public Clusters(int total, int successful, int skipped, int remoteClusters, boolean ccsMinimizeRoundtrips) {
+            assert total >= 0 && successful >= 0 && skipped >= 0 && remoteClusters >= 0
+                : "total: " + total + " successful: " + successful + " skipped: " + skipped + " remote: " + remoteClusters;
+            assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert remoteClusters <= total : "total: " + total + " remote: " + remoteClusters;
+            int localCount = total - remoteClusters;
+            assert localCount == 0 || localCount == 1 : "total - remoteClusters should only be 0 or 1";
+            this.total = total;
+            this.successful = successful;
+            this.skipped = skipped;
+            this.remoteClusters = remoteClusters;
+            this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+        }
+
+        /**
+         * A final Clusters object. This constructor freezes the object.
+         * @param total
+         * @param successful
+         * @param skipped
+         */
         public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
@@ -487,6 +521,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
+            this.remoteClusters = -1;  // means "unknown" and not needed for this usage
+            this.ccsMinimizeRoundtrips = false;
+            this.frozen = true;
         }
 
         private Clusters(StreamInput in) throws IOException {
@@ -533,6 +570,34 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return skipped;
         }
 
+        public void setSuccessful(int successful) {
+            assert frozen == false : "Attempted to modify number of successful clusters in frozen Cluster object";
+            this.successful = successful;
+        }
+
+        public void setSkipped(int skipped) {
+            assert frozen == false : "Attempted to modify number of skipped clusters in frozen Cluster object";
+            this.skipped = skipped;
+        }
+
+        public boolean isFrozen() {
+            return frozen;
+        }
+
+        public void freeze() {
+            this.frozen = true;
+        }
+
+        public int getRemoteClusters() {
+            return remoteClusters;
+        }
+
+        public boolean isCcsMinimizeRoundtrips() {
+            return ccsMinimizeRoundtrips;
+        }
+
+        /// MP: TODO: look into why we need equals and hashCode - are these used for Hash Keys?
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -553,6 +618,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public String toString() {
             return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
+        }
+
+        public String extendedToString() {
+            return Strings.format(
+                "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, frozen=%s, ccsMinimizeRoundtrips=%s}",
+                total,
+                successful,
+                skipped,
+                remoteClusters,
+                frozen,
+                ccsMinimizeRoundtrips
+            );
         }
     }
 

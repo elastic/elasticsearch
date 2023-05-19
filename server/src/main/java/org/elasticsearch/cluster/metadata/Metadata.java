@@ -818,16 +818,23 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         }
         boolean matchAllAliases = patterns.length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+        Map<String, List<AliasMetadata>> indexAlias = getIndexAliases(concreteIndices, patterns, include, matchAllAliases);
+        mapBuilder.putAllFromMap(indexAlias);
+        return mapBuilder.build();
+    }
+
+    private Map<String, List<AliasMetadata>>  getIndexAliases(String[] concreteIndices, String[] patterns, boolean[] include, boolean matchAllAliases) {
+        Map<String, List<AliasMetadata>> indexAlias = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = indices.get(index);
             List<AliasMetadata> filteredValues = getFilteredValues(patterns, include, matchAllAliases, indexMetadata);
             if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetadata::alias));
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
+                indexAlias.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
-        return mapBuilder.build();
+        return indexAlias;
     }
 
     private static List<AliasMetadata> getFilteredValues(String[] patterns, boolean[] include, boolean matchAllAliases, IndexMetadata indexMetadata) {

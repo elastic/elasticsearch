@@ -1,0 +1,4 @@
+pr: 96216
+summary: Optimize Store#LuceneVerifyingIndexOutput#writeBytes
+area: Store
+type: enhancement

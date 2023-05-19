@@ -820,13 +820,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = indices.get(index);
-            List<AliasMetadata> filteredValues = new ArrayList<>();
-            for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                boolean matched = isMatched(patterns, include, matchAllAliases, aliasMetadata);
-                if (matched) {
-                    filteredValues.add(aliasMetadata);
-                }
-            }
+            List<AliasMetadata> filteredValues = getFilteredValues(patterns, include, matchAllAliases, indexMetadata);
             if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetadata::alias));
@@ -834,6 +828,17 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
         return mapBuilder.build();
+    }
+
+    private static List<AliasMetadata> getFilteredValues(String[] patterns, boolean[] include, boolean matchAllAliases, IndexMetadata indexMetadata) {
+        List<AliasMetadata> filteredValues = new ArrayList<>();
+        for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
+            boolean matched = isMatched(patterns, include, matchAllAliases, aliasMetadata);
+            if (matched) {
+                filteredValues.add(aliasMetadata);
+            }
+        }
+        return filteredValues;
     }
 
     private static boolean isMatched(String[] patterns, boolean[] include, boolean matchAllAliases, AliasMetadata aliasMetadata) {

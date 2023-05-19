@@ -805,6 +805,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return ImmutableOpenMap.of();
         }
         String[] patterns = new String[aliases.length];
+        boolean[] include = populateIncludes(aliases, patterns);
+        boolean matchAllAliases = patterns.length == 0;
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+        Map<String, List<AliasMetadata>> indexAlias = getIndexAliases(concreteIndices, patterns, include, matchAllAliases);
+        mapBuilder.putAllFromMap(indexAlias);
+        return mapBuilder.build();
+    }
+
+    private static boolean[] populateIncludes(String[] aliases, String[] patterns) {
         boolean[] include = new boolean[aliases.length];
         for (int i = 0; i < aliases.length; i++) {
             String alias = aliases[i];
@@ -816,11 +825,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                 include[i] = true;
             }
         }
-        boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
-        Map<String, List<AliasMetadata>> indexAlias = getIndexAliases(concreteIndices, patterns, include, matchAllAliases);
-        mapBuilder.putAllFromMap(indexAlias);
-        return mapBuilder.build();
+        return include;
     }
 
     private Map<String, List<AliasMetadata>>  getIndexAliases(String[] concreteIndices, String[] patterns, boolean[] include, boolean matchAllAliases) {

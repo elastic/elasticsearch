@@ -2618,15 +2618,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             for (var dataStream : dsMetadata.dataStreams().values()) {
                 for (var index : dataStream.getIndices()) {
-                    IndexMetadata im = indices.get(index.getName());
-                    if (im != null && im.getAliases().isEmpty() == false) {
-                        for (var alias : im.getAliases().values()) {
-                            if (conflictingAliases == null) {
-                                conflictingAliases = new LinkedList<>();
-                            }
-                            conflictingAliases.add(alias.alias());
-                        }
-                    }
+                    conflictingAliases = populateConflictingAliases(indices, conflictingAliases, index);
                 }
             }
             if (conflictingAliases != null) {
@@ -2634,6 +2626,19 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
 
             return true;
+        }
+
+        private static List<String> populateConflictingAliases(Map<String, IndexMetadata> indices, List<String> conflictingAliases, Index index) {
+            IndexMetadata im = indices.get(index.getName());
+            if (im != null && im.getAliases().isEmpty() == false) {
+                for (var alias : im.getAliases().values()) {
+                    if (conflictingAliases == null) {
+                        conflictingAliases = new LinkedList<>();
+                    }
+                    conflictingAliases.add(alias.alias());
+                }
+            }
+            return conflictingAliases;
         }
 
         public static Metadata fromXContent(XContentParser parser) throws IOException {

@@ -323,8 +323,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             : null;
                     // Notifies the task progress listener that searches on remote clusters will not report their progress.
                     boolean hasLocalShards = hasLocalIndicesToSearch(localIndices);
-                    task.getProgressListener().notifyMinimizeRoundtrips(hasLocalShards, remoteClusterIndices.size());
                     final int totalClusters = (hasLocalShards ? 1 : 0) + remoteClusterIndices.size();
+                    var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);
+                    if (localIndices == null) {
+                        // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
+                        task.getProgressListener().notifyListShards(Collections.emptyList(), Collections.emptyList(), initClusters, false);
+                    }
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -341,7 +345,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             r,
                             localIndices,
                             clusterState,
-                            new SearchResponse.Clusters(totalClusters, 0, 0),
+                            initClusters,
                             searchContext,
                             searchPhaseProvider.apply(l)
                         )

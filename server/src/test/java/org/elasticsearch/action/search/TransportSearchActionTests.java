@@ -556,8 +556,6 @@ public class TransportSearchActionTests extends ESTestCase {
         }
     }
 
-    /// MP: TODO: should there be a test here doing CCSRemoteReduce with localCluster search turned off, requiring Task to ccsRemoteReduce?
-
     public void testCCSRemoteReduce() throws Exception {
         int numClusters = randomIntBetween(1, 10);
         DiscoveryNode[] nodes = new DiscoveryNode[numClusters];

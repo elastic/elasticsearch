@@ -477,17 +477,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         static final ParseField TOTAL_FIELD = new ParseField("total");
 
         private final int total;
-        private int successful;
-        private int skipped;
-
+        private final int successful;
+        private final int skipped;
         private final int remoteClusters;
         private final boolean ccsMinimizeRoundtrips;
 
-        private boolean frozen;
-
         /**
-         * An unfrozen Clusters object meant to represent the initial or current state
-         * not final state (for async search).
+         * An Clusters object meant for use with CCS holding additional information about
+         * the number of remote clusters and whether ccsMinimizeRoundtrips is being used.
          * @param total
          * @param successful
          * @param skipped
@@ -508,22 +505,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
         }
 
-        /**
-         * A final Clusters object. This constructor freezes the object.
-         * @param total
-         * @param successful
-         * @param skipped
-         */
         public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                 : "total: " + total + " successful: " + successful + " skipped: " + skipped;
-            assert successful <= total : "total: " + total + " successful: " + successful + " skipped: " + skipped;
+            assert successful <= total && skipped == total - successful
+                : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
             this.remoteClusters = -1;  // means "unknown" and not needed for this usage
             this.ccsMinimizeRoundtrips = false;
-            this.frozen = true;
         }
 
         private Clusters(StreamInput in) throws IOException {
@@ -550,54 +541,42 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * Returns how many total clusters the search was requested to be executed on
+         * @return how many total clusters the search was requested to be executed on
          */
         public int getTotal() {
             return total;
         }
 
         /**
-         * Returns how many total clusters the search was executed successfully on
+         * @return how many total clusters the search was executed successfully on
          */
         public int getSuccessful() {
             return successful;
         }
 
         /**
-         * Returns how many total clusters were during the execution of the search request
+         * @return how many total clusters were used during the execution of the search request
          */
         public int getSkipped() {
             return skipped;
         }
 
-        public void setSuccessful(int successful) {
-            assert frozen == false : "Attempted to modify number of successful clusters in frozen Cluster object";
-            this.successful = successful;
-        }
-
-        public void setSkipped(int skipped) {
-            assert frozen == false : "Attempted to modify number of skipped clusters in frozen Cluster object";
-            this.skipped = skipped;
-        }
-
-        public boolean isFrozen() {
-            return frozen;
-        }
-
-        public void freeze() {
-            this.frozen = true;
-        }
-
+        /**
+         * @return how many remote clusters were using during the execution of the search request
+         *         If not set, returns -1, meaning 'unknown'.
+         */
         public int getRemoteClusters() {
             return remoteClusters;
         }
 
+        /**
+         * @return whether this search was a cross cluster search done with ccsMinimizeRoundtrips=true
+         */
         public boolean isCcsMinimizeRoundtrips() {
             return ccsMinimizeRoundtrips;
         }
 
-        /// MP: TODO: look into why we need equals and hashCode - are these used for Hash Keys?
-
+        // TODO: should this be updated to include the new fields?
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -610,6 +589,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             return total == clusters.total && successful == clusters.successful && skipped == clusters.skipped;
         }
 
+        // TODO: should this be updated to include the new fields?
         @Override
         public int hashCode() {
             return Objects.hash(total, successful, skipped);
@@ -617,17 +597,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
         @Override
         public String toString() {
-            return "Clusters{total=" + total + ", successful=" + successful + ", skipped=" + skipped + '}';
-        }
-
-        public String extendedToString() {
             return Strings.format(
-                "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, frozen=%s, ccsMinimizeRoundtrips=%s}",
+                "Clusters{total=%d, successful=%d, skipped=%d, remote=%d, ccsMinimizeRoundtrips=%s}",
                 total,
                 successful,
                 skipped,
                 remoteClusters,
-                frozen,
                 ccsMinimizeRoundtrips
             );
         }

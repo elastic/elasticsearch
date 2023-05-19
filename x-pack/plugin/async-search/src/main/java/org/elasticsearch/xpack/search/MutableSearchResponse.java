@@ -43,7 +43,7 @@ class MutableSearchResponse {
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
-    private SearchClustersInfo clustersInfo;
+    private final SearchClustersInfo clustersInfo;
     private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
@@ -79,7 +79,8 @@ class MutableSearchResponse {
     MutableSearchResponse(int totalShards, int skippedShards, Clusters clusters, ThreadContext threadContext) {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
-        this.clustersInfo = new SearchClustersInfo(totalShards > 0, clusters);
+
+        this.clustersInfo = new SearchClustersInfo(clusters);
         this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards - skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
@@ -176,13 +177,15 @@ class MutableSearchResponse {
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
-        if (clustersInfo.isLocalClusterStatusUpdated() == false && localClusterSearchIsFinished()) {
-            if (clustersInfo.getClusters() != null) {
-                Clusters clusters = clustersInfo.getClusters();
-                Clusters newClusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
-                clustersInfo.setClusters(newClusters);
-                clustersInfo.setLocalClusterStatusUpdated(true);  // avoid double counting the local cluster
-                logger.debug("Updating ClustersInfo to indicate that the local cluster search has completed: {}", newClusters);
+        if (clustersInfo.getClusters() != null && clustersInfo.isLocalClusterStatusUpdated() == false) {
+            synchronized (this) {
+                if (clustersInfo.isLocalClusterStatusUpdated() == false && localClusterSearchIsFinished()) {
+                    Clusters clusters = clustersInfo.getClusters();
+                    Clusters newClusters = new Clusters(clusters.getTotal(), clusters.getSuccessful() + 1, clusters.getSkipped());
+                    clustersInfo.setClusters(newClusters);
+                    clustersInfo.setLocalClusterStatusUpdated(true);  // avoid double counting the local cluster
+                    logger.debug("Updating ClustersInfo to indicate that the local cluster search has completed: {}", newClusters);
+                }
             }
         }
 
@@ -215,7 +218,7 @@ class MutableSearchResponse {
      *              cluster search has completed.
      */
     private boolean localClusterSearchIsFinished() {
-        if (clustersInfo.hasLocalShards() == false) {
+        if (clustersInfo.hasLocalShards() != Boolean.TRUE) {
             return false;
         }
         int failedShards = buildQueryFailures().length;
@@ -367,14 +370,27 @@ class MutableSearchResponse {
      * SearchResponse to be converted to XContent output for end users.
      */
     static class SearchClustersInfo {
-        private final boolean hasLocalShards;
+        private final Boolean hasLocalShards;
         private Clusters clusters;
+        // when the local cluster finishes only allow the clusters.successful counter to be incremented once
         private boolean localClusterStatusUpdated;
 
-        SearchClustersInfo(boolean hasLocalShards, Clusters clusters) {
-            this.hasLocalShards = hasLocalShards;
+        SearchClustersInfo(Clusters clusters) {
             this.clusters = clusters;
             this.localClusterStatusUpdated = false;
+            this.hasLocalShards = determineLocalShards(clusters);
+        }
+
+        // since Clusters does not currently track this information, this is a best guess
+        private static Boolean determineLocalShards(Clusters clusters) {
+            if (clusters == null) {
+                return null;  // unknown
+            }
+            if (clusters.getRemoteClusters() < 0) {
+                // default setting for the non-CCS non-minimize_roundtrips scenario, so should have local shards
+                return true;
+            }
+            return clusters.getTotal() > clusters.getRemoteClusters();
         }
 
         public Clusters getClusters() {
@@ -393,7 +409,10 @@ class MutableSearchResponse {
             this.localClusterStatusUpdated = localClusterStatusUpdated;
         }
 
-        public boolean hasLocalShards() {
+        /**
+         * @return null if not known (Clusters object doesn't record this info in all circumstances)
+         */
+        public Boolean hasLocalShards() {
             return hasLocalShards;
         }
     }

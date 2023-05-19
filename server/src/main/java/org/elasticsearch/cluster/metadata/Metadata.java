@@ -822,18 +822,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             IndexMetadata indexMetadata = indices.get(index);
             List<AliasMetadata> filteredValues = new ArrayList<>();
             for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                boolean matched = matchAllAliases;
-                String alias = aliasMetadata.alias();
-                for (int i = 0; i < patterns.length; i++) {
-                    if (include[i]) {
-                        if (matched == false) {
-                            String pattern = patterns[i];
-                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
-                        }
-                    } else if (matched) {
-                        matched = Regex.simpleMatch(patterns[i], alias) == false;
-                    }
-                }
+                boolean matched = isMatched(patterns, include, matchAllAliases, aliasMetadata);
                 if (matched) {
                     filteredValues.add(aliasMetadata);
                 }
@@ -845,6 +834,22 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             }
         }
         return mapBuilder.build();
+    }
+
+    private static boolean isMatched(String[] patterns, boolean[] include, boolean matchAllAliases, AliasMetadata aliasMetadata) {
+        boolean matched = matchAllAliases;
+        String alias = aliasMetadata.alias();
+        for (int i = 0; i < patterns.length; i++) {
+            if (include[i]) {
+                if (matched == false) {
+                    String pattern = patterns[i];
+                    matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
+                }
+            } else if (matched) {
+                matched = Regex.simpleMatch(patterns[i], alias) == false;
+            }
+        }
+        return matched;
     }
 
     /**

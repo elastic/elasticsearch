@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -403,21 +402,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         }
 
         @Override
-        protected void onMinimizeRoundtrips(boolean hasLocalShards, int numRemoteClusters) {
-            // best effort to cancel expired tasks
-            checkCancellation();
-            int totalClusters = numRemoteClusters;
-            ccsMinimizeRoundtrips = totalClusters > 0;
-            if (hasLocalShards == false) {
-                // since onListShards will not be called otherwise, call here to properly initialize task state
-                onListShards(Collections.emptyList(), Collections.emptyList(), new Clusters(totalClusters, 0, 0), false);
-            }
-        }
-
-        @Override
         protected void onListShards(List<SearchShard> shards, List<SearchShard> skipped, Clusters clusters, boolean fetchPhase) {
             // best effort to cancel expired tasks
             checkCancellation();
+            ccsMinimizeRoundtrips = (clusters.isCcsMinimizeRoundtrips() && clusters.getRemoteClusters() > 0);
             searchResponse.compareAndSet(
                 null,
                 new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())

@@ -321,7 +321,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
                             : null;
-                    // Notifies the task progress listener that searches on remote clusters will not report their progress.
                     boolean hasLocalShards = hasLocalIndicesToSearch(localIndices);
                     final int totalClusters = (hasLocalShards ? 1 : 0) + remoteClusterIndices.size();
                     var initClusters = new SearchResponse.Clusters(totalClusters, 0, 0, remoteClusterIndices.size(), true);

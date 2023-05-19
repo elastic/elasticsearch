@@ -2614,6 +2614,15 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         static boolean assertDataStreams(Map<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
             // Sanity check, because elsewhere a more user friendly error should have occurred:
+            List<String> conflictingAliases = getConflictingAliases(indices, dsMetadata);
+            if (conflictingAliases != null) {
+                throw new AssertionError("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
+            }
+
+            return true;
+        }
+
+        private static List<String> getConflictingAliases(Map<String, IndexMetadata> indices, DataStreamMetadata dsMetadata) {
             List<String> conflictingAliases = null;
 
             for (var dataStream : dsMetadata.dataStreams().values()) {
@@ -2621,11 +2630,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     conflictingAliases = populateConflictingAliases(indices, conflictingAliases, index);
                 }
             }
-            if (conflictingAliases != null) {
-                throw new AssertionError("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
-            }
-
-            return true;
+            return conflictingAliases;
         }
 
         private static List<String> populateConflictingAliases(Map<String, IndexMetadata> indices, List<String> conflictingAliases, Index index) {

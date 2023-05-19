@@ -361,23 +361,27 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.isRetry()
             );
         }
-        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE) {
 
             try {
                 primary.mapperService()
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getRequiredMappingUpdate()),
+                        new CompressedXContent(result.getMappingUpdate()),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
-                logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
-                assert result.getId() != null;
-                onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                if (result.isMappingUpdateOptional()) {
+                    context.onOptionalMappingUpdateFailed();
+                } else {
+                    logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
+                    assert result.getId() != null;
+                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                }
                 return true;
             }
 
-            mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<>() {
+            mappingUpdater.updateMappings(result.getMappingUpdate(), primary.shardId(), new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
                     context.markAsRequiringMappingUpdate();
@@ -397,9 +401,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
-                    assert context.isInitial();
+                    if (result.isMappingUpdateOptional()) {
+                        context.onOptionalMappingUpdateFailed();
+                    } else {
+                        onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
+                        assert context.isInitial();
+                    }
                     itemDoneListener.onResponse(null);
                 }
             });
@@ -642,7 +650,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
             }
         }
-        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master
             // (see MappingUpdatedAction.updateMappingOnMaster) we still need to protect against missing mappings
             // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
@@ -653,7 +661,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // applied the new mapping, so there is no other option than to wait.
             throw new TransportReplicationAction.RetryOnReplicaException(
                 replica.shardId(),
-                "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate()
+                "Mappings are not available on the replica yet, triggered update: " + result.getMappingUpdate()
             );
         }
         return result;

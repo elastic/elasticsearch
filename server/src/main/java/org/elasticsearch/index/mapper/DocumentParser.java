@@ -600,14 +600,31 @@ public final class DocumentParser {
     }
 
     private static void parseDynamicValue(final DocumentParserContext context, String currentFieldName) throws IOException {
-        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
+        switch (context.dynamic()) {
+            case STRICT -> throw new StrictDynamicMappingException(
+                context.parser().getTokenLocation(),
+                context.parent().fullPath(),
+                currentFieldName
+            );
+            case FALSE -> failIfMatchesRoutingPath(context, currentFieldName);
+            case UNTIL_LIMIT -> {
+                // fast path if we're exactly at the limit
+                boolean limitReached = context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1);
+                if (limitReached == false) {
+                    try {
+                        context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
+                    } catch (IllegalArgumentException e) {
+                        // we're not exactly at the limit but the added field is a multi-field
+                        limitReached = true;
+                    }
+                }
+                if (limitReached) {
+                    context.addIgnoredField(context.path().pathAsText(currentFieldName));
+                }
+            }
+            case TRUE, RUNTIME -> context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
+            default -> throw new IllegalArgumentException("Unknown dynamic [" + context.dynamic() + "]");
         }
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            failIfMatchesRoutingPath(context, currentFieldName);
-            return;
-        }
-        context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
     }
 
     private static void failIfMatchesRoutingPath(DocumentParserContext context, String currentFieldName) {

@@ -105,4 +105,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static String internFieldName(String fieldName) {
         return fieldNameStringDeduplicator.deduplicate(fieldName);
     }
+
+    /**
+     * Returns the number of mappers, including children
+     */
+    int mapperSize() {
+        return recursiveCountMappers(0);
+    }
+
+    private int recursiveCountMappers(int size) {
+        for (Mapper mapper : this) {
+            size += mapper.recursiveCountMappers(size);
+        }
+        return size + 1;
+    }
 }

@@ -170,6 +170,15 @@ class BulkPrimaryExecutionContext {
         return (T) requestToExecute;
     }
 
+    /** indicates that the optional mapping updated did not succeed and prepares for a new execution */
+    public void onOptionalMappingUpdateFailed() {
+        assert assertInvariants(ItemProcessingState.TRANSLATED);
+        currentItemState = ItemProcessingState.INITIAL;
+        requestToExecute = null;
+        executionResult = null;
+        assert assertInvariants(ItemProcessingState.INITIAL);
+    }
+
     /** indicates that the current operation can not be completed and needs to wait for a new mapping from the master */
     public void markAsRequiringMappingUpdate() {
         assert assertInvariants(ItemProcessingState.TRANSLATED);

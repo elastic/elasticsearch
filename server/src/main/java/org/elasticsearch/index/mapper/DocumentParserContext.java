@@ -288,7 +288,7 @@ public abstract class DocumentParserContext {
         if (mappingLookup.getMapper(mapper.name()) == null
             && mappingLookup.objectMappers().containsKey(mapper.name()) == false
             && newFieldsSeen.add(mapper.name())) {
-            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
+            mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), getDynamicMappersSize() + mapper.mapperSize());
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.name(), objectMapper);
@@ -308,6 +308,10 @@ public abstract class DocumentParserContext {
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
         dynamicMappers.add(mapper);
+    }
+
+    private int getDynamicMappersSize() {
+        return dynamicMappers.stream().mapToInt(Mapper::mapperSize).sum();
     }
 
     /**

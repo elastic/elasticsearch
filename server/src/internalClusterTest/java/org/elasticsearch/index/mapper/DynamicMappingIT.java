@@ -27,9 +27,11 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,10 +41,13 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -89,18 +94,36 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertTrue(bulkResponse.hasFailures());
     }
 
-    private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String field) throws IOException {
-        MappingMetadata indexMappings = mappings.getMappings().get("index");
-        assertNotNull(indexMappings);
-        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
-        assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
+    public void testConcurrentDynamicUpdates() throws Throwable {
+        int numberOfFieldsToCreate = 32;
+        Map<String, Object> properties = indexConcurrently(numberOfFieldsToCreate, "true", Settings.builder());
+        assertThat(properties.size(), equalTo(numberOfFieldsToCreate));
+        for (int i = 0; i < numberOfFieldsToCreate; i++) {
+            assertTrue("Could not find [field" + i + "] in " + properties, properties.containsKey("field" + i));
+        }
     }
 
-    public void testConcurrentDynamicUpdates() throws Throwable {
-        createIndex("index");
-        final Thread[] indexThreads = new Thread[32];
+    public void testConcurrentDynamicUntilLimitUpdates() throws Throwable {
+        int numberOfFieldsToCreate = 32;
+        Map<String, Object> properties = indexConcurrently(
+            numberOfFieldsToCreate,
+            "until_limit",
+            Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate)
+        );
+        assertThat(properties.size(), equalTo(numberOfFieldsToCreate / 2));
+        SearchResponse response = client().prepareSearch("index")
+            .setQuery(new MatchAllQueryBuilder())
+            .setSize(numberOfFieldsToCreate)
+            .addFetchField("*")
+            .get();
+        long ignoredFields = Arrays.stream(response.getHits().getHits()).filter(hit -> hit.field("_ignored") != null).count();
+        assertEquals(16, ignoredFields);
+    }
+
+    private Map<String, Object> indexConcurrently(int numberOfFieldsToCreate, String dynamic, Settings.Builder settings) throws Throwable {
+        client().admin().indices().prepareCreate("index").setSettings(settings).setMapping(Map.of("dynamic", dynamic)).get();
+        ensureGreen("index");
+        final Thread[] indexThreads = new Thread[numberOfFieldsToCreate];
         final CountDownLatch startLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> error = new AtomicReference<>();
         for (int i = 0; i < indexThreads.length; ++i) {
@@ -128,14 +151,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         if (error.get() != null) {
             throw error.get();
         }
-        Thread.sleep(2000);
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
-        for (int i = 0; i < indexThreads.length; ++i) {
-            assertMappingsHaveField(mappings, "index", "field" + i);
-        }
-        for (int i = 0; i < indexThreads.length; ++i) {
+        client().admin().indices().prepareRefresh("index").get();
+        for (int i = 0; i < numberOfFieldsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
+        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
+        MappingMetadata indexMappings = mappings.getMappings().get("index");
+        assertNotNull(indexMappings);
+        Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
+        return properties;
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException, IOException {
@@ -226,13 +252,64 @@ public class DynamicMappingIT extends ESIntegTestCase {
             Exception e = expectThrows(DocumentParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
             assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(
-                e.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]")
-            );
+            assertThat(e.getCause().getMessage(), Matchers.containsString("Limit of total fields [2] has been exceeded"));
         } finally {
             indexingCompletedLatch.countDown();
         }
+    }
+
+    public void testDynamicUntilLimitMultiField() throws Exception {
+        var fields = indexUntilLimit(2, orderedMap("field1", 1, "field2", "text")).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("field1", "_ignored")));
+        assertThat(fields.get("field1").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("field2")));
+    }
+
+    public void testDynamicUntilLimitObjectField() throws Exception {
+        var fields = indexUntilLimit(3, orderedMap("a.b", 1, "a.c", 2, "a.d", 3)).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.c", "_ignored")));
+        assertThat(fields.get("a.b").getValues(), equalTo(List.of(1L)));
+        assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    }
+
+    public void testDynamicUntilLimitDottedObjectMultiField() throws Exception {
+        var fields = indexUntilLimit(4, orderedMap("a.b", "foo", "a.c", 2, "a.d", 3)).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "_ignored")));
+        assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
+        assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
+        assertThat(fields.get("a.c").getValues(), equalTo(List.of(2L)));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    }
+
+    public void testDynamicUntilLimitObjectMultiField() throws Exception {
+        var fields = indexUntilLimit(5, orderedMap("a", orderedMap("b", "foo", "c", "bar", "d", 3))).getFields();
+        assertThat(fields.keySet(), equalTo(Set.of("a.b", "a.b.keyword", "a.c", "a.c.keyword", "_ignored")));
+        assertThat(fields.get("a.b").getValues(), equalTo(List.of("foo")));
+        assertThat(fields.get("a.b.keyword").getValues(), equalTo(List.of("foo")));
+        assertThat(fields.get("a.c").getValues(), equalTo(List.of("bar")));
+        assertThat(fields.get("a.c.keyword").getValues(), equalTo(List.of("bar")));
+        assertThat(fields.get("_ignored").getValues(), equalTo(List.of("a.d")));
+    }
+
+    private LinkedHashMap<String, Object> orderedMap(Object... entries) {
+        var map = new LinkedHashMap<String, Object>();
+        for (int i = 0; i < entries.length; i += 2) {
+            map.put((String) entries[i], entries[i + 1]);
+        }
+        return map;
+    }
+
+    private SearchHit indexUntilLimit(int fieldLimit, Map<String, Object> source) throws Exception {
+        client().admin()
+            .indices()
+            .prepareCreate("index")
+            .setSettings(Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), fieldLimit).build())
+            .setMapping(Map.of("dynamic", "until_limit"))
+            .get();
+        ensureGreen("index");
+        client().prepareIndex("index").setId("1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(source).get();
+        return client().prepareSearch("index").setQuery(new MatchAllQueryBuilder()).addFetchField("*").get().getHits().getHits()[0];
     }
 
     public void testTotalFieldsLimitWithRuntimeFields() {

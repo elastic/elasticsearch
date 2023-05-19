@@ -252,6 +252,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
             new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+            false,
             "id"
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -849,6 +850,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, "id");
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
             new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+            false,
             "id"
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -941,6 +943,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             Engine.IndexResult mappingUpdate = new Engine.IndexResult(
                 new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap()),
+                false,
                 "id"
             );
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);

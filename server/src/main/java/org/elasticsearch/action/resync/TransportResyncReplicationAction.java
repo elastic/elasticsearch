@@ -168,10 +168,10 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
         replica.updateMaxUnsafeAutoIdTimestamp(request.getMaxSeenAutoIdTimestampOnPrimary());
         for (Translog.Operation operation : request.getOperations()) {
             final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
-            if (operationResult.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+            if (operationResult.getResultType() == Engine.Result.Type.MAPPING_UPDATE) {
                 throw new TransportReplicationAction.RetryOnReplicaException(
                     replica.shardId(),
-                    "Mappings are not available on the replica yet, triggered update: " + operationResult.getRequiredMappingUpdate()
+                    "Mappings are not available on the replica yet, triggered update: " + operationResult.getMappingUpdate()
                 );
             }
             location = syncOperationResultOrThrow(operationResult, location);

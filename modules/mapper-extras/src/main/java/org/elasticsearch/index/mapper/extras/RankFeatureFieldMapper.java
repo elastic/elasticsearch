@@ -64,12 +64,32 @@ public class RankFeatureFieldMapper extends FieldMapper {
             true
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<Float> nullValue = new Parameter<>("null_value", false, () -> null,
-            (n, c, o) -> o == null ? null : ((Number)o).floatValue(), m -> ft(m).nullValue, XContentBuilder::field,
-            Objects::toString).acceptsNull();
+        private final Parameter<Float> nullValue = new Parameter<>(
+            "null_value",
+            false,
+            () -> null,
+            (n, c, o) -> o == null ? null : objectToFloat(o),
+            m -> ft(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
+        ).addValidator(value -> {
+            if (value != null && value < Float.MIN_NORMAL) {
+                throw new IllegalArgumentException(
+                    "nullValue must be a positive normal float, for feature: [rank_feature] but it is "
+                        + value
+                        + " which is less than the minimum positive normal float: "
+                        + Float.MIN_NORMAL
+                );
+            }
+        }).acceptsNull();
 
         public Builder(String name) {
             super(name);
+        }
+
+        Builder nullValue(float nullValue) {
+            this.nullValue.setValue(nullValue);
+            return this;
         }
 
         @Override
@@ -77,21 +97,17 @@ public class RankFeatureFieldMapper extends FieldMapper {
             return new Parameter<?>[] { positiveScoreImpact, nullValue, meta };
         }
 
-        private void validateNullValue(Float nullValue) {
-            if(nullValue!= null && nullValue < Float.MIN_NORMAL) {
-                throw new IllegalArgumentException(
-                    "nullValue must be a positive normal float, for feature: [rank_feature] but it is "
-                        + nullValue
-                        + " which is less than the minimum positive normal float: "
-                        + Float.MIN_NORMAL);
-            }
-        }
-
         @Override
         public RankFeatureFieldMapper build(MapperBuilderContext context) {
-            validateNullValue(nullValue.getValue());
-            return new RankFeatureFieldMapper(name, new RankFeatureFieldType(context.buildFullName(name), meta.getValue(),
-                positiveScoreImpact.getValue(), nullValue.getValue()), multiFieldsBuilder.build(this, context),
+            return new RankFeatureFieldMapper(
+                name,
+                new RankFeatureFieldType(
+                    context.buildFullName(name),
+                    meta.getValue(),
+                    positiveScoreImpact.getValue(),
+                    nullValue.getValue()
+                ),
+                multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 positiveScoreImpact.getValue(),
                 nullValue.getValue()
@@ -121,10 +137,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
             return positiveScoreImpact;
         }
 
-        public Float nullValue() {
-            return nullValue;
-        }
-
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             return new TermQuery(new Term("_feature", name()));
@@ -143,6 +155,9 @@ public class RankFeatureFieldMapper extends FieldMapper {
             return new SourceValueFetcher(name(), context) {
                 @Override
                 protected Float parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return nullValue;
+                    }
                     return objectToFloat(value);
                 }
             };
@@ -184,7 +199,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         float value;
         if (context.parser().currentToken() == Token.VALUE_NULL) {
-            if(nullValue == null){
+            if (nullValue == null) {
                 // skip
                 return;
             }

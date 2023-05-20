@@ -19,8 +19,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -28,12 +28,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -147,8 +147,10 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
      * Method that tests an exception is thrown when nullValue provided for rank feature is not a positive number
      */
     public void testExceptionIsThrownWhenNullValueNonPositive() {
-        MapperParsingException e = expectThrows(MapperParsingException.class, ()->
-            parametrizedRankFeatureFieldTest(false, -2f,Arrays.asList(12f, 13f)));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> parametrizedRankFeatureFieldTest(false, -2f, Arrays.asList(12f, 13f))
+        );
         String message = "nullValue must be a positive normal float, for feature: [rank_feature] but it is "
             + Float.valueOf(-2f).toString()
             + " which is less than the minimum positive normal float: "
@@ -156,7 +158,7 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         String detailedMessage = "Failed to parse mapping: " + message;
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertEquals(IllegalArgumentException.class, e.getCause().getClass());
-        assertEquals(message,  e.getCause().getMessage());
+        assertEquals(message, e.getCause().getMessage());
     }
 
     /**
@@ -179,22 +181,25 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
      */
     private void parametrizedRankFeatureFieldTest(boolean positiveScoreImpact, Float nullValue, List<Float> docs) throws IOException {
 
-        DocumentMapper mapper = nullValue ==  null ? createDocumentMapper(
-            fieldMapping(b -> b.field("type", "rank_feature").field("positive_score_impact", positiveScoreImpact))):createDocumentMapper(
-            fieldMapping(b -> b.field("type", "rank_feature").field("positive_score_impact", positiveScoreImpact)
-                .field("null_value",nullValue)));
+        DocumentMapper mapper = nullValue == null
+            ? createDocumentMapper(fieldMapping(b -> b.field("type", "rank_feature").field("positive_score_impact", positiveScoreImpact)))
+            : createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "rank_feature").field("positive_score_impact", positiveScoreImpact).field("null_value", nullValue)
+                )
+            );
 
         List<FeatureField> featureFields = new ArrayList<>();
         List<Integer> frequencies = new ArrayList<>();
 
         for (Float value : docs) {
-            ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("field", value == null ? (byte[]) null : value )));
+            ParsedDocument parsedDocument = mapper.parse(source(b -> b.field("field", value == null ? (byte[]) null : value)));
             List<IndexableField> fields = parsedDocument.rootDoc().getFields("_feature");
             // if no nullValue is provided and the value passed for rank_feature is null then fields should have zero size else 1
             assertEquals(value == null && nullValue == null ? 0 : 1, fields.size());
-            if (value != null || nullValue != null){
+            if (value != null || nullValue != null) {
                 assertThat(fields.get(0), instanceOf(FeatureField.class));
-                featureFields.add((FeatureField)fields.get(0));
+                featureFields.add((FeatureField) fields.get(0));
                 frequencies.add(getFrequency(featureFields.get(featureFields.size() - 1).tokenStream(null, null)));
             }
             // no nullValue is provided and value is null aka no FeatureField is created and no frequency can calculate
@@ -207,30 +212,30 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
         List<Float> valuesAfterNullReplaced;
         List<Integer> noNullFrequencies;
         // reverse the actual order of values provided if they impact negatively the score
-        Comparator<Float> comparator = positiveScoreImpact ? (f1, f2) -> Float.compare(f2, f1): Float::compare;
+        Comparator<Float> comparator = positiveScoreImpact ? (f1, f2) -> Float.compare(f2, f1) : Float::compare;
 
         // sort can't deal with null values
         if (nullValue == null) {
             valuesAfterNullReplaced = docs.stream().filter(Objects::nonNull).collect(Collectors.toList());
             noNullFrequencies = frequencies.stream().filter(Objects::nonNull).collect(Collectors.toList());
-        }
-        else {
+        } else {
             valuesAfterNullReplaced = docs.stream().map(value -> value == null ? nullValue : value).collect(Collectors.toList());
             noNullFrequencies = List.copyOf(frequencies);
         }
 
         // indexes in the original list of the sorted values
-        List<Integer> indexes = valuesAfterNullReplaced.stream().sorted(comparator).map(valuesAfterNullReplaced::indexOf).
-            collect(Collectors.toList());
+        List<Integer> indexes = valuesAfterNullReplaced.stream()
+            .sorted(comparator)
+            .map(valuesAfterNullReplaced::indexOf)
+            .collect(Collectors.toList());
         // indexes in the
-        List<Integer> indexes1 = noNullFrequencies.stream().sorted().map(noNullFrequencies::indexOf).
-            collect(Collectors.toList());
+        List<Integer> indexes1 = noNullFrequencies.stream().sorted().map(noNullFrequencies::indexOf).collect(Collectors.toList());
         Collections.reverse(indexes1);
         assertEquals(indexes.size(), indexes1.size());
 
         // indexes should be the same aka the bigger the value the bigger the frequency if no negative impact on score
         // or the bigger the value the smaller the frequency if negative impact on score
-        for(int i = 0; i< indexes.size(); i++) {
+        for (int i = 0; i < indexes.size(); i++) {
             assertEquals(indexes.get(i), indexes1.get(i));
         }
 

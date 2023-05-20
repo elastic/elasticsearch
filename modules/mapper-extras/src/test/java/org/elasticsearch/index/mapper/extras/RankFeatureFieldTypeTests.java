@@ -24,9 +24,12 @@ public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new RankFeatureFieldMapper.Builder("field").build(MapperBuilderContext.root(false)).fieldType();
+        MappedFieldType mapper = new RankFeatureFieldMapper.Builder("field").nullValue(2.0f)
+            .build(MapperBuilderContext.root(false))
+            .fieldType();
 
         assertEquals(List.of(3.14f), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42.9f), fetchSourceValue(mapper, "42.9"));
+        assertEquals(List.of(2.0f), fetchSourceValue(mapper, ""));
     }
 }

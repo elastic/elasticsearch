@@ -5534,7 +5534,8 @@ public class InternalEngineTests extends EngineTestCase {
                 Collections.singletonList(document),
                 source,
                 XContentType.JSON,
-                null
+                null,
+                false
             );
 
             final Engine.Index index = new Engine.Index(

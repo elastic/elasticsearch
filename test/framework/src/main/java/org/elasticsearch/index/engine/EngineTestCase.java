@@ -413,7 +413,17 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
+        return new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            routing,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            mappingUpdate,
+            false
+        );
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {

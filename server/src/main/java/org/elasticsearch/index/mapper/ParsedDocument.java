@@ -37,6 +37,7 @@ public class ParsedDocument {
     private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
+    private final boolean dynamicMappingsUpdateOptional;
 
     /**
      * Create a no-op tombstone document
@@ -59,7 +60,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            false
         );
     }
 
@@ -83,7 +85,8 @@ public class ParsedDocument {
             Collections.singletonList(document),
             new BytesArray("{}"),
             XContentType.JSON,
-            null
+            null,
+            false
         );
     }
 
@@ -95,7 +98,8 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate
+        Mapping dynamicMappingsUpdate,
+        boolean dynamicMappingsUpdateOptional
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -104,6 +108,7 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
+        this.dynamicMappingsUpdateOptional = dynamicMappingsUpdateOptional;
         this.xContentType = xContentType;
     }
 
@@ -154,6 +159,15 @@ public class ParsedDocument {
      */
     public Mapping dynamicMappingsUpdate() {
         return dynamicMappingsUpdate;
+    }
+
+    /**
+     * Whether the {@linkplain #dynamicMappingsUpdate mappings update} is considered required or optional.
+     * When it's required, the corresponding index request will fail when the mapping update fails.
+     * When it's optional, the corresponding index request will be executed even if the mapping update fails.
+     */
+    public boolean dynamicMappingsUpdateOptional() {
+        return dynamicMappingsUpdateOptional;
     }
 
     public void addDynamicMappingsUpdate(Mapping update) {

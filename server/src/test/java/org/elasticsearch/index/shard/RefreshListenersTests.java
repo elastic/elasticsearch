@@ -559,7 +559,17 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(versionField);
         seqID.addFields(document);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            null,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            null,
+            false
+        );
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }

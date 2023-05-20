@@ -102,7 +102,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -973,7 +972,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
-                return new Engine.IndexResult(update, update.dynamic() == ObjectMapper.Dynamic.UNTIL_LIMIT, operation.parsedDoc().id());
+                return new Engine.IndexResult(update, operation.parsedDoc().dynamicMappingsUpdateOptional(), operation.parsedDoc().id());
             }
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure

@@ -78,6 +78,7 @@ public final class DocumentParser {
             throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
+        boolean ignoreDynamicFieldsBeyondLimit = context.indexSettings().isIgnoreDynamicFieldsBeyondLimit();
 
         return new ParsedDocument(
             context.version(),
@@ -87,7 +88,8 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(context)
+            createDynamicUpdate(context),
+            ignoreDynamicFieldsBeyondLimit
         ) {
             @Override
             public String documentDescription() {
@@ -600,30 +602,21 @@ public final class DocumentParser {
     }
 
     private static void parseDynamicValue(final DocumentParserContext context, String currentFieldName) throws IOException {
-        switch (context.dynamic()) {
-            case STRICT -> throw new StrictDynamicMappingException(
-                context.parser().getTokenLocation(),
-                context.parent().fullPath(),
-                currentFieldName
-            );
-            case FALSE -> failIfMatchesRoutingPath(context, currentFieldName);
-            case UNTIL_LIMIT -> {
-                // fast path if we're exactly at the limit
-                boolean limitReached = context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1);
-                if (limitReached == false) {
-                    try {
-                        context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
-                    } catch (IllegalArgumentException e) {
-                        // we're not exactly at the limit but the added field is a multi-field
-                        limitReached = true;
-                    }
-                }
-                if (limitReached) {
-                    context.addIgnoredField(context.path().pathAsText(currentFieldName));
-                }
+        if (context.dynamic() == ObjectMapper.Dynamic.STRICT) {
+            throw new StrictDynamicMappingException(context.parser().getTokenLocation(), context.parent().fullPath(), currentFieldName);
+        }
+        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+            failIfMatchesRoutingPath(context, currentFieldName);
+            return;
+        }
+        try {
+            context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
+        } catch (IllegalArgumentException e) {
+            if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
+                context.addIgnoredField(context.path().pathAsText(currentFieldName));
+            } else {
+                throw e;
             }
-            case TRUE, RUNTIME -> context.dynamic().getDynamicFieldsBuilder().createDynamicFieldFromValue(context, currentFieldName);
-            default -> throw new IllegalArgumentException("Unknown dynamic [" + context.dynamic() + "]");
         }
     }
 

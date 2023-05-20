@@ -128,10 +128,6 @@ public final class Mapping implements ToXContentFragment {
         return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
     }
 
-    public ObjectMapper.Dynamic dynamic() {
-        return root.dynamic();
-    }
-
     /**
      * Merges a new mapping into the existing one.
      *

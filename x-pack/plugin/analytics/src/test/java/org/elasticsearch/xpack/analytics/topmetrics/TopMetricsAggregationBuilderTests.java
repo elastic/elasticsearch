@@ -115,8 +115,9 @@ public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializi
                     return metricField.build();
                 })
                 .collect(toList());
-            new TopMetricsAggregationBuilder("tm", sortBuilders, between(1, 100), metricFields)
-                .subAggregations(AggregatorFactories.builder());
+            new TopMetricsAggregationBuilder("tm", sortBuilders, between(1, 100), metricFields).subAggregations(
+                AggregatorFactories.builder()
+            );
         });
         assertEquals("Aggregator [tm] of type [top_metrics] cannot accept sub-aggregations", e.getMessage());
     }

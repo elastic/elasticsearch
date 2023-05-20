@@ -75,7 +75,7 @@ public class RankFeatureFieldMapper extends FieldMapper {
         ).addValidator(value -> {
             if (value != null && value < Float.MIN_NORMAL) {
                 throw new IllegalArgumentException(
-                    "nullValue must be a positive normal float, for feature: [rank_feature] but it is "
+                    "[null_value] must be a positive normal float for field of type [rank_feature], got "
                         + value
                         + " which is less than the minimum positive normal float: "
                         + Float.MIN_NORMAL

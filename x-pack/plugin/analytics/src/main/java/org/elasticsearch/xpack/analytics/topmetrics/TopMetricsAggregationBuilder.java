@@ -178,13 +178,6 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    public TopMetricsAggregationBuilder subAggregation(AggregationBuilder aggregation) {
-        throw new AggregationInitializationException(
-            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-        );
-    }
-
-    @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TopMetricsAggregationBuilder(this, factoriesBuilder, metadata);
     }

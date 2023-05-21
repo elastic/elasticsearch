@@ -361,27 +361,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.isRetry()
             );
         }
-        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE) {
+        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
             try {
                 primary.mapperService()
                     .merge(
                         MapperService.SINGLE_MAPPING_NAME,
-                        new CompressedXContent(result.getMappingUpdate()),
+                        new CompressedXContent(result.getRequiredMappingUpdate()),
                         MapperService.MergeReason.MAPPING_UPDATE_PREFLIGHT
                     );
             } catch (Exception e) {
-                if (result.isMappingUpdateOptional()) {
-                    context.onOptionalMappingUpdateFailed();
-                } else {
-                    logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
-                    assert result.getId() != null;
-                    onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
-                }
+                logger.info(() -> format("%s mapping update rejected by primary", primary.shardId()), e);
+                assert result.getId() != null;
+                onMappingUpdateFailure(e, primary, isDelete, version, result.getId(), context, updateResult);
                 return true;
             }
 
-            mappingUpdater.updateMappings(result.getMappingUpdate(), primary.shardId(), new ActionListener<>() {
+            mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(), new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {
                     context.markAsRequiringMappingUpdate();
@@ -401,13 +397,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                 @Override
                 public void onFailure(Exception e) {
+                    onMappingUpdateFailure(e, primary, isDelete, version, result.getId(), context, updateResult);
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
-                    if (result.isMappingUpdateOptional()) {
-                        context.onOptionalMappingUpdateFailed();
-                    } else {
-                        onComplete(exceptionToResult(e, primary, isDelete, version, result.getId()), context, updateResult);
-                        assert context.isInitial();
-                    }
+                    assert context.isInitial();
                     itemDoneListener.onResponse(null);
                 }
             });
@@ -416,6 +408,30 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             onComplete(result, context, updateResult);
         }
         return true;
+    }
+
+    private static void onMappingUpdateFailure(
+        Exception e,
+        IndexShard primary,
+        boolean isDelete,
+        long version,
+        String id,
+        BulkPrimaryExecutionContext context,
+        UpdateHelper.Result updateResult
+    ) {
+        Engine.Result r = exceptionToResult(e, primary, isDelete, version, id);
+        if (context.getRetryCounter() == 0) {
+            // retry all mapping update errors once
+            // the errors may be a result of a concurrent modification of the mapping
+            // for example, when adding a dynamic field under the premise that the field limit has not been reached, yet
+            // (see index.mapping.total_fields.ignore_dynamic_beyond_limit)
+            // but the field limit has been reached by a another concurrent operation
+            // retrying once is enough to prevent the issue from happening again and avoids the risk of infinite retry loops
+            context.markOperationAsExecuted(r);
+            context.resetForExecutionForRetry();
+        } else {
+            onComplete(r, context, updateResult);
+        }
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
@@ -650,7 +666,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
             }
         }
-        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE) {
+        if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master
             // (see MappingUpdatedAction.updateMappingOnMaster) we still need to protect against missing mappings
             // and wait for them. The reason is concurrent requests. Request r1 which has new field f triggers a
@@ -661,7 +677,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // applied the new mapping, so there is no other option than to wait.
             throw new TransportReplicationAction.RetryOnReplicaException(
                 replica.shardId(),
-                "Mappings are not available on the replica yet, triggered update: " + result.getMappingUpdate()
+                "Mappings are not available on the replica yet, triggered update: " + result.getRequiredMappingUpdate()
             );
         }
         return result;

@@ -78,7 +78,6 @@ public final class DocumentParser {
             throw new DocumentParsingException(XContentLocation.UNKNOWN, "Error parsing document", e);
         }
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
-        boolean ignoreDynamicFieldsBeyondLimit = context.indexSettings().isIgnoreDynamicFieldsBeyondLimit();
 
         return new ParsedDocument(
             context.version(),
@@ -88,8 +87,7 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            createDynamicUpdate(context),
-            ignoreDynamicFieldsBeyondLimit
+            createDynamicUpdate(context)
         ) {
             @Override
             public String documentDescription() {

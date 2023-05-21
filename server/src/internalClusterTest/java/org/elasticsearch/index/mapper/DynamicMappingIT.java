@@ -112,7 +112,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 .put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), numberOfFieldsToCreate)
                 .put(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.getKey(), true)
         );
-        assertThat(properties.size(), equalTo(numberOfFieldsToCreate / 2));
+        // every field is a multi-field (text + keyword)
+        assertThat(properties.size(), equalTo(16));
         SearchResponse response = client().prepareSearch("index")
             .setQuery(new MatchAllQueryBuilder())
             .setSize(numberOfFieldsToCreate)

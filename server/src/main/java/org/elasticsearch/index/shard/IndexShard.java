@@ -972,7 +972,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
-                return new Engine.IndexResult(update, operation.parsedDoc().dynamicMappingsUpdateOptional(), operation.parsedDoc().id());
+                return new Engine.IndexResult(update, operation.parsedDoc().id());
             }
         } catch (Exception e) {
             // We treat any exception during parsing and or mapping update as a document level failure
@@ -1884,8 +1884,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 switch (result.getResultType()) {
                     case FAILURE:
                         throw result.getFailure();
-                    case MAPPING_UPDATE:
-                        throw new IllegalArgumentException("unexpected mapping update: " + result.getMappingUpdate());
+                    case MAPPING_UPDATE_REQUIRED:
+                        throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
                     case SUCCESS:
                         break;
                     default:

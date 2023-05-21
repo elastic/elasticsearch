@@ -386,8 +386,7 @@ public abstract class Engine implements Closeable {
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
-        private final Mapping mappingUpdate;
-        private final boolean mappingUpdateOptional;
+        private final Mapping requiredMappingUpdate;
         private final String id;
         private Translog.Location translogLocation;
         private long took;
@@ -398,8 +397,7 @@ public abstract class Engine implements Closeable {
             this.version = version;
             this.term = term;
             this.seqNo = seqNo;
-            this.mappingUpdate = null;
-            this.mappingUpdateOptional = false;
+            this.requiredMappingUpdate = null;
             this.resultType = Type.FAILURE;
             this.id = id;
         }
@@ -410,21 +408,19 @@ public abstract class Engine implements Closeable {
             this.seqNo = seqNo;
             this.term = term;
             this.failure = null;
-            this.mappingUpdate = null;
-            this.mappingUpdateOptional = false;
+            this.requiredMappingUpdate = null;
             this.resultType = Type.SUCCESS;
             this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping mappingUpdate, boolean mappingUpdateOptional, String id) {
+        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
             this.term = UNASSIGNED_PRIMARY_TERM;
             this.failure = null;
-            this.mappingUpdate = mappingUpdate;
-            this.mappingUpdateOptional = mappingUpdateOptional;
-            this.resultType = Type.MAPPING_UPDATE;
+            this.requiredMappingUpdate = requiredMappingUpdate;
+            this.resultType = Type.MAPPING_UPDATE_REQUIRED;
             this.id = id;
         }
 
@@ -455,12 +451,8 @@ public abstract class Engine implements Closeable {
          * If the operation was aborted due to missing mappings, this method will return the mappings
          * that are required to complete the operation.
          */
-        public Mapping getMappingUpdate() {
-            return mappingUpdate;
-        }
-
-        public boolean isMappingUpdateOptional() {
-            return mappingUpdateOptional;
+        public Mapping getRequiredMappingUpdate() {
+            return requiredMappingUpdate;
         }
 
         /** get the translog location after executing the operation */
@@ -509,7 +501,7 @@ public abstract class Engine implements Closeable {
         public enum Type {
             SUCCESS,
             FAILURE,
-            MAPPING_UPDATE
+            MAPPING_UPDATE_REQUIRED
         }
     }
 
@@ -534,8 +526,8 @@ public abstract class Engine implements Closeable {
             this.created = false;
         }
 
-        public IndexResult(Mapping mappingUpdate, boolean mappingUpdateOptional, String id) {
-            super(Operation.TYPE.INDEX, mappingUpdate, mappingUpdateOptional, id);
+        public IndexResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
         }
 
@@ -563,6 +555,11 @@ public abstract class Engine implements Closeable {
         public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found, String id) {
             super(Operation.TYPE.DELETE, failure, version, term, seqNo, id);
             this.found = found;
+        }
+
+        public DeleteResult(Mapping requiredMappingUpdate, String id) {
+            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
+            this.found = false;
         }
 
         public boolean isFound() {

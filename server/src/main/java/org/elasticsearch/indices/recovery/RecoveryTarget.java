@@ -435,7 +435,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             indexShard().updateRetentionLeasesOnReplica(retentionLeases);
             for (Translog.Operation operation : operations) {
                 Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
-                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE) {
+                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
                 if (result.getFailure() != null) {

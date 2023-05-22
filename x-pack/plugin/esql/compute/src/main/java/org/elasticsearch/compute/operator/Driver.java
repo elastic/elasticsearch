@@ -152,7 +152,7 @@ public class Driver implements Runnable, Releasable, Describable {
                 continue;
             }
 
-            if (op.isFinished() == false && nextOp.isBlocked().isDone() && nextOp.needsInput()) {
+            if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
                 if (page != null && page.getPositionCount() != 0) {
                     nextOp.addInput(page);

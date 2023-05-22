@@ -350,6 +350,11 @@ SELECT * FROM test WHERE some.string LIKE '%a%';
 "query":{"wildcard":{"some.string.typical":{"wildcard":"*a*",
 ;
 
+LikeOnInexactWithOR
+SELECT * FROM test WHERE some.string LIKE '%a%' OR some.string LIKE '%b%' OR some.string LIKE '%c%';
+{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}}],"boost":1.0}}
+;
+
 RLikeOnInexact
 SELECT * FROM test WHERE some.string RLIKE '.*a.*';
 "query":{"regexp":{"some.string.typical":{"value":".*a.*",

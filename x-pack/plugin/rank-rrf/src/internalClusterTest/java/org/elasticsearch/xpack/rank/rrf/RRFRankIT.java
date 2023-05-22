@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.builder.SearchQueryBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -107,7 +109,10 @@ public class RRFRankIT extends ESIntegTestCase {
             .startObject("int")
             .field("type", "integer")
             .endObject()
-            .startObject("text")
+            .startObject("text0")
+            .field("type", "text")
+            .endObject()
+            .startObject("text1")
             .field("type", "text")
             .endObject()
             .endObject()
@@ -125,8 +130,10 @@ public class RRFRankIT extends ESIntegTestCase {
                     new float[] { 1000 - doc },
                     "int",
                     doc % 3,
-                    "text",
-                    "term " + doc
+                    "text0",
+                    "term " + doc,
+                    "text1",
+                    "term " + (1000 - doc)
                 )
                 .get();
         }
@@ -165,52 +172,6 @@ public class RRFRankIT extends ESIntegTestCase {
         assertEquals("other", hit.field("text").getValue());
     }
 
-    /*public void testMultiBM25() {
-        SearchResponse response = client().prepareSearch("nrd_index")
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setRankBuilder(new RRFRankBuilder(101, 1))
-            .setTrackTotalHits(false)
-            .setQueries(
-                List.of(
-                    new SearchQueryBuilder(
-                        QueryBuilders.boolQuery()
-                            .should(QueryBuilders.termQuery("text", "500").boost(11.0f))
-                            .should(QueryBuilders.termQuery("text", "499").boost(10.0f))
-                            .should(QueryBuilders.termQuery("text", "498").boost(9.0f))
-                            .should(QueryBuilders.termQuery("text", "497").boost(8.0f))
-                            .should(QueryBuilders.termQuery("text", "496").boost(7.0f))
-                            .should(QueryBuilders.termQuery("text", "495").boost(6.0f))
-                            .should(QueryBuilders.termQuery("text", "494").boost(5.0f))
-                            .should(QueryBuilders.termQuery("text", "493").boost(4.0f))
-                            .should(QueryBuilders.termQuery("text", "492").boost(3.0f))
-                            .should(QueryBuilders.termQuery("text", "491").boost(2.0f))
-                    ),
-                    new SearchQueryBuilder(
-                        QueryBuilders.boolQuery()
-                            .should(QueryBuilders.termQuery("text", "491").boost(11.0f))
-                            .should(QueryBuilders.termQuery("text", "499").boost(10.0f))
-                    )
-                )
-            )
-            .addFetchField("vector_asc")
-            .addFetchField("text")
-            .setSize(10)
-            .get();
-
-        assertNull(response.getHits().getTotalHits());
-        assertEquals(11, response.getHits().getHits().length);
-
-        SearchHit hit = response.getHits().getAt(0);
-        assertEquals(1, hit.getRank());
-        assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
-
-        Set<Double> vectors = Arrays.stream(response.getHits().getHits())
-            .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
-            .collect(Collectors.toSet());
-        assertEquals(Set.of(492.0, 493.0, 494.0, 495.0, 496.0, 497.0, 498.0, 499.0, 500.0, 501.0, 502.0), vectors);
-    }*/
-
     public void testBM25AndKnn() {
         float[] queryVector = { 500.0f };
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector_asc", queryVector, 101, 1001, null);
@@ -220,19 +181,19 @@ public class RRFRankIT extends ESIntegTestCase {
             .setKnnSearch(List.of(knnSearch))
             .setQuery(
                 QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("text", "500").boost(11.0f))
-                    .should(QueryBuilders.termQuery("text", "499").boost(10.0f))
-                    .should(QueryBuilders.termQuery("text", "498").boost(9.0f))
-                    .should(QueryBuilders.termQuery("text", "497").boost(8.0f))
-                    .should(QueryBuilders.termQuery("text", "496").boost(7.0f))
-                    .should(QueryBuilders.termQuery("text", "495").boost(6.0f))
-                    .should(QueryBuilders.termQuery("text", "494").boost(5.0f))
-                    .should(QueryBuilders.termQuery("text", "493").boost(4.0f))
-                    .should(QueryBuilders.termQuery("text", "492").boost(3.0f))
-                    .should(QueryBuilders.termQuery("text", "491").boost(2.0f))
+                    .should(QueryBuilders.termQuery("text0", "500").boost(11.0f))
+                    .should(QueryBuilders.termQuery("text0", "499").boost(10.0f))
+                    .should(QueryBuilders.termQuery("text0", "498").boost(9.0f))
+                    .should(QueryBuilders.termQuery("text0", "497").boost(8.0f))
+                    .should(QueryBuilders.termQuery("text0", "496").boost(7.0f))
+                    .should(QueryBuilders.termQuery("text0", "495").boost(6.0f))
+                    .should(QueryBuilders.termQuery("text0", "494").boost(5.0f))
+                    .should(QueryBuilders.termQuery("text0", "493").boost(4.0f))
+                    .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                    .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
             )
             .addFetchField("vector_asc")
-            .addFetchField("text")
+            .addFetchField("text0")
             .setSize(11)
             .get();
 
@@ -242,7 +203,7 @@ public class RRFRankIT extends ESIntegTestCase {
         SearchHit hit = response.getHits().getAt(0);
         assertEquals(1, hit.getRank());
         assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
+        assertEquals("term 500", hit.field("text0").getValue());
 
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
@@ -260,7 +221,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .setTrackTotalHits(true)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .addFetchField("vector_asc")
-            .addFetchField("text")
+            .addFetchField("text0")
             .setSize(19)
             .get();
 
@@ -270,7 +231,7 @@ public class RRFRankIT extends ESIntegTestCase {
         SearchHit hit = response.getHits().getAt(0);
         assertEquals(1, hit.getRank());
         assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
+        assertEquals("term 500", hit.field("text0").getValue());
 
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
@@ -312,20 +273,20 @@ public class RRFRankIT extends ESIntegTestCase {
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .setQuery(
                 QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("text", "500").boost(10.0f))
-                    .should(QueryBuilders.termQuery("text", "499").boost(20.0f))
-                    .should(QueryBuilders.termQuery("text", "498").boost(8.0f))
-                    .should(QueryBuilders.termQuery("text", "497").boost(7.0f))
-                    .should(QueryBuilders.termQuery("text", "496").boost(6.0f))
-                    .should(QueryBuilders.termQuery("text", "485").boost(5.0f))
-                    .should(QueryBuilders.termQuery("text", "494").boost(4.0f))
-                    .should(QueryBuilders.termQuery("text", "506").boost(3.0f))
-                    .should(QueryBuilders.termQuery("text", "505").boost(2.0f))
-                    .should(QueryBuilders.termQuery("text", "511").boost(9.0f))
+                    .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                    .should(QueryBuilders.termQuery("text0", "499").boost(20.0f))
+                    .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                    .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                    .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                    .should(QueryBuilders.termQuery("text0", "485").boost(5.0f))
+                    .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                    .should(QueryBuilders.termQuery("text0", "506").boost(3.0f))
+                    .should(QueryBuilders.termQuery("text0", "505").boost(2.0f))
+                    .should(QueryBuilders.termQuery("text0", "511").boost(9.0f))
             )
             .addFetchField("vector_asc")
             .addFetchField("vector_desc")
-            .addFetchField("text")
+            .addFetchField("text0")
             .setSize(19)
             .get();
 
@@ -336,13 +297,13 @@ public class RRFRankIT extends ESIntegTestCase {
         assertEquals(1, hit.getRank());
         assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
         assertEquals(500.0, ((Number) hit.field("vector_desc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
+        assertEquals("term 500", hit.field("text0").getValue());
 
         hit = response.getHits().getAt(1);
         assertEquals(2, hit.getRank());
         assertEquals(499.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
         assertEquals(501.0, ((Number) hit.field("vector_desc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 499", hit.field("text").getValue());
+        assertEquals("term 499", hit.field("text0").getValue());
 
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
@@ -382,19 +343,19 @@ public class RRFRankIT extends ESIntegTestCase {
             .setKnnSearch(List.of(knnSearch))
             .setQuery(
                 QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("text", "500").boost(11.0f))
-                    .should(QueryBuilders.termQuery("text", "499").boost(10.0f))
-                    .should(QueryBuilders.termQuery("text", "498").boost(9.0f))
-                    .should(QueryBuilders.termQuery("text", "497").boost(8.0f))
-                    .should(QueryBuilders.termQuery("text", "496").boost(7.0f))
-                    .should(QueryBuilders.termQuery("text", "495").boost(6.0f))
-                    .should(QueryBuilders.termQuery("text", "494").boost(5.0f))
-                    .should(QueryBuilders.termQuery("text", "493").boost(4.0f))
-                    .should(QueryBuilders.termQuery("text", "492").boost(3.0f))
-                    .should(QueryBuilders.termQuery("text", "491").boost(2.0f))
+                    .should(QueryBuilders.termQuery("text0", "500").boost(11.0f))
+                    .should(QueryBuilders.termQuery("text0", "499").boost(10.0f))
+                    .should(QueryBuilders.termQuery("text0", "498").boost(9.0f))
+                    .should(QueryBuilders.termQuery("text0", "497").boost(8.0f))
+                    .should(QueryBuilders.termQuery("text0", "496").boost(7.0f))
+                    .should(QueryBuilders.termQuery("text0", "495").boost(6.0f))
+                    .should(QueryBuilders.termQuery("text0", "494").boost(5.0f))
+                    .should(QueryBuilders.termQuery("text0", "493").boost(4.0f))
+                    .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                    .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
             )
             .addFetchField("vector_asc")
-            .addFetchField("text")
+            .addFetchField("text0")
             .setSize(11)
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
             .get();
@@ -405,7 +366,7 @@ public class RRFRankIT extends ESIntegTestCase {
         SearchHit hit = response.getHits().getAt(0);
         assertEquals(1, hit.getRank());
         assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
+        assertEquals("term 500", hit.field("text0").getValue());
 
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
@@ -438,7 +399,7 @@ public class RRFRankIT extends ESIntegTestCase {
             .setTrackTotalHits(false)
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .addFetchField("vector_asc")
-            .addFetchField("text")
+            .addFetchField("text0")
             .setSize(19)
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
             .get();
@@ -449,7 +410,7 @@ public class RRFRankIT extends ESIntegTestCase {
         SearchHit hit = response.getHits().getAt(0);
         assertEquals(1, hit.getRank());
         assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
+        assertEquals("term 500", hit.field("text0").getValue());
 
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
@@ -506,20 +467,20 @@ public class RRFRankIT extends ESIntegTestCase {
             .setKnnSearch(List.of(knnSearchAsc, knnSearchDesc))
             .setQuery(
                 QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery("text", "500").boost(10.0f))
-                    .should(QueryBuilders.termQuery("text", "499").boost(20.0f))
-                    .should(QueryBuilders.termQuery("text", "498").boost(8.0f))
-                    .should(QueryBuilders.termQuery("text", "497").boost(7.0f))
-                    .should(QueryBuilders.termQuery("text", "496").boost(6.0f))
-                    .should(QueryBuilders.termQuery("text", "485").boost(5.0f))
-                    .should(QueryBuilders.termQuery("text", "494").boost(4.0f))
-                    .should(QueryBuilders.termQuery("text", "506").boost(3.0f))
-                    .should(QueryBuilders.termQuery("text", "505").boost(2.0f))
-                    .should(QueryBuilders.termQuery("text", "511").boost(9.0f))
+                    .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                    .should(QueryBuilders.termQuery("text0", "499").boost(20.0f))
+                    .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                    .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                    .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                    .should(QueryBuilders.termQuery("text0", "485").boost(5.0f))
+                    .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                    .should(QueryBuilders.termQuery("text0", "506").boost(3.0f))
+                    .should(QueryBuilders.termQuery("text0", "505").boost(2.0f))
+                    .should(QueryBuilders.termQuery("text0", "511").boost(9.0f))
             )
             .addFetchField("vector_asc")
             .addFetchField("vector_desc")
-            .addFetchField("text")
+            .addFetchField("text0")
             .setSize(19)
             .addAggregation(AggregationBuilders.terms("sums").field("int"))
             .setStats("search")
@@ -532,13 +493,13 @@ public class RRFRankIT extends ESIntegTestCase {
         assertEquals(1, hit.getRank());
         assertEquals(500.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
         assertEquals(500.0, ((Number) hit.field("vector_desc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 500", hit.field("text").getValue());
+        assertEquals("term 500", hit.field("text0").getValue());
 
         hit = response.getHits().getAt(1);
         assertEquals(2, hit.getRank());
         assertEquals(499.0, ((Number) hit.field("vector_asc").getValue()).doubleValue(), 0.0);
         assertEquals(501.0, ((Number) hit.field("vector_desc").getValue()).doubleValue(), 0.0);
-        assertEquals("term 499", hit.field("text").getValue());
+        assertEquals("term 499", hit.field("text0").getValue());
 
         Set<Double> vectors = Arrays.stream(response.getHits().getHits())
             .map(h -> ((Number) h.field("vector_asc").getValue()).doubleValue())
@@ -581,6 +542,76 @@ public class RRFRankIT extends ESIntegTestCase {
             } else {
                 throw new IllegalArgumentException("unexpected bucket key [" + bucket.getKey() + "]");
             }
+        }
+    }
+
+    public void testMultiBM25() {
+        for (SearchType searchType : SearchType.CURRENTLY_SUPPORTED) {
+            SearchResponse response = client().prepareSearch("nrd_index")
+                .setSearchType(searchType)
+                .setRankBuilder(new RRFRankBuilder(8, 1))
+                .setTrackTotalHits(false)
+                .setQueries(
+                    List.of(
+                        new SearchQueryBuilder(
+                            QueryBuilders.boolQuery()
+                                .should(QueryBuilders.termQuery("text0", "500").boost(10.0f))
+                                .should(QueryBuilders.termQuery("text0", "499").boost(9.0f))
+                                .should(QueryBuilders.termQuery("text0", "498").boost(8.0f))
+                                .should(QueryBuilders.termQuery("text0", "497").boost(7.0f))
+                                .should(QueryBuilders.termQuery("text0", "496").boost(6.0f))
+                                .should(QueryBuilders.termQuery("text0", "495").boost(5.0f))
+                                .should(QueryBuilders.termQuery("text0", "494").boost(4.0f))
+                                .should(QueryBuilders.termQuery("text0", "492").boost(3.0f))
+                                .should(QueryBuilders.termQuery("text0", "491").boost(2.0f))
+                                .should(QueryBuilders.termQuery("text0", "490").boost(1.0f))
+                        ),
+                        new SearchQueryBuilder(
+                            QueryBuilders.boolQuery()
+                                .should(QueryBuilders.termQuery("text1", "508").boost(9.0f))
+                                .should(QueryBuilders.termQuery("text1", "304").boost(8.0f))
+                                .should(QueryBuilders.termQuery("text1", "501").boost(7.0f))
+                                .should(QueryBuilders.termQuery("text1", "502").boost(6.0f))
+                                .should(QueryBuilders.termQuery("text1", "504").boost(5.0f))
+                                .should(QueryBuilders.termQuery("text1", "499").boost(4.0f))
+                                .should(QueryBuilders.termQuery("text1", "800").boost(3.0f))
+                                .should(QueryBuilders.termQuery("text1", "201").boost(2.0f))
+                                .should(QueryBuilders.termQuery("text1", "492").boost(1.0f))
+                        )
+                    )
+                )
+                .addFetchField("text0")
+                .addFetchField("text1")
+                .setSize(5)
+                .get();
+
+            assertNull(response.getHits().getTotalHits());
+            assertEquals(5, response.getHits().getHits().length);
+
+            SearchHit hit = response.getHits().getAt(0);
+            assertEquals(1, hit.getRank());
+            assertEquals("term 492", hit.field("text0").getValue());
+            assertEquals("term 508", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(1);
+            assertEquals(2, hit.getRank());
+            assertEquals("term 499", hit.field("text0").getValue());
+            assertEquals("term 501", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(2);
+            assertEquals(3, hit.getRank());
+            assertEquals("term 500", hit.field("text0").getValue());
+            assertEquals("term 500", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(3);
+            assertEquals(4, hit.getRank());
+            assertEquals("term 498", hit.field("text0").getValue());
+            assertEquals("term 502", hit.field("text1").getValue());
+
+            hit = response.getHits().getAt(4);
+            assertEquals(5, hit.getRank());
+            assertEquals("term 496", hit.field("text0").getValue());
+            assertEquals("term 504", hit.field("text1").getValue());
         }
     }
 }

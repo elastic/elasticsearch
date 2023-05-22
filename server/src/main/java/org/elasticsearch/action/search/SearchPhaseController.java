@@ -31,6 +31,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -64,10 +65,13 @@ import java.util.function.Supplier;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
+    private final BiFunction<
+        Supplier<Boolean>,
+        AggregatorFactories.Builder,
+        AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
-        BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
+        BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
@@ -748,7 +752,7 @@ public final class SearchPhaseController {
     }
 
     AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(isCanceled, request);
+        return requestToAggReduceContextBuilder.apply(isCanceled, request.source().aggregations());
     }
 
     /**

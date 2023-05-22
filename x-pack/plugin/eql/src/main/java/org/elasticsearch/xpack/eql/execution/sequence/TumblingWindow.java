@@ -243,17 +243,13 @@ public class TumblingWindow implements Executable {
                             continue;
                         }
                         Timestamp hitTimestamp = criterion.timestamp(hits[0]);
-                        lastLeading = lastLeading == null || lastLeading.instant().compareTo(hitTimestamp.instant()) < 0
-                            ? hitTimestamp
-                            : lastLeading;
+                        lastLeading = lastLeading == null || lastLeading.delta(hitTimestamp) < 0 ? hitTimestamp : lastLeading;
                     } else if (trailing(i)) {
                         if (hits.length == 0) {
                             continue;
                         }
                         Timestamp hitTimestamp = criterion.timestamp(hits[0]);
-                        firstTrailing = firstTrailing == null || firstTrailing.instant().compareTo(hitTimestamp.instant()) > 0
-                            ? hitTimestamp
-                            : firstTrailing;
+                        firstTrailing = firstTrailing == null || firstTrailing.delta(hitTimestamp) > 0 ? hitTimestamp : firstTrailing;
                     } else {
                         if (hits.length > 0) {
                             discarded = true;

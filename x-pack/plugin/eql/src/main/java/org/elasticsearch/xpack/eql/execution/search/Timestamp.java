@@ -19,7 +19,7 @@ public abstract class Timestamp {
 
     private String source;
 
-    public abstract Instant instant();
+    abstract Instant instant();
 
     int compareTo(Timestamp other) {
         return instant().compareTo(other.instant());

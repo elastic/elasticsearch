@@ -610,7 +610,7 @@ public class RRFRankIT extends ESIntegTestCase {
 
             hit = response.getHits().getAt(4);
             assertEquals(5, hit.getRank());
-            //assertEquals("term 496", hit.field("text0").getValue());
+            assertEquals("term 496", hit.field("text0").getValue());
             assertEquals("term 504", hit.field("text1").getValue());
         }
     }

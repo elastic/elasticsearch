@@ -103,6 +103,30 @@ public class InternalUsers {
     );
 
     /**
+     * DLM internal user that manages DLM. Has all indices permissions to perform DLM runtime tasks.
+     */
+    public static final InternalUser DLM_USER = new InternalUser(
+        UsernamesField.DLM_NAME,
+        new RoleDescriptor(
+            UsernamesField.DLM_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
+                    // TODO set correct privileges here
+                    .privileges("none")
+                    // TODO sanity check
+                    .allowRestrictedIndices(true)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    /**
      * internal user that manages xpack security. Has all cluster/indices permissions.
      */
     public static final InternalUser XPACK_SECURITY_USER = new InternalUser(
@@ -130,6 +154,7 @@ public class InternalUsers {
         defineUser(ASYNC_SEARCH_USER);
         defineUser(CrossClusterAccessUser.INSTANCE);
         defineUser(STORAGE_USER);
+        defineUser(DLM_USER);
     }
 
     private static void defineUser(InternalUser user) {

@@ -46,7 +46,6 @@ setup:
 
 ---
 "Basic test":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -117,7 +116,6 @@ setup:
 
 ---
 "Only aggs test":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -152,7 +150,6 @@ setup:
 
 ---
 "Filtered test":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -193,7 +190,6 @@ setup:
 
 ---
 "Missing field with missing param":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -233,7 +229,6 @@ setup:
 
 ---
 "Metadata test":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -260,7 +255,6 @@ setup:
 
 ---
 "Invalid params test":
-
   - do:
       catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\]/
       search:
@@ -319,7 +313,6 @@ setup:
 
 ---
 "Explicit Percents test":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -349,7 +342,6 @@ setup:
 
 ---
 "Non-keyed test":
-
   - do:
       search:
         rest_total_hits_as_int: true

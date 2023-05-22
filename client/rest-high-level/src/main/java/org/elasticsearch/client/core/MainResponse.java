@@ -145,7 +145,7 @@ public class MainResponse {
             this.buildHash = buildHash;
             this.buildDate = buildDate;
             this.isSnapshot = isSnapshot;
-            this.luceneVersion() = luceneVersion;
+            this.luceneVersion = luceneVersion;
             this.minimumWireCompatibilityVersion = minimumWireCompatibilityVersion;
             this.minimumIndexCompatibilityVersion = minimumIndexCompatibilityVersion;
         }
@@ -197,7 +197,7 @@ public class MainResponse {
                 && Objects.equals(buildType, version.buildType)
                 && buildHash.equals(version.buildHash)
                 && buildDate.equals(version.buildDate)
-                && luceneVersion.equals(version.luceneVersion())
+                && luceneVersion.equals(version.luceneVersion)
                 && minimumWireCompatibilityVersion.equals(version.minimumWireCompatibilityVersion)
                 && minimumIndexCompatibilityVersion.equals(version.minimumIndexCompatibilityVersion);
         }

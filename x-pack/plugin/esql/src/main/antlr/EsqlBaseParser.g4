@@ -38,6 +38,7 @@ processingCommand
     | renameCommand
     | dissectCommand
     | grokCommand
+    | enrichCommand
     ;
 
 whereCommand
@@ -217,4 +218,8 @@ subqueryExpression
 showCommand
     : SHOW INFO                                                           #showInfo
     | SHOW FUNCTIONS                                                      #showFunctions
+    ;
+
+enrichCommand
+    : ENRICH policyName=sourceIdentifier (ON matchField=sourceIdentifier)?
     ;

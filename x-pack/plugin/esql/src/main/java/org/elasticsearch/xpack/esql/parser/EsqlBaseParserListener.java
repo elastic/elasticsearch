@@ -681,4 +681,14 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
+   * @param ctx the parse tree
+   */
+  void enterEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
+   * @param ctx the parse tree
+   */
+  void exitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
 }

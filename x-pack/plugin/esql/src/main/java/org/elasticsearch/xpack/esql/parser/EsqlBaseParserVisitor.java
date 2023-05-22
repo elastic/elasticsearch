@@ -409,4 +409,10 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#enrichCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx);
 }

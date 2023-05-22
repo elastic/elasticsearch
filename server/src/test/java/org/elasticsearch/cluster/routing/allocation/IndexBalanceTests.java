@@ -66,9 +66,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test1"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -185,9 +183,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test1"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {
@@ -306,9 +302,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").size(); i++) {

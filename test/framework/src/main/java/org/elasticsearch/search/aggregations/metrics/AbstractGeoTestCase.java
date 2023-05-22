@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -236,7 +237,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         assertSearchResponse(response);
         long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);
         logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);

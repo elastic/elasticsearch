@@ -1,0 +1,68 @@
+{
+  "index_patterns": [
+    ".profiling-returnpads-private*"
+  ],
+  "template": {
+    "settings": {
+      "index": {
+        "number_of_replicas": 0,
+        "auto_expand_replicas": "0-1",
+        "refresh_interval": "10s",
+        "hidden": true
+      }
+    },
+    "mappings": {
+      /*
+      Enable source as the main purpose of this index is to store relatively few BLOBs.
+      Disabling source is another option, but adds the 'recovery_source' extra storage costs.
+      */
+      "_source": {
+        "enabled": true
+      },
+      "properties": {
+        "ecs.version": {
+          "type": "keyword",
+          "index": true,
+          "doc_values": false,
+          "store": false
+        },
+        "Symbfile.created": {
+          "type": "date",
+          "doc_values": false,
+          "index": true,
+          "store": false
+        },
+        "Symbfile.file.id": {
+          /* 'binary' type fields don't allow using 'index: true'. */
+          "type": "keyword",
+          "index": true,
+          "doc_values": false,
+          "store": false
+        },
+        "Symbfile.part": {
+          "type": "short",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        /* This is the number of parts for the file.id. It only exists in the last part. */
+        "Symbfile.parts": {
+          "type": "short",
+          "index": false,
+          "doc_values": false,
+          "store": false
+        },
+        "Symbfile.data": {
+          "type": "binary",
+          "doc_values": false,
+          "store": false
+        }
+      }
+    }
+  },
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for .profiling-returnpads-private"
+  },
+  "version": ${xpack.profiling.template.version}
+}

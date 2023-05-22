@@ -176,7 +176,7 @@ public final class SimilarityService {
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
         FieldInvertState state = new FieldInvertState(
-            indexCreatedVersion.luceneVersion.major,
+            indexCreatedVersion.luceneVersion().major,
             "some_field",
             IndexOptions.DOCS_AND_FREQS,
             20,
@@ -202,7 +202,7 @@ public final class SimilarityService {
         TermStatistics termStats = new TermStatistics(new BytesRef("some_value"), 100, 130);
         SimScorer scorer = similarity.scorer(2f, collectionStats, termStats);
         FieldInvertState state = new FieldInvertState(
-            indexCreatedVersion.luceneVersion.major,
+            indexCreatedVersion.luceneVersion().major,
             "some_field",
             IndexOptions.DOCS_AND_FREQS,
             20,
@@ -237,7 +237,7 @@ public final class SimilarityService {
         float previousScore = Float.MAX_VALUE;
         for (int length = 1; length <= 10; ++length) {
             FieldInvertState state = new FieldInvertState(
-                indexCreatedVersion.luceneVersion.major,
+                indexCreatedVersion.luceneVersion().major,
                 "some_field",
                 IndexOptions.DOCS_AND_FREQS,
                 length,

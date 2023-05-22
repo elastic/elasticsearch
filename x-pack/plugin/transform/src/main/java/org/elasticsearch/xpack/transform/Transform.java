@@ -248,7 +248,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             client,
             xContentRegistry
         );
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService, includeNodeInfo());
         Clock clock = Clock.systemUTC();
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
@@ -437,4 +437,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public String getFeatureDescription() {
         return "Manages configuration and state for transforms";
     }
+
+    public boolean includeNodeInfo() { return true; }
 }

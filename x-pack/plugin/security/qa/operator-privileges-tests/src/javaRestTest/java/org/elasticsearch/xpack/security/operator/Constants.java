@@ -93,6 +93,7 @@ public class Constants {
         "cluster:admin/transform/update",
         "cluster:admin/transform/upgrade",
         "cluster:admin/transform/validate",
+        "cluster:admin/synonyms/put",
         // "cluster:admin/voting_config/add_exclusions",
         // "cluster:admin/voting_config/clear_exclusions",
         "cluster:admin/xpack/application/analytics/delete",

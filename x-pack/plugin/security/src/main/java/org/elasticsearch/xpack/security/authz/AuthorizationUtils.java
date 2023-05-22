@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.StorageInternalUser;
+import org.elasticsearch.xpack.core.security.user.SynonymsProfileUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -28,6 +29,7 @@ import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST
 import static org.elasticsearch.cluster.metadata.DataLifecycle.DLM_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
+import static org.elasticsearch.synonyms.SynonymsAPI.SYNONYMS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
@@ -154,6 +156,9 @@ public final class AuthorizationUtils {
                 break;
             case ASYNC_SEARCH_ORIGIN:
                 securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, version, consumer);
+                break;
+            case SYNONYMS_ORIGIN:
+                securityContext.executeAsInternalUser(SynonymsProfileUser.INSTANCE, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

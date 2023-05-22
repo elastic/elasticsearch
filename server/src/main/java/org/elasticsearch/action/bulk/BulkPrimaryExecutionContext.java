@@ -184,6 +184,7 @@ class BulkPrimaryExecutionContext {
         currentItemState = ItemProcessingState.INITIAL;
         requestToExecute = null;
         executionResult = null;
+        retryCounter++;
         assert assertInvariants(ItemProcessingState.INITIAL);
     }
 

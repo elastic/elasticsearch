@@ -536,7 +536,6 @@ vector space.
 To alleviate this worry, there is a `similarity` parameter available in the `knn` clause. This value is the required
 minimum similarity for a vector to be considered a match. The `knn` search flow with this parameter is as follows:
 
-+
 --
 * Apply any user provided `filter` queries
 * Explore the vector space to get `k` vectors

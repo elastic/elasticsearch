@@ -104,7 +104,7 @@ public class DataLifecycleRuntimeSecurityIT extends SecurityIntegTestCase {
         });
     }
 
-    public void testRolloverAndRetentionAuthorizedWithSystemDataStream() throws Exception {
+    public void testRolloverAndRetentionWithSystemDataStreamAuthorized() throws Exception {
         String dataStreamName = SystemDataStreamTestPlugin.SYSTEM_DATA_STREAM_NAME;
         indexDocs(dataStreamName, 1);
 

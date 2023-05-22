@@ -15,8 +15,8 @@ import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -144,11 +144,11 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
+    protected String[] resolveNodes(TasksRequest request, DiscoveryNodes discoveryNodes) {
         if (request.getTargetTaskId().isSet()) {
             return new String[] { request.getTargetTaskId().getNodeId() };
         } else {
-            return clusterState.nodes().resolveNodes(request.getNodes());
+            return discoveryNodes.resolveNodes(request.getNodes());
         }
     }
 
@@ -236,9 +236,9 @@ public abstract class TransportTasksAction<
             this.task = task;
             this.request = request;
             this.listener = listener;
-            ClusterState clusterState = clusterService.state();
-            this.nodesIds = resolveNodes(request, clusterState);
-            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
+            final DiscoveryNodes discoveryNodes = clusterService.state().nodes();
+            this.nodesIds = resolveNodes(request, discoveryNodes);
+            Map<String, DiscoveryNode> nodes = discoveryNodes.getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(this.nodesIds[i]);

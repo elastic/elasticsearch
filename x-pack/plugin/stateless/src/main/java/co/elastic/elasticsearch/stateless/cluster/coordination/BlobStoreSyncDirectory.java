@@ -94,6 +94,11 @@ class BlobStoreSyncDirectory extends FilterDirectory {
     }
 
     @Override
+    public void syncMetaData() {
+        // noop, data on local drive need not be safely persisted
+    }
+
+    @Override
     public void rename(String source, String dest) throws IOException {
         assert source.startsWith(IndexFileNames.PENDING_SEGMENTS) : source;
         assert dest.startsWith(IndexFileNames.SEGMENTS) : dest;
@@ -152,10 +157,6 @@ class BlobStoreSyncDirectory extends FilterDirectory {
     public void close() throws IOException {
         super.close();
         closed.set(true);
-    }
-
-    private void setLatestCommit(SegmentInfos segmentCommitInfos) {
-        this.latestCommit = segmentCommitInfos;
     }
 
     private void writeFile(String fileName, BlobContainer blobContainer, boolean atomic) throws IOException {

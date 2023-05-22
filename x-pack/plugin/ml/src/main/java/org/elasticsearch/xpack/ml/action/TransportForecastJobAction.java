@@ -17,7 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
@@ -86,7 +86,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         ForecastJobAction.Request request,
         JobTask task,
         ActionListener<ForecastJobAction.Response> listener

@@ -621,7 +621,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             ) {
                 @Override
                 protected void taskOperation(
-                    Task actionTask,
+                    CancellableTask actionTask,
                     TestTasksRequest request,
                     Task task,
                     ActionListener<TestTaskResponse> listener
@@ -632,9 +632,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                         taskLatch.await();
                         assertThat(actionTask, instanceOf(CancellableTask.class));
                         logger.info("Task is now proceeding with cancellation check {}", nodeId);
-                        if (actionTask instanceof CancellableTask cancellableTask) {
-                            assertBusy(() -> assertTrue(cancellableTask.isCancelled()));
-                        }
+                        assertBusy(() -> assertTrue(actionTask.isCancelled()));
                         listener.onResponse(new TestTaskResponse("CANCELLED"));
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -690,7 +688,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             tasksActions[i] = new TestTasksAction("internal:testTasksAction", testNodes[i].clusterService, testNodes[i].transportService) {
                 @Override
                 protected void taskOperation(
-                    Task actionTask,
+                    CancellableTask actionTask,
                     TestTasksRequest request,
                     Task task,
                     ActionListener<TestTaskResponse> listener

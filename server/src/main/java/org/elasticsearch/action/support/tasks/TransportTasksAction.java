@@ -14,6 +14,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -87,12 +88,17 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(CancellableTask task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         processTasks(request, ActionListener.wrap(tasks -> nodeOperation(task, listener, request, tasks), listener::onFailure));
     }
 
-    private void nodeOperation(Task task, ActionListener<NodeTasksResponse> listener, TasksRequest request, List<OperationTask> tasks) {
+    private void nodeOperation(
+        CancellableTask task,
+        ActionListener<NodeTasksResponse> listener,
+        TasksRequest request,
+        List<OperationTask> tasks
+    ) {
         if (tasks.isEmpty()) {
             listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), emptyList(), emptyList()));
             return;
@@ -215,7 +221,12 @@ public abstract class TransportTasksAction<
      * @param task the task on which the operation is taking place
      * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
+    protected abstract void taskOperation(
+        CancellableTask actionTask,
+        TasksRequest request,
+        OperationTask task,
+        ActionListener<TaskResponse> listener
+    );
 
     private class AsyncAction {
 
@@ -329,14 +340,8 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
-                try {
-                    channel.sendResponse(e);
-                } catch (IOException e1) {
-                    e1.addSuppressed(e);
-                    logger.warn("Failed to send failure", e1);
-                }
-            }));
+            assert task instanceof CancellableTask;
+            nodeOperation((CancellableTask) task, request, new ChannelActionListener<>(channel));
         }
     }
 

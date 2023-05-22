@@ -28,39 +28,11 @@ setup:
           - '{"index": {}}'
           - '{"int": 151, "double": 151.0, "keyword": "foo"}'
 
----
-basic - old:
-  - skip:
-      features: close_to
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        body:
-          size: 0
-          aggs:
-            percentile_ranks_int:
-              percentile_ranks:
-                field: int
-                values: [50, 99]
-            percentile_ranks_double:
-              percentile_ranks:
-                field: double
-                values: [50, 99]
-
-  - match: { hits.total.value: 4 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 37.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_int.values.99\\.0: { value: 61.5, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 37.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.99\\.0: { value: 61.5, error: 1} }
-
 
 ---
 basic:
   - skip:
       features: close_to
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
   - do:
       search:
         body:
@@ -83,40 +55,9 @@ basic:
 
 
 ---
-filtered - old:
-  - skip:
-      features: close_to
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        body:
-          size: 0
-          query:
-            range:
-              int:
-                gte: 50
-          aggs:
-            percentile_ranks_int:
-              percentile_ranks:
-                field: int
-                values: [50]
-            percentile_ranks_double:
-              percentile_ranks:
-                field: double
-                values: [50]
-
-  - match: { hits.total.value: 3 }
-  - close_to: { aggregations.percentile_ranks_int.values.50\\.0: { value: 16.0, error: 1} }
-  - close_to: { aggregations.percentile_ranks_double.values.50\\.0: { value: 16.0, error: 1} }
-
-
----
 filtered:
   - skip:
       features: close_to
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
   - do:
       search:
         body:
@@ -144,7 +85,6 @@ filtered:
 missing field with missing param:
   - skip:
       features: close_to
-
   - do:
       search:
         body:
@@ -217,35 +157,8 @@ invalid params:
                 field: string
 
 ---
-non-keyed test - old:
-  - skip:
-      features: close_to
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        body:
-          size: 0
-          aggs:
-            percentile_ranks_int:
-              percentile_ranks:
-                field: int
-                values: [50, 99]
-                keyed: false
-
-  - match: { hits.total.value: 4 }
-  - match: { aggregations.percentile_ranks_int.values.0.key: 50}
-  - close_to: { aggregations.percentile_ranks_int.values.0.value: { value: 25.0, error: 1} }
-  - match: { aggregations.percentile_ranks_int.values.1.key: 99}
-  - close_to: { aggregations.percentile_ranks_int.values.1.value: { value: 50.0, error: 1} }
-
-
----
 non-keyed test:
-  - skip:
-      features: close_to
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       search:
         body:

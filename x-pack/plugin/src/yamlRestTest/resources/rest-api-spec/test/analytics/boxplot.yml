@@ -42,32 +42,8 @@ setup:
 
 
 ---
-"Basic Search - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        index: "latency"
-        body:
-          size: 0
-          aggs:
-            plot:
-              boxplot:
-                field: "load_time"
-
-  - match: { aggregations.plot.min: 2.0 }
-  - match: { aggregations.plot.max: 15.0 }
-  - match: { aggregations.plot.q1: 2.75 }
-  - match: { aggregations.plot.q2: 5.0 }
-  - match: { aggregations.plot.q3: 11.25 }
-
-
----
 "Basic Search":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       search:
         index: "latency"
@@ -86,44 +62,8 @@ setup:
 
 
 ---
-"Search With Runtime Field - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        index: "latency"
-        body:
-          query:
-            exists:
-              field: load_time
-          runtime_mappings:
-            load_time_adjusted:
-              type: long
-              script:
-                source: "emit((long)((doc['load_time'].value == 10 ? 1000 : doc['load_time'].value) * params.multiplier))"
-                params:
-                  multiplier: 10
-          size: 0
-          aggs:
-            plot:
-              boxplot:
-                field: "load_time_adjusted"
-
-  - match: { aggregations.plot.min: 20.0 }
-  - match: { aggregations.plot.max: 10000.0 }
-  - match: { aggregations.plot.q1: 27.5 }
-  - match: { aggregations.plot.q2: 50.0 }
-  - match: { aggregations.plot.q3: 2612.5 }
-  - match: { aggregations.plot.lower: 20.0 }
-  - match: { aggregations.plot.upper: 150.0 }
-
-
----
 "Search With Runtime Field":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       search:
         index: "latency"
@@ -154,35 +94,8 @@ setup:
 
 
 ---
-"Search With Missing - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      search:
-        index: "latency"
-        body:
-          size: 0
-          aggs:
-            plot:
-              boxplot:
-                field: "load_time"
-                missing: 10000
-
-  - match: { aggregations.plot.min: 2.0 }
-  - match: { aggregations.plot.max: 10000.0 }
-  - match: { aggregations.plot.q1: 3 }
-  - match: { aggregations.plot.q2: 7.5 }
-  - match: { aggregations.plot.q3: 15.0 }
-  - match: { aggregations.plot.lower: 2.0 }
-  - match: { aggregations.plot.upper: 15.0 }
-
-
----
 "Search With Missing":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       search:
         index: "latency"

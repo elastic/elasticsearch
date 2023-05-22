@@ -191,33 +191,8 @@ setup:
         index: utopia
 
 ---
-"Test outlier_detection auc_roc - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "outlier_detection": {
-                "actual_field": "is_outlier",
-                "predicted_probability_field": "outlier_score",
-                "metrics": {
-                  "auc_roc": {}
-                }
-              }
-            }
-          }
-  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
-  - is_false: outlier_detection.auc_roc.curve
-
----
 "Test outlier_detection auc_roc":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -234,36 +209,11 @@ setup:
             }
           }
   - match: { outlier_detection.auc_roc.value: 0.99995 }
-  - is_false: outlier_detection.auc_roc.curve
-
----
-"Test outlier_detection auc_roc given actual_field is int - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "outlier_detection": {
-                "actual_field": "is_outlier_int",
-                "predicted_probability_field": "outlier_score",
-                "metrics": {
-                  "auc_roc": {}
-                }
-              }
-            }
-          }
-  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
 "Test outlier_detection auc_roc given actual_field is int":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -283,33 +233,8 @@ setup:
   - is_false: outlier_detection.auc_roc.curve
 
 ---
-"Test outlier_detection auc_roc include curve - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "outlier_detection": {
-                "actual_field": "is_outlier",
-                "predicted_probability_field": "outlier_score",
-                "metrics": {
-                  "auc_roc": { "include_curve": true }
-                }
-              }
-            }
-          }
-  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
-  - is_true: outlier_detection.auc_roc.curve
-
----
 "Test outlier_detection auc_roc include curve":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -783,35 +708,8 @@ setup:
           }
 
 ---
-"Test classification auc_roc - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "top_classes_field": "ml.top_classes",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "cat"
-                  }
-                }
-              }
-            }
-          }
-  - match: { classification.auc_roc.value: 0.7754152761810909 }
-  - is_false: classification.auc_roc.curve
-
----
 "Test classification auc_roc":
-  - skip:
-      version: " - 8.8.99"
-      reason: t-digest forked in 8.9.0
+
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -830,30 +728,6 @@ setup:
             }
           }
   - match: { classification.auc_roc.value: 0.8612749970197677 }
-  - is_false: classification.auc_roc.curve
-
----
-"Test classification auc_roc with default top_classes_field - old":
-  - skip:
-      version: "8.9.00 - "
-      reason: t-digest forked in 8.9.0
-  - do:
-      ml.evaluate_data_frame:
-        body:  >
-          {
-            "index": "utopia",
-            "evaluation": {
-              "classification": {
-                "actual_field": "classification_field_act.keyword",
-                "metrics": {
-                  "auc_roc": {
-                    "class_name": "cat"
-                  }
-                }
-              }
-            }
-          }
-  - match: { classification.auc_roc.value: 0.7754152761810909 }
   - is_false: classification.auc_roc.curve
 
 ---

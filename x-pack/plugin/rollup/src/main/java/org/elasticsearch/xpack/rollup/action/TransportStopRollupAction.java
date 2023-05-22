@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 public class TransportStopRollupAction extends TransportTasksAction<
     RollupJobTask,
@@ -57,8 +56,8 @@ public class TransportStopRollupAction extends TransportTasksAction<
     }
 
     @Override
-    protected void processTasks(StopRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
-        TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
+    protected List<RollupJobTask> processTasks(StopRollupJobAction.Request request) {
+        return TransportTaskHelper.doProcessTasks(request.getId(), taskManager);
     }
 
     @Override

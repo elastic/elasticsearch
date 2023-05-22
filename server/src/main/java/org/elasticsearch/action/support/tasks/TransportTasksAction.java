@@ -153,18 +153,20 @@ public abstract class TransportTasksAction<
     }
 
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation, ActionListener<Void> nodeOperation) {
-        processTasks(request, operation);
+        for (final var task : processTasks(request)) {
+            operation.accept(task);
+        }
         nodeOperation.onResponse(null);
     }
 
     @SuppressWarnings("unchecked")
-    protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
+    protected List<OperationTask> processTasks(TasksRequest request) {
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             Task task = taskManager.getTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
-                    operation.accept((OperationTask) task);
+                    return List.of((OperationTask) task);
                 } else {
                     throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTargetTaskId());
                 }
@@ -172,11 +174,13 @@ public abstract class TransportTasksAction<
                 throw new ResourceNotFoundException("task [{}] is missing", request.getTargetTaskId());
             }
         } else {
+            final var tasks = new ArrayList<OperationTask>();
             for (Task task : taskManager.getTasks().values()) {
                 if (request.match(task)) {
-                    operation.accept((OperationTask) task);
+                    tasks.add((OperationTask) task);
                 }
             }
+            return tasks;
         }
     }
 

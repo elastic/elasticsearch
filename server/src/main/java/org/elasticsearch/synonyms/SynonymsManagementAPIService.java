@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.synonyms.PutSynonymsAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -54,8 +55,7 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
-        // TODO Should we set an OriginSettingClient? We would need to check the origin at AuthorizationUtils if we set an
-        this.client = client;
+        this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
     }
 
     private static XContentBuilder mappings() {

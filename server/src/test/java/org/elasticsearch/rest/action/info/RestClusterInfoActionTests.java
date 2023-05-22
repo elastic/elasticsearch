@@ -23,13 +23,13 @@ import java.util.stream.Stream;
 
 import static org.mockito.Mockito.mock;
 
-public class RestHttpInfoActionTests extends ESTestCase {
+public class RestClusterInfoActionTests extends ESTestCase {
 
     public void testXContentToChunks() {
         var nodeStats = IntStream.range(1, randomIntBetween(2, 20)).mapToObj(this::randomNodeStatsWithOnlyHttpStats).toList();
         var response = new NodesStatsResponse(new ClusterName("cluster-name"), nodeStats, List.of());
 
-        var httpStats = (HttpStats) new RestHttpInfoAction().xContentChunks(response);
+        var httpStats = (HttpStats) new RestClusterInfoAction().xContentChunks(response);
 
         assertEquals(
             httpStats,

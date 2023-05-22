@@ -436,6 +436,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -558,6 +559,9 @@ public class ActionModule extends AbstractModule {
      * finishes and returns.
      */
     public void copyRequestHeadersToThreadContext(HttpPreRequest request, ThreadContext threadContext) {
+        // the request's thread-context must always be populated (by calling this method) before undergoing any request related processing
+        // we use this opportunity to first record the request processing start time
+        threadContext.putTransient(Task.TRACE_START_TIME, Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()));
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getHeaders().get(name);

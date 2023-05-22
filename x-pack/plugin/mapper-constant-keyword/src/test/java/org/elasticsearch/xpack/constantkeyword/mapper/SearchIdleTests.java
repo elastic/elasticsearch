@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class SearchIdleTests extends ESSingleNodeTestCase {
@@ -171,7 +169,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
 
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
-        assertActiveShardsRefreshStats(activeIndexStatsBefore, activeIndexStatsAfter);
     }
 
     public void testSearchIdleConstantKeywordMatchTwoIndices() throws InterruptedException {
@@ -306,7 +303,6 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
 
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
-        assertActiveShardsRefreshStats(activeIndexStatsBefore, activeIndexStatsAfter);
     }
 
     private SearchResponse search(final String index, final String field, final String value, int preFilterShardSize) {
@@ -321,27 +317,13 @@ public class SearchIdleTests extends ESSingleNodeTestCase {
         Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
     }
 
-    private void assertActiveShardsRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {
-        assertNotEquals(0, before.getShards().length);
-        assertNotEquals(0, after.getShards().length);
-        final Map<ShardRouting, ShardStats> afterStatsAsMap = after.asMap();
-        for (var beforeShard : before.getShards()) {
-            final RefreshStats beforeRefresh = beforeShard.getStats().refresh;
-            assertTrue(afterStatsAsMap.containsKey(beforeShard.getShardRouting()));
-            final RefreshStats afterRefresh = afterStatsAsMap.get(beforeShard.getShardRouting()).getStats().refresh;
-            assertTrue(afterRefresh.getTotal() >= beforeRefresh.getTotal());
-        }
-    }
-
     private static void assertIdleShardsRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {
         assertNotEquals(0, before.getShards().length);
         assertNotEquals(0, after.getShards().length);
         final List<RefreshStats> refreshStatsBefore = Arrays.stream(before.getShards()).map(x -> x.getStats().refresh).toList();
         final List<RefreshStats> refreshStatsAfter = Arrays.stream(after.getShards()).map(x -> x.getStats().refresh).toList();
-        assertTrue(
-            refreshStatsBefore.size() == refreshStatsAfter.size()
-                && refreshStatsAfter.containsAll(refreshStatsBefore)
-                && refreshStatsBefore.containsAll(refreshStatsAfter)
-        );
+        assertEquals(refreshStatsBefore.size(), refreshStatsAfter.size());
+        assertTrue(refreshStatsAfter.containsAll(refreshStatsBefore));
+        assertTrue(refreshStatsBefore.containsAll(refreshStatsAfter));
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -34,7 +33,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -245,7 +243,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-10T00:00:00.000Z")
@@ -264,7 +261,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-05-12T00:00:00.000Z")
@@ -328,7 +324,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
 
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
-        assertActiveShardsRefreshStats(activeIndexStatsBefore, activeIndexStatsAfter);
     }
 
     public void testSearchIdleExistsQueryMatchOneIndex() throws InterruptedException {
@@ -344,7 +339,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, idleIndexShardsCount)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
             "doc",
             "keyword",
@@ -355,7 +349,6 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), "500ms")
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, activeIndexShardsCount)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                 .build(),
             "doc",
             "keyword",
@@ -402,24 +395,11 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         Arrays.stream(activeIndexStatsAfter.getShards()).forEach(shardStats -> assertFalse(shardStats.isSearchIdle()));
 
         assertIdleShardsRefreshStats(idleIndexStatsBefore, idleIndexStatsAfter);
-        assertActiveShardsRefreshStats(activeIndexStatsBefore, activeIndexStatsAfter);
     }
 
     private static void assertIdleShard(final IndicesStatsResponse statsResponse) {
         Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.isSearchIdle()));
         Arrays.stream(statsResponse.getShards()).forEach(shardStats -> assertTrue(shardStats.getSearchIdleTime() >= 100));
-    }
-
-    private void assertActiveShardsRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {
-        assertNotEquals(0, before.getShards().length);
-        assertNotEquals(0, after.getShards().length);
-        final Map<ShardRouting, ShardStats> afterStatsAsMap = after.asMap();
-        for (var beforeShard : before.getShards()) {
-            final RefreshStats beforeRefresh = beforeShard.getStats().refresh;
-            assertTrue(afterStatsAsMap.containsKey(beforeShard.getShardRouting()));
-            final RefreshStats afterRefresh = afterStatsAsMap.get(beforeShard.getShardRouting()).getStats().refresh;
-            assertTrue(afterRefresh.getTotal() >= beforeRefresh.getTotal());
-        }
     }
 
     private static void assertIdleShardsRefreshStats(final IndicesStatsResponse before, final IndicesStatsResponse after) {

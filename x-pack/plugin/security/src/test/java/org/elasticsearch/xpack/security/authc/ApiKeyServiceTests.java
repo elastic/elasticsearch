@@ -1474,7 +1474,12 @@ public class ApiKeyServiceTests extends ESTestCase {
             service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.limitedByRoleDescriptorsHash).utf8ToString(),
             equalTo("{}")
         );
-        assertThat(service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.roleDescriptorsHash), sameInstance(roleDescriptorsBytes3));
+if (metadata31 == null) {
+    assertNull(cachedApiKeyDoc31.metadataFlattened);
+} else {
+    assertThat(cachedApiKeyDoc31.metadataFlattened, equalTo(XContentTestUtils.convertToXContent(metadata31, XContentType.JSON)));
+}       
+       assertThat(service.getRoleDescriptorsBytesCache().get(cachedApiKeyDoc31.roleDescriptorsHash), sameInstance(roleDescriptorsBytes3));
         assertThat(cachedApiKeyDoc31.type, is(ApiKey.Type.CROSS_CLUSTER));
 
         // 4. Will fetch document from security index if role descriptors are not found even when

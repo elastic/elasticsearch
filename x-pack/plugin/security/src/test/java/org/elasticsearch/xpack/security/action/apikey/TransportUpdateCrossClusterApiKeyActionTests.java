@@ -73,7 +73,7 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
 
         final String id = randomAlphaOfLength(10);
         final var request = new UpdateCrossClusterApiKeyRequest(id, roleDescriptorBuilder, metadata);
-        final int updateStatus = 2; // randomIntBetween(0, 2); // 0 - success, 1 - noop, 2 - error
+        final int updateStatus =  randomIntBetween(0, 2); // 0 - success, 1 - noop, 2 - error
 
         doAnswer(invocation -> {
             final var bulkRequest = (BaseBulkUpdateApiKeyRequest) invocation.getArgument(1);

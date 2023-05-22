@@ -601,7 +601,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 }""", """
                 {
                   "search": [ {"names": ["logs"]} ],
-                  "replication": [ {"names": ["archive]} ]
+                  "replication": [ {"names": ["archive"]} ]
                 }"""));
         } else {
             roleDescriptorBuilder = null;
@@ -626,7 +626,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             .actionGet();
 
         if ((roleDescriptorBuilder == null || roleDescriptorBuilder.build().equals(originalRoleDescriptor))
-            && (updateMetadata == null || updateMetadata.isEmpty())) {
+            && (updateMetadata == null)) {
             assertThat(updateApiKeyResponse.isUpdated(), is(false));
         } else {
             assertThat(updateApiKeyResponse.isUpdated(), is(true));

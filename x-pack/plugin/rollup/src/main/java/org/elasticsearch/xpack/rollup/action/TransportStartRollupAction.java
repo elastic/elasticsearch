@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 public class TransportStartRollupAction extends TransportTasksAction<
     RollupJobTask,
@@ -44,8 +43,8 @@ public class TransportStartRollupAction extends TransportTasksAction<
     }
 
     @Override
-    protected void processTasks(StartRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
-        TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
+    protected List<RollupJobTask> processTasks(StartRollupJobAction.Request request) {
+        return TransportTaskHelper.doProcessTasks(request.getId(), taskManager);
     }
 
     @Override

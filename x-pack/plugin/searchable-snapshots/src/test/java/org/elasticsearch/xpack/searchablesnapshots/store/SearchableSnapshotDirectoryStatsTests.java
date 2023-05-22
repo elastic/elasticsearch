@@ -641,7 +641,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             fileName,
             fileContent.length,
             fileChecksum,
-            Version.CURRENT.luceneVersion.toString()
+            Version.CURRENT.luceneVersion().toString()
         );
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, ByteSizeValue.ofBytes(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);

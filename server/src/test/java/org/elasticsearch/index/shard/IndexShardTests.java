@@ -1543,7 +1543,9 @@ public class IndexShardTests extends IndexShardTestCase {
             CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
             shard.commitStats(),
             shard.seqNoStats(),
-            shard.getRetentionLeaseStats()
+            shard.getRetentionLeaseStats(),
+            shard.isSearchIdle(),
+            shard.searchIdleTime()
         );
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
@@ -3693,22 +3695,26 @@ public class IndexShardTests extends IndexShardTestCase {
         scopedSettings.applySettings(settings);
         assertFalse(primary.isSearchIdle());
 
-        settings = Settings.builder()
-            .put(settings)
-            .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(10))
-            .build();
+        TimeValue tenMillis = TimeValue.timeValueMillis(10);
+        settings = Settings.builder().put(settings).put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), tenMillis).build();
         scopedSettings.applySettings(settings);
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.awaitShardSearchActive(aBoolean -> {});
+            if (primary.isSearchIdle()) {
+                assertTrue(primary.searchIdleTime() >= tenMillis.millis());
+            }
         } while (primary.isSearchIdle());
 
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
             primary.acquireSearcher("test").close();
+            if (primary.isSearchIdle()) {
+                assertTrue(primary.searchIdleTime() >= tenMillis.millis());
+            }
         } while (primary.isSearchIdle());
         closeShards(primary);
     }
@@ -3772,6 +3778,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         assertFalse(primary.scheduledRefresh());
         assertTrue(primary.isSearchIdle());
+        assertTrue(primary.searchIdleTime() >= TimeValue.ZERO.millis());
         primary.flushOnIdle(0);
         assertTrue(primary.scheduledRefresh()); // make sure we refresh once the shard is inactive
         try (Engine.Searcher searcher = primary.acquireSearcher("test")) {

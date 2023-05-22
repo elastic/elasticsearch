@@ -125,6 +125,7 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
     public static final TransportVersion V_8_500_002 = registerTransportVersion(8_500_002, "055dd314-ff40-4313-b4c6-9fccddfa42a8");
     public static final TransportVersion V_8_500_003 = registerTransportVersion(8_500_003, "30adbe0c-8614-40dd-81b5-44e9c657bb77");
     public static final TransportVersion V_MULTIRRF = registerTransportVersion(8_500_999, "f65b85ac-db5e-4558-a487-a1dde4f6a33a");
+    public static final TransportVersion V_8_500_004 = registerTransportVersion(8_500_004, "6a00db6a-fd66-42a9-97ea-f6cc53169110");
 
     /**
      * Reference to the most recent transport version.
@@ -248,6 +249,11 @@ public record TransportVersion(int id) implements Comparable<TransportVersion> {
 
     public boolean onOrBefore(TransportVersion version) {
         return version.id >= id;
+    }
+
+    public boolean between(TransportVersion lowerInclusive, TransportVersion upperExclusive) {
+        if (upperExclusive.onOrBefore(lowerInclusive)) throw new IllegalArgumentException();
+        return onOrAfter(lowerInclusive) && before(upperExclusive);
     }
 
     public static TransportVersion fromString(String str) {

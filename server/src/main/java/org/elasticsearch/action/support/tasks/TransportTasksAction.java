@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 
@@ -90,8 +89,7 @@ public abstract class TransportTasksAction<
 
     private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
-        List<OperationTask> tasks = new ArrayList<>();
-        processTasks(request, tasks::add, ActionListener.wrap(noop -> nodeOperation(task, listener, request, tasks), listener::onFailure));
+        processTasks(request, ActionListener.wrap(tasks -> nodeOperation(task, listener, request, tasks), listener::onFailure));
     }
 
     private void nodeOperation(Task task, ActionListener<NodeTasksResponse> listener, TasksRequest request, List<OperationTask> tasks) {
@@ -152,11 +150,8 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected void processTasks(TasksRequest request, Consumer<OperationTask> operation, ActionListener<Void> nodeOperation) {
-        for (final var task : processTasks(request)) {
-            operation.accept(task);
-        }
-        nodeOperation.onResponse(null);
+    protected void processTasks(TasksRequest request, ActionListener<List<OperationTask>> nodeOperation) {
+        nodeOperation.onResponse(processTasks(request));
     }
 
     @SuppressWarnings("unchecked")
